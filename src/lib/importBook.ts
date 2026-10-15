@@ -1,7 +1,9 @@
 import { ImportError, explainImportError } from './errors'
-import { contentId, getBook, listBooks, saveBook, type BookRecord } from './db'
+import { contentId, deleteBook, getBook, listBooks, saveBook, type BookMeta, type BookRecord } from './db'
 
-const norm = (s: string) => s.normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase()
+const ALREADY_EXISTS = 'הספר כבר קיים בספרייה.'
+
+const norm =(s: string) => s.normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase()
 
 const langMap = (v: unknown): string => {
   if (!v) return ''
@@ -26,24 +28,36 @@ const isTxt = (f: File) => /\.txt$/i.test(f.name) || f.type === 'text/plain'
 const isPdf = (f: File) => /\.pdf$/i.test(f.name) || f.type === 'application/pdf'
 const isEpub = (f: File) => /\.epub$/i.test(f.name) || f.type === 'application/epub+zip'
 
+/** what to do when the library already holds a book with the same title and author */
+export type DuplicateChoice = 'replace' | 'add' | 'skip'
+export type OnDuplicate = (existing: BookMeta) => Promise<DuplicateChoice>
+
 /** Adds a book to the library. Failures are rethrown as ImportError with a message fit to show the user. */
-export async function importFile(file: File, onProgress?: (msg: string) => void): Promise<BookRecord> {
+export async function importFile(
+  file: File,
+  onProgress?: (msg: string) => void,
+  onDuplicate?: OnDuplicate,
+): Promise<BookRecord> {
   if (!file.size) throw new ImportError('הקובץ ריק.')
   if (!isEpub(file) && !isPdf(file) && !isTxt(file))
     throw new ImportError('סוג הקובץ לא נתמך. אפשר להוסיף קובצי EPUB, PDF או TXT.')
   try {
-    return await readIntoLibrary(file, onProgress)
+    return await readIntoLibrary(file, onProgress, onDuplicate)
   } catch (e) {
     console.error(e)
     throw new ImportError(explainImportError(e))
   }
 }
 
-async function readIntoLibrary(file: File, onProgress?: (msg: string) => void): Promise<BookRecord> {
+async function readIntoLibrary(
+  file: File,
+  onProgress?: (msg: string) => void,
+  onDuplicate?: OnDuplicate,
+): Promise<BookRecord> {
   // Hash the file as the user supplied it (a PDF/TXT conversion isn't guaranteed to be byte-stable).
   const id = await contentId(file)
   const existing = await getBook(id)
-  if (existing) return existing
+  if (existing) throw new ImportError(ALREADY_EXISTS)
 
   // Converters pull in pdf.js / JSZip, so they load only when an import actually needs them.
   const { makeBook } = await import('foliate-js/view.js')
@@ -83,14 +97,18 @@ async function readIntoLibrary(file: File, onProgress?: (msg: string) => void): 
   const title = langMap(book.metadata?.title) || epub.name.replace(/\.[^.]+$/, '')
   const author = contributor(book.metadata?.author)
 
-  // Same book saved under a different file name (so different bytes/hash): match on title + author.
-  const key = (t: string, a: string) => `${norm(t)}\u0000${norm(a)}`
-  const wanted = key(title, author)
-  const dup = (await listBooks()).find((b) => key(b.title, b.author) === wanted)
+  // Same book in another format or under another file name (so different bytes/hash): match on title + author.
+  // A missing author on either side (common with PDFs) still counts as a match.
+  const sameBook = (b: BookMeta) =>
+    norm(b.title) === norm(title) && (!norm(b.author) || !norm(author) || norm(b.author) === norm(author))
+  const dup = (await listBooks()).find(sameBook)
   if (dup) {
-    book.destroy?.()
-    const full = await getBook(dup.id)
-    if (full) return full
+    const choice = onDuplicate ? await onDuplicate(dup) : 'skip'
+    if (choice === 'skip') {
+      book.destroy?.()
+      throw new ImportError(ALREADY_EXISTS)
+    }
+    if (choice === 'replace') await deleteBook(dup.id)
   }
 
   const rec: BookRecord = {

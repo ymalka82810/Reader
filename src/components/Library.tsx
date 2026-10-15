@@ -2,7 +2,7 @@ import { Dropdown } from './Dropdown'
 import { Dialog } from './Dialog'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { deleteBook, isFinished, listBooks, setFinished, updateMeta, type BookMeta } from '../lib/db'
-import { importFile } from '../lib/importBook'
+import { importFile, type DuplicateChoice } from '../lib/importBook'
 import { PasswordRequiredError, WrongPasswordError } from '../lib/encrypt'
 import { backupDue, exportLibrary, exportLibraryTo, importLibrary, librarySize, markBackedUp } from '../lib/backup'
 import { download } from '../lib/download'
@@ -69,6 +69,8 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   const [selecting, setSelecting] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [confirmDel, setConfirmDel] = useState<BookMeta[]>()
+  // a same-title book already exists: waits for the user's choice
+  const [dupAsk, setDupAsk] = useState<{ file: string; existing: BookMeta; answer: (c: DuplicateChoice) => void }>()
   // password prompt: for a new backup (optional password) or for restoring an encrypted one
   const [pwAsk, setPwAsk] = useState<{ kind: 'export' } | { kind: 'import'; file: File; wrong?: boolean }>()
   const [pw, setPw] = useState('')
@@ -147,7 +149,11 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
     for (const f of Array.from(files)) {
       try {
         setBusy(`מוסיף את ${f.name}…`)
-        await importFile(f, setBusy)
+        await importFile(
+          f,
+          setBusy,
+          (existing) => new Promise<DuplicateChoice>((resolve) => setDupAsk({ file: f.name, existing, answer: resolve })),
+        )
         await refresh() // show each book as soon as it's done
       } catch (e) {
         errors.push(`${f.name}: ${e instanceof Error ? e.message : String(e)}`)
@@ -462,6 +468,46 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
         <div className="lib-toast" role="status">
           <span>{toast.msg}</span>
           {toast.undo && <button onClick={toast.undo}>בטל</button>}
+        </div>
+      )}
+
+      {dupAsk && (
+        <div className="modal-backdrop">
+          <Dialog className="modal" role="alertdialog" aria-modal="true" aria-label="הספר כבר קיים">
+            <h2>הספר כבר קיים בספרייה</h2>
+            <p>
+              ״{dupAsk.existing.title}״ כבר בספרייה. להחליף אותו בקובץ {dupAsk.file}? החלפה תמחק את הגרסה הקיימת יחד
+              עם מיקום הקריאה וההערות שלה.
+            </p>
+            <div className="modal-actions">
+              <button
+                className="danger"
+                onClick={() => {
+                  dupAsk.answer('replace')
+                  setDupAsk(undefined)
+                }}
+              >
+                החלף
+              </button>
+              <button
+                onClick={() => {
+                  dupAsk.answer('add')
+                  setDupAsk(undefined)
+                }}
+              >
+                הוסף בכל זאת
+              </button>
+              <button
+                onClick={() => {
+                  dupAsk.answer('skip')
+                  setDupAsk(undefined)
+                }}
+                autoFocus
+              >
+                דלג
+              </button>
+            </div>
+          </Dialog>
         </div>
       )}
 
