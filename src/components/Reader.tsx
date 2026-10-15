@@ -238,6 +238,14 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
               console.error(err)
             }
           })
+          // stop the browser's double-tap word selection on the page-turn edges
+          doc.addEventListener('mousedown', (ev: MouseEvent) => {
+            if (ev.detail < 2) return
+            const frame = doc.defaultView?.frameElement as HTMLElement | null
+            const x = (frame?.getBoundingClientRect().left ?? 0) + ev.clientX
+            const w = window.innerWidth
+            if (x < w * EDGE || x > w * (1 - EDGE)) ev.preventDefault()
+          })
           doc.addEventListener('click', (ev: MouseEvent) => {
             const t = ev.target as Element
             if (t.closest?.('a')) return
@@ -252,6 +260,11 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
               setSelection(null)
               setUiVisible((vis) => !vis)
               return
+            }
+            // rapid taps on the edges are page turns, not word selections
+            if (!inMiddle && ev.detail >= 2) {
+              doc.getSelection()?.removeAllRanges()
+              setSelection(null)
             }
             if (doc.getSelection()?.toString()) return
             // a tap on a highlight opens it; the overlay handler fires on the same event
