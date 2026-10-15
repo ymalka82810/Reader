@@ -8,3 +8,6 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 )
+
+// ask the browser not to evict the library (IndexedDB) under storage pressure
+navigator.storage?.persist?.().catch(() => {})

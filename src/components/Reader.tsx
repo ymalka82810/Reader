@@ -128,6 +128,13 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   useEffect(() => {
     let cancelled = false
     let saveTimer: number | undefined
+    let pendingSave: (() => void) | undefined
+    const flushProgress = () => {
+      window.clearTimeout(saveTimer)
+      pendingSave?.()
+      pendingSave = undefined
+    }
+    window.addEventListener('pagehide', flushProgress)
     const view: any = document.createElement('foliate-view')
     view.style.cssText = 'display:block;width:100%;height:100%'
 
@@ -240,9 +247,10 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
           setChapter(d.tocItem?.label ?? '')
           requestAnimationFrame(() => recompute(d))
           window.clearTimeout(saveTimer)
-          saveTimer = window.setTimeout(() => {
-            if (d.cfi) updateProgress(id, d.cfi, d.fraction ?? 0)
-          }, 800)
+          if (d.cfi) {
+            pendingSave = () => updateProgress(id, d.cfi, d.fraction ?? 0)
+            saveTimer = window.setTimeout(flushProgress, 800)
+          }
         })
 
         await view.init({ lastLocation: rec.cfi, showTextStart: !rec.cfi })
@@ -261,6 +269,8 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     return () => {
       cancelled = true
       window.clearTimeout(saveTimer)
+      flushProgress() // don't lose the last position if the book is closed within the debounce window
+      window.removeEventListener('pagehide', flushProgress)
       window.removeEventListener('keydown', onKey)
       try {
         view.close?.()

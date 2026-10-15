@@ -1,4 +1,15 @@
-import { getNotes, listBooks, saveBook, saveNotes, type Annotation, type BookRecord } from './db'
+import {
+  getAllProgress,
+  getNotes,
+  listBooks,
+  mergeProgress,
+  saveBook,
+  saveNotes,
+  type Annotation,
+  type BookRecord,
+  type Progress,
+} from './db'
+import { loadSettings, saveSettings, type Settings } from './settings'
 
 /** Container format: [4-byte LE header length][JSON header][concatenated blob bytes].
  *  Keeps the whole library (files, covers, metadata, reading progress) in one file,
@@ -16,6 +27,38 @@ interface Manifest {
   books: ManifestBook[]
   /** highlights/bookmarks per book id (absent in backups made before annotations existed) */
   notes?: Record<string, Annotation[]>
+  /** reading positions per book id (older backups carry them inside each book instead) */
+  progress?: Record<string, Progress>
+  /** display settings of the device that made the backup */
+  settings?: Settings
+}
+
+const BACKUP_KEY = 'reader:lastBackup'
+const SINCE_KEY = 'reader:backupSince'
+const REMIND_AFTER_MS = 14 * 24 * 3600 * 1000
+
+export function markBackedUp() {
+  try {
+    localStorage.setItem(BACKUP_KEY, String(Date.now()))
+  } catch {
+    /* ignore */
+  }
+}
+
+/** true when the library has gone more than two weeks without a backup (counted from first use if never backed up) */
+export function backupDue(): boolean {
+  try {
+    const last = Number(localStorage.getItem(BACKUP_KEY)) || 0
+    if (last) return Date.now() - last > REMIND_AFTER_MS
+    let since = Number(localStorage.getItem(SINCE_KEY)) || 0
+    if (!since) {
+      since = Date.now()
+      localStorage.setItem(SINCE_KEY, String(since))
+    }
+    return Date.now() - since > REMIND_AFTER_MS
+  } catch {
+    return false
+  }
 }
 
 export async function exportLibrary(onProgress?: (done: number, total: number) => void): Promise<Blob> {
@@ -48,7 +91,13 @@ export async function exportLibrary(onProgress?: (done: number, total: number) =
     onProgress?.(i + 1, books.length)
   }
 
-  const manifest: Manifest = { version: 1, books: manifestBooks, notes }
+  const manifest: Manifest = {
+    version: 1,
+    books: manifestBooks,
+    notes,
+    progress: await getAllProgress(),
+    settings: loadSettings(),
+  }
   const headerBytes = new TextEncoder().encode(JSON.stringify(manifest))
   const lenPrefix = new Uint8Array(4)
   new DataView(lenPrefix.buffer).setUint32(0, headerBytes.byteLength, true)
@@ -77,6 +126,9 @@ export async function importLibrary(
       : undefined
     const rec: BookRecord = { ...rest, file: fileBlob, cover: coverBlob }
     await saveBook(rec)
+    // newest reading position wins, so restoring an old backup never rewinds a book
+    const prog = header.progress?.[rec.id] ?? (rec.cfi ? { cfi: rec.cfi, fraction: rec.fraction ?? 0, lastOpened: rec.lastOpened ?? rec.addedAt } : undefined)
+    if (prog) await mergeProgress(rec.id, prog)
     const incoming = header.notes?.[rec.id]
     if (incoming?.length) {
       // merge with notes already on this device, keeping one copy of each
@@ -86,5 +138,6 @@ export async function importLibrary(
     }
     onProgress?.(i + 1, header.books.length)
   }
+  if (header.settings) saveSettings({ ...loadSettings(), ...header.settings })
   return header.books.length
 }

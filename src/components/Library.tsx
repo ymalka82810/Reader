@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { deleteBook, listBooks, updateMeta, type BookRecord } from '../lib/db'
 import { importFile } from '../lib/importBook'
-import { exportLibrary, importLibrary } from '../lib/backup'
+import { backupDue, exportLibrary, importLibrary, markBackedUp } from '../lib/backup'
+import { exportSync, importSync } from '../lib/sync'
 
 function Cover({ book }: { book: BookRecord }) {
   const [url, setUrl] = useState<string>()
@@ -31,6 +32,8 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   const [editAuthor, setEditAuthor] = useState('')
   const input = useRef<HTMLInputElement>(null)
   const restoreInput = useRef<HTMLInputElement>(null)
+  const syncInput = useRef<HTMLInputElement>(null)
+  const [remind, setRemind] = useState(backupDue)
 
   const refresh = useCallback(async () => setBooks(await listBooks()), [])
   useEffect(() => {
@@ -77,6 +80,8 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
       a.download = `גיבוי-ספרייה-${new Date().toISOString().slice(0, 10)}.readerbackup`
       a.click()
       URL.revokeObjectURL(url)
+      markBackedUp()
+      setRemind(false)
     } catch (e) {
       setError(`גיבוי נכשל: ${e instanceof Error ? e.message : String(e)}`)
     }
@@ -93,6 +98,39 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
     } catch (e) {
       setError(`שחזור נכשל: ${e instanceof Error ? e.message : String(e)}`)
       setBusy(undefined)
+    }
+    await refresh()
+  }
+
+  const download = (blob: Blob, name: string) => {
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = name
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const doSyncExport = async () => {
+    setError(undefined)
+    try {
+      download(await exportSync(), `סנכרון-${new Date().toISOString().slice(0, 10)}.readersync`)
+    } catch (e) {
+      setError(`ייצוא נכשל: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+
+  const doSyncImport = async (file: File) => {
+    setError(undefined)
+    try {
+      const r = await importSync(file)
+      alert(
+        `עודכנו ${r.moved} מיקומי קריאה, נוספו ${r.notes} הערות.` +
+          (r.skipped ? `
+${r.skipped} ספרים לא נמצאו במכשיר הזה ודולגו.` : ''),
+      )
+    } catch (e) {
+      setError(`ייבוא נכשל: ${e instanceof Error ? e.message : String(e)}`)
     }
     await refresh()
   }
@@ -159,7 +197,30 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
             e.target.value = ''
           }}
         />
+        <button onClick={doSyncExport} disabled={!!busy} title="מיקום קריאה והערות בלבד, קובץ קטן">
+          ייצוא התקדמות
+        </button>
+        <button onClick={() => syncInput.current?.click()} disabled={!!busy}>
+          ייבוא התקדמות
+        </button>
+        <input
+          ref={syncInput}
+          type="file"
+          hidden
+          accept=".readersync,application/json"
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) doSyncImport(f)
+            e.target.value = ''
+          }}
+        />
       </header>
+
+      {remind && books.length > 0 && (
+        <div className="notice" onClick={() => setRemind(false)}>
+          עברו יותר משבועיים בלי גיבוי. הדפדפן עלול למחוק את הספרייה — לחץ על ״גיבוי״ לשמירת עותק.
+        </div>
+      )}
 
       {books.length > 1 && (
         <div className="lib-tools">
