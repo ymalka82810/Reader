@@ -3,7 +3,7 @@ import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
 
-interface Line {
+export interface Line {
   text: string
   y: number
   h: number
@@ -46,7 +46,7 @@ async function extractLines(page: pdfjs.PDFPageProxy): Promise<Line[]> {
 }
 
 /** Some Hebrew PDFs store text in visual order (reversed). Detect via final-letter positions. */
-function looksReversed(allLines: Line[][]): boolean {
+export function looksReversed(allLines: Line[][]): boolean {
   let atStart = 0
   let atEnd = 0
   for (const lines of allLines)
@@ -64,7 +64,7 @@ const MIRROR: Record<string, string> = {
   '(': ')', ')': '(', '[': ']', ']': '[', '{': '}', '}': '{', '<': '>', '>': '<', '«': '»', '»': '«',
 }
 
-function fixVisual(s: string): string {
+export function fixVisual(s: string): string {
   if (!HEB.test(s)) return s
   const rev = [...s].reverse().map((c) => MIRROR[c] ?? c).join('')
   // digit/latin runs were reversed too; flip them back
@@ -78,7 +78,7 @@ function median(a: number[]): number {
 }
 
 /** Group a page's lines into paragraphs. */
-function toParagraphs(lines: Line[], reversed: boolean): string[] {
+export function toParagraphs(lines: Line[], reversed: boolean): string[] {
   // drop bare page numbers at the top/bottom of the page
   const isNum = (l?: Line) => !!l && /^[\d\s\-–]{1,6}$/.test(l.text)
   let ls = lines
@@ -167,7 +167,7 @@ async function outlineStarts(pdf: pdfjs.PDFDocumentProxy): Promise<Map<number, s
 }
 
 /** Guess chapter headings from big, short lines (or "פרק …"/"Chapter …" lines) when there are no bookmarks. */
-function detectHeadings(pages: Line[][], reversed: boolean): Map<number, string> {
+export function detectHeadings(pages: Line[][], reversed: boolean): Map<number, string> {
   const hs = pages.flat().map((l) => l.h)
   const body = median(hs)
   const out = new Map<number, string>()
@@ -179,9 +179,11 @@ function detectHeadings(pages: Line[][], reversed: boolean): Map<number, string>
     const top = lines.slice(0, 6)
     const run: string[] = []
     for (const l of top) {
-      const big = l.h >= body * 1.3 && l.text.length <= 70 && !/[.,;]$/.test(l.text)
-      const byName = named.test(l.text) && l.text.length <= 50
-      if (big || byName) run.push(reversed ? fixVisual(l.text) : l.text)
+      // a reversed line only matches the "פרק …" pattern once put back in logical order
+      const text = reversed ? fixVisual(l.text) : l.text
+      const big = l.h >= body * 1.3 && l.text.length <= 70 && !/[.,;]$/.test(text)
+      const byName = named.test(text) && l.text.length <= 50
+      if (big || byName) run.push(text)
       else if (run.length) break
     }
     const text = run.join(' ').trim()
