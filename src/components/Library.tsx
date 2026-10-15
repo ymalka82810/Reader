@@ -260,7 +260,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
       setDupBatch(undefined)
       for (const [i, d] of deferred.entries()) {
         try {
-          await d.err.commit(choices[i])
+          await d.err.commit(choices[i] ?? 'skip')
         } catch (e) {
           errors.push(`${d.name}: ${e instanceof Error ? e.message : String(e)}`)
         }

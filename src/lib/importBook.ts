@@ -33,13 +33,15 @@ export type OnDuplicate = (existing: BookMeta) => Promise<DuplicateChoice | 'def
 
 /** Thrown when onDuplicate answered 'defer': the book is parsed and waiting; call commit to finish or drop it. */
 export class DeferredDuplicate extends Error {
-  constructor(
-    public existing: BookMeta,
-    public title: string,
-    public commit: (choice: DuplicateChoice) => Promise<BookRecord | undefined>,
-  ) {
+  existing: BookMeta
+  title: string
+  commit: (choice: DuplicateChoice) => Promise<BookRecord | undefined>
+  constructor(existing: BookMeta, title: string, commit: (choice: DuplicateChoice) => Promise<BookRecord | undefined>) {
     super('deferred')
     this.name = 'DeferredDuplicate'
+    this.existing = existing
+    this.title = title
+    this.commit = commit
   }
 }
 
