@@ -193,6 +193,7 @@ export function bookFromSections(x: LegacyPdfBook) {
       if (u) URL.revokeObjectURL(u)
       urls.delete(i)
     },
+    createDocument: () => new DOMParser().parseFromString(html, 'text/html'),
   }))
   const book: any = {}
   book.metadata = { title: x.title, author: x.author, language: x.rtl ? 'he' : 'en' }

@@ -18,6 +18,17 @@ interface TocItem {
   subitems?: TocItem[]
 }
 
+interface SearchExcerpt {
+  pre: string
+  match: string
+  post: string
+}
+
+interface SearchGroup {
+  label: string
+  items: { cfi: string; excerpt: SearchExcerpt }[]
+}
+
 const flatten = (items: TocItem[] | null | undefined, depth = 0): (TocItem & { depth: number })[] =>
   (items ?? []).flatMap((i) => [{ ...i, depth }, ...flatten(i.subitems, depth + 1)])
 
@@ -38,12 +49,16 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [error, setError] = useState('')
   const [uiVisible, setUiVisible] = useState(true)
-  const [panel, setPanel] = useState<'toc' | 'settings' | null>(null)
+  const [panel, setPanel] = useState<'toc' | 'settings' | 'search' | null>(null)
   const panelRef = useRef(panel)
   useEffect(() => {
     panelRef.current = panel
   }, [panel])
   const [toc, setToc] = useState<(TocItem & { depth: number })[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<SearchGroup[]>([])
+  const [searching, setSearching] = useState(false)
+  const searchToken = useRef(0)
   const [fraction, setFraction] = useState(0)
   const [dragFraction, setDragFraction] = useState<number | null>(null)
   const [pages, setPages] = useState<{ current: number; total: number } | null>(null)
@@ -202,6 +217,27 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     }
   }, [settings, recompute])
 
+  const runSearch = useCallback(async (query: string) => {
+    const view = viewRef.current
+    const token = ++searchToken.current
+    if (!view || !query.trim()) {
+      view?.clearSearch()
+      setSearchResults([])
+      return
+    }
+    setSearching(true)
+    setSearchResults([])
+    try {
+      for await (const r of view.search({ query })) {
+        if (token !== searchToken.current) return
+        if (r === 'done') break
+        if (r.subitems) setSearchResults((prev) => [...prev, { label: r.label, items: r.subitems }])
+      }
+    } finally {
+      if (token === searchToken.current) setSearching(false)
+    }
+  }, [])
+
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) => setSettings((s) => ({ ...s, [k]: v }))
   const bump = (d: number) => set('fontSize', Math.min(MAX_FONT, Math.max(MIN_FONT, settings.fontSize + d)))
 
@@ -232,6 +268,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
         <button onClick={onClose} aria-label="חזרה לספרייה">→</button>
         <div className="title">{title}</div>
         <button onClick={() => setPanel(panel === 'toc' ? null : 'toc')}>☰</button>
+        <button onClick={() => setPanel(panel === 'search' ? null : 'search')} aria-label="חיפוש">🔍</button>
         <button onClick={() => setPanel(panel === 'settings' ? null : 'settings')}>Aa</button>
       </div>
 
@@ -277,6 +314,55 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
                 >
                   {t.label}
                 </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {panel === 'search' && (
+        <div className="panel search">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              runSearch(searchQuery)
+            }}
+          >
+            <input
+              type="search"
+              placeholder="חיפוש בספר…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              autoFocus
+            />
+            <button type="submit" disabled={searching || !searchQuery.trim()}>
+              חפש
+            </button>
+          </form>
+          {searching && <p className="muted">מחפש…</p>}
+          {!searching && searchQuery.trim() && searchResults.length === 0 && (
+            <p className="muted">לא נמצאו תוצאות.</p>
+          )}
+          <ul className="search-results">
+            {searchResults.map((group, gi) => (
+              <li key={gi}>
+                <strong>{group.label}</strong>
+                <ul>
+                  {group.items.map((item, ii) => (
+                    <li key={ii}>
+                      <button
+                        onClick={() => {
+                          viewRef.current?.goTo(item.cfi)
+                          setPanel(null)
+                        }}
+                      >
+                        {item.excerpt.pre}
+                        <mark>{item.excerpt.match}</mark>
+                        {item.excerpt.post}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               </li>
             ))}
           </ul>
