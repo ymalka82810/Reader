@@ -12,7 +12,19 @@ export interface Settings {
   accessible: boolean
   /** animate page turns with a smooth slide instead of an instant jump */
   pageTransition: boolean
+  /** Wiktionary edition used by the dictionary lookup; 'auto' follows the book's language */
+  dictLang: string
 }
+
+export const DICT_LANGS: [string, string][] = [
+  ['he', 'עברית'],
+  ['en', 'English'],
+  ['ar', 'العربية'],
+  ['ru', 'Русский'],
+  ['fr', 'Français'],
+  ['de', 'Deutsch'],
+  ['es', 'Español'],
+]
 
 const DEFAULTS: Settings = {
   fontSize: 20,
@@ -23,6 +35,7 @@ const DEFAULTS: Settings = {
   justify: false,
   accessible: false,
   pageTransition: true,
+  dictLang: 'auto',
 }
 
 const KEY = 'reader:settings'

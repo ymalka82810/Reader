@@ -3,12 +3,14 @@ import 'foliate-js/view.js'
 import { Overlayer } from 'foliate-js/overlayer.js'
 import { compare as cfiCompare } from 'foliate-js/epubcfi.js'
 import { Dialog } from './Dialog'
+import { MAX_FONT, MIN_FONT, clampFont, useBookEvents, type Selection } from '../hooks/useBookEvents'
 import { getBook, getNotes, newId, saveNotes, updateProgress, type Annotation } from '../lib/db'
 import { download } from '../lib/download'
 import { bookFromSections } from '../lib/pdfToBook'
 import { addStats, formatMinutes, minutesLeft } from '../lib/stats'
 import {
   bookCSS,
+  DICT_LANGS,
   loadSettings,
   saveSettings,
   themeColors,
@@ -38,10 +40,8 @@ const flatten = (items: TocItem[] | null | undefined, depth = 0): (TocItem & { d
   (items ?? []).flatMap((i) => [{ ...i, depth }, ...flatten(i.subitems, depth + 1)])
 
 const HIGHLIGHT_COLORS = ['#f2c744', '#5fbf6a', '#4a9be8', '#e8688c']
-const MIN_FONT = 12
-const MAX_FONT = 48
-/** share of the screen width, on each side, that turns the page when tapped */
-const EDGE = 0.3
+/** a one-letter query in a big book would otherwise flood state and the DOM */
+const MAX_SEARCH_RESULTS = 200
 
 export default function Reader({ id, onClose }: { id: string; onClose: () => void }) {
   const host = useRef<HTMLDivElement>(null)
@@ -65,6 +65,9 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   const [searchResults, setSearchResults] = useState<SearchGroup[]>([])
   const [searching, setSearching] = useState(false)
   const searchToken = useRef(0)
+  const [searchCapped, setSearchCapped] = useState(false)
+  /** primary language subtag of the open book ("he", "en", …), '' when unknown */
+  const bookLang = useRef('')
   const [fraction, setFraction] = useState(0)
   const [dragFraction, setDragFraction] = useState<number | null>(null)
   const [pages, setPages] = useState<{ current: number; total: number; approx: boolean } | null>(null)
@@ -74,15 +77,23 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   const notesRef = useRef<Annotation[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
   /** text currently selected in the book, with where to float the colour bar */
-  const [selection, setSelection] = useState<{ cfi: string; text: string; x: number; y: number } | null>(null)
+  const [selection, setSelection] = useState<Selection | null>(null)
   const selectionRef = useRef(selection)
   selectionRef.current = selection
   const lastAnnotationClick = useRef(0)
   const [toast, setToast] = useState('')
   const [left, setLeft] = useState<number | null>(null)
   const actions = useRef({ bookmark: () => {}, gotoBookmark: (_d: 1 | -1) => {}, bump: (_d: number) => {}, panel: (_p: NonNullable<typeof panel>) => {} })
-  const titleRef = useRef('')
-  titleRef.current = title
+  const attachDocHandlers = useBookEvents({
+    viewRef,
+    settingsRef,
+    panelRef,
+    lastAnnotationClick,
+    setSettings,
+    setSelection,
+    setUiVisible,
+    setPanel,
+  })
 
   const commitNotes = useCallback(
     (next: Annotation[]) => {
@@ -232,111 +243,11 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
 
         setTitle(rec.title)
         setDir(view.book.dir === 'ltr' ? 'ltr' : 'rtl')
+        const lang = [view.book.metadata?.language].flat()[0]
+        bookLang.current = typeof lang === 'string' ? lang.split(/[-_]/)[0].toLowerCase() : ''
         setToc(flatten(view.book.toc))
 
-        view.addEventListener('load', (e: CustomEvent) => {
-          const doc: Document = e.detail.doc
-          const index: number = e.detail.index
-          doc.addEventListener('keydown', onKey)
-          doc.addEventListener('selectionchange', () => {
-            const sel = doc.getSelection()
-            const text = sel?.toString().trim()
-            if (!sel || sel.isCollapsed || !text) {
-              // short delay so a tap on the colour bar still finds the selection
-              window.setTimeout(() => {
-                if (!doc.getSelection()?.toString().trim()) setSelection((cur) => (cur ? null : cur))
-              }, 150)
-              return
-            }
-            const range = sel.getRangeAt(0)
-            const rect = range.getBoundingClientRect()
-            const fr = (doc.defaultView?.frameElement as HTMLElement | null)?.getBoundingClientRect()
-            try {
-              setSelection({
-                cfi: view.getCFI(index, range),
-                text,
-                x: (fr?.left ?? 0) + rect.left + rect.width / 2,
-                y: (fr?.top ?? 0) + rect.top,
-              })
-            } catch (err) {
-              console.error(err)
-            }
-          })
-          // stop the browser's double-tap word selection on the page-turn edges
-          doc.addEventListener('mousedown', (ev: MouseEvent) => {
-            if (ev.detail < 2) return
-            const frame = doc.defaultView?.frameElement as HTMLElement | null
-            const x = (frame?.getBoundingClientRect().left ?? 0) + ev.clientX
-            const w = window.innerWidth
-            if (x < w * EDGE || x > w * (1 - EDGE)) ev.preventDefault()
-          })
-          doc.addEventListener('click', (ev: MouseEvent) => {
-            const t = ev.target as Element
-            if (t.closest?.('a')) return
-            // click position relative to the whole screen (the iframe can be offset/scrolled)
-            const frame = doc.defaultView?.frameElement as HTMLElement | null
-            const x = (frame?.getBoundingClientRect().left ?? 0) + ev.clientX
-            const w = window.innerWidth
-            const inMiddle = x >= w * EDGE && x <= w * (1 - EDGE)
-            // double tap in the middle toggles the bars; drop the word it selected
-            if (inMiddle && ev.detail >= 2 && !panelRef.current) {
-              doc.getSelection()?.removeAllRanges()
-              setSelection(null)
-              setUiVisible((vis) => !vis)
-              return
-            }
-            // rapid taps on the edges are page turns, not word selections
-            if (!inMiddle && ev.detail >= 2) {
-              doc.getSelection()?.removeAllRanges()
-              setSelection(null)
-            }
-            if (doc.getSelection()?.toString()) return
-            // a tap on a highlight opens it; the overlay handler fires on the same event
-            if (Date.now() - lastAnnotationClick.current < 300) return
-            if (panelRef.current) {
-              setPanel(null)
-              return
-            }
-            // foliate's touchend handler re-snaps to the current page on the next animation frame;
-            // turning in the same tick lets that snap fight the page-turn animation and cancel it
-            // (so a tap sometimes appears to do nothing). Wait until it has run.
-            const turn = x < w * EDGE ? 'goLeft' : x > w * (1 - EDGE) ? 'goRight' : null
-            if (turn) requestAnimationFrame(() => requestAnimationFrame(() => viewRef.current?.[turn]()))
-          })
-
-          // pinch with two fingers to shrink/grow the text, like the Aa buttons
-          const pinchDist = (t: TouchEvent) => {
-            const a = t.touches[0]
-            const b = t.touches[1]
-            return a && b ? Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) : 0
-          }
-          let pinchStartDist: number | null = null
-          let pinchStartFont = 0
-          doc.addEventListener(
-            'touchstart',
-            (ev: TouchEvent) => {
-              if (ev.touches.length === 2) {
-                pinchStartDist = pinchDist(ev)
-                pinchStartFont = settingsRef.current.fontSize
-              }
-            },
-            { passive: true },
-          )
-          doc.addEventListener(
-            'touchmove',
-            (ev: TouchEvent) => {
-              if (ev.touches.length !== 2 || pinchStartDist === null) return
-              ev.preventDefault()
-              const scale = pinchDist(ev) / pinchStartDist
-              const next = Math.round(Math.min(MAX_FONT, Math.max(MIN_FONT, pinchStartFont * scale)))
-              setSettings((s) => (s.fontSize === next ? s : { ...s, fontSize: next }))
-            },
-            { passive: false },
-          )
-          doc.addEventListener('touchend', (ev: TouchEvent) => {
-            if (ev.touches.length < 2) pinchStartDist = null
-          })
-        })
+        view.addEventListener('load', (e: CustomEvent) => attachDocHandlers(e.detail, onKey))
         view.addEventListener('draw-annotation', (e: CustomEvent) => {
           const { draw, annotation } = e.detail
           draw(Overlayer.highlight, { color: annotation.color })
@@ -402,7 +313,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
       view.remove()
       viewRef.current = null
     }
-  }, [id, recompute])
+  }, [id, recompute, attachDocHandlers])
 
   // ---- apply settings changes live ----
   useEffect(() => {
@@ -422,26 +333,49 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     }
   }, [settings, recompute])
 
+  /** cancels a running search: its loop sees the stale token and stops pulling results */
+  const cancelSearch = useCallback(() => {
+    searchToken.current++
+    setSearching(false)
+  }, [])
+
   const runSearch = useCallback(async (query: string) => {
     const view = viewRef.current
     const token = ++searchToken.current
+    setSearchCapped(false)
     if (!view || !query.trim()) {
       view?.clearSearch()
       setSearchResults([])
+      setSearching(false)
       return
     }
     setSearching(true)
     setSearchResults([])
+    let count = 0
     try {
+      // returning from the loop calls the generator's return(), which stops the scan
       for await (const r of view.search({ query })) {
         if (token !== searchToken.current) return
         if (r === 'done') break
-        if (r.subitems) setSearchResults((prev) => [...prev, { label: r.label, items: r.subitems }])
+        if (!r.subitems) continue
+        const items = r.subitems.slice(0, MAX_SEARCH_RESULTS - count)
+        count += items.length
+        setSearchResults((prev) => [...prev, { label: r.label, items }])
+        if (count >= MAX_SEARCH_RESULTS) {
+          setSearchCapped(true)
+          break
+        }
       }
     } finally {
       if (token === searchToken.current) setSearching(false)
     }
   }, [])
+
+  // stop scanning when the search panel closes or the reader unmounts
+  useEffect(() => {
+    if (panel !== 'search') cancelSearch()
+  }, [panel, cancelSearch])
+  useEffect(() => cancelSearch, [cancelSearch])
 
   const addHighlight = (color: string) => {
     const sel = selectionRef.current
@@ -534,17 +468,20 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   }
 
   const lookUp = () => {
-    const word = selectionRef.current?.text.split(/\s+/)[0]
-    if (word) window.open(`https://he.wiktionary.org/wiki/${encodeURIComponent(word.replace(/[^\p{L}\p{M}'-]/gu, ''))}`, '_blank', 'noopener')
+    const word = selectionRef.current?.text.trim().split(/\s+/)[0]?.replace(/^[^\p{L}\p{M}]+|[^\p{L}\p{M}]+$/gu, '')
+    if (!word) return
+    let lang = settingsRef.current.dictLang
+    if (lang === 'auto') lang = bookLang.current || (/\p{Script=Hebrew}/u.test(word) ? 'he' : 'en')
+    window.open(`https://${lang}.wiktionary.org/wiki/${encodeURIComponent(word)}`, '_blank', 'noopener')
   }
 
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) => setSettings((s) => ({ ...s, [k]: v }))
-  const bump = (d: number) => set('fontSize', Math.min(MAX_FONT, Math.max(MIN_FONT, settings.fontSize + d)))
+  const bump = (d: number) => set('fontSize', clampFont(settings.fontSize + d))
 
   actions.current = {
     bookmark: toggleBookmark,
     gotoBookmark,
-    bump: (d) => setSettings((s) => ({ ...s, fontSize: Math.min(MAX_FONT, Math.max(MIN_FONT, s.fontSize + d)) })),
+    bump: (d) => setSettings((s) => ({ ...s, fontSize: clampFont(s.fontSize + d) })),
     panel: (p) => setPanel((cur) => (cur === p ? null : p)),
   }
 
@@ -770,11 +707,18 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
               onChange={(e) => setSearchQuery(e.target.value)}
               autoFocus
             />
-            <button type="submit" disabled={searching || !searchQuery.trim()}>
-              חפש
-            </button>
+            {searching ? (
+              <button type="button" onClick={cancelSearch}>
+                עצור
+              </button>
+            ) : (
+              <button type="submit" disabled={!searchQuery.trim()}>
+                חפש
+              </button>
+            )}
           </form>
           {searching && <p className="muted">מחפש…</p>}
+          {searchCapped && <p className="muted">מוצגות {MAX_SEARCH_RESULTS} התוצאות הראשונות. צמצמו את החיפוש כדי לראות עוד.</p>}
           {!searching && searchQuery.trim() && searchResults.length === 0 && (
             <p className="muted">לא נמצאו תוצאות.</p>
           )}
@@ -868,6 +812,17 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
               onChange={(e) => set('pageTransition', e.target.checked)}
             />
             אנימציית מעבר בין עמודים
+          </label>
+          <label className="check">
+            מילון (ויקימילון):{' '}
+            <select value={settings.dictLang} onChange={(e) => set('dictLang', e.target.value)}>
+              <option value="auto">לפי שפת הספר</option>
+              {DICT_LANGS.map(([code, name]) => (
+                <option key={code} value={code}>
+                  {name}
+                </option>
+              ))}
+            </select>
           </label>
           <ul className="shortcuts">
             <li><kbd>←</kbd> <kbd>→</kbd> <kbd>רווח</kbd> מעבר עמוד</li>
