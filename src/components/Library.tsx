@@ -612,20 +612,21 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
                     <span>
                       ״{it.existing.title}״ ← {it.name}
                     </span>
-                    <select
+                    <Dropdown
+                      label={`פעולה עבור ${it.existing.title}`}
                       value={it.choice}
-                      onChange={(e) => {
-                        const choice = e.target.value as DuplicateChoice
+                      onChange={(choice) =>
                         setDupBatch({
                           ...dupBatch,
                           items: dupBatch.items.map((x, j) => (j === i ? { ...x, choice } : x)),
                         })
-                      }}
-                    >
-                      <option value="skip">דלג</option>
-                      <option value="add">הוסף בכל זאת</option>
-                      <option value="replace">החלף</option>
-                    </select>
+                      }
+                      options={[
+                        { value: 'skip', label: 'דלג' },
+                        { value: 'add', label: 'הוסף בכל זאת' },
+                        { value: 'replace', label: 'החלף' },
+                      ]}
+                    />
                   </li>
                 ))}
               </ul>
