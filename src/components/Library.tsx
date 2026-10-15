@@ -148,6 +148,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
       try {
         setBusy(`מוסיף את ${f.name}…`)
         await importFile(f, setBusy)
+        await refresh() // show each book as soon as it's done
       } catch (e) {
         errors.push(`${f.name}: ${e instanceof Error ? e.message : String(e)}`)
       }
