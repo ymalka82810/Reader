@@ -1,3 +1,4 @@
+import { Dropdown } from './Dropdown'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { deleteBook, isFinished, listBooks, setFinished, updateMeta, type BookRecord } from '../lib/db'
 import { importFile } from '../lib/importBook'
@@ -330,18 +331,28 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <select value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)} aria-label="סינון">
-            <option value="all">הכול</option>
-            <option value="reading">בקריאה</option>
-            <option value="unread">לא התחלתי</option>
-            <option value="finished">נקראו</option>
-          </select>
-          <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} aria-label="מיון">
-            <option value="recent">נפתח לאחרונה</option>
-            <option value="added">נוסף לאחרונה</option>
-            <option value="title">שם (א–ת)</option>
-            <option value="author">מחבר (א–ת)</option>
-          </select>
+          <Dropdown
+            label="סינון"
+            value={filter}
+            onChange={setFilter}
+            options={[
+              { value: 'all', label: 'הכול' },
+              { value: 'reading', label: 'בקריאה' },
+              { value: 'unread', label: 'לא התחלתי' },
+              { value: 'finished', label: 'נקראו' },
+            ]}
+          />
+          <Dropdown
+            label="מיון"
+            value={sort}
+            onChange={setSort}
+            options={[
+              { value: 'recent', label: 'נפתח לאחרונה' },
+              { value: 'added', label: 'נוסף לאחרונה' },
+              { value: 'title', label: 'שם (א–ת)' },
+              { value: 'author', label: 'מחבר (א–ת)' },
+            ]}
+          />
         </div>
       )}
 

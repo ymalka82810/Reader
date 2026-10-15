@@ -18,7 +18,14 @@ button:disabled { opacity: .5; }
 .lib-header h1 { margin: 0; font-size: 1.5rem; }
 .lib-tools { display: flex; gap: .6rem; margin-bottom: 1rem; }
 .lib-tools input { flex: 1; min-width: 0; padding: .5rem .8rem; border-radius: 10px; border: 1px solid rgba(128,128,128,.4); background: transparent; color: inherit; font: inherit; }
-.lib-tools select { padding: .5rem; border-radius: 10px; border: 1px solid rgba(128,128,128,.4); background: transparent; color: inherit; font: inherit; }
+.dd { position: relative; }
+.dd-btn { display: flex; align-items: center; gap: .5rem; padding: .5rem .7rem; border-radius: 10px; border: 1px solid rgba(128,128,128,.4); background: transparent; color: inherit; font: inherit; white-space: nowrap; cursor: pointer; }
+.dd-btn svg { opacity: .65; transition: transform .15s; }
+.dd-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
+.dd-list { position: absolute; z-index: 5; inset-inline-start: 0; top: calc(100% + .3rem); min-width: 100%; margin: 0; padding: .3rem; list-style: none; border-radius: 12px; background: var(--bg); color: var(--fg); border: 1px solid rgba(127,127,127,.3); box-shadow: 0 6px 22px rgba(0,0,0,.3); }
+.dd-list li { display: flex; justify-content: space-between; gap: 1rem; padding: .55rem .7rem; border-radius: 8px; white-space: nowrap; cursor: pointer; }
+.dd-list li:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.dd-list li.on { color: var(--accent); font-weight: 600; }
 .notice { padding: .7rem 1rem; border-radius: 10px; background: rgba(43,108,176,.15); margin-bottom: 1rem; }
 .notice.error { background: rgba(200,50,50,.18); white-space: pre-line; }
 .empty { text-align: center; opacity: .75; margin-top: 20vh; line-height: 1.8; }
