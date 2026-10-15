@@ -260,9 +260,11 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
               setPanel(null)
               return
             }
-            const v = viewRef.current
-            if (x < w * EDGE) v?.goLeft()
-            else if (x > w * (1 - EDGE)) v?.goRight()
+            // foliate's touchend handler re-snaps to the current page on the next animation frame;
+            // turning in the same tick lets that snap fight the page-turn animation and cancel it
+            // (so a tap sometimes appears to do nothing). Wait until it has run.
+            const turn = x < w * EDGE ? 'goLeft' : x > w * (1 - EDGE) ? 'goRight' : null
+            if (turn) requestAnimationFrame(() => requestAnimationFrame(() => viewRef.current?.[turn]()))
           })
 
           // pinch with two fingers to shrink/grow the text, like the Aa buttons
