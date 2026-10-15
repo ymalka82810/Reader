@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import 'foliate-js/view.js'
 import { Overlayer } from 'foliate-js/overlayer.js'
+import { compare as cfiCompare } from 'foliate-js/epubcfi.js'
 import { getBook, getNotes, newId, saveNotes, updateProgress, type Annotation } from '../lib/db'
 import { download } from '../lib/download'
 import { bookFromSections } from '../lib/pdfToBook'
@@ -78,7 +79,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   const lastAnnotationClick = useRef(0)
   const [toast, setToast] = useState('')
   const [left, setLeft] = useState<number | null>(null)
-  const actions = useRef({ bookmark: () => {}, bump: (_d: number) => {}, panel: (_p: NonNullable<typeof panel>) => {} })
+  const actions = useRef({ bookmark: () => {}, gotoBookmark: (_d: 1 | -1) => {}, bump: (_d: number) => {}, panel: (_p: NonNullable<typeof panel>) => {} })
   const titleRef = useRef('')
   titleRef.current = title
 
@@ -171,6 +172,8 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
       else if (e.key === '+' || e.key === '=') actions.current.bump(2)
       else if (e.key === '-') actions.current.bump(-2)
       else if (e.code === 'KeyB') actions.current.bookmark()
+      else if (e.code === 'BracketRight') actions.current.gotoBookmark(1)
+      else if (e.code === 'BracketLeft') actions.current.gotoBookmark(-1)
       else if (e.code === 'KeyT') actions.current.panel('toc')
       else if (e.code === 'KeyN') actions.current.panel('notes')
       else if (e.code === 'KeyS') actions.current.panel('settings')
@@ -469,6 +472,23 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     flash('נוספה סימנייה')
   }
 
+  /** jump to the next (dir 1) or previous (dir -1) bookmark of this book, in reading order */
+  const gotoBookmark = (dir: 1 | -1) => {
+    const marks = notesRef.current
+      .filter((n) => n.kind === 'bookmark')
+      .sort((a, b) => cfiCompare(a.cfi, b.cfi))
+    if (!marks.length) return flash('אין סימניות בספר')
+    const here = lastDetail.current?.cfi as string | undefined
+    const target = here
+      ? dir === 1
+        ? marks.find((n) => cfiCompare(n.cfi, here) > 0)
+        : [...marks].reverse().find((n) => cfiCompare(n.cfi, here) < 0)
+      : marks[0]
+    if (!target) return flash(dir === 1 ? 'אין סימנייה נוספת קדימה' : 'אין סימנייה קודמת')
+    viewRef.current?.goTo(target.cfi)
+    flash(target.text)
+  }
+
   const exportMarkdown = () => {
     const list = [...notesRef.current].sort((a, b) => a.createdAt - b.createdAt)
     if (!list.length) return flash('אין מה לייצא')
@@ -501,6 +521,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
 
   actions.current = {
     bookmark: toggleBookmark,
+    gotoBookmark,
     bump: (d) => setSettings((s) => ({ ...s, fontSize: Math.min(MAX_FONT, Math.max(MIN_FONT, s.fontSize + d)) })),
     panel: (p) => setPanel((cur) => (cur === p ? null : p)),
   }
@@ -531,6 +552,12 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
       <div className={'topbar' + (uiVisible ? '' : ' hidden')}>
         <button onClick={onClose} aria-label="חזרה לספרייה">→</button>
         <div className="title">{title}</div>
+        {notes.some((n) => n.kind === 'bookmark') && (
+          <>
+            <button onClick={() => gotoBookmark(-1)} aria-label="סימנייה קודמת" title="סימנייה קודמת ([)">⏮</button>
+            <button onClick={() => gotoBookmark(1)} aria-label="סימנייה הבאה" title="סימנייה הבאה (])">⏭</button>
+          </>
+        )}
         <button onClick={toggleBookmark} aria-label="סימנייה">🔖</button>
         <button onClick={() => setPanel(panel === 'notes' ? null : 'notes')} aria-label="סימניות והדגשות">📝</button>
         <button onClick={() => setPanel(panel === 'toc' ? null : 'toc')} aria-label="תוכן עניינים">☰</button>
