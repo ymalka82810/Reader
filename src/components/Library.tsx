@@ -102,7 +102,11 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   }, [])
 
   const removeBook = async (b: BookRecord) => {
-    await commitDelete() // an earlier pending delete becomes final
+    // an earlier pending delete becomes final; reload so it doesn't reappear once hiddenId moves on
+    if (pending.current) {
+      await commitDelete()
+      await refresh()
+    }
     setHiddenId(b.id)
     pending.current = { book: b, timer: window.setTimeout(() => commitDelete().then(refresh), 5000) }
     showToast(
