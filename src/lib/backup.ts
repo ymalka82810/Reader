@@ -9,6 +9,7 @@ import {
   type BookRecord,
   type Progress,
 } from './db'
+import { loadStats, mergeStats, type Stats } from './stats'
 import { loadSettings, saveSettings, type Settings } from './settings'
 
 /** Container format: [4-byte LE header length][JSON header][concatenated blob bytes].
@@ -31,6 +32,8 @@ interface Manifest {
   progress?: Record<string, Progress>
   /** display settings of the device that made the backup */
   settings?: Settings
+  /** reading-speed stats per book id */
+  stats?: Record<string, Stats>
 }
 
 const BACKUP_KEY = 'reader:lastBackup'
@@ -70,19 +73,17 @@ export async function exportLibrary(onProgress?: (done: number, total: number) =
 
   for (let i = 0; i < books.length; i++) {
     const { file, cover, ...rest } = books[i]
-    const fileBytes = await file.arrayBuffer()
-    parts.push(fileBytes)
-    const fileRange: [number, number] = [offset, offset + fileBytes.byteLength]
-    offset += fileBytes.byteLength
+    parts.push(file)
+    const fileRange: [number, number] = [offset, offset + file.size]
+    offset += file.size
 
     let coverRange: [number, number] | undefined
     let coverType: string | undefined
     if (cover) {
-      const coverBytes = await cover.arrayBuffer()
-      parts.push(coverBytes)
-      coverRange = [offset, offset + coverBytes.byteLength]
+      parts.push(cover)
+      coverRange = [offset, offset + cover.size]
       coverType = cover.type
-      offset += coverBytes.byteLength
+      offset += cover.size
     }
 
     const bookNotes = await getNotes(rest.id)
@@ -97,6 +98,7 @@ export async function exportLibrary(onProgress?: (done: number, total: number) =
     notes,
     progress: await getAllProgress(),
     settings: loadSettings(),
+    stats: Object.fromEntries(books.map((b) => [b.id, loadStats(b.id)]).filter(([, s]) => (s as Stats).secs > 0)),
   }
   const headerBytes = new TextEncoder().encode(JSON.stringify(manifest))
   const lenPrefix = new Uint8Array(4)
@@ -109,20 +111,18 @@ export async function importLibrary(
   file: File,
   onProgress?: (done: number, total: number) => void,
 ): Promise<number> {
-  const buf = await file.arrayBuffer()
-  const headerLen = new DataView(buf, 0, 4).getUint32(0, true)
+  // read only the header into memory; book files are sliced lazily from the File
+  const headerLen = new DataView(await file.slice(0, 4).arrayBuffer()).getUint32(0, true)
   const headerStart = 4
-  const header: Manifest = JSON.parse(
-    new TextDecoder().decode(buf.slice(headerStart, headerStart + headerLen)),
-  )
+  const header: Manifest = JSON.parse(await file.slice(headerStart, headerStart + headerLen).text())
   if (header.version !== 1) throw new Error('קובץ גיבוי לא נתמך')
   const base = headerStart + headerLen
 
   for (let i = 0; i < header.books.length; i++) {
     const { fileType, fileRange, coverType, coverRange, ...rest } = header.books[i]
-    const fileBlob = new Blob([buf.slice(base + fileRange[0], base + fileRange[1])], { type: fileType })
+    const fileBlob = file.slice(base + fileRange[0], base + fileRange[1], fileType)
     const coverBlob = coverRange
-      ? new Blob([buf.slice(base + coverRange[0], base + coverRange[1])], { type: coverType })
+      ? file.slice(base + coverRange[0], base + coverRange[1], coverType)
       : undefined
     const rec: BookRecord = { ...rest, file: fileBlob, cover: coverBlob }
     await saveBook(rec)
@@ -136,6 +136,8 @@ export async function importLibrary(
       for (const n of incoming) byId.set(n.id, n)
       await saveNotes(rec.id, [...byId.values()])
     }
+    const st = header.stats?.[rec.id]
+    if (st) mergeStats(rec.id, st)
     onProgress?.(i + 1, header.books.length)
   }
   if (header.settings) saveSettings({ ...loadSettings(), ...header.settings })

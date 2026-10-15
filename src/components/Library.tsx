@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { deleteBook, isFinished, listBooks, setFinished, updateMeta, type BookRecord } from '../lib/db'
 import { importFile } from '../lib/importBook'
 import { backupDue, exportLibrary, importLibrary, markBackedUp } from '../lib/backup'
+import { download } from '../lib/download'
 import { exportSync, importSync } from '../lib/sync'
 
 function Cover({ book }: { book: BookRecord }) {
@@ -78,12 +79,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
     try {
       setBusy('מכין גיבוי…')
       const blob = await exportLibrary((d, t) => setBusy(`מכין גיבוי… ${d}/${t}`))
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `גיבוי-ספרייה-${new Date().toISOString().slice(0, 10)}.readerbackup`
-      a.click()
-      URL.revokeObjectURL(url)
+      download(blob, `גיבוי-ספרייה-${new Date().toISOString().slice(0, 10)}.readerbackup`)
       markBackedUp()
       setRemind(false)
     } catch (e) {
@@ -104,15 +100,6 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
       setBusy(undefined)
     }
     await refresh()
-  }
-
-  const download = (blob: Blob, name: string) => {
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = name
-    a.click()
-    URL.revokeObjectURL(url)
   }
 
   const doSyncExport = async () => {

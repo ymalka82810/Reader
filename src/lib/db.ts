@@ -1,4 +1,5 @@
 import { createStore, get, set, del, values, entries } from 'idb-keyval'
+import { deleteStats } from './stats'
 
 export interface BookRecord {
   id: string
@@ -43,6 +44,7 @@ export const deleteBook = async (id: string) => {
   await del(id, store)
   await del(id, notesStore)
   await del(id, progressStore)
+  deleteStats(id)
 }
 export const listBooks = async () => {
   const progress = new Map(await entries<string, Progress>(progressStore))
@@ -85,6 +87,13 @@ export async function setFinished(id: string, finished: boolean) {
 
 export const newId = () =>
   crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2)
+
+/** stable id from the file's content (SHA-256), so the same book gets the same id on every device; random when crypto.subtle is unavailable */
+export async function contentId(file: Blob): Promise<string> {
+  if (!crypto.subtle) return newId()
+  const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('')
+}
 
 /** highlights, notes and bookmarks — kept in their own store so saving them never races with reading progress */
 export interface Annotation {

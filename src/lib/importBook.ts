@@ -2,7 +2,7 @@ import { makeBook } from 'foliate-js/view.js'
 import { extractPdf } from './pdfToBook'
 import { buildEpub } from './pdfToEpub'
 import { extractTxt } from './txtToBook'
-import { newId, saveBook, type BookRecord } from './db'
+import { contentId, getBook, saveBook, type BookRecord } from './db'
 
 const langMap = (v: unknown): string => {
   if (!v) return ''
@@ -30,6 +30,11 @@ export async function importFile(
   file: File,
   onProgress?: (msg: string) => void,
 ): Promise<BookRecord> {
+  // Hash the file as the user supplied it (a PDF/TXT conversion isn't guaranteed to be byte-stable).
+  const id = await contentId(file)
+  const existing = await getBook(id)
+  if (existing) return existing
+
   let epub = file
   let fromPdf = false
 
@@ -57,7 +62,7 @@ export async function importFile(
     /* no cover */
   }
   const rec: BookRecord = {
-    id: newId(),
+    id,
     file: epub,
     fileName: epub.name,
     addedAt: Date.now(),

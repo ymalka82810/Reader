@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import 'foliate-js/view.js'
 import { Overlayer } from 'foliate-js/overlayer.js'
 import { getBook, getNotes, newId, saveNotes, updateProgress, type Annotation } from '../lib/db'
+import { download } from '../lib/download'
 import { bookFromSections } from '../lib/pdfToBook'
 import { addStats, formatMinutes, minutesLeft } from '../lib/stats'
 import {
@@ -169,11 +170,11 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
       else if (e.key === 'Escape') setPanel(null)
       else if (e.key === '+' || e.key === '=') actions.current.bump(2)
       else if (e.key === '-') actions.current.bump(-2)
-      else if (e.key === 'b') actions.current.bookmark()
-      else if (e.key === 't') actions.current.panel('toc')
-      else if (e.key === 'n') actions.current.panel('notes')
-      else if (e.key === 's') actions.current.panel('settings')
-      else if (e.key === '/') {
+      else if (e.code === 'KeyB') actions.current.bookmark()
+      else if (e.code === 'KeyT') actions.current.panel('toc')
+      else if (e.code === 'KeyN') actions.current.panel('notes')
+      else if (e.code === 'KeyS') actions.current.panel('settings')
+      else if (e.key === '/' || e.code === 'Slash') {
         e.preventDefault()
         actions.current.panel('search')
       }
@@ -425,12 +426,10 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
       }
     }
     if (marks.length) lines.push('## סימניות', '', ...marks.map((n) => `- ${n.text}`), '')
-    const url = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' }))
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${title.replace(/[\\/:*?"<>|]/g, '_') || 'הערות'}.md`
-    a.click()
-    URL.revokeObjectURL(url)
+    download(
+      new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' }),
+      `${title.replace(/[\\/:*?"<>|]/g, '_') || 'הערות'}.md`,
+    )
   }
 
   const lookUp = () => {

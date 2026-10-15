@@ -1,5 +1,5 @@
 /** per-book reading speed: active seconds spent and the fraction of the book read in that time */
-interface Stats {
+export interface Stats {
   secs: number
   frac: number
 }
@@ -37,4 +37,23 @@ export function formatMinutes(m: number): string {
   const h = Math.floor(m / 60)
   const r = m % 60
   return r ? `${h} שע׳ ${r} דק׳` : `${h} שע׳`
+}
+
+export function deleteStats(id: string) {
+  try {
+    localStorage.removeItem(key(id))
+  } catch {
+    /* ignore */
+  }
+}
+
+/** keep whichever side has more reading data, so restoring never loses stats */
+export function mergeStats(id: string, incoming: Stats) {
+  const cur = loadStats(id)
+  if (incoming.secs <= cur.secs) return
+  try {
+    localStorage.setItem(key(id), JSON.stringify({ secs: incoming.secs, frac: incoming.frac }))
+  } catch {
+    /* ignore */
+  }
 }
