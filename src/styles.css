@@ -1,12 +1,14 @@
 :root {
   --accent: #2b6cb0;
+  --bg: #f6f6f4;
+  --fg: #1a1a1a;
   font-family: "Heebo", system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
   color-scheme: light dark;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body, #root { height: 100%; margin: 0; }
 body { direction: rtl; background: #f6f6f4; color: #1a1a1a; }
-@media (prefers-color-scheme: dark) { body { background: #151515; color: #e6e6e6; } }
+@media (prefers-color-scheme: dark) { :root { --bg: #151515; --fg: #e6e6e6; } body { background: #151515; color: #e6e6e6; } }
 button { font: inherit; cursor: pointer; border: 0; border-radius: 10px; padding: 0.55rem 0.9rem; background: rgba(127,127,127,.18); color: inherit; }
 button.primary { background: var(--accent); color: #fff; }
 button:disabled { opacity: .5; }
