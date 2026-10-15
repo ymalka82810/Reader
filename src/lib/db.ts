@@ -44,7 +44,7 @@ export const deleteBook = async (id: string) => {
   await del(id, store)
   await del(id, notesStore)
   await del(id, progressStore)
-  deleteStats(id)
+  await deleteStats(id)
 }
 export const listBooks = async () => {
   const progress = new Map(await entries<string, Progress>(progressStore))

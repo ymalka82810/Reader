@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { deleteBook, isFinished, listBooks, setFinished, updateMeta, type BookRecord } from '../lib/db'
 import { importFile } from '../lib/importBook'
 import { PasswordRequiredError, WrongPasswordError } from '../lib/encrypt'
-import { backupDue, exportLibrary, importLibrary, markBackedUp } from '../lib/backup'
+import { backupDue, exportLibrary, exportLibraryTo, importLibrary, librarySize, markBackedUp } from '../lib/backup'
 import { download } from '../lib/download'
 import { onLaunchFiles, takeSharedFiles } from '../lib/inbox'
 import { formatBytes, getStorageStatus, type StorageStatus } from '../lib/storage'
@@ -41,6 +41,9 @@ function Cover({ book }: { book: BookRecord }) {
     </div>
   )
 }
+
+/** above this, building the backup in memory risks crashing a phone */
+const BIG_BACKUP = 500 * 1024 * 1024
 
 export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   const [books, setBooks] = useState<BookRecord[]>([])
@@ -177,10 +180,27 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
 
   const doExport = async (password?: string) => {
     setError(undefined)
+    const name = `גיבוי-ספרייה-${new Date().toISOString().slice(0, 10)}.readerbackup`
     try {
+      // must run first: the save dialog needs the click's user activation, which awaits can use up
+      const picker = (window as any).showSaveFilePicker as undefined | ((o: object) => Promise<any>)
+      let sink: any
+      if (picker) {
+        try {
+          sink = await (await picker({ suggestedName: name })).createWritable()
+        } catch (e) {
+          if (e instanceof DOMException && e.name === 'AbortError') return
+          /* picker unavailable here: fall back to an in-memory download */
+        }
+      }
+      if (!sink) {
+        const size = await librarySize()
+        if (size > BIG_BACKUP && !confirm(`הספרייה גדולה (${Math.round(size / 1024 / 1024)}MB). הגיבוי נבנה בזיכרון ועלול להיכשל במכשיר חלש. להמשיך?`)) return
+      }
       setBusy('מכין גיבוי…')
-      const blob = await exportLibrary((d, t) => setBusy(`מכין גיבוי… ${d}/${t}`), password)
-      download(blob, `גיבוי-ספרייה-${new Date().toISOString().slice(0, 10)}.readerbackup`)
+      const progress = (d: number, t: number) => setBusy(`מכין גיבוי… ${d}/${t}`)
+      if (sink) await exportLibraryTo(sink, progress, password)
+      else download(await exportLibrary(progress, password), name)
       markBackedUp()
       setDismissed(true)
     } catch (e) {

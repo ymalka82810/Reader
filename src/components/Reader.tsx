@@ -91,10 +91,13 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     },
     [id],
   )
+  const toastTimer = useRef<number | undefined>(undefined)
   const flash = (msg: string) => {
     setToast(msg)
-    window.setTimeout(() => setToast(''), 1800)
+    window.clearTimeout(toastTimer.current)
+    toastTimer.current = window.setTimeout(() => setToast(''), 1800)
   }
+  useEffect(() => () => window.clearTimeout(toastTimer.current), [])
 
   // page-size calibration: bytes of source per rendered page, per section visited since last re-layout
   const calib = useRef(new Map<number, { pages: number; size: number }>())
@@ -141,7 +144,15 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
       pendingSave?.()
       pendingSave = undefined
     }
+    // iOS and background-discarded tabs often skip pagehide, so also flush when the tab is hidden
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        flushProgress()
+        flushStats()
+      }
+    }
     window.addEventListener('pagehide', flushProgress)
+    document.addEventListener('visibilitychange', onVisibility)
     const view: any = document.createElement('foliate-view')
     view.style.cssText = 'display:block;width:100%;height:100%'
 
@@ -149,10 +160,17 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     let lastActive = Date.now()
     let lastFraction: number | null = null
     let pendingFrac = 0
-    const statsTimer = window.setInterval(() => {
-      const active = !document.hidden && Date.now() - lastActive < 90_000
-      addStats(id, active ? 5 : 0, pendingFrac)
+    let pendingSecs = 0
+    let ticks = 0
+    const flushStats = () => {
+      addStats(id, pendingSecs, pendingFrac)
+      pendingSecs = 0
       pendingFrac = 0
+    }
+    // tick every 5s to measure activity, but write to storage only every 30s
+    const statsTimer = window.setInterval(() => {
+      if (!document.hidden && Date.now() - lastActive < 90_000) pendingSecs += 5
+      if (++ticks % 6 === 0) flushStats()
     }, 5000)
 
     const onKey = (e: KeyboardEvent) => {
@@ -340,7 +358,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
           // only small forward steps count as reading; jumps via the slider / TOC / search don't
           if (lastFraction !== null && f > lastFraction && f - lastFraction < 0.05) pendingFrac += f - lastFraction
           lastFraction = f
-          setLeft(minutesLeft(id, f))
+          minutesLeft(id, f).then((m) => !cancelled && setLeft(m))
           setFraction(f)
           setChapter(d.tocItem?.label ?? '')
           requestAnimationFrame(() => recompute(d))
@@ -367,10 +385,11 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     return () => {
       cancelled = true
       window.clearInterval(statsTimer)
-      addStats(id, 0, pendingFrac)
+      flushStats()
       window.clearTimeout(saveTimer)
       flushProgress() // don't lose the last position if the book is closed within the debounce window
       window.removeEventListener('pagehide', flushProgress)
+      document.removeEventListener('visibilitychange', onVisibility)
       window.removeEventListener('keydown', onKey)
       try {
         view.close?.()

@@ -57,11 +57,12 @@ function nonce(prefix: Uint8Array, index: number): Uint8Array<ArrayBuffer> {
 
 const aad = (last: boolean) => new Uint8Array([last ? 1 : 0])
 
-export async function encryptBlob(
+/** yields the encrypted file piece by piece, so a caller can stream it to disk without holding it all */
+export async function* encryptChunks(
   plain: Blob,
   password: string,
   iterations = DEFAULT_ITERATIONS,
-): Promise<Blob> {
+): AsyncGenerator<Uint8Array<ArrayBuffer>> {
   const salt = crypto.getRandomValues(new Uint8Array(SALT_LEN))
   const prefix = crypto.getRandomValues(new Uint8Array(PREFIX_LEN))
   const key = await deriveKey(password, salt, iterations)
@@ -74,15 +75,20 @@ export async function encryptBlob(
   view.setUint32(HEADER_LEN - 8, iterations, true)
   view.setUint32(HEADER_LEN - 4, CHUNK, true)
 
-  const parts: BlobPart[] = [header]
+  yield header
   const total = Math.max(1, Math.ceil(plain.size / CHUNK))
   for (let i = 0; i < total; i++) {
     const data = await plain.slice(i * CHUNK, (i + 1) * CHUNK).arrayBuffer()
     const iv = nonce(prefix, i)
-    parts.push(
+    yield new Uint8Array(
       await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: aad(i === total - 1) }, key, data),
     )
   }
+}
+
+export async function encryptBlob(plain: Blob, password: string, iterations = DEFAULT_ITERATIONS): Promise<Blob> {
+  const parts: BlobPart[] = []
+  for await (const part of encryptChunks(plain, password, iterations)) parts.push(part)
   return new Blob(parts, { type: 'application/octet-stream' })
 }
 

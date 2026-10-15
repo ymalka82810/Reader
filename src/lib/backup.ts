@@ -11,7 +11,7 @@ import {
 } from './db'
 import { loadStats, mergeStats, type Stats } from './stats'
 import { loadSettings, saveSettings, type Settings } from './settings'
-import { decryptBlob, encryptBlob, isEncrypted, PasswordRequiredError } from './encrypt'
+import { decryptBlob, encryptBlob, encryptChunks, isEncrypted, PasswordRequiredError } from './encrypt'
 
 /** Container format: [4-byte LE header length][JSON header][concatenated blob bytes].
  *  Keeps the whole library (files, covers, metadata, reading progress) in one file,
@@ -67,11 +67,48 @@ export function backupDue(urgent = false): boolean {
   }
 }
 
+/** total bytes of book files and covers, to warn before building a backup too big for memory */
+export async function librarySize(): Promise<number> {
+  return (await listBooks()).reduce((sum, b) => sum + b.file.size + (b.cover?.size ?? 0), 0)
+}
+
 /** `password` (optional) encrypts the whole file with AES-GCM, see encrypt.ts */
 export async function exportLibrary(
   onProgress?: (done: number, total: number) => void,
   password?: string,
 ): Promise<Blob> {
+  const plain = await buildPlain(onProgress)
+  return password ? encryptBlob(plain, password) : plain
+}
+
+/** like exportLibrary, but writes straight into `sink` (e.g. from showSaveFilePicker) in small pieces,
+ *  so memory stays bounded however large the library is */
+export async function exportLibraryTo(
+  sink: {
+    write(data: BufferSource): Promise<unknown>
+    close(): Promise<unknown>
+    abort?(): Promise<unknown>
+  },
+  onProgress?: (done: number, total: number) => void,
+  password?: string,
+): Promise<void> {
+  try {
+    const plain = await buildPlain(onProgress)
+    if (password) {
+      for await (const part of encryptChunks(plain, password)) await sink.write(part)
+    } else {
+      for (let off = 0; off < plain.size; off += 4 * 1024 * 1024) {
+        await sink.write(await plain.slice(off, off + 4 * 1024 * 1024).arrayBuffer())
+      }
+    }
+    await sink.close()
+  } catch (e) {
+    await sink.abort?.().catch(() => {})
+    throw e
+  }
+}
+
+async function buildPlain(onProgress?: (done: number, total: number) => void): Promise<Blob> {
   const books = await listBooks()
   const parts: BlobPart[] = []
   const manifestBooks: ManifestBook[] = []
@@ -95,7 +132,13 @@ export async function exportLibrary(
 
     const bookNotes = await getNotes(rest.id)
     if (bookNotes.length) notes[rest.id] = bookNotes
-    manifestBooks.push({ ...rest, fileType: file.type, fileRange, coverType, coverRange })
+    manifestBooks.push({
+      ...rest,
+      fileType: file.type,
+      fileRange,
+      coverType,
+      coverRange,
+    })
     onProgress?.(i + 1, books.length)
   }
 
@@ -105,14 +148,17 @@ export async function exportLibrary(
     notes,
     progress: await getAllProgress(),
     settings: loadSettings(),
-    stats: Object.fromEntries(books.map((b) => [b.id, loadStats(b.id)]).filter(([, s]) => (s as Stats).secs > 0)),
+    stats: Object.fromEntries(
+      (await Promise.all(books.map(async (b) => [b.id, await loadStats(b.id)] as const))).filter(([, s]) => s.secs > 0),
+    ),
   }
   const headerBytes = new TextEncoder().encode(JSON.stringify(manifest))
   const lenPrefix = new Uint8Array(4)
   new DataView(lenPrefix.buffer).setUint32(0, headerBytes.byteLength, true)
 
-  const plain = new Blob([lenPrefix, headerBytes, ...parts], { type: 'application/octet-stream' })
-  return password ? encryptBlob(plain, password) : plain
+  return new Blob([lenPrefix, headerBytes, ...parts], {
+    type: 'application/octet-stream',
+  })
 }
 
 /** throws PasswordRequiredError for an encrypted backup given no password, WrongPasswordError for a bad one */
@@ -133,27 +179,41 @@ export async function importLibrary(
   if (header.version !== 1) throw new Error('קובץ גיבוי לא נתמך')
   const base = headerStart + headerLen
 
-  for (let i = 0; i < header.books.length; i++) {
-    const { fileType, fileRange, coverType, coverRange, ...rest } = header.books[i]!
-    const fileBlob = file.slice(base + fileRange[0], base + fileRange[1], fileType)
-    const coverBlob = coverRange
-      ? file.slice(base + coverRange[0], base + coverRange[1], coverType)
-      : undefined
-    const rec: BookRecord = { ...rest, file: fileBlob, cover: coverBlob }
-    await saveBook(rec)
-    // newest reading position wins, so restoring an old backup never rewinds a book
-    const prog = header.progress?.[rec.id] ?? (rec.cfi ? { cfi: rec.cfi, fraction: rec.fraction ?? 0, lastOpened: rec.lastOpened ?? rec.addedAt } : undefined)
-    if (prog) await mergeProgress(rec.id, prog)
-    const incoming = header.notes?.[rec.id]
-    if (incoming?.length) {
-      // merge with notes already on this device, keeping one copy of each
-      const byId = new Map((await getNotes(rec.id)).map((n) => [n.id, n]))
-      for (const n of incoming) byId.set(n.id, n)
-      await saveNotes(rec.id, [...byId.values()])
+  let done = 0
+  try {
+    for (let i = 0; i < header.books.length; i++) {
+      const { fileType, fileRange, coverType, coverRange, ...rest } = header.books[i]!
+      const fileBlob = file.slice(base + fileRange[0], base + fileRange[1], fileType)
+      const coverBlob = coverRange ? file.slice(base + coverRange[0], base + coverRange[1], coverType) : undefined
+      const rec: BookRecord = { ...rest, file: fileBlob, cover: coverBlob }
+      await saveBook(rec)
+      // newest reading position wins, so restoring an old backup never rewinds a book
+      const prog =
+        header.progress?.[rec.id] ??
+        (rec.cfi
+          ? {
+              cfi: rec.cfi,
+              fraction: rec.fraction ?? 0,
+              lastOpened: rec.lastOpened ?? rec.addedAt,
+            }
+          : undefined)
+      if (prog) await mergeProgress(rec.id, prog)
+      const incoming = header.notes?.[rec.id]
+      if (incoming?.length) {
+        // merge with notes already on this device, keeping one copy of each
+        const byId = new Map((await getNotes(rec.id)).map((n) => [n.id, n]))
+        for (const n of incoming) byId.set(n.id, n)
+        await saveNotes(rec.id, [...byId.values()])
+      }
+      const st = header.stats?.[rec.id]
+      if (st) await mergeStats(rec.id, st)
+      done = i + 1
+      onProgress?.(done, header.books.length)
     }
-    const st = header.stats?.[rec.id]
-    if (st) mergeStats(rec.id, st)
-    onProgress?.(i + 1, header.books.length)
+  } catch (e) {
+    // books are restored one by one and merging is idempotent, so importing the same file again finishes the job
+    const msg = e instanceof Error ? e.message : String(e)
+    throw new Error(`${msg} (שוחזרו ${done} מתוך ${header.books.length} ספרים — אפשר לייבא שוב את אותו הקובץ להשלמה)`)
   }
   if (header.settings) saveSettings({ ...loadSettings(), ...header.settings })
   return header.books.length

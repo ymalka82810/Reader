@@ -12,7 +12,7 @@ import {
   type Annotation,
   type BookRecord,
 } from './db'
-import { exportLibrary, importLibrary } from './backup'
+import { exportLibrary, exportLibraryTo, importLibrary } from './backup'
 import { loadSettings, saveSettings } from './settings'
 import { addStats, loadStats } from './stats'
 
@@ -63,7 +63,7 @@ describe('backup', () => {
     await saveBook(book('b'))
     await updateProgress('a', 'cfi-a', 0.4)
     await saveNotes('a', [note('n1', 'hello')])
-    addStats('a', 300, 0.1)
+    await addStats('a', 300, 0.1)
 
     const blob = await exportLibrary()
     await wipe()
@@ -77,7 +77,15 @@ describe('backup', () => {
     expect(a.cfi).toBe('cfi-a')
     expect((await getBook('b'))!.cover).toBeUndefined()
     expect((await getNotes('a'))[0]!.text).toBe('hello')
-    expect(loadStats('a')).toEqual({ secs: 300, frac: 0.1 })
+    expect(await loadStats('a')).toEqual({ secs: 300, frac: 0.1 })
+  })
+  it('streams an encrypted export that imports back', async () => {
+    await saveBook(book('a'))
+    const chunks: BlobPart[] = []
+    await exportLibraryTo({ write: async (d) => void chunks.push(d), close: async () => {} }, undefined, 'pw')
+    await wipe()
+    expect(await importLibrary(asFile(new Blob(chunks)), undefined, 'pw')).toBe(1)
+    expect(await (await getBook('a'))!.file.text()).toBe('content-a')
   })
   it('does not rewind a book when restoring an older backup', async () => {
     await saveBook(book('a'))
