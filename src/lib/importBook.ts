@@ -29,7 +29,19 @@ const isEpub = (f: File) => /\.epub$/i.test(f.name) || f.type === 'application/e
 
 /** what to do when the library already holds a book with the same title and author */
 export type DuplicateChoice = 'replace' | 'add' | 'skip'
-export type OnDuplicate = (existing: BookMeta) => Promise<DuplicateChoice>
+export type OnDuplicate = (existing: BookMeta) => Promise<DuplicateChoice | 'defer'>
+
+/** Thrown when onDuplicate answered 'defer': the book is parsed and waiting; call commit to finish or drop it. */
+export class DeferredDuplicate extends Error {
+  constructor(
+    public existing: BookMeta,
+    public title: string,
+    public commit: (choice: DuplicateChoice) => Promise<BookRecord | undefined>,
+  ) {
+    super('deferred')
+    this.name = 'DeferredDuplicate'
+  }
+}
 
 /** Adds a book to the library. Failures are rethrown as ImportError with a message fit to show the user. */
 export async function importFile(
@@ -43,6 +55,7 @@ export async function importFile(
   try {
     return await readIntoLibrary(file, onProgress, onDuplicate)
   } catch (e) {
+    if (e instanceof DeferredDuplicate) throw e
     console.error(e)
     throw new ImportError(explainImportError(e))
   }
@@ -99,6 +112,15 @@ async function readIntoLibrary(
   let replaceId: string | undefined
   if (dup) {
     const choice = onDuplicate ? await onDuplicate(dup) : 'skip'
+    if (choice === 'defer') {
+      throw new DeferredDuplicate(dup, title, async (c) => {
+        if (c === 'skip') {
+          book.destroy?.()
+          return undefined
+        }
+        return store(c === 'replace' ? dup.id : undefined)
+      })
+    }
     if (choice === 'skip') {
       book.destroy?.()
       throw new ImportError(ALREADY_EXISTS)
@@ -106,6 +128,9 @@ async function readIntoLibrary(
     if (choice === 'replace') replaceId = dup.id
   }
 
+  return store(replaceId)
+
+  async function store(replaceId: string | undefined): Promise<BookRecord> {
   const rec: BookRecord = {
     id,
     file: epub,
@@ -121,4 +146,5 @@ async function readIntoLibrary(
   if (replaceId) await replaceBook(replaceId, rec)
   else await saveBook(rec)
   return rec
+  }
 }

@@ -125,3 +125,6 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: 4px; border: 1px solid rg
 .danger:disabled { opacity: .5; }
 .card.selected { outline: 3px solid #3182ce; outline-offset: 2px; border-radius: 8px; }
 .sel-mark { position: absolute; top: 6px; inset-inline-start: 6px; font-size: 1.4rem; line-height: 1; color: #fff; text-shadow: 0 0 3px #000; pointer-events: none; }
+.dup-list { list-style: none; padding: 0; margin: 0 0 1rem; max-height: 50vh; overflow: auto; display: flex; flex-direction: column; gap: .5rem; }
+.dup-list li { display: flex; gap: .5rem; align-items: center; justify-content: space-between; font-size: .9rem; }
+.dup-list li span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }

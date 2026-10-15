@@ -2,7 +2,7 @@ import { Dropdown } from './Dropdown'
 import { Dialog } from './Dialog'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { deleteBook, isFinished, listBooks, setFinished, updateMeta, type BookMeta } from '../lib/db'
-import { importFile, type DuplicateChoice } from '../lib/importBook'
+import { importFile, DeferredDuplicate, type DuplicateChoice } from '../lib/importBook'
 import { PasswordRequiredError, WrongPasswordError } from '../lib/encrypt'
 import { backupDue, exportLibrary, exportLibraryTo, importLibrary, librarySize, markBackedUp } from '../lib/backup'
 import { download } from '../lib/download'
@@ -81,6 +81,11 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [confirmDel, setConfirmDel] = useState<BookMeta[]>()
   // a same-title book already exists: waits for the user's choice
+  const [dupBatch, setDupBatch] = useState<{
+    items: { name: string; title: string; existing: BookMeta; choice: DuplicateChoice }[]
+    done: (choices: DuplicateChoice[]) => void
+  }>()
+  const [dupDetail, setDupDetail] = useState(false)
   const [dupAsk, setDupAsk] = useState<{ file: string; existing: BookMeta; answer: (c: DuplicateChoice) => void }>()
   // password prompt: for a new backup (optional password) or for restoring an encrypted one
   const [pwAsk, setPwAsk] = useState<{ kind: 'export' } | { kind: 'import'; file: File; wrong?: boolean }>()
@@ -202,6 +207,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
     void takeWake()
     const warn = (e: BeforeUnloadEvent) => e.preventDefault()
     window.addEventListener('beforeunload', warn)
+    const deferred: { name: string; err: DeferredDuplicate }[] = []
     for (const [i, f] of list.entries()) {
       // leaving the tab pauses the queue instead of failing the next file; paused time doesn't count towards the ETA
       if (document.visibilityState === 'hidden') {
@@ -222,11 +228,15 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
         await importFile(
           f,
           setBusy,
-          (existing) => new Promise<DuplicateChoice>((resolve) => setDupAsk({ file: f.name, existing, answer: resolve })),
+          // in a batch, duplicates wait until the rest are done and are then asked about together
+          list.length > 1
+            ? async () => 'defer'
+            : (existing) => new Promise<DuplicateChoice>((resolve) => setDupAsk({ file: f.name, existing, answer: resolve })),
         )
         await refresh() // show each book as soon as it's done
       } catch (e) {
-        errors.push(`${f.name}: ${e instanceof Error ? e.message : String(e)}`)
+        if (e instanceof DeferredDuplicate) deferred.push({ name: f.name, err: e })
+        else errors.push(`${f.name}: ${e instanceof Error ? e.message : String(e)}`)
       }
       const done = i + 1
       const t = Date.now()
@@ -236,6 +246,25 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
           ? { done, total: list.length, deadline: t + ((t - started) / done) * (list.length - done) }
           : undefined,
       )
+    }
+    if (deferred.length) {
+      setBusy(undefined)
+      setBatch(undefined)
+      setDupDetail(false)
+      const choices = await new Promise<DuplicateChoice[]>((done) =>
+        setDupBatch({
+          items: deferred.map((d) => ({ name: d.name, title: d.err.title, existing: d.err.existing, choice: 'skip' })),
+          done,
+        }),
+      )
+      setDupBatch(undefined)
+      for (const [i, d] of deferred.entries()) {
+        try {
+          await d.err.commit(choices[i])
+        } catch (e) {
+          errors.push(`${d.name}: ${e instanceof Error ? e.message : String(e)}`)
+        }
+      }
     }
     window.removeEventListener('beforeunload', warn)
     void wake?.release().catch(() => {})
@@ -568,6 +597,58 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
         <div className="lib-toast" role="status">
           <span>{toast.msg}</span>
           {toast.undo && <button onClick={toast.undo}>בטל</button>}
+        </div>
+      )}
+
+      {dupBatch && (
+        <div className="modal-backdrop">
+          <Dialog className="modal" role="alertdialog" aria-modal="true" aria-label="ספרים כפולים">
+            <h2>{dupBatch.items.length} ספרים כבר קיימים בספרייה</h2>
+            <p>שאר הספרים נוספו. מה לעשות עם הכפולים? החלפה מוחקת את הגרסה הקיימת יחד עם מיקום הקריאה וההערות שלה.</p>
+            {dupDetail && (
+              <ul className="dup-list">
+                {dupBatch.items.map((it, i) => (
+                  <li key={i}>
+                    <span>
+                      ״{it.existing.title}״ ← {it.name}
+                    </span>
+                    <select
+                      value={it.choice}
+                      onChange={(e) => {
+                        const choice = e.target.value as DuplicateChoice
+                        setDupBatch({
+                          ...dupBatch,
+                          items: dupBatch.items.map((x, j) => (j === i ? { ...x, choice } : x)),
+                        })
+                      }}
+                    >
+                      <option value="skip">דלג</option>
+                      <option value="add">הוסף בכל זאת</option>
+                      <option value="replace">החלף</option>
+                    </select>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="modal-actions">
+              {dupDetail ? (
+                <button className="primary" onClick={() => dupBatch.done(dupBatch.items.map((x) => x.choice))}>
+                  אישור
+                </button>
+              ) : (
+                <>
+                  <button className="danger" onClick={() => dupBatch.done(dupBatch.items.map(() => 'replace'))}>
+                    החלף הכל
+                  </button>
+                  <button onClick={() => dupBatch.done(dupBatch.items.map(() => 'add'))}>הוסף הכל</button>
+                  <button onClick={() => dupBatch.done(dupBatch.items.map(() => 'skip'))} autoFocus>
+                    דלג על הכל
+                  </button>
+                  <button onClick={() => setDupDetail(true)}>פירוט</button>
+                </>
+              )}
+            </div>
+          </Dialog>
         </div>
       )}
 
