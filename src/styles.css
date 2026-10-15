@@ -23,7 +23,7 @@ button:disabled { opacity: .5; }
 .notice.error { background: rgba(200,50,50,.18); white-space: pre-line; }
 .empty { text-align: center; opacity: .75; margin-top: 20vh; line-height: 1.8; }
 .grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 1rem; }
-.grid li { position: relative; }
+.grid li { position: relative; content-visibility: auto; contain-intrinsic-size: auto 280px; }
 .card { width: 100%; padding: 0; text-align: start; background: transparent; display: flex; flex-direction: column; gap: .5rem; }
 .cover { width: 100%; aspect-ratio: 2/3; object-fit: cover; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.25); background: #ddd; }
 .cover.placeholder { display: grid; place-items: center; padding: .8rem; text-align: center; font-weight: 700; background: linear-gradient(135deg, #3b6ea5, #1f3b5c); color: #fff; overflow: hidden; }

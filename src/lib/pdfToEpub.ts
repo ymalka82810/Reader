@@ -1,4 +1,3 @@
-import JSZip from 'jszip'
 import { ImportError } from './errors'
 import type { ExtractedPdf } from './pdfToBook'
 
@@ -39,6 +38,7 @@ export async function buildEpub(x: ExtractedPdf): Promise<Blob> {
   const bookId = `urn:uuid:${uuid()}`
   const modified = new Date().toISOString().replace(/\.\d+Z$/, 'Z')
 
+  const { default: JSZip } = await import('jszip')
   const zip = new JSZip()
   zip.file('mimetype', 'application/epub+zip', { compression: 'STORE' })
   zip.file(

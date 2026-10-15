@@ -1,11 +1,14 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import { visualizer } from 'rollup-plugin-visualizer'
 
 export default defineConfig({
   base: './',
   plugins: [
     react(),
+    // `ANALYZE=1 npm run build` writes dist-stats.html (treemap of the bundle).
+    !!process.env.ANALYZE && visualizer({ filename: 'dist-stats.html', gzipSize: true }),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg'],

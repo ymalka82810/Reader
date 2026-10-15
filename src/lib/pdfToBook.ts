@@ -1,8 +1,6 @@
-import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs'
-import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'
+import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import { ImportError } from './errors'
 
-pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
 
 export interface Line {
   text: string
@@ -17,7 +15,7 @@ const FINALS = /[ךםןףץ]/
 const PAGES_PER_SECTION = 8
 
 /** Extract lines of text from one PDF page, in content-stream order. */
-async function extractLines(page: pdfjs.PDFPageProxy): Promise<Line[]> {
+async function extractLines(page: PDFPageProxy): Promise<Line[]> {
   const content = await page.getTextContent()
   const lines: Line[] = []
   let cur: Line | null = null
@@ -140,7 +138,7 @@ export interface LegacyPdfBook {
 const pageRange = (from: number, to: number) => (from === to ? `עמוד ${from}` : `עמודים ${from}–${to}`)
 
 /** Chapter start pages (0-based) taken from the PDF's own bookmarks, if it has any. */
-async function outlineStarts(pdf: pdfjs.PDFDocumentProxy): Promise<Map<number, string>> {
+async function outlineStarts(pdf: PDFDocumentProxy): Promise<Map<number, string>> {
   const out = new Map<number, string>()
   try {
     const outline = await pdf.getOutline()
@@ -204,6 +202,12 @@ export async function extractPdf(
   fileName: string,
   onProgress?: (done: number, total: number) => void,
 ): Promise<ExtractedPdf> {
+  // pdf.js is heavy; load it only when a PDF is actually imported.
+  const [pdfjs, { default: workerUrl }] = await Promise.all([
+    import('pdfjs-dist/legacy/build/pdf.mjs'),
+    import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'),
+  ])
+  pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
   const task = pdfjs.getDocument({ data: await file.arrayBuffer() })
   const pdf = await task.promise
   const total = pdf.numPages

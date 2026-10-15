@@ -1,7 +1,3 @@
-import { makeBook } from 'foliate-js/view.js'
-import { extractPdf } from './pdfToBook'
-import { buildEpub } from './pdfToEpub'
-import { extractTxt } from './txtToBook'
 import { ImportError, explainImportError } from './errors'
 import { contentId, getBook, saveBook, type BookRecord } from './db'
 
@@ -47,11 +43,14 @@ async function readIntoLibrary(file: File, onProgress?: (msg: string) => void): 
   const existing = await getBook(id)
   if (existing) return existing
 
+  // Converters pull in pdf.js / JSZip, so they load only when an import actually needs them.
+  const { makeBook } = await import('foliate-js/view.js')
   let epub = file
   let fromPdf = false
 
   if (isPdf(file)) {
     // Convert the PDF into a real EPUB first, then read it exactly like any other EPUB.
+    const [{ extractPdf }, { buildEpub }] = await Promise.all([import('./pdfToBook'), import('./pdfToEpub')])
     const x = await extractPdf(file, file.name, (d, t) => onProgress?.(`מחלץ טקסט מה-PDF… ${d}/${t}`))
     onProgress?.('ממיר ל-EPUB…')
     const blob = await buildEpub(x)
@@ -61,6 +60,7 @@ async function readIntoLibrary(file: File, onProgress?: (msg: string) => void): 
 
   if (isTxt(file)) {
     onProgress?.('ממיר ל-EPUB…')
+    const [{ extractTxt }, { buildEpub }] = await Promise.all([import('./txtToBook'), import('./pdfToEpub')])
     const blob = await buildEpub(await extractTxt(file))
     epub = new File([blob], file.name.replace(/\.txt$/i, '') + '.epub', { type: 'application/epub+zip' })
   }
