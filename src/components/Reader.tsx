@@ -264,6 +264,35 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
             if (x < w * EDGE) v?.goLeft()
             else if (x > w * (1 - EDGE)) v?.goRight()
           })
+
+          // pinch with two fingers to shrink/grow the text, like the Aa buttons
+          const pinchDist = (t: TouchEvent) => Math.hypot(t.touches[0].clientX - t.touches[1].clientX, t.touches[0].clientY - t.touches[1].clientY)
+          let pinchStartDist: number | null = null
+          let pinchStartFont = 0
+          doc.addEventListener(
+            'touchstart',
+            (ev: TouchEvent) => {
+              if (ev.touches.length === 2) {
+                pinchStartDist = pinchDist(ev)
+                pinchStartFont = settingsRef.current.fontSize
+              }
+            },
+            { passive: true },
+          )
+          doc.addEventListener(
+            'touchmove',
+            (ev: TouchEvent) => {
+              if (ev.touches.length !== 2 || pinchStartDist === null) return
+              ev.preventDefault()
+              const scale = pinchDist(ev) / pinchStartDist
+              const next = Math.round(Math.min(MAX_FONT, Math.max(MIN_FONT, pinchStartFont * scale)))
+              setSettings((s) => (s.fontSize === next ? s : { ...s, fontSize: next }))
+            },
+            { passive: false },
+          )
+          doc.addEventListener('touchend', (ev: TouchEvent) => {
+            if (ev.touches.length < 2) pinchStartDist = null
+          })
         })
         view.addEventListener('draw-annotation', (e: CustomEvent) => {
           const { draw, annotation } = e.detail
