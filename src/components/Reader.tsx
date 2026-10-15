@@ -3,11 +3,13 @@ import 'foliate-js/view.js'
 import { Overlayer } from 'foliate-js/overlayer.js'
 import { compare as cfiCompare } from 'foliate-js/epubcfi.js'
 import { Dialog } from './Dialog'
+import { useBookKeys, type KeyActions } from '../hooks/useBookKeys'
+import { useReadingTracker } from '../hooks/useReadingTracker'
 import { MAX_FONT, MIN_FONT, clampFont, useBookEvents, type Selection } from '../hooks/useBookEvents'
-import { getBook, getNotes, newId, saveNotes, updateProgress, type Annotation } from '../lib/db'
+import { getBook, getNotes, newId, saveNotes, type Annotation } from '../lib/db'
 import { download } from '../lib/download'
 import { bookFromSections } from '../lib/pdfToBook'
-import { addStats, formatMinutes, minutesLeft } from '../lib/stats'
+import { formatMinutes, minutesLeft } from '../lib/stats'
 import {
   bookCSS,
   DICT_LANGS,
@@ -83,7 +85,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   const lastAnnotationClick = useRef(0)
   const [toast, setToast] = useState('')
   const [left, setLeft] = useState<number | null>(null)
-  const actions = useRef({ bookmark: () => {}, gotoBookmark: (_d: 1 | -1) => {}, bump: (_d: number) => {}, panel: (_p: NonNullable<typeof panel>) => {} })
+  const actions = useRef<KeyActions>({ bookmark: () => {}, gotoBookmark: () => {}, bump: () => {}, panel: () => {} })
   const attachDocHandlers = useBookEvents({
     viewRef,
     settingsRef,
@@ -94,6 +96,10 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     setUiVisible,
     setPanel,
   })
+
+  const tracker = useReadingTracker(id)
+  const closePanel = useCallback(() => setPanel(null), [])
+  const onKey = useBookKeys({ viewRef, actions, closePanel, markActive: tracker.markActive })
 
   const commitNotes = useCallback(
     (next: Annotation[]) => {
@@ -151,69 +157,8 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   // ---- open the book ----
   useEffect(() => {
     let cancelled = false
-    let saveTimer: number | undefined
-    let pendingSave: (() => void) | undefined
-    const flushProgress = () => {
-      window.clearTimeout(saveTimer)
-      pendingSave?.()
-      pendingSave = undefined
-    }
-    // iOS and background-discarded tabs often skip pagehide, so also flush when the tab is hidden
-    const onVisibility = () => {
-      if (document.visibilityState === 'hidden') {
-        flushProgress()
-        flushStats()
-      }
-    }
-    window.addEventListener('pagehide', flushProgress)
-    document.addEventListener('visibilitychange', onVisibility)
     const view: any = document.createElement('foliate-view')
     view.style.cssText = 'display:block;width:100%;height:100%'
-
-    // reading speed: count active seconds (page turned / key pressed in the last 90s) and forward progress
-    let lastActive = Date.now()
-    let lastFraction: number | null = null
-    let pendingFrac = 0
-    let pendingSecs = 0
-    let ticks = 0
-    const flushStats = () => {
-      addStats(id, pendingSecs, pendingFrac)
-      pendingSecs = 0
-      pendingFrac = 0
-    }
-    // tick every 5s to measure activity, but write to storage only every 30s
-    const statsTimer = window.setInterval(() => {
-      if (!document.hidden && Date.now() - lastActive < 90_000) pendingSecs += 5
-      if (++ticks % 6 === 0) flushStats()
-    }, 5000)
-
-    const onKey = (e: KeyboardEvent) => {
-      const v = viewRef.current
-      if (!v) return
-      const t = e.target as HTMLElement | null
-      if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return
-      lastActive = Date.now()
-      if (e.ctrlKey || e.metaKey || e.altKey) return
-      if (e.key === 'ArrowLeft') v.goLeft()
-      else if (e.key === 'ArrowRight') v.goRight()
-      else if (e.key === 'PageDown' || e.key === ' ') {
-        e.preventDefault()
-        v.next()
-      } else if (e.key === 'PageUp') v.prev()
-      else if (e.key === 'Escape') setPanel(null)
-      else if (e.key === '+' || e.key === '=') actions.current.bump(2)
-      else if (e.key === '-') actions.current.bump(-2)
-      else if (e.code === 'KeyB') actions.current.bookmark()
-      else if (e.code === 'BracketRight') actions.current.gotoBookmark(1)
-      else if (e.code === 'BracketLeft') actions.current.gotoBookmark(-1)
-      else if (e.code === 'KeyT') actions.current.panel('toc')
-      else if (e.code === 'KeyN') actions.current.panel('notes')
-      else if (e.code === 'KeyS') actions.current.panel('settings')
-      else if (e.key === '/' || e.code === 'Slash') {
-        e.preventDefault()
-        actions.current.panel('search')
-      }
-    }
 
     ;(async () => {
       try {
@@ -244,7 +189,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
         setTitle(rec.title)
         setDir(view.book.dir === 'ltr' ? 'ltr' : 'rtl')
         const lang = [view.book.metadata?.language].flat()[0]
-        bookLang.current = typeof lang === 'string' ? lang.split(/[-_]/)[0].toLowerCase() : ''
+        bookLang.current = typeof lang === 'string' ? (lang.split(/[-_]/)[0] ?? '').toLowerCase() : ''
         setToc(flatten(view.book.toc))
 
         view.addEventListener('load', (e: CustomEvent) => attachDocHandlers(e.detail, onKey))
@@ -268,23 +213,14 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
           const d = e.detail
           lastDetail.current = d
           const f: number = d.fraction ?? 0
-          lastActive = Date.now()
-          // only small forward steps count as reading; jumps via the slider / TOC / search don't
-          if (lastFraction !== null && f > lastFraction && f - lastFraction < 0.05) pendingFrac += f - lastFraction
-          lastFraction = f
+          tracker.relocate(d)
           minutesLeft(id, f).then((m) => !cancelled && setLeft(m))
           setFraction(f)
           setChapter(d.tocItem?.label ?? '')
           requestAnimationFrame(() => recompute(d))
-          window.clearTimeout(saveTimer)
-          if (d.cfi) {
-            pendingSave = () => updateProgress(id, d.cfi, d.fraction ?? 0)
-            saveTimer = window.setTimeout(flushProgress, 800)
-          }
         })
 
         await view.init({ lastLocation: rec.cfi, showTextStart: !rec.cfi })
-        window.addEventListener('keydown', onKey)
         setStatus('ready')
         window.setTimeout(() => recompute(), 600)
       } catch (e) {
@@ -298,13 +234,6 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
 
     return () => {
       cancelled = true
-      window.clearInterval(statsTimer)
-      flushStats()
-      window.clearTimeout(saveTimer)
-      flushProgress() // don't lose the last position if the book is closed within the debounce window
-      window.removeEventListener('pagehide', flushProgress)
-      document.removeEventListener('visibilitychange', onVisibility)
-      window.removeEventListener('keydown', onKey)
       try {
         view.close?.()
       } catch {
@@ -313,7 +242,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
       view.remove()
       viewRef.current = null
     }
-  }, [id, recompute, attachDocHandlers])
+  }, [id, recompute, attachDocHandlers, onKey, tracker])
 
   // ---- apply settings changes live ----
   useEffect(() => {

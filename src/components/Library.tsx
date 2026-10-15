@@ -64,9 +64,10 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   const [menu, setMenu] = useState(false)
   const [toast, setToast] = useState<{ msg: string; undo?: () => void }>()
   const toastTimer = useRef<number>(undefined)
-  // a delete waits out the undo window before it touches the database
-  const pending = useRef<{ book: BookMeta; timer: number }>(undefined)
-  const [hiddenId, setHiddenId] = useState<string>()
+  // multi-select mode and the delete confirmation
+  const [selecting, setSelecting] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [confirmDel, setConfirmDel] = useState<BookMeta[]>()
   // password prompt: for a new backup (optional password) or for restoring an encrypted one
   const [pwAsk, setPwAsk] = useState<{ kind: 'export' } | { kind: 'import'; file: File; wrong?: boolean }>()
   const [pw, setPw] = useState('')
@@ -96,53 +97,37 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
     toastTimer.current = window.setTimeout(() => setToast(undefined), ms)
   }
 
-  const commitDelete = useCallback(async () => {
-    const p = pending.current
-    if (!p) return
-    pending.current = undefined
-    window.clearTimeout(p.timer)
-    await deleteBook(p.book.id)
-    setHiddenId((h) => (h === p.book.id ? undefined : h))
-  }, [])
+  const toggleSelect = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(id)) next.add(id)
+      return next
+    })
 
-  const removeBook = async (b: BookMeta) => {
-    // an earlier pending delete becomes final; reload so it doesn't reappear once hiddenId moves on
-    if (pending.current) {
-      await commitDelete()
-      await refresh()
-    }
-    setHiddenId(b.id)
-    pending.current = { book: b, timer: window.setTimeout(() => commitDelete().then(refresh), 5000) }
-    showToast(
-      `״${b.title}״ נמחק`,
-      () => {
-        const p = pending.current
-        if (!p) return
-        window.clearTimeout(p.timer)
-        pending.current = undefined
-        setHiddenId(undefined)
-        setToast(undefined)
-      },
-      5000,
-    )
+  const exitSelect = () => {
+    setSelecting(false)
+    setSelected(new Set())
   }
 
-  // never lose a delete the user already saw go through
-  useEffect(() => {
-    const flush = () => void commitDelete()
-    window.addEventListener('pagehide', flush)
-    return () => {
-      window.removeEventListener('pagehide', flush)
-      flush()
+  const doDelete = async () => {
+    const list = confirmDel
+    if (!list) return
+    setConfirmDel(undefined)
+    try {
+      for (const b of list) await deleteBook(b.id)
+      showToast(list.length === 1 ? `״${list[0]?.title}״ נמחק` : `${list.length} ספרים נמחקו`)
+    } catch (e) {
+      setError(`מחיקה נכשלה: ${e instanceof Error ? e.message : String(e)}`)
     }
-  }, [commitDelete])
+    exitSelect()
+    await refresh()
+  }
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase()
     const state = (b: BookMeta) => (isFinished(b) ? 'finished' : b.fraction ? 'reading' : 'unread')
     const list = books.filter(
       (b) =>
-        b.id !== hiddenId &&
         (filter === 'all' || state(b) === filter) &&
         (!q || `${b.title} ${b.author} ${b.fileName}`.toLowerCase().includes(q)),
     )
@@ -152,7 +137,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
     else if (sort === 'author') list.sort(by((b) => b.author || '￿'))
     else if (sort === 'added') list.sort((a, b) => b.addedAt - a.addedAt)
     return list // 'recent' keeps the order listBooks returns
-  }, [books, query, sort, filter, hiddenId])
+  }, [books, query, sort, filter])
 
   const addFiles = async (files: FileList | File[]) => {
     setError(undefined)
@@ -347,8 +332,9 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
         </div>
       )}
 
-      {books.length > 1 && (
+      {books.length > 0 && (
         <div className="lib-tools">
+          {books.length > 1 && (<>
           <input
             type="search"
             placeholder="חיפוש לפי שם או מחבר…"
@@ -378,6 +364,24 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
               { value: 'author', label: 'מחבר (א–ת)' },
             ]}
           />
+          </>)}
+          <button onClick={() => (selecting ? exitSelect() : setSelecting(true))} aria-pressed={selecting}>
+            {selecting ? 'סיום' : 'בחירה'}
+          </button>
+        </div>
+      )}
+
+      {selecting && (
+        <div className="notice select-bar">
+          <span>{selected.size} נבחרו</span>
+          <button onClick={() => setSelected(new Set(shown.map((b) => b.id)))}>בחר הכול</button>
+          <button
+            className="danger"
+            disabled={selected.size === 0}
+            onClick={() => setConfirmDel(books.filter((b) => selected.has(b.id)))}
+          >
+            מחק
+          </button>
         </div>
       )}
 
@@ -401,7 +405,11 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
         <ul className="grid">
           {shown.map((b) => (
             <li key={b.id}>
-              <button className="card" onClick={() => onOpen(b.id)}>
+              <button
+                className={'card' + (selected.has(b.id) ? ' selected' : '')}
+                aria-pressed={selecting ? selected.has(b.id) : undefined}
+                onClick={() => (selecting ? toggleSelect(b.id) : onOpen(b.id))}
+              >
                 <Cover book={b} />
                 <div className="meta">
                   <strong>{b.title}</strong>
@@ -413,27 +421,29 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
                   </small>
                 </div>
               </button>
-              <button
-                className={'fin' + (isFinished(b) ? ' on' : '')}
-                aria-label={isFinished(b) ? 'סמן כלא נקרא' : 'סמן כנקרא'}
-                aria-pressed={isFinished(b)}
-                onClick={async () => {
-                  await setFinished(b.id, !isFinished(b))
-                  refresh()
-                }}
-              >
-                ✓
-              </button>
-              <button className="edit-btn" aria-label="עריכת שם ומחבר" onClick={() => openEdit(b)}>
-                ✎
-              </button>
-              <button
-                className="del"
-                aria-label="מחק"
-                onClick={() => removeBook(b)}
-              >
-                ✕
-              </button>
+              {selecting ? (
+                <span className="sel-mark" aria-hidden="true">{selected.has(b.id) ? '☑' : '☐'}</span>
+              ) : (
+                <>
+                  <button
+                    className={'fin' + (isFinished(b) ? ' on' : '')}
+                    aria-label={isFinished(b) ? 'סמן כלא נקרא' : 'סמן כנקרא'}
+                    aria-pressed={isFinished(b)}
+                    onClick={async () => {
+                      await setFinished(b.id, !isFinished(b))
+                      refresh()
+                    }}
+                  >
+                    ✓
+                  </button>
+                  <button className="edit-btn" aria-label="עריכת שם ומחבר" onClick={() => openEdit(b)}>
+                    ✎
+                  </button>
+                  <button className="del" aria-label="מחק" onClick={() => setConfirmDel([b])}>
+                    ✕
+                  </button>
+                </>
+              )}
             </li>
           ))}
         </ul>
@@ -443,6 +453,31 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
         <div className="lib-toast" role="status">
           <span>{toast.msg}</span>
           {toast.undo && <button onClick={toast.undo}>בטל</button>}
+        </div>
+      )}
+
+      {confirmDel && (
+        <div className="modal-backdrop" onClick={() => setConfirmDel(undefined)}>
+          <Dialog
+            className="modal"
+            role="alertdialog"
+            aria-modal="true"
+            aria-label="אישור מחיקה"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.key === 'Escape' && setConfirmDel(undefined)}
+          >
+            <h2>למחוק {confirmDel.length === 1 ? 'את הספר' : `${confirmDel.length} ספרים`}?</h2>
+            <p>
+              {confirmDel.length === 1
+                ? `״${confirmDel[0]?.title}״ יימחק יחד עם מיקום הקריאה וההערות שלו.`
+                : 'הספרים שנבחרו יימחקו יחד עם מיקום הקריאה וההערות שלהם.'}{' '}
+              אי אפשר לבטל פעולה זו.
+            </p>
+            <div className="modal-actions">
+              <button className="danger" onClick={doDelete}>מחק</button>
+              <button onClick={() => setConfirmDel(undefined)} autoFocus>ביטול</button>
+            </div>
+          </Dialog>
         </div>
       )}
 
