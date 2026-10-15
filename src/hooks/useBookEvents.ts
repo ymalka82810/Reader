@@ -1,4 +1,4 @@
-import { useCallback, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react'
+import { useCallback, useLayoutEffect, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react'
 import type { Settings } from '../lib/settings'
 
 export const MIN_FONT = 12
@@ -34,7 +34,9 @@ export interface BookEventsDeps {
  */
 export function useBookEvents(deps: BookEventsDeps) {
   const d = useRef(deps)
-  d.current = deps
+  useLayoutEffect(() => {
+    d.current = deps
+  })
 
   return useCallback((detail: { doc: Document; index: number }, onKey: (e: KeyboardEvent) => void) => {
     const { doc, index } = detail
@@ -103,7 +105,61 @@ export function useBookEvents(deps: BookEventsDeps) {
       // turning in the same tick lets that snap fight the page-turn animation and cancel it
       // (so a tap sometimes appears to do nothing). Wait until it has run.
       const turn = zone === 'left' ? 'goLeft' : zone === 'right' ? 'goRight' : null
-      if (turn) requestAnimationFrame(() => requestAnimationFrame(() => viewRef.current?.[turn]()))
+      if (turn) {
+        setUiVisible(false)
+        requestAnimationFrame(() => requestAnimationFrame(() => viewRef.current?.[turn]()))
+      }
+    })
+
+    // scrolling hides the bars; pushing further once the section's end is on screen moves to the next section
+    const atSectionEnd = () => {
+      const r = d.current.viewRef.current?.renderer
+      return !!r?.scrolled && r.viewSize - r.end <= 2
+    }
+    const hideBars = () => d.current.setUiVisible((vis) => (vis ? false : vis))
+    let wheelAtEnd = 0
+    doc.addEventListener(
+      'wheel',
+      (ev: WheelEvent) => {
+        if (ev.deltaY <= 0 || ev.ctrlKey) return
+        hideBars()
+        if (!atSectionEnd()) {
+          wheelAtEnd = 0
+          return
+        }
+        // the first wheel notch that reaches the end must not also turn the section
+        if (wheelAtEnd === 0) wheelAtEnd = Date.now()
+        else if (Date.now() - wheelAtEnd > 150) {
+          wheelAtEnd = 0
+          d.current.viewRef.current?.next()
+        }
+      },
+      { passive: true },
+    )
+    let dragY: number | null = null
+    let dragWasAtEnd = false
+    doc.addEventListener(
+      'touchstart',
+      (ev: TouchEvent) => {
+        dragY = ev.touches.length === 1 ? (ev.touches[0]?.clientY ?? null) : null
+        dragWasAtEnd = atSectionEnd()
+      },
+      { passive: true },
+    )
+    doc.addEventListener(
+      'touchmove',
+      (ev: TouchEvent) => {
+        if (ev.touches.length !== 1 || dragY === null) return
+        if (Math.abs((ev.touches[0]?.clientY ?? dragY) - dragY) > 10) hideBars()
+      },
+      { passive: true },
+    )
+    doc.addEventListener('touchend', (ev: TouchEvent) => {
+      const endY = ev.changedTouches[0]?.clientY
+      if (dragY !== null && endY !== undefined && dragWasAtEnd && dragY - endY > 60 && atSectionEnd()) {
+        d.current.viewRef.current?.next()
+      }
+      dragY = null
     })
 
     // pinch with two fingers to shrink/grow the text, like the Aa buttons

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type MutableRefObject } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, type MutableRefObject } from 'react'
 
 type KeyPanel = 'toc' | 'notes' | 'settings' | 'search'
 
@@ -7,6 +7,7 @@ export interface KeyActions {
   gotoBookmark: (dir: 1 | -1) => void
   bump: (delta: number) => void
   panel: (p: KeyPanel) => void
+  hideBars: () => void
 }
 
 interface Deps {
@@ -22,7 +23,9 @@ interface Deps {
  */
 export function useBookKeys(deps: Deps) {
   const d = useRef(deps)
-  d.current = deps
+  useLayoutEffect(() => {
+    d.current = deps
+  })
 
   const onKey = useCallback((e: KeyboardEvent) => {
     const { viewRef, actions, closePanel, markActive } = d.current
@@ -33,12 +36,20 @@ export function useBookKeys(deps: Deps) {
     markActive()
     if (e.ctrlKey || e.metaKey || e.altKey) return
     const a = actions.current
-    if (e.key === 'ArrowLeft') v.goLeft()
-    else if (e.key === 'ArrowRight') v.goRight()
-    else if (e.key === 'PageDown' || e.key === ' ') {
+    if (e.key === 'ArrowLeft') {
+      a.hideBars()
+      v.goLeft()
+    } else if (e.key === 'ArrowRight') {
+      a.hideBars()
+      v.goRight()
+    } else if (e.key === 'PageDown' || e.key === ' ') {
       e.preventDefault()
+      a.hideBars()
       v.next()
-    } else if (e.key === 'PageUp') v.prev()
+    } else if (e.key === 'PageUp') {
+      a.hideBars()
+      v.prev()
+    }
     else if (e.key === 'Escape') closePanel()
     else if (e.key === '+' || e.key === '=') a.bump(2)
     else if (e.key === '-') a.bump(-2)

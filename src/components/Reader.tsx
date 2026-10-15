@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import 'foliate-js/view.js'
 import { Overlayer } from 'foliate-js/overlayer.js'
 import { compare as cfiCompare } from 'foliate-js/epubcfi.js'
@@ -50,7 +50,6 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   const viewRef = useRef<any>(null)
   const [settings, setSettings] = useState<Settings>(loadSettings)
   const settingsRef = useRef(settings)
-  settingsRef.current = settings
 
   const [title, setTitle] = useState('')
   const [dir, setDir] = useState<'rtl' | 'ltr'>('rtl')
@@ -81,11 +80,14 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   /** text currently selected in the book, with where to float the colour bar */
   const [selection, setSelection] = useState<Selection | null>(null)
   const selectionRef = useRef(selection)
-  selectionRef.current = selection
+  useLayoutEffect(() => {
+    settingsRef.current = settings
+    selectionRef.current = selection
+  })
   const lastAnnotationClick = useRef(0)
   const [toast, setToast] = useState('')
   const [left, setLeft] = useState<number | null>(null)
-  const actions = useRef<KeyActions>({ bookmark: () => {}, gotoBookmark: () => {}, bump: () => {}, panel: () => {} })
+  const actions = useRef<KeyActions>({ bookmark: () => {}, gotoBookmark: () => {}, bump: () => {}, panel: () => {}, hideBars: () => {} })
   const attachDocHandlers = useBookEvents({
     viewRef,
     settingsRef,
@@ -302,6 +304,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
 
   // stop scanning when the search panel closes or the reader unmounts
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- cancelling a search resets its UI state
     if (panel !== 'search') cancelSearch()
   }, [panel, cancelSearch])
   useEffect(() => cancelSearch, [cancelSearch])
@@ -316,6 +319,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
       cfi: sel.cfi,
       text: sel.text,
       color,
+      // oxlint-disable-next-line react/purity -- runs in a click handler, not during render
       createdAt: Date.now(),
     }
     commitNotes([...notesRef.current, note])
@@ -407,12 +411,15 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) => setSettings((s) => ({ ...s, [k]: v }))
   const bump = (d: number) => set('fontSize', clampFont(settings.fontSize + d))
 
-  actions.current = {
-    bookmark: toggleBookmark,
-    gotoBookmark,
-    bump: (d) => setSettings((s) => ({ ...s, fontSize: clampFont(s.fontSize + d) })),
-    panel: (p) => setPanel((cur) => (cur === p ? null : p)),
-  }
+  useLayoutEffect(() => {
+    actions.current = {
+      bookmark: toggleBookmark,
+      gotoBookmark,
+      bump: (d) => setSettings((s) => ({ ...s, fontSize: clampFont(s.fontSize + d) })),
+      panel: (p) => setPanel((cur) => (cur === p ? null : p)),
+      hideBars: () => setUiVisible(false),
+    }
+  })
 
   const colors = themeColors(settings.theme)
   const shownFraction = dragFraction ?? fraction
@@ -466,9 +473,6 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
       </div>
 
       <div className={'bottombar' + (uiVisible ? '' : ' hidden')}>
-        {settings.flow === 'paginated' && (
-          <button onClick={() => viewRef.current?.goRight()} aria-label="הבא">‹</button>
-        )}
         <div className="progress">
           <input
             type="range"
@@ -489,9 +493,6 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
             {left ? ` · נותרו ~${formatMinutes(left)}` : ''}
           </div>
         </div>
-        {settings.flow === 'paginated' && (
-          <button onClick={() => viewRef.current?.goLeft()} aria-label="הקודם">›</button>
-        )}
       </div>
 
       {selection && !panel && (

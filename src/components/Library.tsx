@@ -1,6 +1,6 @@
 import { Dropdown } from './Dropdown'
 import { Dialog } from './Dialog'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { deleteBook, isFinished, listBooks, setFinished, updateMeta, type BookMeta } from '../lib/db'
 import { importFile } from '../lib/importBook'
 import { PasswordRequiredError, WrongPasswordError } from '../lib/encrypt'
@@ -32,6 +32,7 @@ function Cover({ book }: { book: BookMeta }) {
   useEffect(() => {
     if (!visible || !book.cover) return
     const u = URL.createObjectURL(book.cover)
+    // oxlint-disable-next-line react/set-state-in-effect -- syncs an object URL, an external resource
     setUrl(u)
     return () => URL.revokeObjectURL(u)
   }, [visible, book.cover])
@@ -81,6 +82,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
     }
   }, [])
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- loads the library from IndexedDB
     refresh()
   }, [refresh])
   useEffect(() => {
@@ -156,7 +158,9 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   }
 
   const addRef = useRef(addFiles)
-  addRef.current = addFiles
+  useLayoutEffect(() => {
+    addRef.current = addFiles
+  })
   useEffect(() => {
     takeSharedFiles().then((f) => {
       if (f.length) addRef.current(f)
@@ -222,6 +226,8 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
     else doImport(ask.file, pw)
   }
 
+  const pickRestore = () => restoreInput.current?.click()
+
   const openEdit = (b: BookMeta) => {
     setEditing(b)
     setEditTitle(b.title)
@@ -280,10 +286,12 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
             <>
               <div className="menu-backdrop" onClick={() => setMenu(false)} />
               <div className="menu" role="menu" onKeyDown={(e) => e.key === 'Escape' && setMenu(false)}>
+                {/* oxlint-disable-next-line react/refs -- only read when the menu item is clicked */}
                 {(
+                  // oxlint-disable-next-line react/refs -- only read when the menu item is clicked
                   [
                     ['גיבוי', () => { setPw(''); setPwAsk({ kind: 'export' }) }, 'ספרים, מיקום קריאה, הערות והגדרות (אפשר להצפין בסיסמה)'],
-                    ['שחזור', () => restoreInput.current?.click(), 'מוסיף ספרים חסרים וממזג מיקום והערות'],
+                    ['שחזור', pickRestore, 'מוסיף ספרים חסרים וממזג מיקום והערות'],
                   ] as [string, () => void, string][]
                 ).map(([label, fn, tip]) => (
                   <button
