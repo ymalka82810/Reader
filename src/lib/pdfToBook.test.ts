@@ -4,8 +4,10 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('pdfjs-dist/legacy/build/pdf.mjs', () => ({ GlobalWorkerOptions: {} }))
 vi.mock('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url', () => ({ default: '' }))
 
-const { detectHeadings, fixVisual, looksReversed, toParagraphs } = await import('./pdfToBook')
+const { detectHeadings, fixVisual, joinPages, looksReversed, readingGroups, stripRunningLines, toParagraphs } =
+  await import('./pdfToBook')
 type Line = import('./pdfToBook').Line
+type RawItem = import('./pdfToBook').RawItem
 
 const MIRROR: Record<string, string> = { '(': ')', ')': '(' }
 /** how a logical-order string is stored in a visual-order PDF: reversed, with brackets mirrored */
@@ -123,5 +125,77 @@ describe('detectHeadings', () => {
       body(144),
     ])
     expect(detectHeadings(pages, false).size).toBe(0)
+  })
+})
+
+describe('stripRunningLines', () => {
+  const page = (n: number): Line[] => [
+    line('שם הספר', 200),
+    line(`גוף העמוד ${'ד'.repeat(n)} עם טקסט`, 180),
+    line(`שורה אחת של טקסט ${'א'.repeat(n)}`, 168),
+    line(`שורה שנייה של טקסט ${'ב'.repeat(n)}`, 156),
+    line(`שורה שלישית של טקסט ${'ג'.repeat(n)}`, 144),
+    line(`- ${n} -`, 20),
+  ]
+  it('removes repeated headers and numbered footers', () => {
+    const out = stripRunningLines(Array.from({ length: 6 }, (_, i) => page(i + 1)))
+    for (const lines of out) {
+      expect(lines).toHaveLength(4)
+      expect(lines[0]!.text).toMatch(/^גוף העמוד/)
+    }
+  })
+  it('keeps a heading that appears only once', () => {
+    const pages = Array.from({ length: 6 }, (_, i) => page(i + 1))
+    pages[2] = [line('פרק שלישי', 200), ...pages[2]!.slice(1)]
+    expect(stripRunningLines(pages)[2]![0]!.text).toBe('פרק שלישי')
+  })
+  it('leaves very short documents alone', () => {
+    const pages = [page(1), page(2)]
+    expect(stripRunningLines(pages)).toBe(pages)
+  })
+})
+
+describe('joinPages', () => {
+  it('merges a paragraph that continues on the next page', () => {
+    expect(joinPages([['intro.', 'the sentence goes'], ['on here.', 'next']])).toEqual([
+      'intro.',
+      'the sentence goes on here.',
+      'next',
+    ])
+  })
+  it('does not merge after a finished sentence', () => {
+    expect(joinPages([['done.'], ['new']])).toEqual(['done.', 'new'])
+  })
+  it('re-joins a word hyphenated across the page break', () => {
+    expect(joinPages([['inter-'], ['national law.']])).toEqual(['international law.'])
+  })
+})
+
+describe('readingGroups', () => {
+  const item = (str: string, x: number, y: number, w = 100): RawItem => ({ str, x, y, w, h: 10, eol: true })
+  const column = (x: number, tag: string) => Array.from({ length: 8 }, (_, i) => item(`${tag}${i}`, x, 300 - i * 12))
+  it('keeps a single column as one group', () => {
+    const items = Array.from({ length: 20 }, (_, i) => item(`l${i}`, 0, 300 - i * 12, 400))
+    expect(readingGroups(items)).toHaveLength(1)
+  })
+  it('reads left column before right, even when the stream interleaves them', () => {
+    const l = column(0, 'L')
+    const r = column(200, 'R')
+    const interleaved = l.flatMap((a, i) => [a, r[i]!])
+    const groups = readingGroups(interleaved).map((g) => g.map((i) => i.str[0]))
+    expect(groups).toHaveLength(2)
+    expect(groups[0]!.every((c) => c === 'L')).toBe(true)
+    expect(groups[1]!.every((c) => c === 'R')).toBe(true)
+  })
+  it('reads the right column first for Hebrew', () => {
+    const l = Array.from({ length: 8 }, (_, i) => item(`שמאל${i}`, 0, 300 - i * 12))
+    const r = Array.from({ length: 8 }, (_, i) => item(`ימין${i}`, 200, 300 - i * 12))
+    const groups = readingGroups([...l, ...r])
+    expect(groups[0]![0]!.str).toBe('ימין0')
+  })
+  it('keeps a full-width title above the columns', () => {
+    const title = item('Title', 0, 330, 300)
+    const groups = readingGroups([...column(200, 'R'), title, ...column(0, 'L')])
+    expect(groups.map((g) => g[0]!.str[0])).toEqual(['T', 'L', 'R'])
   })
 })

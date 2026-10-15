@@ -51,7 +51,12 @@ async function readIntoLibrary(file: File, onProgress?: (msg: string) => void): 
   if (isPdf(file)) {
     // Convert the PDF into a real EPUB first, then read it exactly like any other EPUB.
     const [{ extractPdf }, { buildEpub }] = await Promise.all([import('./pdfToBook'), import('./pdfToEpub')])
-    const x = await extractPdf(file, file.name, (d, t) => onProgress?.(`מחלץ טקסט מה-PDF… ${d}/${t}`))
+    const x = await extractPdf(
+      file,
+      file.name,
+      (d, t) => onProgress?.(`מחלץ טקסט מה-PDF… ${d}/${t}`),
+      (d, t) => onProgress?.(`סריקה: מזהה טקסט (OCR)… ${Math.min(d + 1, t)}/${t}`),
+    )
     onProgress?.('ממיר ל-EPUB…')
     const blob = await buildEpub(x)
     epub = new File([blob], file.name.replace(/\.pdf$/i, '') + '.epub', { type: 'application/epub+zip' })

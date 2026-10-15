@@ -14,26 +14,31 @@ const HEB = /[\u0590-\u05FF]/
 const FINALS = /[ךםןףץ]/
 const PAGES_PER_SECTION = 8
 
-/** Extract lines of text from one PDF page, in content-stream order. */
-async function extractLines(page: PDFPageProxy): Promise<Line[]> {
-  const content = await page.getTextContent()
+/** One positioned text run as reported by pdf.js. */
+export interface RawItem {
+  str: string
+  x: number
+  y: number
+  w: number
+  h: number
+  eol: boolean
+}
+
+/** Merge consecutive same-baseline runs into lines, in content-stream order. */
+function buildLines(items: RawItem[]): Line[] {
   const lines: Line[] = []
   let cur: Line | null = null
-  for (const it of content.items) {
-    if (!('str' in it)) continue
-    const x = it.transform[4]
-    const y = it.transform[5]
-    const h = it.height || Math.abs(it.transform[3]) || 10
-    if (!it.str && !it.hasEOL) continue
-    if (cur && Math.abs(y - cur.y) <= h * 0.5) {
+  for (const it of items) {
+    if (!it.str && !it.eol) continue
+    if (cur && Math.abs(it.y - cur.y) <= it.h * 0.5) {
       cur.text += it.str
-      cur.x0 = Math.min(cur.x0, x)
-      cur.x1 = Math.max(cur.x1, x + it.width)
+      cur.x0 = Math.min(cur.x0, it.x)
+      cur.x1 = Math.max(cur.x1, it.x + it.w)
     } else {
       if (cur) lines.push(cur)
-      cur = { text: it.str, y, h, x0: x, x1: x + it.width }
+      cur = { text: it.str, y: it.y, h: it.h, x0: it.x, x1: it.x + it.w }
     }
-    if (it.hasEOL && cur) {
+    if (it.eol && cur) {
       lines.push(cur)
       cur = null
     }
@@ -43,6 +48,152 @@ async function extractLines(page: PDFPageProxy): Promise<Line[]> {
     .map((l) => ({ ...l, text: l.text.replace(/\s+/g, ' ').trim() }))
     .filter((l) => l.text)
 }
+
+/** The widest empty vertical band in the middle of the page, if the page looks two-column. */
+function findGutter(texts: RawItem[]): [number, number] | null {
+  if (texts.length < 12) return null
+  const minX = Math.min(...texts.map((i) => i.x))
+  const maxX = Math.max(...texts.map((i) => i.x + i.w))
+  const pw = maxX - minX
+  if (pw <= 0) return null
+  const lo = minX + pw * 0.3
+  const hi = minX + pw * 0.7
+  // full-width runs (titles, whole-line items) are handled separately as "crossers"
+  const iv = texts
+    .filter((i) => i.w < pw * 0.6)
+    .map((i) => [i.x, i.x + i.w] as const)
+    .sort((a, b) => a[0] - b[0])
+  const minGap = Math.max(pw * 0.02, median(texts.map((i) => i.h)) * 1.2)
+  let best: [number, number] | null = null
+  const consider = (a: number, b: number) => {
+    if (b - a >= minGap && (!best || b - a > best[1] - best[0])) best = [a, b]
+  }
+  let cursor = lo
+  for (const [a, b] of iv) {
+    if (b <= cursor) continue
+    if (a >= hi) break
+    if (a > cursor) consider(cursor, a)
+    cursor = Math.max(cursor, b)
+  }
+  if (cursor < hi) consider(cursor, hi)
+  return best
+}
+
+/**
+ * Split a page's text runs into reading-order groups. Single-column pages come back as one group;
+ * two-column pages as [column, column, …] (right column first for Hebrew), with full-width runs
+ * (titles, spanning paragraphs) kept in their vertical position between the column bands.
+ */
+export function readingGroups(items: RawItem[]): RawItem[][] {
+  const texts = items.filter((i) => i.str.trim())
+  const gutter = findGutter(texts)
+  if (!gutter) return [items]
+  const [g0, g1] = gutter
+  const mid = (g0 + g1) / 2
+  const crosses = (i: RawItem) => i.x < g1 && i.x + i.w > g0
+  const crossers = texts.filter(crosses).sort((a, b) => b.y - a.y)
+  const side = (i: RawItem) => i.x + i.w / 2 < mid
+  const sideItems = texts.filter((i) => !crosses(i))
+  if (
+    crossers.length > texts.length * 0.1 ||
+    sideItems.filter(side).length < 6 ||
+    sideItems.filter((i) => !side(i)).length < 6
+  )
+    return [items]
+  const heb = texts.filter((i) => HEB.test(i.str)).length > texts.length / 2
+
+  // consecutive crossers on one baseline form a single spanning line
+  const spans: RawItem[][] = []
+  for (const c of crossers) {
+    const last = spans[spans.length - 1]
+    if (last && Math.abs(last[0]!.y - c.y) <= c.h * 0.5) last.push(c)
+    else spans.push([c])
+  }
+  const bands: RawItem[][] = Array.from({ length: spans.length + 1 }, () => [])
+  for (const it of items) {
+    if (crosses(it) && it.str.trim()) continue
+    const k = spans.findIndex((s) => Math.abs(s[0]!.y - it.y) <= s[0]!.h * 0.5)
+    if (k >= 0) spans[k]!.push(it)
+    else bands[spans.filter((s) => s[0]!.y > it.y).length]!.push(it)
+  }
+  const out: RawItem[][] = []
+  bands.forEach((band, k) => {
+    const left = band.filter(side)
+    const right = band.filter((i) => !side(i))
+    for (const col of heb ? [right, left] : [left, right]) if (col.length) out.push(col)
+    if (spans[k]) out.push(spans[k]!)
+  })
+  return out
+}
+
+/** Extract lines of text from one PDF page, in reading order. */
+async function extractLines(page: PDFPageProxy): Promise<Line[]> {
+  const content = await page.getTextContent()
+  const items: RawItem[] = []
+  for (const it of content.items) {
+    if (!('str' in it)) continue
+    items.push({
+      str: it.str,
+      x: it.transform[4],
+      y: it.transform[5],
+      w: it.width,
+      h: it.height || Math.abs(it.transform[3]) || 10,
+      eol: !!it.hasEOL,
+    })
+  }
+  return readingGroups(items).flatMap(buildLines)
+}
+
+/** Digits vary page to page ("עמוד 7"), so compare repeated lines with numbers masked. */
+const signature = (t: string) => t.replace(/[\d٠-٩]+/g, '#').replace(/\s+/g, ' ').trim()
+
+/**
+ * Remove running headers/footers: lines at the very top or bottom of a page whose text (digits
+ * ignored) repeats on a good share of the pages. Also catches bare page numbers.
+ */
+export function stripRunningLines(pages: Line[][]): Line[][] {
+  if (pages.length < 4) return pages
+  const EDGE = 2
+  const edgeOf = (lines: Line[]) =>
+    lines.map((l, i) => ({ l, edge: i < EDGE || i >= lines.length - EDGE }))
+  const seen = new Map<string, number>()
+  for (const lines of pages) {
+    const sigs = new Set<string>()
+    for (const { l, edge } of edgeOf(lines)) if (edge) sigs.add(signature(l.text))
+    for (const s of sigs) seen.set(s, (seen.get(s) ?? 0) + 1)
+  }
+  const min = Math.max(3, Math.ceil(pages.length * 0.25))
+  const drop = new Set<string>()
+  for (const [s, n] of seen) if (n >= min && /[#\p{L}]/u.test(s)) drop.add(s)
+  if (!drop.size) return pages
+  return pages.map((lines) =>
+    edgeOf(lines)
+      .filter(({ l, edge }) => !(edge && drop.has(signature(l.text))))
+      .map(({ l }) => l),
+  )
+}
+
+/**
+ * Join per-page paragraphs into one list, merging a paragraph that runs over a page break
+ * (the page ended without sentence-ending punctuation) and re-joining hyphenated words.
+ */
+export function joinPages(pages: string[][]): string[] {
+  const out: string[] = []
+  let open = false // the last paragraph in `out` may continue on the next page
+  for (const paras of pages) {
+    paras.forEach((p, i) => {
+      if (i === 0 && open && out.length) {
+        const prev = out[out.length - 1]!
+        out[out.length - 1] = HYPHEN_END.test(prev) ? prev.slice(0, -1) + p : prev + ' ' + p
+      } else out.push(p)
+    })
+    open = paras.length > 0 && !SENTENCE_END.test(paras[paras.length - 1]!)
+  }
+  return out
+}
+
+const SENTENCE_END = /[.!?:׃"”״)…]$/
+const HYPHEN_END = /[A-Za-zא-ת][-­]$/
 
 /** Some Hebrew PDFs store text in visual order (reversed). Detect via final-letter positions. */
 export function looksReversed(allLines: Line[][]): boolean {
@@ -109,7 +260,7 @@ export function toParagraphs(lines: Line[], reversed: boolean): string[] {
       }
     }
     if (!buf) buf = text
-    else if (/[A-Za-z\u05D0-\u05EA]-$/.test(buf) && !buf.endsWith('־')) buf = buf.slice(0, -1) + text
+    else if (HYPHEN_END.test(buf)) buf = buf.slice(0, -1) + text
     else buf += ' ' + text
     prev = l
   }
@@ -201,6 +352,7 @@ export async function extractPdf(
   file: Blob,
   fileName: string,
   onProgress?: (done: number, total: number) => void,
+  onOcrProgress?: (done: number, total: number) => void,
 ): Promise<ExtractedPdf> {
   // pdf.js is heavy; load it only when a PDF is actually imported.
   const [pdfjs, { default: workerUrl }] = await Promise.all([
@@ -211,27 +363,47 @@ export async function extractPdf(
   const task = pdfjs.getDocument({ data: await file.arrayBuffer() })
   const pdf = await task.promise
   const total = pdf.numPages
-  const pages: Line[][] = []
-  for (let i = 1; i <= total; i++) {
-    const p = await pdf.getPage(i)
-    pages.push(await extractLines(p))
-    p.cleanup()
-    onProgress?.(i, total)
+  let pages: Line[][] = []
+  let info: Record<string, string>
+  let bookmarks: Map<number, string>
+  try {
+    for (let i = 1; i <= total; i++) {
+      const p = await pdf.getPage(i)
+      pages.push(await extractLines(p))
+      p.cleanup()
+      onProgress?.(i, total)
+    }
+    info = ((await pdf.getMetadata().catch(() => null))?.info ?? {}) as Record<string, string>
+    bookmarks = await outlineStarts(pdf)
+
+    const hasText = () => pages.flat().map((l) => l.text).join('').replace(/\s/g, '').length >= total * 20
+    // a scan has no text layer: read the page images instead (the pdf must stay open for this)
+    if (!hasText()) {
+      try {
+        pages = await (await import('./ocr')).ocrPdf(pdf, onOcrProgress)
+      } catch (e) {
+        console.error(e)
+        throw new ImportError('ה-PDF הוא סריקה, והזיהוי האוטומטי של הטקסט (OCR) נכשל. בדקו את החיבור לאינטרנט ונסו שוב.')
+      }
+      if (!hasText()) throw new ImportError('לא הצלחנו לזהות טקסט ב-PDF הסרוק הזה.')
+    }
+  } finally {
+    await task.destroy()
   }
-  const info = ((await pdf.getMetadata().catch(() => null))?.info ?? {}) as Record<string, string>
-  const bookmarks = await outlineStarts(pdf)
-  await task.destroy()
 
   const chars = pages.flat().map((l) => l.text).join('')
-  if (chars.replace(/\s/g, '').length < total * 20)
-    throw new ImportError('ב-PDF הזה אין שכבת טקסט (כנראה סריקה). נדרש OCR, שעדיין לא נתמך.')
 
   const reversed = looksReversed(pages)
   const hebCount = (chars.match(/[֐-׿]/g) ?? []).length
   const rtl = hebCount > chars.length * 0.3
 
+  // repeated headers/footers would otherwise leak into the text and fake chapter headings
+  const body = stripRunningLines(pages)
+  const chapterParas = (from: number, to: number) =>
+    joinPages(body.slice(from, to).map((p) => toParagraphs(p, reversed)))
+
   let starts = bookmarks
-  if (starts.size < 2) starts = detectHeadings(pages, reversed)
+  if (starts.size < 2) starts = detectHeadings(body, reversed)
 
   const chapters: { title: string; paras: string[] }[] = []
   if (starts.size >= 2) {
@@ -244,7 +416,7 @@ export async function extractPdf(
       const to = marks[i + 1] ?? total
       chapters.push({
         title: starts.get(from) ?? pageRange(from + 1, to),
-        paras: pages.slice(from, to).flatMap((p) => toParagraphs(p, reversed)),
+        paras: chapterParas(from, to),
       })
     })
   } else {
@@ -252,7 +424,7 @@ export async function extractPdf(
       const end = Math.min(total, start + PAGES_PER_SECTION)
       chapters.push({
         title: pageRange(start + 1, end),
-        paras: pages.slice(start, end).flatMap((p) => toParagraphs(p, reversed)),
+        paras: chapterParas(start, end),
       })
     }
   }
