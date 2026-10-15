@@ -52,6 +52,13 @@ const UNDO_MS = 7000
 export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   const [books, setBooks] = useState<BookMeta[]>([])
   const [busy, setBusy] = useState<string>()
+  const [batch, setBatch] = useState<{ done: number; total: number; deadline?: number }>()
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!batch) return
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [!!batch]) // eslint-disable-line react-hooks/exhaustive-deps
   const [error, setError] = useState<string>()
   const [drag, setDrag] = useState(false)
   const [query, setQuery] = useState('')
@@ -181,7 +188,35 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   const addFiles = async (files: FileList | File[]) => {
     setError(undefined)
     const errors: string[] = []
-    for (const f of Array.from(files)) {
+    const list = Array.from(files)
+    let started = Date.now()
+    setBatch(list.length > 1 ? { done: 0, total: list.length, deadline: undefined } : undefined)
+    setNow(started)
+    // keep the screen awake while importing; best-effort, released on completion
+    let wake: { release(): Promise<void> } | undefined
+    const takeWake = () =>
+      (navigator as Navigator & { wakeLock?: { request(t: 'screen'): Promise<{ release(): Promise<void> }> } }).wakeLock
+        ?.request('screen')
+        .then((w) => (wake = w))
+        .catch(() => {})
+    void takeWake()
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault()
+    window.addEventListener('beforeunload', warn)
+    for (const [i, f] of list.entries()) {
+      // leaving the tab pauses the queue instead of failing the next file; paused time doesn't count towards the ETA
+      if (document.visibilityState === 'hidden') {
+        const pausedAt = Date.now()
+        await new Promise<void>((resolve) => {
+          const on = () => {
+            if (document.visibilityState !== 'visible') return
+            document.removeEventListener('visibilitychange', on)
+            resolve()
+          }
+          document.addEventListener('visibilitychange', on)
+        })
+        started += Date.now() - pausedAt
+        void takeWake()
+      }
       try {
         setBusy(`מוסיף את ${f.name}…`)
         await importFile(
@@ -193,7 +228,18 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
       } catch (e) {
         errors.push(`${f.name}: ${e instanceof Error ? e.message : String(e)}`)
       }
+      const done = i + 1
+      const t = Date.now()
+      setNow(t)
+      setBatch(
+        list.length > 1
+          ? { done, total: list.length, deadline: t + ((t - started) / done) * (list.length - done) }
+          : undefined,
+      )
     }
+    window.removeEventListener('beforeunload', warn)
+    void wake?.release().catch(() => {})
+    setBatch(undefined)
     setBusy(undefined)
     if (errors.length) setError(errors.join('\n'))
     await refresh()
@@ -435,7 +481,26 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
         </div>
       )}
 
-      {busy && <div className="notice">{busy}</div>}
+      {busy && (
+        <div className="notice">
+          {batch && (
+            <div className="batch">
+              <div className="batch-head">
+                <span>
+                  {batch.done}/{batch.total} ספרים
+                </span>
+                <span>
+                  {batch.deadline === undefined
+                    ? 'מחשב זמן…'
+                    : `נותרו כ-${Math.max(0, Math.ceil((batch.deadline - now) / 1000))} שניות`}
+                </span>
+              </div>
+              <progress value={batch.done} max={batch.total} />
+            </div>
+          )}
+          {busy}
+        </div>
+      )}
       {error && (
         <div className="notice error" onClick={() => setError(undefined)}>
           {error}
