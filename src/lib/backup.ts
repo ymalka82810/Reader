@@ -1,6 +1,7 @@
 import {
   getAllProgress,
   getNotes,
+  getFile,
   listBooks,
   mergeProgress,
   saveBook,
@@ -69,7 +70,9 @@ export function backupDue(urgent = false): boolean {
 
 /** total bytes of book files and covers, to warn before building a backup too big for memory */
 export async function librarySize(): Promise<number> {
-  return (await listBooks()).reduce((sum, b) => sum + b.file.size + (b.cover?.size ?? 0), 0)
+  let sum = 0
+  for (const b of await listBooks()) sum += ((await getFile(b.id))?.size ?? 0) + (b.cover?.size ?? 0)
+  return sum
 }
 
 /** `password` (optional) encrypts the whole file with AES-GCM, see encrypt.ts */
@@ -116,7 +119,9 @@ async function buildPlain(onProgress?: (done: number, total: number) => void): P
   let offset = 0
 
   for (let i = 0; i < books.length; i++) {
-    const { file, cover, ...rest } = books[i]!
+    const { cover, ...rest } = books[i]!
+    const file = await getFile(rest.id)
+    if (!file) continue
     parts.push(file)
     const fileRange: [number, number] = [offset, offset + file.size]
     offset += file.size

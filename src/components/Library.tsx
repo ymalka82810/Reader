@@ -1,6 +1,7 @@
 import { Dropdown } from './Dropdown'
+import { Dialog } from './Dialog'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { deleteBook, isFinished, listBooks, setFinished, updateMeta, type BookRecord } from '../lib/db'
+import { deleteBook, isFinished, listBooks, setFinished, updateMeta, type BookMeta } from '../lib/db'
 import { importFile } from '../lib/importBook'
 import { PasswordRequiredError, WrongPasswordError } from '../lib/encrypt'
 import { backupDue, exportLibrary, exportLibraryTo, importLibrary, librarySize, markBackedUp } from '../lib/backup'
@@ -8,7 +9,7 @@ import { download } from '../lib/download'
 import { onLaunchFiles, takeSharedFiles } from '../lib/inbox'
 import { formatBytes, getStorageStatus, type StorageStatus } from '../lib/storage'
 
-function Cover({ book }: { book: BookRecord }) {
+function Cover({ book }: { book: BookMeta }) {
   const [url, setUrl] = useState<string>()
   const holder = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(typeof IntersectionObserver === 'undefined')
@@ -46,14 +47,14 @@ function Cover({ book }: { book: BookRecord }) {
 const BIG_BACKUP = 500 * 1024 * 1024
 
 export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
-  const [books, setBooks] = useState<BookRecord[]>([])
+  const [books, setBooks] = useState<BookMeta[]>([])
   const [busy, setBusy] = useState<string>()
   const [error, setError] = useState<string>()
   const [drag, setDrag] = useState(false)
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<'recent' | 'title' | 'author' | 'added'>('recent')
   const [filter, setFilter] = useState<'all' | 'reading' | 'unread' | 'finished'>('all')
-  const [editing, setEditing] = useState<BookRecord>()
+  const [editing, setEditing] = useState<BookMeta>()
   const [editTitle, setEditTitle] = useState('')
   const [editAuthor, setEditAuthor] = useState('')
   const input = useRef<HTMLInputElement>(null)
@@ -64,7 +65,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   const [toast, setToast] = useState<{ msg: string; undo?: () => void }>()
   const toastTimer = useRef<number>(undefined)
   // a delete waits out the undo window before it touches the database
-  const pending = useRef<{ book: BookRecord; timer: number }>(undefined)
+  const pending = useRef<{ book: BookMeta; timer: number }>(undefined)
   const [hiddenId, setHiddenId] = useState<string>()
   // password prompt: for a new backup (optional password) or for restoring an encrypted one
   const [pwAsk, setPwAsk] = useState<{ kind: 'export' } | { kind: 'import'; file: File; wrong?: boolean }>()
@@ -104,7 +105,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
     setHiddenId((h) => (h === p.book.id ? undefined : h))
   }, [])
 
-  const removeBook = async (b: BookRecord) => {
+  const removeBook = async (b: BookMeta) => {
     // an earlier pending delete becomes final; reload so it doesn't reappear once hiddenId moves on
     if (pending.current) {
       await commitDelete()
@@ -138,14 +139,14 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase()
-    const state = (b: BookRecord) => (isFinished(b) ? 'finished' : b.fraction ? 'reading' : 'unread')
+    const state = (b: BookMeta) => (isFinished(b) ? 'finished' : b.fraction ? 'reading' : 'unread')
     const list = books.filter(
       (b) =>
         b.id !== hiddenId &&
         (filter === 'all' || state(b) === filter) &&
         (!q || `${b.title} ${b.author} ${b.fileName}`.toLowerCase().includes(q)),
     )
-    const by = (f: (b: BookRecord) => string) => (a: BookRecord, b: BookRecord) =>
+    const by = (f: (b: BookMeta) => string) => (a: BookMeta, b: BookMeta) =>
       f(a).localeCompare(f(b), 'he')
     if (sort === 'title') list.sort(by((b) => b.title))
     else if (sort === 'author') list.sort(by((b) => b.author || '￿'))
@@ -236,7 +237,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
     else doImport(ask.file, pw)
   }
 
-  const openEdit = (b: BookRecord) => {
+  const openEdit = (b: BookMeta) => {
     setEditing(b)
     setEditTitle(b.title)
     setEditAuthor(b.author || '')
@@ -447,7 +448,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
 
       {pwAsk && (
         <div className="modal-backdrop" onClick={() => setPwAsk(undefined)}>
-          <div
+          <Dialog
             className="modal"
             role="dialog"
             aria-modal="true"
@@ -475,13 +476,13 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
               </button>
               <button onClick={() => setPwAsk(undefined)}>ביטול</button>
             </div>
-          </div>
+          </Dialog>
         </div>
       )}
 
       {editing && (
         <div className="modal-backdrop" onClick={() => setEditing(undefined)}>
-          <div
+          <Dialog
             className="modal"
             role="dialog"
             aria-modal="true"
@@ -511,7 +512,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
               </button>
               <button onClick={() => setEditing(undefined)}>ביטול</button>
             </div>
-          </div>
+          </Dialog>
         </div>
       )}
     </div>

@@ -32,23 +32,37 @@ export interface Progress {
 
 const progressStore = createStore('reader-progress-db', 'progress')
 
-const withProgress = (b: BookRecord, p?: Progress): BookRecord =>
+const withProgress = <T extends BookMeta>(b: T, p?: Progress): T =>
   p ? { ...b, cfi: p.cfi, fraction: p.fraction, lastOpened: p.lastOpened } : b
 
-export const saveBook = (b: BookRecord) => set(b.id, b, store)
-export const getBook = async (id: string) => {
-  const b = await get<BookRecord>(id, store)
-  return b && withProgress(b, await get<Progress>(id, progressStore))
+/** a book without its file: what the library list needs, cheap to read for every book */
+export type BookMeta = Omit<BookRecord, 'file'>
+
+/** book files live in their own store so listing the library never touches the Blobs */
+const fileStore = createStore('reader-files-db', 'files')
+
+export const getFile = (id: string) => get<Blob>(id, fileStore)
+
+export const saveBook = async (b: BookRecord) => {
+  const { file, ...meta } = b
+  await set(b.id, file, fileStore)
+  await set(b.id, meta, store)
+}
+export const getBook = async (id: string): Promise<BookRecord | undefined> => {
+  const [meta, file] = await Promise.all([get<BookMeta>(id, store), getFile(id)])
+  if (!meta || !file) return undefined
+  return withProgress({ ...meta, file }, await get<Progress>(id, progressStore))
 }
 export const deleteBook = async (id: string) => {
   await del(id, store)
+  await del(id, fileStore)
   await del(id, notesStore)
   await del(id, progressStore)
   await deleteStats(id)
 }
 export const listBooks = async () => {
   const progress = new Map(await entries<string, Progress>(progressStore))
-  return (await values<BookRecord>(store))
+  return (await values<BookMeta>(store))
     .map((b) => withProgress(b, progress.get(b.id)))
     .sort((a, b) => (b.lastOpened ?? b.addedAt) - (a.lastOpened ?? a.addedAt))
 }
@@ -68,21 +82,21 @@ export async function mergeProgress(id: string, incoming: Progress): Promise<boo
 }
 
 export async function updateMeta(id: string, title: string, author: string) {
-  const b = await get<BookRecord>(id, store)
+  const b = await get<BookMeta>(id, store)
   if (!b) return
   b.title = title
   b.author = author
-  await saveBook(b)
+  await set(id, b, store)
 }
 
 /** explicit "read" mark; when unset a book counts as read once its position passes 98% */
-export const isFinished = (b: BookRecord) => b.finished ?? (b.fraction ?? 0) >= 0.98
+export const isFinished = (b: BookMeta) => b.finished ?? (b.fraction ?? 0) >= 0.98
 
 export async function setFinished(id: string, finished: boolean) {
-  const b = await get<BookRecord>(id, store)
+  const b = await get<BookMeta>(id, store)
   if (!b) return
   b.finished = finished
-  await saveBook(b)
+  await set(id, b, store)
 }
 
 export const newId = () =>
@@ -131,6 +145,15 @@ const migrations: (() => Promise<void>)[] = [
         await set(id, { cfi: b.cfi, fraction: b.fraction ?? 0, lastOpened: b.lastOpened ?? b.addedAt } satisfies Progress, progressStore)
       const { cfi: _cfi, fraction: _fraction, lastOpened: _lastOpened, ...rest } = b
       await set(id, rest, store)
+    }
+  },
+  // 2: the file Blob used to live inside the book record, so listing the library read every book
+  async () => {
+    for (const [id, b] of await entries<string, Partial<BookRecord>>(store)) {
+      if (!b.file) continue
+      const { file, ...meta } = b
+      await set(id, file, fileStore)
+      await set(id, meta, store)
     }
   },
 ]

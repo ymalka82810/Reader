@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import 'foliate-js/view.js'
 import { Overlayer } from 'foliate-js/overlayer.js'
 import { compare as cfiCompare } from 'foliate-js/epubcfi.js'
+import { Dialog } from './Dialog'
 import { getBook, getNotes, newId, saveNotes, updateProgress, type Annotation } from '../lib/db'
 import { download } from '../lib/download'
 import { bookFromSections } from '../lib/pdfToBook'
@@ -66,7 +67,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   const searchToken = useRef(0)
   const [fraction, setFraction] = useState(0)
   const [dragFraction, setDragFraction] = useState<number | null>(null)
-  const [pages, setPages] = useState<{ current: number; total: number } | null>(null)
+  const [pages, setPages] = useState<{ current: number; total: number; approx: boolean } | null>(null)
   const [chapter, setChapter] = useState('')
 
   const [notes, setNotes] = useState<Annotation[]>([])
@@ -131,7 +132,9 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     const before = sizes.slice(0, idx).reduce((a, b) => a + b, 0)
     const total = Math.max(1, Math.round(totalSize / bytesPerPage))
     const current = Math.min(total, Math.round(before / bytesPerPage) + curInSection)
-    setPages({ current, total })
+    // the total is an estimate until every section with text has been laid out
+    const approx = sizes.some((sz, i) => sz > 0 && !calib.current.has(i))
+    setPages({ current, total, approx })
   }, [])
 
   // ---- open the book ----
@@ -569,19 +572,31 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
       )}
 
       <div className={'topbar' + (uiVisible ? '' : ' hidden')}>
-        <button onClick={onClose} aria-label="חזרה לספרייה">→</button>
+        <button onClick={onClose} aria-label="חזרה לספרייה" title="חזרה לספרייה">→</button>
         <div className="title">{title}</div>
         {notes.some((n) => n.kind === 'bookmark') && (
           <>
-            <button onClick={() => gotoBookmark(-1)} aria-label="סימנייה קודמת" title="סימנייה קודמת ([)">⏮</button>
-            <button onClick={() => gotoBookmark(1)} aria-label="סימנייה הבאה" title="סימנייה הבאה (])">⏭</button>
+            <button onClick={() => gotoBookmark(-1)} aria-label="סימנייה קודמת" title="סימנייה קודמת ([)">
+              <Icon d="M19 20 9 12l10-8zM5 4v16" />
+            </button>
+            <button onClick={() => gotoBookmark(1)} aria-label="סימנייה הבאה" title="סימנייה הבאה (])">
+              <Icon d="M5 4l10 8-10 8zM19 4v16" />
+            </button>
           </>
         )}
-        <button onClick={toggleBookmark} aria-label="סימנייה">🔖</button>
-        <button onClick={() => setPanel(panel === 'notes' ? null : 'notes')} aria-label="סימניות והדגשות">📝</button>
-        <button onClick={() => setPanel(panel === 'toc' ? null : 'toc')} aria-label="תוכן עניינים">☰</button>
-        <button onClick={() => setPanel(panel === 'search' ? null : 'search')} aria-label="חיפוש">🔍</button>
-        <button onClick={() => setPanel(panel === 'settings' ? null : 'settings')} aria-label="הגדרות תצוגה">Aa</button>
+        <button onClick={toggleBookmark} aria-label="סימנייה" title="הוסף/הסר סימנייה">
+          <Icon d="M6 3h12v18l-6-4-6 4z" />
+        </button>
+        <button onClick={() => setPanel(panel === 'notes' ? null : 'notes')} aria-label="סימניות והדגשות" title="סימניות והדגשות">
+          <Icon d="M4 20h4L19 9l-4-4L4 16zM13 7l4 4" />
+        </button>
+        <button onClick={() => setPanel(panel === 'toc' ? null : 'toc')} aria-label="תוכן עניינים" title="תוכן עניינים">
+          <Icon d="M4 6h16M4 12h16M4 18h16" />
+        </button>
+        <button onClick={() => setPanel(panel === 'search' ? null : 'search')} aria-label="חיפוש" title="חיפוש">
+          <Icon d="M10.5 18a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15zM16 16l5 5" />
+        </button>
+        <button onClick={() => setPanel(panel === 'settings' ? null : 'settings')} aria-label="הגדרות תצוגה" title="הגדרות תצוגה">Aa</button>
       </div>
 
       <div className={'bottombar' + (uiVisible ? '' : ' hidden')}>
@@ -602,7 +617,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
             onKeyUp={commit}
           />
           <div className="label">
-            {pages ? `עמוד ${pages.current} מתוך ${pages.total}` : ''}
+            {pages ? `עמוד ${pages.approx ? '~' : ''}${pages.current} מתוך ${pages.approx ? '~' : ''}${pages.total}` : ''}
             {pages ? ' · ' : ''}
             {Math.round(shownFraction * 100)}%{chapter ? ` · ${chapter}` : ''}
             {left ? ` · נותרו ~${formatMinutes(left)}` : ''}
@@ -866,19 +881,23 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   )
 }
 
+/** stroked 24px SVG icon, so toolbar buttons look the same on every platform */
+function Icon({ d }: { d: string }) {
+  return (
+    <svg className="icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={d} />
+    </svg>
+  )
+}
+
 const COLOR_NAMES = ['צהוב', 'ירוק', 'כחול', 'ורוד']
 
-/** floating panel that takes focus when it opens, so keyboard and screen-reader users land inside it */
+/** floating panel: see Dialog — takes focus on open, traps Tab, returns focus to its opener on close */
 function Panel({ label, className = '', children }: { label: string; className?: string; children: React.ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const el = ref.current
-    if (el && !el.contains(document.activeElement)) el.focus({ preventScroll: true })
-  }, [])
   return (
-    <div ref={ref} className={`panel ${className}`} role="dialog" aria-label={label} tabIndex={-1}>
+    <Dialog className={`panel ${className}`} role="dialog" aria-label={label}>
       {children}
-    </div>
+    </Dialog>
   )
 }
 
