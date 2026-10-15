@@ -3,7 +3,10 @@ import Library from './components/Library'
 import Reader from './components/Reader'
 
 export default function App() {
-  const [openId, setOpenId] = useState<string | null>(() => sessionStorage.getItem('reader:open'))
+  const [openId, setOpenId] = useState<string | null>(() =>
+    // A share/open-with launch must land in the library, not in a restored book.
+    new URLSearchParams(location.search).has('share') ? null : sessionStorage.getItem('reader:open'),
+  )
 
   useEffect(() => {
     if (openId) sessionStorage.setItem('reader:open', openId)

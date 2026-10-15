@@ -4,6 +4,8 @@ import { importFile } from '../lib/importBook'
 import { backupDue, exportLibrary, importLibrary, markBackedUp } from '../lib/backup'
 import { download } from '../lib/download'
 import { exportSync, importSync } from '../lib/sync'
+import { onLaunchFiles, takeSharedFiles } from '../lib/inbox'
+import { formatBytes, getStorageStatus, type StorageStatus } from '../lib/storage'
 
 function Cover({ book }: { book: BookRecord }) {
   const [url, setUrl] = useState<string>()
@@ -35,18 +37,76 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   const input = useRef<HTMLInputElement>(null)
   const restoreInput = useRef<HTMLInputElement>(null)
   const syncInput = useRef<HTMLInputElement>(null)
-  const [remind, setRemind] = useState(backupDue)
+  const [storage, setStorage] = useState<StorageStatus>()
+  const [dismissed, setDismissed] = useState(false)
+  const [menu, setMenu] = useState(false)
+  const [toast, setToast] = useState<{ msg: string; undo?: () => void }>()
+  const toastTimer = useRef<number>(undefined)
+  // a delete waits out the undo window before it touches the database
+  const pending = useRef<{ book: BookRecord; timer: number }>(undefined)
+  const [hiddenId, setHiddenId] = useState<string>()
 
   const refresh = useCallback(async () => setBooks(await listBooks()), [])
   useEffect(() => {
     refresh()
   }, [refresh])
+  useEffect(() => {
+    getStorageStatus().then(setStorage)
+  }, [])
+
+  // without persistent storage the browser may evict the library, so remind sooner
+  const unprotected = storage ? !storage.persisted : false
+  const remind = useMemo(() => !dismissed && backupDue(unprotected), [dismissed, unprotected])
+
+  const showToast = (msg: string, undo?: () => void, ms = 4000) => {
+    window.clearTimeout(toastTimer.current)
+    setToast({ msg, undo })
+    toastTimer.current = window.setTimeout(() => setToast(undefined), ms)
+  }
+
+  const commitDelete = useCallback(async () => {
+    const p = pending.current
+    if (!p) return
+    pending.current = undefined
+    window.clearTimeout(p.timer)
+    await deleteBook(p.book.id)
+    setHiddenId((h) => (h === p.book.id ? undefined : h))
+  }, [])
+
+  const removeBook = async (b: BookRecord) => {
+    await commitDelete() // an earlier pending delete becomes final
+    setHiddenId(b.id)
+    pending.current = { book: b, timer: window.setTimeout(() => commitDelete().then(refresh), 5000) }
+    showToast(
+      `״${b.title}״ נמחק`,
+      () => {
+        const p = pending.current
+        if (!p) return
+        window.clearTimeout(p.timer)
+        pending.current = undefined
+        setHiddenId(undefined)
+        setToast(undefined)
+      },
+      5000,
+    )
+  }
+
+  // never lose a delete the user already saw go through
+  useEffect(() => {
+    const flush = () => void commitDelete()
+    window.addEventListener('pagehide', flush)
+    return () => {
+      window.removeEventListener('pagehide', flush)
+      flush()
+    }
+  }, [commitDelete])
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase()
     const state = (b: BookRecord) => (isFinished(b) ? 'finished' : b.fraction ? 'reading' : 'unread')
     const list = books.filter(
       (b) =>
+        b.id !== hiddenId &&
         (filter === 'all' || state(b) === filter) &&
         (!q || `${b.title} ${b.author} ${b.fileName}`.toLowerCase().includes(q)),
     )
@@ -56,7 +116,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
     else if (sort === 'author') list.sort(by((b) => b.author || '￿'))
     else if (sort === 'added') list.sort((a, b) => b.addedAt - a.addedAt)
     return list // 'recent' keeps the order listBooks returns
-  }, [books, query, sort, filter])
+  }, [books, query, sort, filter, hiddenId])
 
   const addFiles = async (files: FileList | File[]) => {
     setError(undefined)
@@ -74,6 +134,15 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
     await refresh()
   }
 
+  const addRef = useRef(addFiles)
+  addRef.current = addFiles
+  useEffect(() => {
+    takeSharedFiles().then((f) => {
+      if (f.length) addRef.current(f)
+    })
+    onLaunchFiles((f) => addRef.current(f))
+  }, [])
+
   const doExport = async () => {
     setError(undefined)
     try {
@@ -81,7 +150,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
       const blob = await exportLibrary((d, t) => setBusy(`מכין גיבוי… ${d}/${t}`))
       download(blob, `גיבוי-ספרייה-${new Date().toISOString().slice(0, 10)}.readerbackup`)
       markBackedUp()
-      setRemind(false)
+      setDismissed(true)
     } catch (e) {
       setError(`גיבוי נכשל: ${e instanceof Error ? e.message : String(e)}`)
     }
@@ -94,7 +163,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
       setBusy('משחזר גיבוי…')
       const n = await importLibrary(file, (d, t) => setBusy(`משחזר גיבוי… ${d}/${t}`))
       setBusy(undefined)
-      alert(`שוחזרו ${n} ספרים.`)
+      showToast(`שוחזרו ${n} ספרים`)
     } catch (e) {
       setError(`שחזור נכשל: ${e instanceof Error ? e.message : String(e)}`)
       setBusy(undefined)
@@ -115,10 +184,11 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
     setError(undefined)
     try {
       const r = await importSync(file)
-      alert(
-        `עודכנו ${r.moved} מיקומי קריאה, נוספו ${r.notes} הערות.` +
-          (r.skipped ? `
-${r.skipped} ספרים לא נמצאו במכשיר הזה ודולגו.` : ''),
+      showToast(
+        `עודכנו ${r.moved} מיקומי קריאה, נוספו ${r.notes} הערות` +
+          (r.skipped ? ` · ${r.skipped} ספרים לא נמצאו ודולגו` : ''),
+        undefined,
+        6000,
       )
     } catch (e) {
       setError(`ייבוא נכשל: ${e instanceof Error ? e.message : String(e)}`)
@@ -171,12 +241,52 @@ ${r.skipped} ספרים לא נמצאו במכשיר הזה ודולגו.` : '')
             e.target.value = ''
           }}
         />
-        <button onClick={doExport} disabled={!!busy}>
-          גיבוי
-        </button>
-        <button onClick={() => restoreInput.current?.click()} disabled={!!busy}>
-          שחזור
-        </button>
+        <div className="menu-wrap">
+          <button
+            aria-label="עוד פעולות"
+            aria-haspopup="menu"
+            aria-expanded={menu}
+            onClick={() => setMenu((m) => !m)}
+          >
+            ⋯
+          </button>
+          {menu && (
+            <>
+              <div className="menu-backdrop" onClick={() => setMenu(false)} />
+              <div className="menu" role="menu" onKeyDown={(e) => e.key === 'Escape' && setMenu(false)}>
+                {(
+                  [
+                    ['גיבוי', doExport, ''],
+                    ['שחזור', () => restoreInput.current?.click(), ''],
+                    ['ייצוא התקדמות', doSyncExport, 'מיקום קריאה והערות בלבד, קובץ קטן'],
+                    ['ייבוא התקדמות', () => syncInput.current?.click(), ''],
+                  ] as [string, () => void, string][]
+                ).map(([label, fn, tip]) => (
+                  <button
+                    key={label}
+                    role="menuitem"
+                    title={tip}
+                    disabled={!!busy}
+                    onClick={() => {
+                      setMenu(false)
+                      fn()
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+                {storage && (
+                  <div className="menu-info" role="status">
+                    {storage.persisted ? 'אחסון קבוע ✓' : 'אחסון לא קבוע — הדפדפן עלול למחוק את הספרייה'}
+                    {storage.usage != null && storage.quota
+                      ? ` · בשימוש ${formatBytes(storage.usage)} מתוך ${formatBytes(storage.quota)}`
+                      : ''}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
         <input
           ref={restoreInput}
           type="file"
@@ -188,12 +298,6 @@ ${r.skipped} ספרים לא נמצאו במכשיר הזה ודולגו.` : '')
             e.target.value = ''
           }}
         />
-        <button onClick={doSyncExport} disabled={!!busy} title="מיקום קריאה והערות בלבד, קובץ קטן">
-          ייצוא התקדמות
-        </button>
-        <button onClick={() => syncInput.current?.click()} disabled={!!busy}>
-          ייבוא התקדמות
-        </button>
         <input
           ref={syncInput}
           type="file"
@@ -208,8 +312,10 @@ ${r.skipped} ספרים לא נמצאו במכשיר הזה ודולגו.` : '')
       </header>
 
       {remind && books.length > 0 && (
-        <div className="notice" onClick={() => setRemind(false)}>
-          עברו יותר משבועיים בלי גיבוי. הדפדפן עלול למחוק את הספרייה — לחץ על ״גיבוי״ לשמירת עותק.
+        <div className={'notice' + (unprotected ? ' error' : '')} onClick={() => setDismissed(true)}>
+          {unprotected
+            ? 'הדפדפן לא אישר אחסון קבוע, והספרייה עלולה להימחק בכל רגע. עברו כמה ימים בלי גיבוי — ב־⋯ בחר ״גיבוי״ לשמירת עותק.'
+            : 'עברו יותר משבועיים בלי גיבוי. הדפדפן עלול למחוק את הספרייה — ב־⋯ בחר ״גיבוי״ לשמירת עותק.'}
         </div>
       )}
 
@@ -286,18 +392,20 @@ ${r.skipped} ספרים לא נמצאו במכשיר הזה ודולגו.` : '')
               <button
                 className="del"
                 aria-label="מחק"
-                onClick={async () => {
-                  if (confirm(`למחוק את ״${b.title}״ מהספרייה?`)) {
-                    await deleteBook(b.id)
-                    refresh()
-                  }
-                }}
+                onClick={() => removeBook(b)}
               >
                 ✕
               </button>
             </li>
           ))}
         </ul>
+      )}
+
+      {toast && (
+        <div className="lib-toast" role="status">
+          <span>{toast.msg}</span>
+          {toast.undo && <button onClick={toast.undo}>בטל</button>}
+        </div>
       )}
 
       {editing && (

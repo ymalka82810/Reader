@@ -39,6 +39,7 @@ interface Manifest {
 const BACKUP_KEY = 'reader:lastBackup'
 const SINCE_KEY = 'reader:backupSince'
 const REMIND_AFTER_MS = 14 * 24 * 3600 * 1000
+const URGENT_REMIND_AFTER_MS = 3 * 24 * 3600 * 1000
 
 export function markBackedUp() {
   try {
@@ -49,16 +50,17 @@ export function markBackedUp() {
 }
 
 /** true when the library has gone more than two weeks without a backup (counted from first use if never backed up) */
-export function backupDue(): boolean {
+export function backupDue(urgent = false): boolean {
+  const limit = urgent ? URGENT_REMIND_AFTER_MS : REMIND_AFTER_MS
   try {
     const last = Number(localStorage.getItem(BACKUP_KEY)) || 0
-    if (last) return Date.now() - last > REMIND_AFTER_MS
+    if (last) return Date.now() - last > limit
     let since = Number(localStorage.getItem(SINCE_KEY)) || 0
     if (!since) {
       since = Date.now()
       localStorage.setItem(SINCE_KEY, String(since))
     }
-    return Date.now() - since > REMIND_AFTER_MS
+    return Date.now() - since > limit
   } catch {
     return false
   }
