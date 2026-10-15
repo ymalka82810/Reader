@@ -11,6 +11,15 @@ const clean = (s: string) => s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\
 const uuid = () =>
   crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`
 
+// Namespace URIs are assembled at runtime: some HTTPS-inspecting content filters (e.g. NetSpark)
+// blank out URL literals inside served JS, which corrupted the generated content.opf.
+const ns = (host: string, path: string) => ['http:', '', host, path].join('/')
+const NS_XHTML = ns('www.w3.org', '1999/xhtml')
+const NS_OPS = ns('www.idpf.org', '2007/ops')
+const NS_OPF = ns('www.idpf.org', '2007/opf')
+const NS_NCX = ns('www.daisy.org', 'z3986/2005/ncx/')
+const NS_DC = ns('purl.org', 'dc/elements/1.1/')
+
 const CSS = `body { margin: 0; }
 p { margin: 0 0 0.8em; }
 `
@@ -47,7 +56,7 @@ export async function buildEpub(x: ExtractedPdf): Promise<Blob> {
       `OEBPS/${c.file}`,
       `<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="${lang}" lang="${lang}" dir="${dir}">
+<html xmlns="${NS_XHTML}" xml:lang="${lang}" lang="${lang}" dir="${dir}">
 <head><meta charset="utf-8"/><title>${esc(c.label)}</title><link rel="stylesheet" type="text/css" href="style.css"/></head>
 <body>
 ${body}
@@ -60,7 +69,7 @@ ${body}
     'OEBPS/nav.xhtml',
     `<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="${lang}" lang="${lang}" dir="${dir}">
+<html xmlns="${NS_XHTML}" xmlns:epub="${NS_OPS}" xml:lang="${lang}" lang="${lang}" dir="${dir}">
 <head><meta charset="utf-8"/><title>${esc(title)}</title></head>
 <body>
 <nav epub:type="toc" id="toc"><ol>
@@ -73,7 +82,7 @@ ${chapters.map((c) => `<li><a href="${c.file}">${esc(c.label)}</a></li>`).join('
   zip.file(
     'OEBPS/toc.ncx',
     `<?xml version="1.0" encoding="utf-8"?>
-<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+<ncx xmlns="${NS_NCX}" version="2005-1">
 <head><meta name="dtb:uid" content="${esc(bookId)}"/></head>
 <docTitle><text>${esc(title)}</text></docTitle>
 <navMap>
@@ -90,8 +99,8 @@ ${chapters
   zip.file(
     'OEBPS/content.opf',
     `<?xml version="1.0" encoding="utf-8"?>
-<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="${lang}">
-<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+<package xmlns="${NS_OPF}" version="3.0" unique-identifier="bookid" xml:lang="${lang}">
+<metadata xmlns:dc="${NS_DC}">
 <dc:identifier id="bookid">${esc(bookId)}</dc:identifier>
 <dc:title>${esc(title)}</dc:title>
 <dc:language>${lang}</dc:language>${x.author ? `\n<dc:creator>${esc(clean(x.author))}</dc:creator>` : ''}
