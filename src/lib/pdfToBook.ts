@@ -275,6 +275,30 @@ export interface ExtractedPdf {
   pageCount: number
   /** one entry per future EPUB chapter: a real heading when found, else a page range */
   chapters: { title: string; paras: string[] }[]
+  /** the first page rendered as a JPEG, used as the book's cover */
+  cover?: Blob
+}
+
+const COVER_HEIGHT = 900
+
+/** Render page 1 as a JPEG cover image; null when rendering isn't possible. */
+async function renderCover(pdf: PDFDocumentProxy): Promise<Blob | null> {
+  try {
+    const page = await pdf.getPage(1)
+    const base = page.getViewport({ scale: 1 })
+    const viewport = page.getViewport({ scale: COVER_HEIGHT / base.height })
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.ceil(viewport.width)
+    canvas.height = Math.ceil(viewport.height)
+    await page.render({ canvas, viewport }).promise
+    page.cleanup()
+    const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/jpeg', 0.85))
+    canvas.width = canvas.height = 0
+    return blob
+  } catch (e) {
+    console.error(e)
+    return null
+  }
 }
 
 /** Legacy: books imported before the PDF→EPUB conversion store ready-made HTML sections. */
@@ -366,6 +390,7 @@ export async function extractPdf(
   let pages: Line[][] = []
   let info: Record<string, string>
   let bookmarks: Map<number, string>
+  let cover: Blob | null = null
   try {
     for (let i = 1; i <= total; i++) {
       const p = await pdf.getPage(i)
@@ -375,6 +400,7 @@ export async function extractPdf(
     }
     info = ((await pdf.getMetadata().catch(() => null))?.info ?? {}) as Record<string, string>
     bookmarks = await outlineStarts(pdf)
+    cover = await renderCover(pdf)
 
     const hasText = () => pages.flat().map((l) => l.text).join('').replace(/\s/g, '').length >= total * 20
     // a scan has no text layer: read the page images instead (the pdf must stay open for this)
@@ -434,6 +460,7 @@ export async function extractPdf(
     rtl,
     pageCount: total,
     chapters,
+    cover: cover ?? undefined,
   }
 }
 

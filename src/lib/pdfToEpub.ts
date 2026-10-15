@@ -50,6 +50,7 @@ export async function buildEpub(x: ExtractedPdf): Promise<Blob> {
   )
 
   zip.file('OEBPS/style.css', CSS)
+  if (x.cover) zip.file('OEBPS/cover.jpg', x.cover)
 
   for (const c of chapters) {
     const body = c.paras.map((p) => `<p>${esc(clean(p))}</p>`).join('\n')
@@ -105,12 +106,12 @@ ${chapters
 <dc:identifier id="bookid">${esc(bookId)}</dc:identifier>
 <dc:title>${esc(title)}</dc:title>
 <dc:language>${lang}</dc:language>${x.author ? `\n<dc:creator>${esc(clean(x.author))}</dc:creator>` : ''}
-<meta property="dcterms:modified">${modified}</meta>
+<meta property="dcterms:modified">${modified}</meta>${x.cover ? '\n<meta name="cover" content="cover-image"/>' : ''}
 </metadata>
 <manifest>
 <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
 <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
-<item id="css" href="style.css" media-type="text/css"/>
+<item id="css" href="style.css" media-type="text/css"/>${x.cover ? '\n<item id="cover-image" href="cover.jpg" media-type="image/jpeg" properties="cover-image"/>' : ''}
 ${chapters.map((c) => `<item id="${c.id}" href="${c.file}" media-type="application/xhtml+xml"/>`).join('\n')}
 </manifest>
 <spine toc="ncx" page-progression-direction="${dir}">
