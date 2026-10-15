@@ -10,6 +10,8 @@ export interface Settings {
   justify: boolean
   /** wider letter/word/line spacing, left-aligned sans text: easier for dyslexia and low vision */
   accessible: boolean
+  /** animate page turns with a smooth slide instead of an instant jump */
+  pageTransition: boolean
 }
 
 export const DEFAULTS: Settings = {
@@ -20,6 +22,7 @@ export const DEFAULTS: Settings = {
   fontFamily: 'default',
   justify: false,
   accessible: false,
+  pageTransition: true,
 }
 
 const KEY = 'reader:settings'

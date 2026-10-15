@@ -202,6 +202,8 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
         const r = view.renderer
         r.setAttribute?.('flow', s.flow)
         r.setAttribute?.('gap', '5%')
+        if (s.pageTransition) r.setAttribute?.('animated', '')
+        else r.removeAttribute?.('animated')
         r.setStyles?.(bookCSS(s))
 
         setTitle(rec.title)
@@ -328,6 +330,8 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     const v = viewRef.current
     if (!v) return
     v.renderer.setAttribute?.('flow', settings.flow)
+    if (settings.pageTransition) v.renderer.setAttribute?.('animated', '')
+    else v.renderer.removeAttribute?.('animated')
     v.renderer.setStyles?.(bookCSS(settings))
     calib.current.clear() // layout changed: page size must be re-measured
     const t = window.setTimeout(() => recompute(), 400)
@@ -740,6 +744,14 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
               onChange={(e) => set('accessible', e.target.checked)}
             />
             מצב נגיש (דיסלקסיה / ראייה חלשה): ריווח מוגדל וגופן פשוט
+          </label>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={settings.pageTransition}
+              onChange={(e) => set('pageTransition', e.target.checked)}
+            />
+            אנימציית מעבר בין עמודים
           </label>
           <ul className="shortcuts">
             <li><kbd>←</kbd> <kbd>→</kbd> <kbd>רווח</kbd> מעבר עמוד</li>
