@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { deleteBook, listBooks, updateMeta, type BookRecord } from '../lib/db'
+import { deleteBook, isFinished, listBooks, setFinished, updateMeta, type BookRecord } from '../lib/db'
 import { importFile } from '../lib/importBook'
 import { backupDue, exportLibrary, importLibrary, markBackedUp } from '../lib/backup'
 import { exportSync, importSync } from '../lib/sync'
@@ -27,6 +27,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   const [drag, setDrag] = useState(false)
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<'recent' | 'title' | 'author' | 'added'>('recent')
+  const [filter, setFilter] = useState<'all' | 'reading' | 'unread' | 'finished'>('all')
   const [editing, setEditing] = useState<BookRecord>()
   const [editTitle, setEditTitle] = useState('')
   const [editAuthor, setEditAuthor] = useState('')
@@ -42,16 +43,19 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase()
-    const list = q
-      ? books.filter((b) => `${b.title} ${b.author} ${b.fileName}`.toLowerCase().includes(q))
-      : [...books]
+    const state = (b: BookRecord) => (isFinished(b) ? 'finished' : b.fraction ? 'reading' : 'unread')
+    const list = books.filter(
+      (b) =>
+        (filter === 'all' || state(b) === filter) &&
+        (!q || `${b.title} ${b.author} ${b.fileName}`.toLowerCase().includes(q)),
+    )
     const by = (f: (b: BookRecord) => string) => (a: BookRecord, b: BookRecord) =>
       f(a).localeCompare(f(b), 'he')
     if (sort === 'title') list.sort(by((b) => b.title))
     else if (sort === 'author') list.sort(by((b) => b.author || '￿'))
     else if (sort === 'added') list.sort((a, b) => b.addedAt - a.addedAt)
     return list // 'recent' keeps the order listBooks returns
-  }, [books, query, sort])
+  }, [books, query, sort, filter])
 
   const addFiles = async (files: FileList | File[]) => {
     setError(undefined)
@@ -174,7 +178,7 @@ ${r.skipped} ספרים לא נמצאו במכשיר הזה ודולגו.` : '')
           type="file"
           hidden
           multiple
-          accept=".epub,.pdf,application/epub+zip,application/pdf"
+          accept=".epub,.pdf,.txt,application/epub+zip,application/pdf,text/plain"
           onChange={(e) => {
             if (e.target.files) addFiles(e.target.files)
             e.target.value = ''
@@ -227,9 +231,16 @@ ${r.skipped} ספרים לא נמצאו במכשיר הזה ודולגו.` : '')
           <input
             type="search"
             placeholder="חיפוש לפי שם או מחבר…"
+            aria-label="חיפוש בספרייה"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
+          <select value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)} aria-label="סינון">
+            <option value="all">הכול</option>
+            <option value="reading">בקריאה</option>
+            <option value="unread">לא התחלתי</option>
+            <option value="finished">נקראו</option>
+          </select>
           <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} aria-label="מיון">
             <option value="recent">נפתח לאחרונה</option>
             <option value="added">נוסף לאחרונה</option>
@@ -249,11 +260,11 @@ ${r.skipped} ספרים לא נמצאו במכשיר הזה ודולגו.` : '')
       {books.length === 0 && !busy ? (
         <div className="empty">
           <p>אין עדיין ספרים.</p>
-          <p>לחץ על ״הוסף ספר״ ובחר קובץ EPUB או PDF מהטלפון או מגוגל דרייב.</p>
+          <p>לחץ על ״הוסף ספר״ ובחר קובץ EPUB, PDF או TXT מהטלפון או מגוגל דרייב.</p>
         </div>
       ) : shown.length === 0 ? (
         <div className="empty">
-          <p>לא נמצאו ספרים עבור ״{query}״.</p>
+          <p>{query ? `לא נמצאו ספרים עבור ״${query}״.` : 'אין ספרים בסינון הזה.'}</p>
         </div>
       ) : (
         <ul className="grid">
@@ -267,10 +278,22 @@ ${r.skipped} ספרים לא נמצאו במכשיר הזה ודולגו.` : '')
                   <small className="kind">
                     {b.fromPdf ? 'PDF' : b.kind.toUpperCase()}
                     {b.fraction ? ` · ${Math.round(b.fraction * 100)}%` : ''}
+                    {isFinished(b) ? ' · נקרא ✓' : ''}
                   </small>
                 </div>
               </button>
-              <button className="edit" aria-label="עריכת שם ומחבר" onClick={() => openEdit(b)}>
+              <button
+                className={'fin' + (isFinished(b) ? ' on' : '')}
+                aria-label={isFinished(b) ? 'סמן כלא נקרא' : 'סמן כנקרא'}
+                aria-pressed={isFinished(b)}
+                onClick={async () => {
+                  await setFinished(b.id, !isFinished(b))
+                  refresh()
+                }}
+              >
+                ✓
+              </button>
+              <button className="edit-btn" aria-label="עריכת שם ומחבר" onClick={() => openEdit(b)}>
                 ✎
               </button>
               <button
@@ -292,7 +315,17 @@ ${r.skipped} ספרים לא נמצאו במכשיר הזה ודולגו.` : '')
 
       {editing && (
         <div className="modal-backdrop" onClick={() => setEditing(undefined)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="עריכת פרטי ספר"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setEditing(undefined)
+              else if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') saveEdit()
+            }}
+          >
             <h2>עריכת פרטי ספר</h2>
             <label>
               שם הספר

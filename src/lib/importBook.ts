@@ -1,6 +1,7 @@
 import { makeBook } from 'foliate-js/view.js'
 import { extractPdf } from './pdfToBook'
 import { buildEpub } from './pdfToEpub'
+import { extractTxt } from './txtToBook'
 import { newId, saveBook, type BookRecord } from './db'
 
 const langMap = (v: unknown): string => {
@@ -22,6 +23,7 @@ const contributor = (v: unknown): string => {
     .join(', ')
 }
 
+const isTxt = (f: File) => /\.txt$/i.test(f.name) || f.type === 'text/plain'
 const isPdf = (f: File) => /\.pdf$/i.test(f.name) || f.type === 'application/pdf'
 
 export async function importFile(
@@ -38,6 +40,12 @@ export async function importFile(
     const blob = await buildEpub(x)
     epub = new File([blob], file.name.replace(/\.pdf$/i, '') + '.epub', { type: 'application/epub+zip' })
     fromPdf = true
+  }
+
+  if (isTxt(file)) {
+    onProgress?.('ממיר ל-EPUB…')
+    const blob = await buildEpub(await extractTxt(file))
+    epub = new File([blob], file.name.replace(/\.txt$/i, '') + '.epub', { type: 'application/epub+zip' })
   }
 
   onProgress?.('קורא את הספר…')

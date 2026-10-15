@@ -3,6 +3,7 @@ import 'foliate-js/view.js'
 import { Overlayer } from 'foliate-js/overlayer.js'
 import { getBook, getNotes, newId, saveNotes, updateProgress, type Annotation } from '../lib/db'
 import { bookFromSections } from '../lib/pdfToBook'
+import { addStats, formatMinutes, minutesLeft } from '../lib/stats'
 import {
   bookCSS,
   loadSettings,
@@ -75,6 +76,10 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   selectionRef.current = selection
   const lastAnnotationClick = useRef(0)
   const [toast, setToast] = useState('')
+  const [left, setLeft] = useState<number | null>(null)
+  const actions = useRef({ bookmark: () => {}, bump: (_d: number) => {}, panel: (_p: NonNullable<typeof panel>) => {} })
+  const titleRef = useRef('')
+  titleRef.current = title
 
   const commitNotes = useCallback(
     (next: Annotation[]) => {
@@ -138,14 +143,40 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     const view: any = document.createElement('foliate-view')
     view.style.cssText = 'display:block;width:100%;height:100%'
 
+    // reading speed: count active seconds (page turned / key pressed in the last 90s) and forward progress
+    let lastActive = Date.now()
+    let lastFraction: number | null = null
+    let pendingFrac = 0
+    const statsTimer = window.setInterval(() => {
+      const active = !document.hidden && Date.now() - lastActive < 90_000
+      addStats(id, active ? 5 : 0, pendingFrac)
+      pendingFrac = 0
+    }, 5000)
+
     const onKey = (e: KeyboardEvent) => {
       const v = viewRef.current
       if (!v) return
+      const t = e.target as HTMLElement | null
+      if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return
+      lastActive = Date.now()
+      if (e.ctrlKey || e.metaKey || e.altKey) return
       if (e.key === 'ArrowLeft') v.goLeft()
       else if (e.key === 'ArrowRight') v.goRight()
-      else if (e.key === 'PageDown') v.next()
-      else if (e.key === 'PageUp') v.prev()
+      else if (e.key === 'PageDown' || e.key === ' ') {
+        e.preventDefault()
+        v.next()
+      } else if (e.key === 'PageUp') v.prev()
       else if (e.key === 'Escape') setPanel(null)
+      else if (e.key === '+' || e.key === '=') actions.current.bump(2)
+      else if (e.key === '-') actions.current.bump(-2)
+      else if (e.key === 'b') actions.current.bookmark()
+      else if (e.key === 't') actions.current.panel('toc')
+      else if (e.key === 'n') actions.current.panel('notes')
+      else if (e.key === 's') actions.current.panel('settings')
+      else if (e.key === '/') {
+        e.preventDefault()
+        actions.current.panel('search')
+      }
     }
 
     ;(async () => {
@@ -243,7 +274,13 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
         view.addEventListener('relocate', (e: CustomEvent) => {
           const d = e.detail
           lastDetail.current = d
-          setFraction(d.fraction ?? 0)
+          const f: number = d.fraction ?? 0
+          lastActive = Date.now()
+          // only small forward steps count as reading; jumps via the slider / TOC / search don't
+          if (lastFraction !== null && f > lastFraction && f - lastFraction < 0.05) pendingFrac += f - lastFraction
+          lastFraction = f
+          setLeft(minutesLeft(id, f))
+          setFraction(f)
           setChapter(d.tocItem?.label ?? '')
           requestAnimationFrame(() => recompute(d))
           window.clearTimeout(saveTimer)
@@ -268,6 +305,8 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
 
     return () => {
       cancelled = true
+      window.clearInterval(statsTimer)
+      addStats(id, 0, pendingFrac)
       window.clearTimeout(saveTimer)
       flushProgress() // don't lose the last position if the book is closed within the debounce window
       window.removeEventListener('pagehide', flushProgress)
@@ -370,8 +409,43 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     flash('נוספה סימנייה')
   }
 
+  const exportMarkdown = () => {
+    const list = [...notesRef.current].sort((a, b) => a.createdAt - b.createdAt)
+    if (!list.length) return flash('אין מה לייצא')
+    const quote = (s: string) => s.replace(/\s*\n\s*/g, ' ')
+    const lines = [`# ${title}`, '']
+    const marks = list.filter((n) => n.kind === 'bookmark')
+    const hls = list.filter((n) => n.kind === 'highlight')
+    if (hls.length) {
+      lines.push('## הדגשות', '')
+      for (const n of hls) {
+        lines.push(`> ${quote(n.text)}`)
+        if (n.note) lines.push('', n.note)
+        lines.push('')
+      }
+    }
+    if (marks.length) lines.push('## סימניות', '', ...marks.map((n) => `- ${n.text}`), '')
+    const url = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${title.replace(/[\\/:*?"<>|]/g, '_') || 'הערות'}.md`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const lookUp = () => {
+    const word = selectionRef.current?.text.split(/\s+/)[0]
+    if (word) window.open(`https://he.wiktionary.org/wiki/${encodeURIComponent(word.replace(/[^\p{L}\p{M}'-]/gu, ''))}`, '_blank', 'noopener')
+  }
+
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) => setSettings((s) => ({ ...s, [k]: v }))
   const bump = (d: number) => set('fontSize', Math.min(MAX_FONT, Math.max(MIN_FONT, settings.fontSize + d)))
+
+  actions.current = {
+    bookmark: toggleBookmark,
+    bump: (d) => setSettings((s) => ({ ...s, fontSize: Math.min(MAX_FONT, Math.max(MIN_FONT, s.fontSize + d)) })),
+    panel: (p) => setPanel((cur) => (cur === p ? null : p)),
+  }
 
   const colors = themeColors(settings.theme)
   const shownFraction = dragFraction ?? fraction
@@ -401,9 +475,9 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
         <div className="title">{title}</div>
         <button onClick={toggleBookmark} aria-label="סימנייה">🔖</button>
         <button onClick={() => setPanel(panel === 'notes' ? null : 'notes')} aria-label="סימניות והדגשות">📝</button>
-        <button onClick={() => setPanel(panel === 'toc' ? null : 'toc')}>☰</button>
+        <button onClick={() => setPanel(panel === 'toc' ? null : 'toc')} aria-label="תוכן עניינים">☰</button>
         <button onClick={() => setPanel(panel === 'search' ? null : 'search')} aria-label="חיפוש">🔍</button>
-        <button onClick={() => setPanel(panel === 'settings' ? null : 'settings')}>Aa</button>
+        <button onClick={() => setPanel(panel === 'settings' ? null : 'settings')} aria-label="הגדרות תצוגה">Aa</button>
       </div>
 
       <div className={'bottombar' + (uiVisible ? '' : ' hidden')}>
@@ -418,6 +492,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
             step={0.001}
             dir={dir}
             value={shownFraction}
+            aria-label="מיקום בספר"
             onChange={(e) => setDragFraction(parseFloat(e.target.value))}
             onPointerUp={commit}
             onKeyUp={commit}
@@ -426,6 +501,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
             {pages ? `עמוד ${pages.current} מתוך ${pages.total}` : ''}
             {pages ? ' · ' : ''}
             {Math.round(shownFraction * 100)}%{chapter ? ` · ${chapter}` : ''}
+            {left ? ` · נותרו ~${formatMinutes(left)}` : ''}
           </div>
         </div>
         {settings.flow === 'paginated' && (
@@ -442,16 +518,22 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
           }}
           onPointerDown={(e) => e.preventDefault()}
         >
-          {HIGHLIGHT_COLORS.map((c) => (
-            <button key={c} className="swatch" style={{ background: c }} aria-label="הדגש" onClick={() => addHighlight(c)} />
+          {HIGHLIGHT_COLORS.map((c, i) => (
+            <button key={c} className="swatch" style={{ background: c }} aria-label={`הדגש בצבע ${COLOR_NAMES[i]}`} onClick={() => addHighlight(c)} />
           ))}
+          <button aria-label="חפש במילון" title="מילון" onClick={lookUp}>📖</button>
         </div>
       )}
-      {toast && <div className="toast">{toast}</div>}
+      {toast && (
+        <div className="toast" role="status">
+          {toast}
+        </div>
+      )}
 
       {panel === 'notes' && (
-        <div className="panel">
+        <Panel label="סימניות והדגשות">
           <h3>סימניות והדגשות</h3>
+          {notes.length > 0 && <button onClick={exportMarkdown}>ייצוא ל-Markdown</button>}
           {notes.length === 0 && (
             <p className="muted">אין עדיין. סמן טקסט כדי להדגיש אותו, או לחץ על 🔖 כדי לשמור מקום.</p>
           )}
@@ -490,7 +572,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
                 </li>
               ))}
           </ul>
-        </div>
+        </Panel>
       )}
 
       {panel === 'edit' &&
@@ -498,7 +580,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
           const n = notes.find((x) => x.id === editingId)
           if (!n) return null
           return (
-            <div className="panel edit">
+            <Panel label="עריכת הדגשה" className="edit">
               <blockquote style={{ borderColor: n.color }}>{n.text}</blockquote>
               <textarea
                 placeholder="הוסף הערה…"
@@ -513,7 +595,8 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
                     key={c}
                     className={'swatch' + (c === n.color ? ' on' : '')}
                     style={{ background: c }}
-                    aria-label="צבע"
+                    aria-label={`צבע ${COLOR_NAMES[HIGHLIGHT_COLORS.indexOf(c)]}`}
+                    aria-pressed={c === n.color}
                     onClick={() => updateNote(n.id, { color: c })}
                   />
                 ))}
@@ -528,12 +611,12 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
                 </button>
                 <button className="primary" onClick={() => setPanel(null)}>סיום</button>
               </div>
-            </div>
+            </Panel>
           )
         })()}
 
       {panel === 'toc' && (
-        <div className="panel">
+        <Panel label="תוכן עניינים">
           <h3>תוכן עניינים</h3>
           {toc.length === 0 && <p className="muted">אין תוכן עניינים בספר הזה.</p>}
           <ul className="toc">
@@ -550,11 +633,11 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
               </li>
             ))}
           </ul>
-        </div>
+        </Panel>
       )}
 
       {panel === 'search' && (
-        <div className="panel search">
+        <Panel label="חיפוש בספר" className="search">
           <form
             onSubmit={(e) => {
               e.preventDefault()
@@ -599,11 +682,11 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
               </li>
             ))}
           </ul>
-        </div>
+        </Panel>
       )}
 
       {panel === 'settings' && (
-        <div className="panel settings">
+        <Panel label="הגדרות תצוגה" className="settings">
           <div className="row">
             <button onClick={() => bump(-2)} aria-label="הקטן">א−</button>
             <input
@@ -611,13 +694,15 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
               min={MIN_FONT}
               max={MAX_FONT}
               value={settings.fontSize}
+              aria-label="גודל גופן"
               onChange={(e) => set('fontSize', parseInt(e.target.value))}
             />
             <button onClick={() => bump(2)} aria-label="הגדל">א+</button>
           </div>
           <div className="row">
-            <label>ריווח שורות</label>
+            <label htmlFor="lh">ריווח שורות</label>
             <input
+              id="lh"
               type="range"
               min={1.2}
               max={2.4}
@@ -649,8 +734,38 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
             />
             יישור לשני הצדדים
           </label>
-        </div>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={settings.accessible}
+              onChange={(e) => set('accessible', e.target.checked)}
+            />
+            מצב נגיש (דיסלקסיה / ראייה חלשה): ריווח מוגדל וגופן פשוט
+          </label>
+          <ul className="shortcuts">
+            <li><kbd>←</kbd> <kbd>→</kbd> <kbd>רווח</kbd> מעבר עמוד</li>
+            <li><kbd>+</kbd> <kbd>-</kbd> גודל גופן</li>
+            <li><kbd>b</kbd> סימנייה · <kbd>t</kbd> תוכן · <kbd>n</kbd> הערות</li>
+            <li><kbd>/</kbd> חיפוש · <kbd>s</kbd> הגדרות · <kbd>Esc</kbd> סגירה</li>
+          </ul>
+        </Panel>
       )}
+    </div>
+  )
+}
+
+const COLOR_NAMES = ['צהוב', 'ירוק', 'כחול', 'ורוד']
+
+/** floating panel that takes focus when it opens, so keyboard and screen-reader users land inside it */
+function Panel({ label, className = '', children }: { label: string; className?: string; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (el && !el.contains(document.activeElement)) el.focus({ preventScroll: true })
+  }, [])
+  return (
+    <div ref={ref} className={`panel ${className}`} role="dialog" aria-label={label} tabIndex={-1}>
+      {children}
     </div>
   )
 }
@@ -667,7 +782,7 @@ function Seg<T extends string>({
   return (
     <div className="seg">
       {options.map(([v, label]) => (
-        <button key={v} className={v === value ? 'on' : ''} onClick={() => onChange(v)}>
+        <button key={v} className={v === value ? 'on' : ''} aria-pressed={v === value} onClick={() => onChange(v)}>
           {label}
         </button>
       ))}

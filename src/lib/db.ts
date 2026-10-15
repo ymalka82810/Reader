@@ -13,6 +13,8 @@ export interface BookRecord {
   /** legacy (imported before PDF→EPUB conversion): extracted reflowable HTML sections */
   pdf?: { rtl: boolean; pageCount: number; sections: string[] }
   addedAt: number
+  /** manual "read" mark, see isFinished */
+  finished?: boolean
   lastOpened?: number
   cfi?: string
   fraction?: number
@@ -68,6 +70,16 @@ export async function updateMeta(id: string, title: string, author: string) {
   if (!b) return
   b.title = title
   b.author = author
+  await saveBook(b)
+}
+
+/** explicit "read" mark; when unset a book counts as read once its position passes 98% */
+export const isFinished = (b: BookRecord) => b.finished ?? (b.fraction ?? 0) >= 0.98
+
+export async function setFinished(id: string, finished: boolean) {
+  const b = await get<BookRecord>(id, store)
+  if (!b) return
+  b.finished = finished
   await saveBook(b)
 }
 

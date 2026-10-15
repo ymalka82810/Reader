@@ -8,6 +8,8 @@ export interface Settings {
   theme: Theme
   fontFamily: 'default' | 'serif' | 'sans'
   justify: boolean
+  /** wider letter/word/line spacing, left-aligned sans text: easier for dyslexia and low vision */
+  accessible: boolean
 }
 
 export const DEFAULTS: Settings = {
@@ -17,6 +19,7 @@ export const DEFAULTS: Settings = {
   theme: 'light',
   fontFamily: 'default',
   justify: false,
+  accessible: false,
 }
 
 const KEY = 'reader:settings'
@@ -55,20 +58,23 @@ const FAMILIES = {
  *  so publisher px/em sizes don't block resizing. */
 export function bookCSS(s: Settings): string {
   const c = THEMES[s.theme]
+  const a = s.accessible
   return `
     html {
       font-size: ${s.fontSize}px !important;
       color: ${c.fg} !important;
       background: ${c.bg} !important;
-      ${FAMILIES[s.fontFamily]}
+      ${a ? FAMILIES.sans : FAMILIES[s.fontFamily]}
+      ${a ? 'letter-spacing: 0.05em !important; word-spacing: 0.16em !important;' : ''}
     }
     body { font-size: 1em !important; color: ${c.fg} !important; background: transparent !important; }
     p, li, blockquote, dd, div, span:not([class*="sup"]), td, a, em, i, b, strong {
       font-size: inherit !important;
     }
     p, li, blockquote, dd {
-      line-height: ${s.lineHeight} !important;
-      text-align: ${s.justify ? 'justify' : 'start'};
+      line-height: ${a ? Math.max(s.lineHeight, 1.9) : s.lineHeight} !important;
+      text-align: ${s.justify && !a ? 'justify' : 'start'};
+      ${a ? 'margin-block: 0.9em;' : ''}
     }
     a:link, a:visited { color: ${c.link} !important; }
     img, svg { max-width: 100% !important; height: auto !important; }
