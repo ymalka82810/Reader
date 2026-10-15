@@ -1,5 +1,5 @@
 import { createStore, get, set, del, values, entries } from 'idb-keyval'
-import { deleteStats } from './stats'
+import { deleteStats, loadStats, mergeStats } from './stats'
 
 export interface BookRecord {
   id: string
@@ -43,22 +43,57 @@ const fileStore = createStore('reader-files-db', 'files')
 
 export const getFile = (id: string) => get<Blob>(id, fileStore)
 
-export const saveBook = async (b: BookRecord) => {
-  const { file, ...meta } = b
-  await set(b.id, file, fileStore)
-  await set(b.id, meta, store)
+/** Writes that read-modify-write a book's metadata (or replace it) run one at a time, so overlapping calls
+ *  — e.g. a backup import while the user edits a title — can't overwrite each other's changes. */
+let writeQueue: Promise<unknown> = Promise.resolve()
+const serial = <T>(fn: () => Promise<T>): Promise<T> => {
+  const run = writeQueue.then(fn, fn)
+  writeQueue = run.catch(() => {})
+  return run
 }
+
+export const saveBook = (b: BookRecord) =>
+  serial(async () => {
+    const { file, ...meta } = b
+    await set(b.id, file, fileStore)
+    await set(b.id, meta, store)
+  })
+
+/** cheap existence check: reads only the small metadata record, never the book's Blob */
+export const hasBook = async (id: string) => (await get<BookMeta>(id, store)) !== undefined
 export const getBook = async (id: string): Promise<BookRecord | undefined> => {
   const [meta, file] = await Promise.all([get<BookMeta>(id, store), getFile(id)])
   if (!meta || !file) return undefined
   return withProgress({ ...meta, file }, await get<Progress>(id, progressStore))
 }
-export const deleteBook = async (id: string) => {
-  await del(id, store)
-  await del(id, fileStore)
-  await del(id, notesStore)
-  await del(id, progressStore)
-  await deleteStats(id)
+export const deleteBook = (id: string) =>
+  serial(async () => {
+    await del(id, store)
+    await del(id, fileStore)
+    await del(id, notesStore)
+    await del(id, progressStore)
+    await deleteStats(id)
+  })
+
+/** Saves `rec` first and only then removes the book it replaces, so a failed save loses nothing.
+ *  Stats, the "read" mark and — when both are the same kind of file, so positions still make sense —
+ *  notes and reading position move over to the new id. */
+export async function replaceBook(oldId: string, rec: BookRecord) {
+  const old = await get<BookMeta>(oldId, store)
+  await saveBook(rec)
+  if (!old || oldId === rec.id) return
+  const [notes, progress, stats] = await Promise.all([
+    getNotes(oldId),
+    get<Progress>(oldId, progressStore),
+    loadStats(oldId),
+  ])
+  if (!!old.fromPdf === !!rec.fromPdf) {
+    if (notes.length) await saveNotes(rec.id, notes)
+    if (progress) await mergeProgress(rec.id, progress)
+  }
+  if (stats.secs > 0) await mergeStats(rec.id, stats)
+  if (old.finished !== undefined) await setFinished(rec.id, old.finished)
+  await deleteBook(oldId)
 }
 export const listBooks = async () => {
   const progress = new Map(await entries<string, Progress>(progressStore))
@@ -81,31 +116,44 @@ export async function mergeProgress(id: string, incoming: Progress): Promise<boo
   return true
 }
 
-export async function updateMeta(id: string, title: string, author: string) {
-  const b = await get<BookMeta>(id, store)
-  if (!b) return
-  b.title = title
-  b.author = author
-  await set(id, b, store)
-}
+export const updateMeta = (id: string, title: string, author: string) =>
+  serial(async () => {
+    const b = await get<BookMeta>(id, store)
+    if (!b) return
+    b.title = title
+    b.author = author
+    await set(id, b, store)
+  })
 
 /** explicit "read" mark; when unset a book counts as read once its position passes 98% */
 export const isFinished = (b: BookMeta) => b.finished ?? (b.fraction ?? 0) >= 0.98
 
-export async function setFinished(id: string, finished: boolean) {
-  const b = await get<BookMeta>(id, store)
-  if (!b) return
-  b.finished = finished
-  await set(id, b, store)
-}
+export const setFinished = (id: string, finished: boolean) =>
+  serial(async () => {
+    const b = await get<BookMeta>(id, store)
+    if (!b) return
+    b.finished = finished
+    await set(id, b, store)
+  })
 
 export const newId = () =>
   crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2)
 
-/** stable id from the file's content (SHA-256), so the same book gets the same id on every device; random when crypto.subtle is unavailable */
+const SAMPLE = 256 * 1024
+
+/** Stable id from the file's size plus SHA-256 of its first, middle and last 256 KB, so the same book gets the
+ *  same id on every device without reading a whole (possibly hundreds of MB) file into memory.
+ *  Random when crypto.subtle is unavailable. */
 export async function contentId(file: Blob): Promise<string> {
   if (!crypto.subtle) return newId()
-  const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
+  const mid = Math.max(0, Math.floor((file.size - SAMPLE) / 2))
+  const sample = new Blob([
+    new TextEncoder().encode(`${file.size}:`),
+    file.slice(0, SAMPLE),
+    file.slice(mid, mid + SAMPLE),
+    file.slice(Math.max(0, file.size - SAMPLE)),
+  ])
+  const digest = await crypto.subtle.digest('SHA-256', await sample.arrayBuffer())
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('')
 }
 

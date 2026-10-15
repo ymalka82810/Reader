@@ -92,7 +92,13 @@ export async function encryptBlob(plain: Blob, password: string, iterations = DE
   return new Blob(parts, { type: 'application/octet-stream' })
 }
 
-export async function decryptBlob(enc: Blob, password: string): Promise<Blob> {
+/** Opens an encrypted file for streaming: `size` is the plaintext length, `chunks` yields the plaintext piece by
+ *  piece so a caller can consume it without ever holding the whole file. Decryption errors surface from `chunks`
+ *  as WrongPasswordError. */
+export async function decryptStream(
+  enc: Blob,
+  password: string,
+): Promise<{ size: number; chunks: AsyncGenerator<Uint8Array<ArrayBuffer>> }> {
   const header = new Uint8Array(await enc.slice(0, HEADER_LEN).arrayBuffer())
   if (header.length < HEADER_LEN || !(await isEncrypted(enc))) throw new Error('קובץ גיבוי לא תקין')
   const salt = header.slice(MAGIC.length, MAGIC.length + SALT_LEN)
@@ -106,18 +112,26 @@ export async function decryptBlob(enc: Blob, password: string): Promise<Blob> {
   const body = enc.size - HEADER_LEN
   const full = chunk + TAG_LEN
   const total = Math.max(1, Math.ceil(body / full))
-  const parts: BlobPart[] = []
-  try {
-    for (let i = 0; i < total; i++) {
-      const start = HEADER_LEN + i * full
-      const data = await enc.slice(start, start + full).arrayBuffer()
-      const iv = nonce(prefix, i)
-      parts.push(
-        await crypto.subtle.decrypt({ name: 'AES-GCM', iv, additionalData: aad(i === total - 1) }, key, data),
-      )
+  async function* chunks() {
+    try {
+      for (let i = 0; i < total; i++) {
+        const start = HEADER_LEN + i * full
+        const data = await enc.slice(start, start + full).arrayBuffer()
+        const iv = nonce(prefix, i)
+        yield new Uint8Array(
+          await crypto.subtle.decrypt({ name: 'AES-GCM', iv, additionalData: aad(i === total - 1) }, key, data),
+        )
+      }
+    } catch {
+      throw new WrongPasswordError()
     }
-  } catch {
-    throw new WrongPasswordError()
   }
+  return { size: Math.max(0, body - total * TAG_LEN), chunks: chunks() }
+}
+
+export async function decryptBlob(enc: Blob, password: string): Promise<Blob> {
+  const { chunks } = await decryptStream(enc, password)
+  const parts: BlobPart[] = []
+  for await (const part of chunks) parts.push(part)
   return new Blob(parts, { type: 'application/octet-stream' })
 }

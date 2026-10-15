@@ -46,6 +46,8 @@ function Cover({ book }: { book: BookMeta }) {
 
 /** above this, building the backup in memory risks crashing a phone */
 const BIG_BACKUP = 500 * 1024 * 1024
+/** how long a deleted book can still be restored with "בטל" */
+const UNDO_MS = 7000
 
 export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   const [books, setBooks] = useState<BookMeta[]>([])
@@ -65,6 +67,8 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   const [menu, setMenu] = useState(false)
   const [toast, setToast] = useState<{ msg: string; undo?: () => void }>()
   const toastTimer = useRef<number>(undefined)
+  // books removed from view that can still be restored; they are deleted for real once `timer` fires
+  const pendingDel = useRef<{ ids: string[]; timer: number }>(undefined)
   // multi-select mode and the delete confirmation
   const [selecting, setSelecting] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -77,7 +81,8 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
 
   const refresh = useCallback(async () => {
     try {
-      setBooks(await listBooks())
+      const hidden = new Set(pendingDel.current?.ids)
+      setBooks((await listBooks()).filter((b) => !hidden.has(b.id)))
     } catch (e) {
       console.error(e)
       setError('לא ניתן לגשת לאחסון של הדפדפן, אז הספרייה לא נטענה. ייתכן שמצב גלישה פרטית חוסם אותו.')
@@ -113,18 +118,48 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
     setSelected(new Set())
   }
 
+  const commitDelete = async () => {
+    const p = pendingDel.current
+    if (!p) return
+    window.clearTimeout(p.timer)
+    pendingDel.current = undefined
+    try {
+      for (const id of p.ids) await deleteBook(id)
+    } catch (e) {
+      setError(`מחיקה נכשלה: ${e instanceof Error ? e.message : String(e)}`)
+    }
+    await refresh()
+  }
+  // leaving the library (or closing the page) finishes a deletion that is still waiting out its undo window
+  useEffect(() => {
+    window.addEventListener('pagehide', commitDelete)
+    return () => {
+      window.removeEventListener('pagehide', commitDelete)
+      commitDelete()
+    }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- commitDelete only reads refs and stable setters
+  }, [])
+
+  const undoDelete = () => {
+    const p = pendingDel.current
+    if (!p) return
+    window.clearTimeout(p.timer)
+    pendingDel.current = undefined
+    window.clearTimeout(toastTimer.current)
+    setToast(undefined)
+    refresh()
+  }
+
   const doDelete = async () => {
     const list = confirmDel
     if (!list) return
     setConfirmDel(undefined)
-    try {
-      for (const b of list) await deleteBook(b.id)
-      showToast(list.length === 1 ? `״${list[0]?.title}״ נמחק` : `${list.length} ספרים נמחקו`)
-    } catch (e) {
-      setError(`מחיקה נכשלה: ${e instanceof Error ? e.message : String(e)}`)
-    }
+    await commitDelete() // an earlier deletion still waiting becomes final
+    const ids = list.map((b) => b.id)
+    pendingDel.current = { ids, timer: window.setTimeout(commitDelete, UNDO_MS) }
+    setBooks((prev) => prev.filter((b) => !ids.includes(b.id)))
+    showToast(list.length === 1 ? `״${list[0]?.title}״ נמחק` : `${list.length} ספרים נמחקו`, undoDelete, UNDO_MS)
     exitSelect()
-    await refresh()
   }
 
   const shown = useMemo(() => {
@@ -210,9 +245,9 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
     setError(undefined)
     try {
       setBusy('משחזר גיבוי…')
-      const n = await importLibrary(file, (d, t) => setBusy(`משחזר גיבוי… ${d}/${t}`), password)
+      const { restored, skipped } = await importLibrary(file, (d, t) => setBusy(`משחזר גיבוי… ${d}/${t}`), password)
       setBusy(undefined)
-      showToast(`שוחזרו ${n} ספרים`)
+      showToast(`שוחזרו ${restored} ספרים` + (skipped ? ` (${skipped} כבר היו בספרייה בשם ובמחבר זהים ולא נוספו)` : ''), undefined, 6000)
     } catch (e) {
       setBusy(undefined)
       if (e instanceof PasswordRequiredError || e instanceof WrongPasswordError) {
@@ -526,7 +561,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
               {confirmDel.length === 1
                 ? `״${confirmDel[0]?.title}״ יימחק יחד עם מיקום הקריאה וההערות שלו.`
                 : 'הספרים שנבחרו יימחקו יחד עם מיקום הקריאה וההערות שלהם.'}{' '}
-              אי אפשר לבטל פעולה זו.
+              אפשר יהיה לבטל תוך כמה שניות.
             </p>
             <div className="modal-actions">
               <button className="danger" onClick={doDelete}>מחק</button>

@@ -69,7 +69,7 @@ describe('backup', () => {
     await wipe()
     expect(await listBooks()).toHaveLength(0)
 
-    expect(await importLibrary(asFile(blob))).toBe(2)
+    expect(await importLibrary(asFile(blob))).toEqual({ restored: 2, skipped: 0 })
     const a = (await getBook('a'))!
     expect(await a.file.text()).toBe('content-a')
     expect(a.file.type).toBe('application/epub+zip')
@@ -84,7 +84,7 @@ describe('backup', () => {
     const chunks: BlobPart[] = []
     await exportLibraryTo({ write: async (d) => void chunks.push(d), close: async () => {} }, undefined, 'pw')
     await wipe()
-    expect(await importLibrary(asFile(new Blob(chunks)), undefined, 'pw')).toBe(1)
+    expect(await importLibrary(asFile(new Blob(chunks)), undefined, 'pw')).toEqual({ restored: 1, skipped: 0 })
     expect(await (await getBook('a'))!.file.text()).toBe('content-a')
   })
   it('does not rewind a book when restoring an older backup', async () => {
@@ -103,6 +103,14 @@ describe('backup', () => {
     await saveNotes('a', [note('n1'), note('n2')])
     await importLibrary(asFile(blob))
     expect((await getNotes('a')).map((n) => n.id).sort()).toEqual(['n1', 'n2'])
+  })
+  it('skips a backup book whose title and author already exist under another id', async () => {
+    await saveBook(book('a', { title: 'ספר: הכותרת' }))
+    const blob = await exportLibrary()
+    await deleteBook('a')
+    await saveBook(book('other', { title: 'ספר - הכותרת' }))
+    expect(await importLibrary(asFile(blob))).toEqual({ restored: 0, skipped: 1 })
+    expect((await listBooks()).map((b) => b.id)).toEqual(['other'])
   })
   it('rejects an unsupported version', async () => {
     const header = new TextEncoder().encode(JSON.stringify({ version: 2, books: [] }))

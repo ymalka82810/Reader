@@ -1,9 +1,8 @@
 import { ImportError, explainImportError } from './errors'
-import { contentId, deleteBook, getBook, listBooks, saveBook, type BookMeta, type BookRecord } from './db'
+import { contentId, hasBook, listBooks, replaceBook, saveBook, type BookMeta, type BookRecord } from './db'
+import { sameBook } from './sameBook'
 
 const ALREADY_EXISTS = 'הספר כבר קיים בספרייה.'
-
-const norm =(s: string) => s.normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase()
 
 const langMap = (v: unknown): string => {
   if (!v) return ''
@@ -56,8 +55,7 @@ async function readIntoLibrary(
 ): Promise<BookRecord> {
   // Hash the file as the user supplied it (a PDF/TXT conversion isn't guaranteed to be byte-stable).
   const id = await contentId(file)
-  const existing = await getBook(id)
-  if (existing) throw new ImportError(ALREADY_EXISTS)
+  if (await hasBook(id)) throw new ImportError(ALREADY_EXISTS)
 
   // Converters pull in pdf.js / JSZip, so they load only when an import actually needs them.
   const { makeBook } = await import('foliate-js/view.js')
@@ -97,18 +95,15 @@ async function readIntoLibrary(
   const title = langMap(book.metadata?.title) || epub.name.replace(/\.[^.]+$/, '')
   const author = contributor(book.metadata?.author)
 
-  // Same book in another format or under another file name (so different bytes/hash): match on title + author.
-  // A missing author on either side (common with PDFs) still counts as a match.
-  const sameBook = (b: BookMeta) =>
-    norm(b.title) === norm(title) && (!norm(b.author) || !norm(author) || norm(b.author) === norm(author))
-  const dup = (await listBooks()).find(sameBook)
+  const dup = (await listBooks()).find((b) => sameBook(b, { title, author }))
+  let replaceId: string | undefined
   if (dup) {
     const choice = onDuplicate ? await onDuplicate(dup) : 'skip'
     if (choice === 'skip') {
       book.destroy?.()
       throw new ImportError(ALREADY_EXISTS)
     }
-    if (choice === 'replace') await deleteBook(dup.id)
+    if (choice === 'replace') replaceId = dup.id
   }
 
   const rec: BookRecord = {
@@ -123,6 +118,7 @@ async function readIntoLibrary(
     cover,
   }
   book.destroy?.()
-  await saveBook(rec)
+  if (replaceId) await replaceBook(replaceId, rec)
+  else await saveBook(rec)
   return rec
 }

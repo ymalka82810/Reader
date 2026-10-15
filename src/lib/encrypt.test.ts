@@ -50,7 +50,7 @@ describe('encrypted backup', () => {
 
     await expect(importLibrary(blob)).rejects.toBeInstanceOf(PasswordRequiredError)
     await expect(importLibrary(blob, undefined, 'nope')).rejects.toBeInstanceOf(WrongPasswordError)
-    expect(await importLibrary(blob, undefined, 'pw')).toBe(1)
+    expect(await importLibrary(blob, undefined, 'pw')).toEqual({ restored: 1, skipped: 0 })
     expect(await (await getBook('a'))!.file.text()).toBe('content')
   })
 })

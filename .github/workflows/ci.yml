@@ -14,6 +14,6 @@ jobs:
         with: { node-version: 24, cache: npm }
       - run: npm ci
       - run: npm run lint
-      - run: npx tsc -b
+      - run: npm run build
       - run: npm run knip
       - run: npm test
