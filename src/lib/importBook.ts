@@ -1,5 +1,7 @@
 import { ImportError, explainImportError } from './errors'
-import { contentId, getBook, saveBook, type BookRecord } from './db'
+import { contentId, getBook, listBooks, saveBook, type BookRecord } from './db'
+
+const norm = (s: string) => s.normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase()
 
 const langMap = (v: unknown): string => {
   if (!v) return ''
@@ -78,6 +80,19 @@ async function readIntoLibrary(file: File, onProgress?: (msg: string) => void): 
   } catch {
     /* no cover */
   }
+  const title = langMap(book.metadata?.title) || epub.name.replace(/\.[^.]+$/, '')
+  const author = contributor(book.metadata?.author)
+
+  // Same book saved under a different file name (so different bytes/hash): match on title + author.
+  const key = (t: string, a: string) => `${norm(t)}\u0000${norm(a)}`
+  const wanted = key(title, author)
+  const dup = (await listBooks()).find((b) => key(b.title, b.author) === wanted)
+  if (dup) {
+    book.destroy?.()
+    const full = await getBook(dup.id)
+    if (full) return full
+  }
+
   const rec: BookRecord = {
     id,
     file: epub,
@@ -85,8 +100,8 @@ async function readIntoLibrary(file: File, onProgress?: (msg: string) => void): 
     addedAt: Date.now(),
     kind: 'epub',
     fromPdf,
-    title: langMap(book.metadata?.title) || epub.name.replace(/\.[^.]+$/, ''),
-    author: contributor(book.metadata?.author),
+    title,
+    author,
     cover,
   }
   book.destroy?.()
