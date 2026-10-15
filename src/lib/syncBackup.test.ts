@@ -13,7 +13,7 @@ import {
   type BookRecord,
 } from './db'
 import { exportLibrary, importLibrary } from './backup'
-import { exportSync, importSync } from './sync'
+import { loadSettings, saveSettings } from './settings'
 import { addStats, loadStats } from './stats'
 
 const book = (id: string, extra: Partial<BookRecord> = {}): BookRecord => ({
@@ -104,30 +104,29 @@ describe('backup', () => {
   })
 })
 
-describe('sync', () => {
-  it('moves newer positions and new notes, skips unknown books', async () => {
+describe('backup as sync between devices', () => {
+  it('restores display settings', async () => {
     await saveBook(book('a'))
-    await saveBook(book('b'))
+    saveSettings({ ...loadSettings(), theme: 'dark', fontSize: 28 })
+    const blob = await exportLibrary()
+    localStorage.clear()
+    await importLibrary(asFile(blob))
+    expect(loadSettings()).toMatchObject({ theme: 'dark', fontSize: 28 })
+  })
+  it('moves newer positions and new notes onto a device that already has the book', async () => {
+    await saveBook(book('a'))
     await updateProgress('a', 'remote', 0.7)
-    await updateProgress('b', 'other', 0.2)
     await saveNotes('a', [note('n1'), note('n2')])
-    const data = JSON.parse(await (await exportSync()).text())
-    data.books['a'].progress.lastOpened += 10_000 // the other device read it more recently
+    const blob = await exportLibrary()
 
-    await deleteBook('b') // the file mentions a book this device doesn't have
-    await updateProgress('a', 'local', 0.1)
+    // the same book on the other device, read less recently and with fewer notes
+    await wipe()
+    await saveBook(book('a'))
+    await mergeProgress('a', { cfi: 'local', fraction: 0.1, lastOpened: 1 })
     await saveNotes('a', [note('n1')])
 
-    const res = await importSync(new File([JSON.stringify(data)], 's.json'))
-    expect(res).toEqual({ moved: 1, notes: 1, skipped: 1 })
+    await importLibrary(asFile(blob))
     expect((await getBook('a'))!.cfi).toBe('remote')
     expect(await getNotes('a')).toHaveLength(2)
-  })
-  it('leaves books with no data out of the export', async () => {
-    await saveBook(book('a'))
-    expect(JSON.parse(await (await exportSync()).text()).books).toEqual({})
-  })
-  it('rejects files that are not sync files', async () => {
-    await expect(importSync(new File(['{"kind":"x","version":1,"books":{}}'], 's.json'))).rejects.toThrow()
   })
 })

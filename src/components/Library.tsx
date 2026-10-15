@@ -3,7 +3,6 @@ import { deleteBook, isFinished, listBooks, setFinished, updateMeta, type BookRe
 import { importFile } from '../lib/importBook'
 import { backupDue, exportLibrary, importLibrary, markBackedUp } from '../lib/backup'
 import { download } from '../lib/download'
-import { exportSync, importSync } from '../lib/sync'
 import { onLaunchFiles, takeSharedFiles } from '../lib/inbox'
 import { formatBytes, getStorageStatus, type StorageStatus } from '../lib/storage'
 
@@ -36,7 +35,6 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   const [editAuthor, setEditAuthor] = useState('')
   const input = useRef<HTMLInputElement>(null)
   const restoreInput = useRef<HTMLInputElement>(null)
-  const syncInput = useRef<HTMLInputElement>(null)
   const [storage, setStorage] = useState<StorageStatus>()
   const [dismissed, setDismissed] = useState(false)
   const [menu, setMenu] = useState(false)
@@ -171,31 +169,6 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
     await refresh()
   }
 
-  const doSyncExport = async () => {
-    setError(undefined)
-    try {
-      download(await exportSync(), `סנכרון-${new Date().toISOString().slice(0, 10)}.readersync`)
-    } catch (e) {
-      setError(`ייצוא נכשל: ${e instanceof Error ? e.message : String(e)}`)
-    }
-  }
-
-  const doSyncImport = async (file: File) => {
-    setError(undefined)
-    try {
-      const r = await importSync(file)
-      showToast(
-        `עודכנו ${r.moved} מיקומי קריאה, נוספו ${r.notes} הערות` +
-          (r.skipped ? ` · ${r.skipped} ספרים לא נמצאו ודולגו` : ''),
-        undefined,
-        6000,
-      )
-    } catch (e) {
-      setError(`ייבוא נכשל: ${e instanceof Error ? e.message : String(e)}`)
-    }
-    await refresh()
-  }
-
   const openEdit = (b: BookRecord) => {
     setEditing(b)
     setEditTitle(b.title)
@@ -256,10 +229,8 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
               <div className="menu" role="menu" onKeyDown={(e) => e.key === 'Escape' && setMenu(false)}>
                 {(
                   [
-                    ['גיבוי', doExport, ''],
-                    ['שחזור', () => restoreInput.current?.click(), ''],
-                    ['ייצוא התקדמות', doSyncExport, 'מיקום קריאה והערות בלבד, קובץ קטן'],
-                    ['ייבוא התקדמות', () => syncInput.current?.click(), ''],
+                    ['גיבוי', doExport, 'ספרים, מיקום קריאה, הערות והגדרות'],
+                    ['שחזור', () => restoreInput.current?.click(), 'מוסיף ספרים חסרים וממזג מיקום והערות'],
                   ] as [string, () => void, string][]
                 ).map(([label, fn, tip]) => (
                   <button
@@ -295,17 +266,6 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
           onChange={(e) => {
             const f = e.target.files?.[0]
             if (f) doImport(f)
-            e.target.value = ''
-          }}
-        />
-        <input
-          ref={syncInput}
-          type="file"
-          hidden
-          accept=".readersync,application/json"
-          onChange={(e) => {
-            const f = e.target.files?.[0]
-            if (f) doSyncImport(f)
             e.target.value = ''
           }}
         />
