@@ -8,7 +8,9 @@ export interface BookRecord {
   file: Blob
   fileName: string
   cover?: Blob
-  /** PDF only: extracted reflowable HTML sections */
+  /** true when `file` is an EPUB that was converted from a PDF */
+  fromPdf?: boolean
+  /** legacy (imported before PDF→EPUB conversion): extracted reflowable HTML sections */
   pdf?: { rtl: boolean; pageCount: number; sections: string[] }
   addedAt: number
   lastOpened?: number

@@ -13,10 +13,7 @@ interface Line {
 
 const HEB = /[\u0590-\u05FF]/
 const FINALS = /[ךםןףץ]/
-const PAGES_PER_SECTION = 8
-
-const escapeHtml = (s: string) =>
-  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+export const PAGES_PER_SECTION = 8
 
 /** Extract lines of text from one PDF page, in content-stream order. */
 async function extractLines(page: pdfjs.PDFPageProxy): Promise<Line[]> {
@@ -126,11 +123,20 @@ export interface ExtractedPdf {
   author: string
   rtl: boolean
   pageCount: number
-  /** reflowable HTML documents, one per group of pages */
+  /** paragraphs of each group of PDF pages (one entry per future EPUB chapter) */
+  sections: string[][]
+}
+
+/** Legacy: books imported before the PDF→EPUB conversion store ready-made HTML sections. */
+export interface LegacyPdfBook {
+  title: string
+  author: string
+  rtl: boolean
+  pageCount: number
   sections: string[]
 }
 
-/** Extract the text of a PDF and turn it into reflowable HTML sections. */
+/** Extract the text of a PDF as paragraphs, grouped into sections. */
 export async function extractPdf(
   file: Blob,
   fileName: string,
@@ -157,14 +163,10 @@ export async function extractPdf(
   const hebCount = (chars.match(/[\u0590-\u05FF]/g) ?? []).length
   const rtl = hebCount > chars.length * 0.3
 
-  const sections: string[] = []
+  const sections: string[][] = []
   for (let start = 0; start < total; start += PAGES_PER_SECTION) {
-    const paras = pages
-      .slice(start, start + PAGES_PER_SECTION)
-      .flatMap((p) => toParagraphs(p, reversed))
-    const body = paras.map((p) => `<p>${escapeHtml(p)}</p>`).join('\n')
     sections.push(
-      `<!DOCTYPE html><html lang="${rtl ? 'he' : 'en'}" dir="${rtl ? 'rtl' : 'ltr'}"><head><meta charset="utf-8"></head><body>${body}</body></html>`,
+      pages.slice(start, start + PAGES_PER_SECTION).flatMap((p) => toParagraphs(p, reversed)),
     )
   }
   return {
@@ -176,8 +178,8 @@ export async function extractPdf(
   }
 }
 
-/** Wrap extracted sections in the minimal "book" interface foliate-js renders. */
-export function bookFromSections(x: Pick<ExtractedPdf, 'title' | 'author' | 'rtl' | 'pageCount' | 'sections'>) {
+/** Legacy: wrap stored HTML sections in the minimal "book" interface foliate-js renders. */
+export function bookFromSections(x: LegacyPdfBook) {
   const urls = new Map<number, string>()
   const sections = x.sections.map((html, i) => ({
     id: `s${i}`,

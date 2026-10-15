@@ -148,7 +148,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
                   <strong>{b.title}</strong>
                   {b.author && <small>{b.author}</small>}
                   <small className="kind">
-                    {b.kind.toUpperCase()}
+                    {b.fromPdf ? 'PDF' : b.kind.toUpperCase()}
                     {b.fraction ? ` · ${Math.round(b.fraction * 100)}%` : ''}
                   </small>
                 </div>

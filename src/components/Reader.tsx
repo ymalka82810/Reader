@@ -23,6 +23,8 @@ const flatten = (items: TocItem[] | null | undefined, depth = 0): (TocItem & { d
 
 const MIN_FONT = 12
 const MAX_FONT = 48
+/** share of the screen width, on each side, that turns the page when tapped */
+const EDGE = 0.3
 
 export default function Reader({ id, onClose }: { id: string; onClose: () => void }) {
   const host = useRef<HTMLDivElement>(null)
@@ -37,6 +39,10 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   const [error, setError] = useState('')
   const [uiVisible, setUiVisible] = useState(true)
   const [panel, setPanel] = useState<'toc' | 'settings' | null>(null)
+  const panelRef = useRef(panel)
+  useEffect(() => {
+    panelRef.current = panel
+  }, [panel])
   const [toc, setToc] = useState<(TocItem & { depth: number })[]>([])
   const [fraction, setFraction] = useState(0)
   const [dragFraction, setDragFraction] = useState<number | null>(null)
@@ -123,12 +129,22 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
         view.addEventListener('load', (e: CustomEvent) => {
           const doc: Document = e.detail.doc
           doc.addEventListener('keydown', onKey)
-          doc.addEventListener('click', (ev) => {
+          doc.addEventListener('click', (ev: MouseEvent) => {
             const t = ev.target as Element
             if (t.closest?.('a')) return
             if (doc.getSelection()?.toString()) return
-            setUiVisible((v) => !v)
-            setPanel(null)
+            if (panelRef.current) {
+              setPanel(null)
+              return
+            }
+            // click position relative to the whole screen (the iframe can be offset/scrolled)
+            const frame = doc.defaultView?.frameElement as HTMLElement | null
+            const x = (frame?.getBoundingClientRect().left ?? 0) + ev.clientX
+            const w = window.innerWidth
+            const v = viewRef.current
+            if (x < w * EDGE) v?.goLeft()
+            else if (x > w * (1 - EDGE)) v?.goRight()
+            else setUiVisible((vis) => !vis)
           })
         })
         view.addEventListener('relocate', (e: CustomEvent) => {

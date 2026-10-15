@@ -1,5 +1,6 @@
 import { makeBook } from 'foliate-js/view.js'
 import { extractPdf } from './pdfToBook'
+import { buildEpub } from './pdfToEpub'
 import { newId, saveBook, type BookRecord } from './db'
 
 const langMap = (v: unknown): string => {
@@ -27,28 +28,20 @@ export async function importFile(
   file: File,
   onProgress?: (msg: string) => void,
 ): Promise<BookRecord> {
-  const base = {
-    id: newId(),
-    file,
-    fileName: file.name,
-    addedAt: Date.now(),
-  }
+  let epub = file
+  let fromPdf = false
 
   if (isPdf(file)) {
+    // Convert the PDF into a real EPUB first, then read it exactly like any other EPUB.
     const x = await extractPdf(file, file.name, (d, t) => onProgress?.(`מחלץ טקסט מה-PDF… ${d}/${t}`))
-    const rec: BookRecord = {
-      ...base,
-      kind: 'pdf',
-      title: x.title,
-      author: x.author,
-      pdf: { rtl: x.rtl, pageCount: x.pageCount, sections: x.sections },
-    }
-    await saveBook(rec)
-    return rec
+    onProgress?.('ממיר ל-EPUB…')
+    const blob = await buildEpub(x)
+    epub = new File([blob], file.name.replace(/\.pdf$/i, '') + '.epub', { type: 'application/epub+zip' })
+    fromPdf = true
   }
 
   onProgress?.('קורא את הספר…')
-  const book = await makeBook(file)
+  const book = await makeBook(epub)
   let cover: Blob | undefined
   try {
     cover = (await book.getCover?.()) ?? undefined
@@ -56,9 +49,13 @@ export async function importFile(
     /* no cover */
   }
   const rec: BookRecord = {
-    ...base,
+    id: newId(),
+    file: epub,
+    fileName: epub.name,
+    addedAt: Date.now(),
     kind: 'epub',
-    title: langMap(book.metadata?.title) || file.name.replace(/\.[^.]+$/, ''),
+    fromPdf,
+    title: langMap(book.metadata?.title) || epub.name.replace(/\.[^.]+$/, ''),
     author: contributor(book.metadata?.author),
     cover,
   }
