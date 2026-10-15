@@ -266,7 +266,11 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
           })
 
           // pinch with two fingers to shrink/grow the text, like the Aa buttons
-          const pinchDist = (t: TouchEvent) => Math.hypot(t.touches[0].clientX - t.touches[1].clientX, t.touches[0].clientY - t.touches[1].clientY)
+          const pinchDist = (t: TouchEvent) => {
+            const a = t.touches[0]
+            const b = t.touches[1]
+            return a && b ? Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) : 0
+          }
           let pinchStartDist: number | null = null
           let pinchStartFont = 0
           doc.addEventListener(
