@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { deleteBook, listBooks, type BookRecord } from '../lib/db'
 import { importFile } from '../lib/importBook'
 import { exportLibrary, importLibrary } from '../lib/backup'
@@ -24,6 +24,8 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   const [busy, setBusy] = useState<string>()
   const [error, setError] = useState<string>()
   const [drag, setDrag] = useState(false)
+  const [query, setQuery] = useState('')
+  const [sort, setSort] = useState<'recent' | 'title' | 'author' | 'added'>('recent')
   const input = useRef<HTMLInputElement>(null)
   const restoreInput = useRef<HTMLInputElement>(null)
 
@@ -31,6 +33,19 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   useEffect(() => {
     refresh()
   }, [refresh])
+
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const list = q
+      ? books.filter((b) => `${b.title} ${b.author} ${b.fileName}`.toLowerCase().includes(q))
+      : [...books]
+    const by = (f: (b: BookRecord) => string) => (a: BookRecord, b: BookRecord) =>
+      f(a).localeCompare(f(b), 'he')
+    if (sort === 'title') list.sort(by((b) => b.title))
+    else if (sort === 'author') list.sort(by((b) => b.author || '￿'))
+    else if (sort === 'added') list.sort((a, b) => b.addedAt - a.addedAt)
+    return list // 'recent' keeps the order listBooks returns
+  }, [books, query, sort])
 
   const addFiles = async (files: FileList | File[]) => {
     setError(undefined)
@@ -126,6 +141,23 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
         />
       </header>
 
+      {books.length > 1 && (
+        <div className="lib-tools">
+          <input
+            type="search"
+            placeholder="חיפוש לפי שם או מחבר…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} aria-label="מיון">
+            <option value="recent">נפתח לאחרונה</option>
+            <option value="added">נוסף לאחרונה</option>
+            <option value="title">שם (א–ת)</option>
+            <option value="author">מחבר (א–ת)</option>
+          </select>
+        </div>
+      )}
+
       {busy && <div className="notice">{busy}</div>}
       {error && (
         <div className="notice error" onClick={() => setError(undefined)}>
@@ -138,9 +170,13 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
           <p>אין עדיין ספרים.</p>
           <p>לחץ על ״הוסף ספר״ ובחר קובץ EPUB או PDF מהטלפון או מגוגל דרייב.</p>
         </div>
+      ) : shown.length === 0 ? (
+        <div className="empty">
+          <p>לא נמצאו ספרים עבור ״{query}״.</p>
+        </div>
       ) : (
         <ul className="grid">
-          {books.map((b) => (
+          {shown.map((b) => (
             <li key={b.id}>
               <button className="card" onClick={() => onOpen(b.id)}>
                 <Cover book={b} />

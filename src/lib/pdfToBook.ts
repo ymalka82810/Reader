@@ -123,8 +123,8 @@ export interface ExtractedPdf {
   author: string
   rtl: boolean
   pageCount: number
-  /** paragraphs of each group of PDF pages (one entry per future EPUB chapter) */
-  sections: string[][]
+  /** one entry per future EPUB chapter: a real heading when found, else a page range */
+  chapters: { title: string; paras: string[] }[]
 }
 
 /** Legacy: books imported before the PDF→EPUB conversion store ready-made HTML sections. */
@@ -136,7 +136,66 @@ export interface LegacyPdfBook {
   sections: string[]
 }
 
-/** Extract the text of a PDF as paragraphs, grouped into sections. */
+const pageRange = (from: number, to: number) => (from === to ? `עמוד ${from}` : `עמודים ${from}–${to}`)
+
+/** Chapter start pages (0-based) taken from the PDF's own bookmarks, if it has any. */
+async function outlineStarts(pdf: pdfjs.PDFDocumentProxy): Promise<Map<number, string>> {
+  const out = new Map<number, string>()
+  try {
+    const outline = await pdf.getOutline()
+    if (!outline?.length) return out
+    const walk = async (items: typeof outline, depth: number) => {
+      for (const it of items) {
+        try {
+          let dest = it.dest
+          if (typeof dest === 'string') dest = await pdf.getDestination(dest)
+          const ref = Array.isArray(dest) ? dest[0] : null
+          const page = ref == null ? -1 : typeof ref === 'number' ? ref : await pdf.getPageIndex(ref)
+          const title = it.title.replace(/\s+/g, ' ').trim()
+          if (page >= 0 && title && !out.has(page)) out.set(page, title)
+        } catch {
+          /* unresolvable bookmark: skip */
+        }
+        if (depth < 2 && it.items?.length) await walk(it.items, depth + 1)
+      }
+    }
+    await walk(outline, 1)
+  } catch {
+    /* no outline */
+  }
+  return out
+}
+
+/** Guess chapter headings from big, short lines (or "פרק …"/"Chapter …" lines) when there are no bookmarks. */
+function detectHeadings(pages: Line[][], reversed: boolean): Map<number, string> {
+  const hs = pages.flat().map((l) => l.h)
+  const body = median(hs)
+  const out = new Map<number, string>()
+  if (!body) return out
+  const named = /^(פרק|שער|חלק|מבוא|הקדמה|Chapter|Part|CHAPTER|PART)(\s|$)/
+  const cands: { page: number; text: string }[] = []
+  pages.forEach((lines, page) => {
+    // headings sit in the upper part of the page; take the first qualifying run of lines
+    const top = lines.slice(0, 6)
+    const run: string[] = []
+    for (const l of top) {
+      const big = l.h >= body * 1.3 && l.text.length <= 70 && !/[.,;]$/.test(l.text)
+      const byName = named.test(l.text) && l.text.length <= 50
+      if (big || byName) run.push(reversed ? fixVisual(l.text) : l.text)
+      else if (run.length) break
+    }
+    const text = run.join(' ').trim()
+    if (text.length >= 2 && !/^[\d\s\-–]+$/.test(text)) cands.push({ page, text })
+  })
+  // a heading repeated on many pages is a running header, not a chapter title
+  const freq = new Map<string, number>()
+  for (const c of cands) freq.set(c.text, (freq.get(c.text) ?? 0) + 1)
+  for (const c of cands) if ((freq.get(c.text) ?? 0) <= 2) out.set(c.page, c.text)
+  // too many "headings" means the heuristic is catching ordinary text
+  return out.size > Math.max(40, pages.length / 2) ? new Map() : out
+}
+
+/** Extract the text of a PDF as paragraphs, grouped into chapters. */
 export async function extractPdf(
   file: Blob,
   fileName: string,
@@ -153,6 +212,7 @@ export async function extractPdf(
     onProgress?.(i, total)
   }
   const info = ((await pdf.getMetadata().catch(() => null))?.info ?? {}) as Record<string, string>
+  const bookmarks = await outlineStarts(pdf)
   await task.destroy()
 
   const chars = pages.flat().map((l) => l.text).join('')
@@ -160,21 +220,41 @@ export async function extractPdf(
     throw new Error('ב-PDF הזה אין שכבת טקסט (כנראה סריקה). נדרש OCR, שעדיין לא נתמך.')
 
   const reversed = looksReversed(pages)
-  const hebCount = (chars.match(/[\u0590-\u05FF]/g) ?? []).length
+  const hebCount = (chars.match(/[֐-׿]/g) ?? []).length
   const rtl = hebCount > chars.length * 0.3
 
-  const sections: string[][] = []
-  for (let start = 0; start < total; start += PAGES_PER_SECTION) {
-    sections.push(
-      pages.slice(start, start + PAGES_PER_SECTION).flatMap((p) => toParagraphs(p, reversed)),
-    )
+  let starts = bookmarks
+  if (starts.size < 2) starts = detectHeadings(pages, reversed)
+
+  const chapters: { title: string; paras: string[] }[] = []
+  if (starts.size >= 2) {
+    const marks = [...starts.keys()].sort((a, b) => a - b)
+    if (marks[0] > 0) {
+      marks.unshift(0)
+      starts = new Map(starts).set(0, info.Title || fileName.replace(/\.pdf$/i, ''))
+    }
+    marks.forEach((from, i) => {
+      const to = marks[i + 1] ?? total
+      chapters.push({
+        title: starts.get(from) ?? pageRange(from + 1, to),
+        paras: pages.slice(from, to).flatMap((p) => toParagraphs(p, reversed)),
+      })
+    })
+  } else {
+    for (let start = 0; start < total; start += PAGES_PER_SECTION) {
+      const end = Math.min(total, start + PAGES_PER_SECTION)
+      chapters.push({
+        title: pageRange(start + 1, end),
+        paras: pages.slice(start, end).flatMap((p) => toParagraphs(p, reversed)),
+      })
+    }
   }
   return {
     title: info.Title || fileName.replace(/\.pdf$/i, ''),
     author: info.Author || '',
     rtl,
     pageCount: total,
-    sections,
+    chapters,
   }
 }
 

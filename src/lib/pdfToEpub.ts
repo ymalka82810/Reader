@@ -1,5 +1,5 @@
 import JSZip from 'jszip'
-import { PAGES_PER_SECTION, type ExtractedPdf } from './pdfToBook'
+import type { ExtractedPdf } from './pdfToBook'
 
 const esc = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -21,13 +21,8 @@ export async function buildEpub(x: ExtractedPdf): Promise<Blob> {
   const dir = x.rtl ? 'rtl' : 'ltr'
   const title = clean(x.title) || 'Untitled'
 
-  const chapters = x.sections
-    .map((paras, i) => ({
-      id: `c${i}`,
-      file: `c${i}.xhtml`,
-      label: `עמודים ${i * PAGES_PER_SECTION + 1}–${Math.min(x.pageCount, (i + 1) * PAGES_PER_SECTION)}`,
-      paras,
-    }))
+  const chapters = x.chapters
+    .map((c, i) => ({ id: `c${i}`, file: `c${i}.xhtml`, label: clean(c.title), paras: c.paras }))
     .filter((c) => c.paras.length > 0)
   if (!chapters.length) throw new Error('לא נמצא טקסט להמרה ב-PDF הזה.')
 

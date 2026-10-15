@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import 'foliate-js/view.js'
-import { getBook, updateProgress } from '../lib/db'
+import { Overlayer } from 'foliate-js/overlayer.js'
+import { getBook, getNotes, newId, saveNotes, updateProgress, type Annotation } from '../lib/db'
 import { bookFromSections } from '../lib/pdfToBook'
 import {
   bookCSS,
@@ -32,6 +33,7 @@ interface SearchGroup {
 const flatten = (items: TocItem[] | null | undefined, depth = 0): (TocItem & { depth: number })[] =>
   (items ?? []).flatMap((i) => [{ ...i, depth }, ...flatten(i.subitems, depth + 1)])
 
+const HIGHLIGHT_COLORS = ['#f2c744', '#5fbf6a', '#4a9be8', '#e8688c']
 const MIN_FONT = 12
 const MAX_FONT = 48
 /** share of the screen width, on each side, that turns the page when tapped */
@@ -49,7 +51,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [error, setError] = useState('')
   const [uiVisible, setUiVisible] = useState(true)
-  const [panel, setPanel] = useState<'toc' | 'settings' | 'search' | null>(null)
+  const [panel, setPanel] = useState<'toc' | 'settings' | 'search' | 'notes' | 'edit' | null>(null)
   const panelRef = useRef(panel)
   useEffect(() => {
     panelRef.current = panel
@@ -63,6 +65,29 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   const [dragFraction, setDragFraction] = useState<number | null>(null)
   const [pages, setPages] = useState<{ current: number; total: number } | null>(null)
   const [chapter, setChapter] = useState('')
+
+  const [notes, setNotes] = useState<Annotation[]>([])
+  const notesRef = useRef<Annotation[]>([])
+  const [editingId, setEditingId] = useState<string | null>(null)
+  /** text currently selected in the book, with where to float the colour bar */
+  const [selection, setSelection] = useState<{ cfi: string; text: string; x: number; y: number } | null>(null)
+  const selectionRef = useRef(selection)
+  selectionRef.current = selection
+  const lastAnnotationClick = useRef(0)
+  const [toast, setToast] = useState('')
+
+  const commitNotes = useCallback(
+    (next: Annotation[]) => {
+      notesRef.current = next
+      setNotes(next)
+      saveNotes(id, next).catch(console.error)
+    },
+    [id],
+  )
+  const flash = (msg: string) => {
+    setToast(msg)
+    window.setTimeout(() => setToast(''), 1800)
+  }
 
   // page-size calibration: bytes of source per rendered page, per section visited since last re-layout
   const calib = useRef(new Map<number, { pages: number; size: number }>())
@@ -119,6 +144,9 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     ;(async () => {
       try {
         const rec = await getBook(id)
+        const savedNotes = await getNotes(id)
+        notesRef.current = savedNotes
+        setNotes(savedNotes)
         if (!rec) throw new Error('הספר לא נמצא בספרייה')
         if (cancelled) return
         host.current?.append(view)
@@ -143,11 +171,38 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
 
         view.addEventListener('load', (e: CustomEvent) => {
           const doc: Document = e.detail.doc
+          const index: number = e.detail.index
           doc.addEventListener('keydown', onKey)
+          doc.addEventListener('selectionchange', () => {
+            const sel = doc.getSelection()
+            const text = sel?.toString().trim()
+            if (!sel || sel.isCollapsed || !text) {
+              // short delay so a tap on the colour bar still finds the selection
+              window.setTimeout(() => {
+                if (!doc.getSelection()?.toString().trim()) setSelection((cur) => (cur ? null : cur))
+              }, 150)
+              return
+            }
+            const range = sel.getRangeAt(0)
+            const rect = range.getBoundingClientRect()
+            const fr = (doc.defaultView?.frameElement as HTMLElement | null)?.getBoundingClientRect()
+            try {
+              setSelection({
+                cfi: view.getCFI(index, range),
+                text,
+                x: (fr?.left ?? 0) + rect.left + rect.width / 2,
+                y: (fr?.top ?? 0) + rect.top,
+              })
+            } catch (err) {
+              console.error(err)
+            }
+          })
           doc.addEventListener('click', (ev: MouseEvent) => {
             const t = ev.target as Element
             if (t.closest?.('a')) return
             if (doc.getSelection()?.toString()) return
+            // a tap on a highlight opens it; the overlay handler fires on the same event
+            if (Date.now() - lastAnnotationClick.current < 300) return
             if (panelRef.current) {
               setPanel(null)
               return
@@ -161,6 +216,22 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
             else if (x > w * (1 - EDGE)) v?.goRight()
             else setUiVisible((vis) => !vis)
           })
+        })
+        view.addEventListener('draw-annotation', (e: CustomEvent) => {
+          const { draw, annotation } = e.detail
+          draw(Overlayer.highlight, { color: annotation.color })
+        })
+        view.addEventListener('create-overlay', () => {
+          for (const n of notesRef.current) {
+            if (n.kind === 'highlight') view.addAnnotation({ value: n.cfi, color: n.color }).catch(() => {})
+          }
+        })
+        view.addEventListener('show-annotation', (e: CustomEvent) => {
+          const n = notesRef.current.find((x) => x.cfi === e.detail.value)
+          if (!n) return
+          lastAnnotationClick.current = Date.now()
+          setEditingId(n.id)
+          setPanel('edit')
         })
         view.addEventListener('relocate', (e: CustomEvent) => {
           const d = e.detail
@@ -238,6 +309,57 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     }
   }, [])
 
+  const addHighlight = (color: string) => {
+    const sel = selectionRef.current
+    const view = viewRef.current
+    if (!sel || !view) return
+    const note: Annotation = {
+      id: newId(),
+      kind: 'highlight',
+      cfi: sel.cfi,
+      text: sel.text,
+      color,
+      createdAt: Date.now(),
+    }
+    commitNotes([...notesRef.current, note])
+    view.addAnnotation({ value: note.cfi, color }).catch(console.error)
+    view.renderer.getContents?.().forEach((c: any) => c.doc?.getSelection()?.removeAllRanges())
+    setSelection(null)
+  }
+
+  const updateNote = (noteId: string, patch: Partial<Annotation>) => {
+    const next = notesRef.current.map((n) => (n.id === noteId ? { ...n, ...patch } : n))
+    commitNotes(next)
+    const n = next.find((x) => x.id === noteId)
+    if (n && patch.color && n.kind === 'highlight') {
+      viewRef.current?.addAnnotation({ value: n.cfi, color: n.color }).catch(console.error)
+    }
+  }
+
+  const removeNote = (noteId: string) => {
+    const n = notesRef.current.find((x) => x.id === noteId)
+    if (!n) return
+    commitNotes(notesRef.current.filter((x) => x.id !== noteId))
+    if (n.kind === 'highlight') viewRef.current?.deleteAnnotation({ value: n.cfi }).catch(console.error)
+  }
+
+  const toggleBookmark = () => {
+    const d = lastDetail.current
+    if (!d?.cfi) return
+    const existing = notesRef.current.find((n) => n.kind === 'bookmark' && n.cfi === d.cfi)
+    if (existing) {
+      removeNote(existing.id)
+      flash('הסימנייה הוסרה')
+      return
+    }
+    const label = [chapter, `${Math.round((d.fraction ?? 0) * 100)}%`].filter(Boolean).join(' · ')
+    commitNotes([
+      ...notesRef.current,
+      { id: newId(), kind: 'bookmark', cfi: d.cfi, text: label, color: HIGHLIGHT_COLORS[0], createdAt: Date.now() },
+    ])
+    flash('נוספה סימנייה')
+  }
+
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) => setSettings((s) => ({ ...s, [k]: v }))
   const bump = (d: number) => set('fontSize', Math.min(MAX_FONT, Math.max(MIN_FONT, settings.fontSize + d)))
 
@@ -267,6 +389,8 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
       <div className={'topbar' + (uiVisible ? '' : ' hidden')}>
         <button onClick={onClose} aria-label="חזרה לספרייה">→</button>
         <div className="title">{title}</div>
+        <button onClick={toggleBookmark} aria-label="סימנייה">🔖</button>
+        <button onClick={() => setPanel(panel === 'notes' ? null : 'notes')} aria-label="סימניות והדגשות">📝</button>
         <button onClick={() => setPanel(panel === 'toc' ? null : 'toc')}>☰</button>
         <button onClick={() => setPanel(panel === 'search' ? null : 'search')} aria-label="חיפוש">🔍</button>
         <button onClick={() => setPanel(panel === 'settings' ? null : 'settings')}>Aa</button>
@@ -298,6 +422,105 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
           <button onClick={() => viewRef.current?.goLeft()} aria-label="הקודם">›</button>
         )}
       </div>
+
+      {selection && !panel && (
+        <div
+          className="sel-bar"
+          style={{
+            left: Math.min(Math.max(selection.x, 90), window.innerWidth - 90),
+            top: selection.y > 110 ? selection.y - 48 : selection.y + 40,
+          }}
+          onPointerDown={(e) => e.preventDefault()}
+        >
+          {HIGHLIGHT_COLORS.map((c) => (
+            <button key={c} className="swatch" style={{ background: c }} aria-label="הדגש" onClick={() => addHighlight(c)} />
+          ))}
+        </div>
+      )}
+      {toast && <div className="toast">{toast}</div>}
+
+      {panel === 'notes' && (
+        <div className="panel">
+          <h3>סימניות והדגשות</h3>
+          {notes.length === 0 && (
+            <p className="muted">אין עדיין. סמן טקסט כדי להדגיש אותו, או לחץ על 🔖 כדי לשמור מקום.</p>
+          )}
+          <ul className="notes">
+            {[...notes]
+              .sort((a, b) => a.createdAt - b.createdAt)
+              .map((n) => (
+                <li key={n.id}>
+                  <button
+                    className="note-main"
+                    onClick={() => {
+                      viewRef.current?.goTo(n.cfi)
+                      setPanel(null)
+                    }}
+                  >
+                    <span className="note-kind" style={{ background: n.kind === 'bookmark' ? 'transparent' : n.color }}>
+                      {n.kind === 'bookmark' ? '🔖' : ''}
+                    </span>
+                    <span>
+                      {n.text}
+                      {n.note && <small className="note-text">{n.note}</small>}
+                    </span>
+                  </button>
+                  {n.kind === 'highlight' && (
+                    <button
+                      aria-label="ערוך"
+                      onClick={() => {
+                        setEditingId(n.id)
+                        setPanel('edit')
+                      }}
+                    >
+                      ✎
+                    </button>
+                  )}
+                  <button aria-label="מחק" onClick={() => removeNote(n.id)}>✕</button>
+                </li>
+              ))}
+          </ul>
+        </div>
+      )}
+
+      {panel === 'edit' &&
+        (() => {
+          const n = notes.find((x) => x.id === editingId)
+          if (!n) return null
+          return (
+            <div className="panel edit">
+              <blockquote style={{ borderColor: n.color }}>{n.text}</blockquote>
+              <textarea
+                placeholder="הוסף הערה…"
+                value={n.note ?? ''}
+                onChange={(e) => updateNote(n.id, { note: e.target.value })}
+                rows={4}
+                autoFocus
+              />
+              <div className="row">
+                {HIGHLIGHT_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    className={'swatch' + (c === n.color ? ' on' : '')}
+                    style={{ background: c }}
+                    aria-label="צבע"
+                    onClick={() => updateNote(n.id, { color: c })}
+                  />
+                ))}
+                <span style={{ flex: 1 }} />
+                <button
+                  onClick={() => {
+                    removeNote(n.id)
+                    setPanel(null)
+                  }}
+                >
+                  מחק
+                </button>
+                <button className="primary" onClick={() => setPanel(null)}>סיום</button>
+              </div>
+            </div>
+          )
+        })()}
 
       {panel === 'toc' && (
         <div className="panel">

@@ -1,4 +1,4 @@
-import { listBooks, saveBook, type BookRecord } from './db'
+import { getNotes, listBooks, saveBook, saveNotes, type Annotation, type BookRecord } from './db'
 
 /** Container format: [4-byte LE header length][JSON header][concatenated blob bytes].
  *  Keeps the whole library (files, covers, metadata, reading progress) in one file,
@@ -14,12 +14,15 @@ interface ManifestBook extends Omit<BookRecord, 'file' | 'cover'> {
 interface Manifest {
   version: 1
   books: ManifestBook[]
+  /** highlights/bookmarks per book id (absent in backups made before annotations existed) */
+  notes?: Record<string, Annotation[]>
 }
 
 export async function exportLibrary(onProgress?: (done: number, total: number) => void): Promise<Blob> {
   const books = await listBooks()
   const parts: BlobPart[] = []
   const manifestBooks: ManifestBook[] = []
+  const notes: Record<string, Annotation[]> = {}
   let offset = 0
 
   for (let i = 0; i < books.length; i++) {
@@ -39,11 +42,13 @@ export async function exportLibrary(onProgress?: (done: number, total: number) =
       offset += coverBytes.byteLength
     }
 
+    const bookNotes = await getNotes(rest.id)
+    if (bookNotes.length) notes[rest.id] = bookNotes
     manifestBooks.push({ ...rest, fileType: file.type, fileRange, coverType, coverRange })
     onProgress?.(i + 1, books.length)
   }
 
-  const manifest: Manifest = { version: 1, books: manifestBooks }
+  const manifest: Manifest = { version: 1, books: manifestBooks, notes }
   const headerBytes = new TextEncoder().encode(JSON.stringify(manifest))
   const lenPrefix = new Uint8Array(4)
   new DataView(lenPrefix.buffer).setUint32(0, headerBytes.byteLength, true)
@@ -72,6 +77,13 @@ export async function importLibrary(
       : undefined
     const rec: BookRecord = { ...rest, file: fileBlob, cover: coverBlob }
     await saveBook(rec)
+    const incoming = header.notes?.[rec.id]
+    if (incoming?.length) {
+      // merge with notes already on this device, keeping one copy of each
+      const byId = new Map((await getNotes(rec.id)).map((n) => [n.id, n]))
+      for (const n of incoming) byId.set(n.id, n)
+      await saveNotes(rec.id, [...byId.values()])
+    }
     onProgress?.(i + 1, header.books.length)
   }
   return header.books.length

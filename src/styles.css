@@ -16,6 +16,9 @@ button:disabled { opacity: .5; }
 .library.drag { outline: 3px dashed var(--accent); outline-offset: -8px; }
 .lib-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
 .lib-header h1 { margin: 0; font-size: 1.5rem; }
+.lib-tools { display: flex; gap: .6rem; margin-bottom: 1rem; }
+.lib-tools input { flex: 1; min-width: 0; padding: .5rem .8rem; border-radius: 10px; border: 1px solid rgba(128,128,128,.4); background: transparent; color: inherit; font: inherit; }
+.lib-tools select { padding: .5rem; border-radius: 10px; border: 1px solid rgba(128,128,128,.4); background: transparent; color: inherit; font: inherit; }
 .notice { padding: .7rem 1rem; border-radius: 10px; background: rgba(43,108,176,.15); margin-bottom: 1rem; }
 .notice.error { background: rgba(200,50,50,.18); }
 .empty { text-align: center; opacity: .75; margin-top: 20vh; line-height: 1.8; }
@@ -63,3 +66,19 @@ button:disabled { opacity: .5; }
 .search-results ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .2rem; }
 .search-results button { width: 100%; text-align: start; background: transparent; padding: .4rem .5rem; line-height: 1.5; }
 .search-results mark { background: color-mix(in srgb, var(--accent) 35%, transparent); color: inherit; border-radius: 3px; }
+
+/* highlights & notes */
+.sel-bar { position: fixed; z-index: 7; transform: translateX(-50%); display: flex; gap: .5rem; padding: .45rem .6rem; border-radius: 999px; background: var(--bg); box-shadow: 0 4px 18px rgba(0,0,0,.4); border: 1px solid rgba(127,127,127,.35); }
+.swatch { width: 2rem; height: 2rem; padding: 0; border-radius: 50%; border: 2px solid transparent; }
+.swatch.on { border-color: var(--fg); }
+.toast { position: absolute; z-index: 8; bottom: 5rem; left: 50%; transform: translateX(-50%); padding: .5rem 1rem; border-radius: 999px; background: rgba(0,0,0,.75); color: #fff; font-size: .9rem; }
+.notes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .3rem; }
+.notes li { display: flex; align-items: stretch; gap: .2rem; }
+.notes .note-main { flex: 1; display: flex; gap: .5rem; align-items: flex-start; text-align: start; background: transparent; padding: .4rem .3rem; line-height: 1.5; }
+.notes li > button:not(.note-main) { background: transparent; padding: .4rem .5rem; }
+.note-kind { flex: none; width: 1.1rem; min-height: 1.1rem; margin-top: .25rem; border-radius: 4px; text-align: center; font-size: .9rem; line-height: 1; }
+.note-text { display: block; opacity: .7; margin-top: .15rem; }
+.edit { display: flex; flex-direction: column; gap: .8rem; }
+.edit blockquote { margin: 0; padding-inline-start: .7rem; border-inline-start: 4px solid; max-height: 6rem; overflow: auto; line-height: 1.5; }
+.edit textarea { font: inherit; padding: .5rem .7rem; border-radius: 10px; border: 1px solid rgba(127,127,127,.4); background: transparent; color: inherit; resize: vertical; }
+.edit .row { display: flex; align-items: center; gap: .5rem; }
