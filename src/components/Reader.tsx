@@ -201,7 +201,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
         })
         view.addEventListener('create-overlay', () => {
           for (const n of notesRef.current) {
-            if (n.kind === 'highlight') view.addAnnotation({ value: n.cfi, color: n.color }).catch((e) => console.warn('addAnnotation failed', e))
+            if (n.kind === 'highlight') view.addAnnotation({ value: n.cfi, color: n.color }).catch(console.error)
           }
         })
         view.addEventListener('show-annotation', (e: CustomEvent) => {
