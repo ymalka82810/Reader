@@ -103,21 +103,25 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   const closePanel = useCallback(() => setPanel(null), [])
   const onKey = useBookKeys({ viewRef, actions, closePanel, markActive: tracker.markActive })
 
+  const toastTimer = useRef<number | undefined>(undefined)
+  const flash = useCallback((msg: string) => {
+    setToast(msg)
+    window.clearTimeout(toastTimer.current)
+    toastTimer.current = window.setTimeout(() => setToast(''), 1800)
+  }, [])
+  useEffect(() => () => window.clearTimeout(toastTimer.current), [])
+
   const commitNotes = useCallback(
     (next: Annotation[]) => {
       notesRef.current = next
       setNotes(next)
-      saveNotes(id, next).catch(console.error)
+      saveNotes(id, next).catch((e) => {
+        console.error(e)
+        flash(e instanceof Error && e.name === 'QuotaExceededError' ? 'אין מקום באחסון — ההערה לא נשמרה' : 'שמירת ההערה נכשלה')
+      })
     },
-    [id],
+    [id, flash],
   )
-  const toastTimer = useRef<number | undefined>(undefined)
-  const flash = (msg: string) => {
-    setToast(msg)
-    window.clearTimeout(toastTimer.current)
-    toastTimer.current = window.setTimeout(() => setToast(''), 1800)
-  }
-  useEffect(() => () => window.clearTimeout(toastTimer.current), [])
 
   // page-size calibration: bytes of source per rendered page, per section visited since last re-layout
   const calib = useRef(new Map<number, { pages: number; size: number }>())

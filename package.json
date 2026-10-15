@@ -10,7 +10,8 @@
     "test": "vitest run",
     "preview": "vite preview",
     "knip": "knip",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "foliate-js": "github:johnfactotum/foliate-js#78914aef4466eb960965702401634c2cb348e9b1",
@@ -22,6 +23,7 @@
     "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
