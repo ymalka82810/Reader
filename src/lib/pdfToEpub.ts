@@ -112,6 +112,6 @@ ${chapters.map((c) => `<itemref idref="${c.id}"/>`).join('\n')}
   return zip.generateAsync({
     type: 'blob',
     mimeType: 'application/epub+zip',
-    compression: 'DEFLATE',
+    compression: 'STORE',
   })
 }
