@@ -40,6 +40,14 @@ export async function updateProgress(id: string, cfi: string, fraction: number) 
   await saveBook(b)
 }
 
+export async function updateMeta(id: string, title: string, author: string) {
+  const b = await getBook(id)
+  if (!b) return
+  b.title = title
+  b.author = author
+  await saveBook(b)
+}
+
 export const newId = () =>
   crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2)
 

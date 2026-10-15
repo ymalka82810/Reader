@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { deleteBook, listBooks, type BookRecord } from '../lib/db'
+import { deleteBook, listBooks, updateMeta, type BookRecord } from '../lib/db'
 import { importFile } from '../lib/importBook'
 import { exportLibrary, importLibrary } from '../lib/backup'
 
@@ -26,6 +26,9 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   const [drag, setDrag] = useState(false)
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<'recent' | 'title' | 'author' | 'added'>('recent')
+  const [editing, setEditing] = useState<BookRecord>()
+  const [editTitle, setEditTitle] = useState('')
+  const [editAuthor, setEditAuthor] = useState('')
   const input = useRef<HTMLInputElement>(null)
   const restoreInput = useRef<HTMLInputElement>(null)
 
@@ -49,15 +52,17 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
 
   const addFiles = async (files: FileList | File[]) => {
     setError(undefined)
+    const errors: string[] = []
     for (const f of Array.from(files)) {
       try {
         setBusy(`מוסיף את ${f.name}…`)
         await importFile(f, setBusy)
       } catch (e) {
-        setError(`${f.name}: ${e instanceof Error ? e.message : String(e)}`)
+        errors.push(`${f.name}: ${e instanceof Error ? e.message : String(e)}`)
       }
     }
     setBusy(undefined)
+    if (errors.length) setError(errors.join('\n'))
     await refresh()
   }
 
@@ -89,6 +94,21 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
       setError(`שחזור נכשל: ${e instanceof Error ? e.message : String(e)}`)
       setBusy(undefined)
     }
+    await refresh()
+  }
+
+  const openEdit = (b: BookRecord) => {
+    setEditing(b)
+    setEditTitle(b.title)
+    setEditAuthor(b.author || '')
+  }
+
+  const saveEdit = async () => {
+    if (!editing) return
+    const title = editTitle.trim()
+    if (!title) return
+    await updateMeta(editing.id, title, editAuthor.trim())
+    setEditing(undefined)
     await refresh()
   }
 
@@ -189,6 +209,9 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
                   </small>
                 </div>
               </button>
+              <button className="edit" aria-label="עריכת שם ומחבר" onClick={() => openEdit(b)}>
+                ✎
+              </button>
               <button
                 className="del"
                 aria-label="מחק"
@@ -204,6 +227,32 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
             </li>
           ))}
         </ul>
+      )}
+
+      {editing && (
+        <div className="modal-backdrop" onClick={() => setEditing(undefined)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>עריכת פרטי ספר</h2>
+            <label>
+              שם הספר
+              <input
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                autoFocus
+              />
+            </label>
+            <label>
+              מחבר
+              <input value={editAuthor} onChange={(e) => setEditAuthor(e.target.value)} />
+            </label>
+            <div className="modal-actions">
+              <button className="primary" onClick={saveEdit} disabled={!editTitle.trim()}>
+                שמירה
+              </button>
+              <button onClick={() => setEditing(undefined)}>ביטול</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
