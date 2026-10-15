@@ -241,6 +241,18 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
           doc.addEventListener('click', (ev: MouseEvent) => {
             const t = ev.target as Element
             if (t.closest?.('a')) return
+            // click position relative to the whole screen (the iframe can be offset/scrolled)
+            const frame = doc.defaultView?.frameElement as HTMLElement | null
+            const x = (frame?.getBoundingClientRect().left ?? 0) + ev.clientX
+            const w = window.innerWidth
+            const inMiddle = x >= w * EDGE && x <= w * (1 - EDGE)
+            // double tap in the middle toggles the bars; drop the word it selected
+            if (inMiddle && ev.detail >= 2 && !panelRef.current) {
+              doc.getSelection()?.removeAllRanges()
+              setSelection(null)
+              setUiVisible((vis) => !vis)
+              return
+            }
             if (doc.getSelection()?.toString()) return
             // a tap on a highlight opens it; the overlay handler fires on the same event
             if (Date.now() - lastAnnotationClick.current < 300) return
@@ -248,14 +260,9 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
               setPanel(null)
               return
             }
-            // click position relative to the whole screen (the iframe can be offset/scrolled)
-            const frame = doc.defaultView?.frameElement as HTMLElement | null
-            const x = (frame?.getBoundingClientRect().left ?? 0) + ev.clientX
-            const w = window.innerWidth
             const v = viewRef.current
             if (x < w * EDGE) v?.goLeft()
             else if (x > w * (1 - EDGE)) v?.goRight()
-            else setUiVisible((vis) => !vis)
           })
         })
         view.addEventListener('draw-annotation', (e: CustomEvent) => {
