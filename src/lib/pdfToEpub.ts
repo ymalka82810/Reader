@@ -1,4 +1,5 @@
 import JSZip from 'jszip'
+import { ImportError } from './errors'
 import type { ExtractedPdf } from './pdfToBook'
 
 const esc = (s: string) =>
@@ -33,7 +34,7 @@ export async function buildEpub(x: ExtractedPdf): Promise<Blob> {
   const chapters = x.chapters
     .map((c, i) => ({ id: `c${i}`, file: `c${i}.xhtml`, label: clean(c.title), paras: c.paras }))
     .filter((c) => c.paras.length > 0)
-  if (!chapters.length) throw new Error('לא נמצא טקסט להמרה ב-PDF הזה.')
+  if (!chapters.length) throw new ImportError('לא נמצא טקסט להמרה ב-PDF הזה.')
 
   const bookId = `urn:uuid:${uuid()}`
   const modified = new Date().toISOString().replace(/\.\d+Z$/, 'Z')

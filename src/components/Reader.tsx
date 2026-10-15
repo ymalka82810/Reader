@@ -409,7 +409,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     const label = [chapter, `${Math.round((d.fraction ?? 0) * 100)}%`].filter(Boolean).join(' · ')
     commitNotes([
       ...notesRef.current,
-      { id: newId(), kind: 'bookmark', cfi: d.cfi, text: label, color: HIGHLIGHT_COLORS[0], createdAt: Date.now() },
+      { id: newId(), kind: 'bookmark', cfi: d.cfi, text: label, color: HIGHLIGHT_COLORS[0] ?? '', createdAt: Date.now() },
     ])
     flash('נוספה סימנייה')
   }

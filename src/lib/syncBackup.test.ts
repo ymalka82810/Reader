@@ -76,7 +76,7 @@ describe('backup', () => {
     expect(await a.cover!.text()).toBe('cover')
     expect(a.cfi).toBe('cfi-a')
     expect((await getBook('b'))!.cover).toBeUndefined()
-    expect((await getNotes('a'))[0].text).toBe('hello')
+    expect((await getNotes('a'))[0]!.text).toBe('hello')
     expect(loadStats('a')).toEqual({ secs: 300, frac: 0.1 })
   })
   it('does not rewind a book when restoring an older backup', async () => {

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import ErrorBoundary from './components/ErrorBoundary'
 import Library from './components/Library'
 import Reader from './components/Reader'
 
@@ -13,5 +14,11 @@ export default function App() {
     else sessionStorage.removeItem('reader:open')
   }, [openId])
 
-  return openId ? <Reader id={openId} onClose={() => setOpenId(null)} /> : <Library onOpen={setOpenId} />
+  if (!openId) return <Library onOpen={setOpenId} />
+  const close = () => setOpenId(null)
+  return (
+    <ErrorBoundary key={openId} onClose={close}>
+      <Reader id={openId} onClose={close} />
+    </ErrorBoundary>
+  )
 }

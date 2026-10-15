@@ -14,7 +14,7 @@ export interface Settings {
   pageTransition: boolean
 }
 
-export const DEFAULTS: Settings = {
+const DEFAULTS: Settings = {
   fontSize: 20,
   lineHeight: 1.7,
   flow: 'scrolled',

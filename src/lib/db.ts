@@ -113,3 +113,47 @@ const notesStore = createStore('reader-notes-db', 'notes')
 export const getNotes = async (bookId: string) => (await get<Annotation[]>(bookId, notesStore)) ?? []
 export const saveNotes = (bookId: string, notes: Annotation[]) =>
   notes.length ? set(bookId, notes, notesStore) : del(bookId, notesStore)
+
+/* ---- schema migrations ----
+ * idb-keyval opens each database at IndexedDB version 1 and never upgrades it, so the stores themselves are
+ * fixed. What changes over time is the shape of the records inside them; each step below rewrites old records
+ * into the current shape. Rules for adding one:
+ *   - append to `migrations` (never edit or reorder a released step) — the schema version is the array length
+ *   - make it idempotent: the stored version can be lost (private mode, cleared site data), which re-runs everything
+ *   - keep BookRecord/Annotation readable for old data until the migration has shipped
+ */
+const migrations: (() => Promise<void>)[] = [
+  // 1: reading position used to live inside the book record, which rewrote the whole Blob on every page turn
+  async () => {
+    for (const [id, b] of await entries<string, BookRecord>(store)) {
+      if (!b.cfi) continue
+      if (!(await get<Progress>(id, progressStore)))
+        await set(id, { cfi: b.cfi, fraction: b.fraction ?? 0, lastOpened: b.lastOpened ?? b.addedAt } satisfies Progress, progressStore)
+      const { cfi: _cfi, fraction: _fraction, lastOpened: _lastOpened, ...rest } = b
+      await set(id, rest, store)
+    }
+  },
+]
+
+export const SCHEMA_VERSION = migrations.length
+const VERSION_KEY = 'reader:schemaVersion'
+
+const storedVersion = () => {
+  try {
+    return Number(localStorage.getItem(VERSION_KEY)) || 0
+  } catch {
+    return 0
+  }
+}
+
+/** brings stored data up to SCHEMA_VERSION; call once at startup, before anything reads the library */
+export async function migrate(): Promise<void> {
+  for (let v = storedVersion(); v < migrations.length; v++) {
+    await migrations[v]!()
+    try {
+      localStorage.setItem(VERSION_KEY, String(v + 1))
+    } catch {
+      /* the steps are idempotent, so losing the version only costs a re-run */
+    }
+  }
+}

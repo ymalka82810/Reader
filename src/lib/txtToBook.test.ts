@@ -11,16 +11,16 @@ const txt = (content: string | Uint8Array, name = 'book.txt') =>
 describe('extractTxt', () => {
   it('splits on blank lines and joins wrapped lines', async () => {
     const r = await extractTxt(txt('one\ntwo\n\nthree'))
-    expect(r.chapters[0].paras).toEqual(['one two', 'three'])
+    expect(r.chapters[0]!.paras).toEqual(['one two', 'three'])
   })
   it('treats each line as a paragraph when there are no blank lines', async () => {
     const r = await extractTxt(txt('a\r\nb\r\nc'))
-    expect(r.chapters[0].paras).toEqual(['a', 'b', 'c'])
+    expect(r.chapters[0]!.paras).toEqual(['a', 'b', 'c'])
   })
   it('strips a BOM and uses the file name as title', async () => {
     const r = await extractTxt(txt('﻿hello', 'My Book.v2.txt'))
     expect(r.title).toBe('My Book.v2')
-    expect(r.chapters[0].paras).toEqual(['hello'])
+    expect(r.chapters[0]!.paras).toEqual(['hello'])
   })
   it('detects Hebrew as RTL and English as LTR', async () => {
     expect((await extractTxt(txt('שלום עולם, זה טקסט בעברית'))).rtl).toBe(true)
@@ -29,7 +29,7 @@ describe('extractTxt', () => {
   it('falls back to Windows-1255 for old Hebrew files', async () => {
     // "שלום" in windows-1255
     const r = await extractTxt(txt(new Uint8Array([0xf9, 0xec, 0xe5, 0xed])))
-    expect(r.chapters[0].paras).toEqual(['שלום'])
+    expect(r.chapters[0]!.paras).toEqual(['שלום'])
     expect(r.rtl).toBe(true)
   })
   it('splits long text into numbered chapters', async () => {
@@ -39,7 +39,7 @@ describe('extractTxt', () => {
     expect(r.chapters.flatMap((c) => c.paras)).toHaveLength(9)
   })
   it('titles a single chapter after the file', async () => {
-    expect((await extractTxt(txt('short'))).chapters[0].title).toBe('book')
+    expect((await extractTxt(txt('short'))).chapters[0]!.title).toBe('book')
   })
   it('rejects an empty file', async () => {
     await expect(extractTxt(txt('  \n\n '))).rejects.toThrow()

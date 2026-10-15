@@ -1,5 +1,6 @@
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs'
 import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'
+import { ImportError } from './errors'
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
 
@@ -13,7 +14,7 @@ export interface Line {
 
 const HEB = /[\u0590-\u05FF]/
 const FINALS = /[ךםןףץ]/
-export const PAGES_PER_SECTION = 8
+const PAGES_PER_SECTION = 8
 
 /** Extract lines of text from one PDF page, in content-stream order. */
 async function extractLines(page: pdfjs.PDFPageProxy): Promise<Line[]> {
@@ -54,8 +55,8 @@ export function looksReversed(allLines: Line[][]): boolean {
       for (const w of l.text.split(' ')) {
         const heb = w.replace(/[^\u05D0-\u05EA]/g, '')
         if (heb.length < 2) continue
-        if (FINALS.test(heb[heb.length - 1])) atEnd++
-        if (FINALS.test(heb[0])) atStart++
+        if (FINALS.test(heb.charAt(heb.length - 1))) atEnd++
+        if (FINALS.test(heb.charAt(0))) atStart++
       }
   return atStart > 5 && atStart > atEnd * 2
 }
@@ -74,7 +75,7 @@ export function fixVisual(s: string): string {
 function median(a: number[]): number {
   if (!a.length) return 0
   const s = [...a].sort((x, y) => x - y)
-  return s[Math.floor(s.length / 2)]
+  return s[Math.floor(s.length / 2)] ?? 0
 }
 
 /** Group a page's lines into paragraphs. */
@@ -88,10 +89,10 @@ export function toParagraphs(lines: Line[], reversed: boolean): string[] {
 
   const gaps: number[] = []
   for (let i = 1; i < ls.length; i++) {
-    const g = ls[i - 1].y - ls[i].y
+    const g = ls[i - 1]!.y - ls[i]!.y
     if (g > 0) gaps.push(g)
   }
-  const normalGap = median(gaps) || ls[0].h * 1.2
+  const normalGap = median(gaps) || (ls[0]?.h ?? 0) * 1.2
   const maxW = Math.max(...ls.map((l) => l.x1 - l.x0))
 
   const paras: string[] = []
@@ -219,7 +220,7 @@ export async function extractPdf(
 
   const chars = pages.flat().map((l) => l.text).join('')
   if (chars.replace(/\s/g, '').length < total * 20)
-    throw new Error('ב-PDF הזה אין שכבת טקסט (כנראה סריקה). נדרש OCR, שעדיין לא נתמך.')
+    throw new ImportError('ב-PDF הזה אין שכבת טקסט (כנראה סריקה). נדרש OCR, שעדיין לא נתמך.')
 
   const reversed = looksReversed(pages)
   const hebCount = (chars.match(/[֐-׿]/g) ?? []).length
@@ -231,7 +232,7 @@ export async function extractPdf(
   const chapters: { title: string; paras: string[] }[] = []
   if (starts.size >= 2) {
     const marks = [...starts.keys()].sort((a, b) => a - b)
-    if (marks[0] > 0) {
+    if ((marks[0] ?? 0) > 0) {
       marks.unshift(0)
       starts = new Map(starts).set(0, info.Title || fileName.replace(/\.pdf$/i, ''))
     }

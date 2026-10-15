@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { deleteBook, isFinished, listBooks, setFinished, updateMeta, type BookRecord } from '../lib/db'
 import { importFile } from '../lib/importBook'
+import { PasswordRequiredError, WrongPasswordError } from '../lib/encrypt'
 import { backupDue, exportLibrary, importLibrary, markBackedUp } from '../lib/backup'
 import { download } from '../lib/download'
 import { onLaunchFiles, takeSharedFiles } from '../lib/inbox'
@@ -43,8 +44,18 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   // a delete waits out the undo window before it touches the database
   const pending = useRef<{ book: BookRecord; timer: number }>(undefined)
   const [hiddenId, setHiddenId] = useState<string>()
+  // password prompt: for a new backup (optional password) or for restoring an encrypted one
+  const [pwAsk, setPwAsk] = useState<{ kind: 'export' } | { kind: 'import'; file: File; wrong?: boolean }>()
+  const [pw, setPw] = useState('')
 
-  const refresh = useCallback(async () => setBooks(await listBooks()), [])
+  const refresh = useCallback(async () => {
+    try {
+      setBooks(await listBooks())
+    } catch (e) {
+      console.error(e)
+      setError('לא ניתן לגשת לאחסון של הדפדפן, אז הספרייה לא נטענה. ייתכן שמצב גלישה פרטית חוסם אותו.')
+    }
+  }, [])
   useEffect(() => {
     refresh()
   }, [refresh])
@@ -141,11 +152,11 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
     onLaunchFiles((f) => addRef.current(f))
   }, [])
 
-  const doExport = async () => {
+  const doExport = async (password?: string) => {
     setError(undefined)
     try {
       setBusy('מכין גיבוי…')
-      const blob = await exportLibrary((d, t) => setBusy(`מכין גיבוי… ${d}/${t}`))
+      const blob = await exportLibrary((d, t) => setBusy(`מכין גיבוי… ${d}/${t}`), password)
       download(blob, `גיבוי-ספרייה-${new Date().toISOString().slice(0, 10)}.readerbackup`)
       markBackedUp()
       setDismissed(true)
@@ -155,18 +166,31 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
     setBusy(undefined)
   }
 
-  const doImport = async (file: File) => {
+  const doImport = async (file: File, password?: string) => {
     setError(undefined)
     try {
       setBusy('משחזר גיבוי…')
-      const n = await importLibrary(file, (d, t) => setBusy(`משחזר גיבוי… ${d}/${t}`))
+      const n = await importLibrary(file, (d, t) => setBusy(`משחזר גיבוי… ${d}/${t}`), password)
       setBusy(undefined)
       showToast(`שוחזרו ${n} ספרים`)
     } catch (e) {
-      setError(`שחזור נכשל: ${e instanceof Error ? e.message : String(e)}`)
       setBusy(undefined)
+      if (e instanceof PasswordRequiredError || e instanceof WrongPasswordError) {
+        setPw('')
+        setPwAsk({ kind: 'import', file, wrong: e instanceof WrongPasswordError })
+      } else {
+        setError(`שחזור נכשל: ${e instanceof SyntaxError ? 'קובץ הגיבוי פגום' : e instanceof Error ? e.message : String(e)}`)
+      }
     }
     await refresh()
+  }
+
+  const submitPw = () => {
+    const ask = pwAsk
+    if (!ask) return
+    setPwAsk(undefined)
+    if (ask.kind === 'export') doExport(pw || undefined)
+    else doImport(ask.file, pw)
   }
 
   const openEdit = (b: BookRecord) => {
@@ -229,7 +253,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
               <div className="menu" role="menu" onKeyDown={(e) => e.key === 'Escape' && setMenu(false)}>
                 {(
                   [
-                    ['גיבוי', doExport, 'ספרים, מיקום קריאה, הערות והגדרות'],
+                    ['גיבוי', () => { setPw(''); setPwAsk({ kind: 'export' }) }, 'ספרים, מיקום קריאה, הערות והגדרות (אפשר להצפין בסיסמה)'],
                     ['שחזור', () => restoreInput.current?.click(), 'מוסיף ספרים חסרים וממזג מיקום והערות'],
                   ] as [string, () => void, string][]
                 ).map(([label, fn, tip]) => (
@@ -365,6 +389,40 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
         <div className="lib-toast" role="status">
           <span>{toast.msg}</span>
           {toast.undo && <button onClick={toast.undo}>בטל</button>}
+        </div>
+      )}
+
+      {pwAsk && (
+        <div className="modal-backdrop" onClick={() => setPwAsk(undefined)}>
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label={pwAsk.kind === 'export' ? 'גיבוי' : 'גיבוי מוצפן'}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setPwAsk(undefined)
+              else if (e.key === 'Enter' && (pwAsk.kind === 'export' || pw)) submitPw()
+            }}
+          >
+            <h2>{pwAsk.kind === 'export' ? 'גיבוי' : 'הגיבוי מוצפן'}</h2>
+            <label>
+              {pwAsk.kind === 'export' ? 'סיסמה להצפנה (אופציונלי)' : 'סיסמה'}
+              <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoFocus autoComplete="off" />
+            </label>
+            {pwAsk.kind === 'export' && (
+              <small>
+                השאירו ריק לגיבוי רגיל. עם סיסמה אין דרך לשחזר את הגיבוי אם היא אבדה.
+              </small>
+            )}
+            {pwAsk.kind === 'import' && pwAsk.wrong && <small role="alert">הסיסמה שגויה, נסו שוב.</small>}
+            <div className="modal-actions">
+              <button className="primary" onClick={submitPw} disabled={pwAsk.kind === 'import' && !pw}>
+                {pwAsk.kind === 'export' ? 'צור גיבוי' : 'שחזר'}
+              </button>
+              <button onClick={() => setPwAsk(undefined)}>ביטול</button>
+            </div>
+          </div>
         </div>
       )}
 

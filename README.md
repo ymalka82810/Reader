@@ -1,5 +1,7 @@
 # קורא ספרים
 
+[![CI](https://github.com/ymalka82810/Reader/actions/workflows/ci.yml/badge.svg)](https://github.com/ymalka82810/Reader/actions/workflows/ci.yml)
+
 קורא EPUB ו-PDF בעברית (PWA). הטקסט מתארגן מחדש לפי גודל הגופן והמסך, מספר העמודים מחושב מחדש בכל שינוי, והמיקום נשמר כך שלא הולכים לאיבוד כשמשנים גודל.
 
 ## יכולות
@@ -15,12 +17,56 @@
 ## הרצה
 ```bash
 npm install
-npm run dev      # פיתוח
-npm run build    # בנייה ל-dist/
+npm run dev        # פיתוח
+npm run build      # בדיקת טיפוסים + בנייה ל-dist/
+npm run lint       # oxlint
+npm run typecheck  # tsc -b
+npm run knip       # קוד, ייצואים ותלויות שאינם בשימוש
+npm test           # vitest
 ```
+
+TypeScript רץ במצב `strict` מלא, בתוספת `noUncheckedIndexedAccess`, `noImplicitReturns` ו-`noImplicitOverride`.
 
 ## מגבלות ידועות
 - PDF סרוק (תמונות בלי שכבת טקסט) לא נתמך, ויוצג הסבר. נדרש OCR.
 - PDF עם עמודות, הערות שוליים או טבלאות יחולץ בסדר לא מושלם. מתאים לספרי קריאה פשוטים.
 - ספירת העמודים היא הערכה, בעיקר בספרים עם הרבה תמונות.
 - ההתקנה כ-PWA דורשת HTTPS (למשל GitHub Pages).
+
+## פריסה
+- **CI** ([ci.yml](.github/workflows/ci.yml)): על כל pull request ועל כל push ל-`main` רצים `lint`, `tsc -b`, `knip` ו-`test`.
+- **פריסה** ([deploy.yml](.github/workflows/deploy.yml)): כל push ל-`main` בונה (`npm run build`) ומפרסם את `dist/` ל-GitHub Pages.
+  להפעלה חד-פעמית: Settings ← Pages ← Source: **GitHub Actions**.
+- האתר משתמש ב-`base: './'`, ולכן עובד מכל תת-נתיב (`https://<user>.github.io/<repo>/`) בלי הגדרה נוספת. התקנה כ-PWA דורשת HTTPS, ו-Pages מספק אותו.
+- ה-service worker מתעדכן אוטומטית (`registerType: 'autoUpdate'`), אז גרסה חדשה נטענת בביקור הבא אחרי הפריסה.
+
+## גיבוי
+בתפריט ⋯ ← ״גיבוי״ נוצר קובץ `.readerbackup` אחד עם הספרים, הכריכות, מיקום הקריאה, ההערות, הסטטיסטיקה וההגדרות. ״שחזור״ ממזג אותו עם מה שכבר במכשיר: מיקום עדכני יותר גובר, הערות ממוזגות לפי מזהה, ואף פעם לא נמחק דבר.
+
+**הצפנה (אופציונלית):** אם מזינים סיסמה בעת הגיבוי, כל הקובץ מוצפן ב-AES-256-GCM עם מפתח שנגזר ב-PBKDF2-SHA256 (600,000 סבבים, מלח אקראי לכל קובץ). ההצפנה נעשית בקטעים של 1MB כדי שספרייה גדולה לא תיטען כולה לזיכרון, וכל קטע מאומת, כך שקובץ שנחתך או שונה נדחה. שחזור של גיבוי מוצפן מבקש את הסיסמה. **אין דרך לשחזר סיסמה שאבדה.** פירוט הפורמט בראש [encrypt.ts](src/lib/encrypt.ts).
+
+## מבנה הנתונים
+כל המידע נשמר בדפדפן. אין שרת. הגישה דרך [idb-keyval](https://github.com/jakearchibald/idb-keyval), שמפעיל כל אחד ממאגרי ה-IndexedDB הבאים כמאגר key-value (המפתח הוא מזהה הספר, ה-SHA-256 של הקובץ המקורי):
+
+| מסד IndexedDB | Store | ערך | הערה |
+|---|---|---|---|
+| `reader-db` | `books` | `BookRecord` | הקובץ (Blob), כריכה, כותרת, מחבר, `finished` |
+| `reader-progress-db` | `progress` | `Progress` (`cfi`, `fraction`, `lastOpened`) | נפרד כדי ששמירת מיקום לא תכתוב מחדש את ה-Blob של הספר |
+| `reader-notes-db` | `notes` | `Annotation[]` | הדגשות וסימניות לכל ספר |
+
+ב-`localStorage`: הגדרות תצוגה (`settings.ts`), סטטיסטיקת קריאה לכל ספר (`stats.ts`), מועד הגיבוי האחרון (`reader:lastBackup`) וגרסת הסכימה (`reader:schemaVersion`). בסשן: הספר הפתוח (`reader:open`).
+
+הטיפוסים נמצאים ב-[db.ts](src/lib/db.ts). פורמט קובץ הגיבוי (`Manifest`, ‏`version: 1`) מתועד ב-[backup.ts](src/lib/backup.ts).
+
+### גרסאות ו-migrations
+idb-keyval פותח כל מסד בגרסה 1 ולא משדרג אותו, כך שהמאגרים עצמם קבועים. מה שמשתנה הוא צורת הרשומות. לכן [db.ts](src/lib/db.ts) מחזיק מערך `migrations` מסודר, וגרסת הסכימה היא אורכו. `migrate()` רץ פעם אחת עם עליית האפליקציה (`main.tsx`), לפני שמשהו קורא את הספרייה, ומריץ רק את הצעדים שעוד לא רצו.
+
+להוספת שינוי בצורת הנתונים:
+1. מוסיפים צעד **בסוף** המערך. לא עורכים ולא מסדרים מחדש צעד שכבר שוחרר.
+2. הצעד חייב להיות אידמפוטנטי, כי הגרסה השמורה עלולה ללכת לאיבוד (גלישה פרטית, ניקוי נתוני אתר) וכל הצעדים ירוצו שוב.
+3. מוסיפים בדיקה ב-[migrations.test.ts](src/lib/migrations.test.ts).
+4. אם משתנה גם הפורמט של קובץ הגיבוי, מעלים את `Manifest.version` ומוסיפים תמיכה לאחור ב-`importLibrary`. גיבויים ישנים חייבים להמשיך להיפתח.
+
+## שגיאות
+- כשייבוא קובץ נכשל (סוג לא נתמך, קובץ ריק או פגום, PDF סרוק או מוגן בסיסמה, אין מקום באחסון) מוצגת הודעה ברורה בעברית ליד שם הקובץ. הפרטים הטכניים נכתבים ל-console. ההודעות מוגדרות ב-[errors.ts](src/lib/errors.ts).
+- קריסת רינדור בקורא נתפסת ב-Error Boundary ([ErrorBoundary.tsx](src/components/ErrorBoundary.tsx)) ומציגה כפתור חזרה לספרייה, במקום מסך ריק.

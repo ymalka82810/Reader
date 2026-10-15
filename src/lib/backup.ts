@@ -11,6 +11,7 @@ import {
 } from './db'
 import { loadStats, mergeStats, type Stats } from './stats'
 import { loadSettings, saveSettings, type Settings } from './settings'
+import { decryptBlob, encryptBlob, isEncrypted, PasswordRequiredError } from './encrypt'
 
 /** Container format: [4-byte LE header length][JSON header][concatenated blob bytes].
  *  Keeps the whole library (files, covers, metadata, reading progress) in one file,
@@ -66,7 +67,11 @@ export function backupDue(urgent = false): boolean {
   }
 }
 
-export async function exportLibrary(onProgress?: (done: number, total: number) => void): Promise<Blob> {
+/** `password` (optional) encrypts the whole file with AES-GCM, see encrypt.ts */
+export async function exportLibrary(
+  onProgress?: (done: number, total: number) => void,
+  password?: string,
+): Promise<Blob> {
   const books = await listBooks()
   const parts: BlobPart[] = []
   const manifestBooks: ManifestBook[] = []
@@ -74,7 +79,7 @@ export async function exportLibrary(onProgress?: (done: number, total: number) =
   let offset = 0
 
   for (let i = 0; i < books.length; i++) {
-    const { file, cover, ...rest } = books[i]
+    const { file, cover, ...rest } = books[i]!
     parts.push(file)
     const fileRange: [number, number] = [offset, offset + file.size]
     offset += file.size
@@ -106,13 +111,21 @@ export async function exportLibrary(onProgress?: (done: number, total: number) =
   const lenPrefix = new Uint8Array(4)
   new DataView(lenPrefix.buffer).setUint32(0, headerBytes.byteLength, true)
 
-  return new Blob([lenPrefix, headerBytes, ...parts], { type: 'application/octet-stream' })
+  const plain = new Blob([lenPrefix, headerBytes, ...parts], { type: 'application/octet-stream' })
+  return password ? encryptBlob(plain, password) : plain
 }
 
+/** throws PasswordRequiredError for an encrypted backup given no password, WrongPasswordError for a bad one */
 export async function importLibrary(
-  file: File,
+  source: Blob,
   onProgress?: (done: number, total: number) => void,
+  password?: string,
 ): Promise<number> {
+  let file = source
+  if (await isEncrypted(source)) {
+    if (!password) throw new PasswordRequiredError()
+    file = await decryptBlob(source, password)
+  }
   // read only the header into memory; book files are sliced lazily from the File
   const headerLen = new DataView(await file.slice(0, 4).arrayBuffer()).getUint32(0, true)
   const headerStart = 4
@@ -121,7 +134,7 @@ export async function importLibrary(
   const base = headerStart + headerLen
 
   for (let i = 0; i < header.books.length; i++) {
-    const { fileType, fileRange, coverType, coverRange, ...rest } = header.books[i]
+    const { fileType, fileRange, coverType, coverRange, ...rest } = header.books[i]!
     const fileBlob = file.slice(base + fileRange[0], base + fileRange[1], fileType)
     const coverBlob = coverRange
       ? file.slice(base + coverRange[0], base + coverRange[1], coverType)

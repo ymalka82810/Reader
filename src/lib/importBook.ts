@@ -2,6 +2,7 @@ import { makeBook } from 'foliate-js/view.js'
 import { extractPdf } from './pdfToBook'
 import { buildEpub } from './pdfToEpub'
 import { extractTxt } from './txtToBook'
+import { ImportError, explainImportError } from './errors'
 import { contentId, getBook, saveBook, type BookRecord } from './db'
 
 const langMap = (v: unknown): string => {
@@ -25,11 +26,22 @@ const contributor = (v: unknown): string => {
 
 const isTxt = (f: File) => /\.txt$/i.test(f.name) || f.type === 'text/plain'
 const isPdf = (f: File) => /\.pdf$/i.test(f.name) || f.type === 'application/pdf'
+const isEpub = (f: File) => /\.epub$/i.test(f.name) || f.type === 'application/epub+zip'
 
-export async function importFile(
-  file: File,
-  onProgress?: (msg: string) => void,
-): Promise<BookRecord> {
+/** Adds a book to the library. Failures are rethrown as ImportError with a message fit to show the user. */
+export async function importFile(file: File, onProgress?: (msg: string) => void): Promise<BookRecord> {
+  if (!file.size) throw new ImportError('הקובץ ריק.')
+  if (!isEpub(file) && !isPdf(file) && !isTxt(file))
+    throw new ImportError('סוג הקובץ לא נתמך. אפשר להוסיף קובצי EPUB, PDF או TXT.')
+  try {
+    return await readIntoLibrary(file, onProgress)
+  } catch (e) {
+    console.error(e)
+    throw new ImportError(explainImportError(e))
+  }
+}
+
+async function readIntoLibrary(file: File, onProgress?: (msg: string) => void): Promise<BookRecord> {
   // Hash the file as the user supplied it (a PDF/TXT conversion isn't guaranteed to be byte-stable).
   const id = await contentId(file)
   const existing = await getBook(id)
