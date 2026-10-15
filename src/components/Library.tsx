@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { deleteBook, listBooks, type BookRecord } from '../lib/db'
 import { importFile } from '../lib/importBook'
+import { exportLibrary, importLibrary } from '../lib/backup'
 
 function Cover({ book }: { book: BookRecord }) {
   const [url, setUrl] = useState<string>()
@@ -24,6 +25,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   const [error, setError] = useState<string>()
   const [drag, setDrag] = useState(false)
   const input = useRef<HTMLInputElement>(null)
+  const restoreInput = useRef<HTMLInputElement>(null)
 
   const refresh = useCallback(async () => setBooks(await listBooks()), [])
   useEffect(() => {
@@ -41,6 +43,37 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
       }
     }
     setBusy(undefined)
+    await refresh()
+  }
+
+  const doExport = async () => {
+    setError(undefined)
+    try {
+      setBusy('מכין גיבוי…')
+      const blob = await exportLibrary((d, t) => setBusy(`מכין גיבוי… ${d}/${t}`))
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `גיבוי-ספרייה-${new Date().toISOString().slice(0, 10)}.readerbackup`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setError(`גיבוי נכשל: ${e instanceof Error ? e.message : String(e)}`)
+    }
+    setBusy(undefined)
+  }
+
+  const doImport = async (file: File) => {
+    setError(undefined)
+    try {
+      setBusy('משחזר גיבוי…')
+      const n = await importLibrary(file, (d, t) => setBusy(`משחזר גיבוי… ${d}/${t}`))
+      setBusy(undefined)
+      alert(`שוחזרו ${n} ספרים.`)
+    } catch (e) {
+      setError(`שחזור נכשל: ${e instanceof Error ? e.message : String(e)}`)
+      setBusy(undefined)
+    }
     await refresh()
   }
 
@@ -71,6 +104,23 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
           accept=".epub,.pdf,application/epub+zip,application/pdf"
           onChange={(e) => {
             if (e.target.files) addFiles(e.target.files)
+            e.target.value = ''
+          }}
+        />
+        <button onClick={doExport} disabled={!!busy}>
+          גיבוי
+        </button>
+        <button onClick={() => restoreInput.current?.click()} disabled={!!busy}>
+          שחזור
+        </button>
+        <input
+          ref={restoreInput}
+          type="file"
+          hidden
+          accept=".readerbackup"
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) doImport(f)
             e.target.value = ''
           }}
         />
