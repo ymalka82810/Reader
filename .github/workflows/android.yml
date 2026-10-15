@@ -12,7 +12,6 @@ jobs:
         with: { node-version: 24, cache: npm }
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 21 }
-      - uses: android-actions/setup-android@v3
       - run: npm ci
       - run: npm run build
       # Capacitor is installed only here, so package.json and the lockfile stay untouched.
