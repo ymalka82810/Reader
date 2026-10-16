@@ -14,9 +14,10 @@ button.primary { background: var(--accent); color: #fff; }
 button:disabled { opacity: .5; }
 
 /* library */
-.library { min-height: 100%; padding: 1rem; padding-top: calc(1rem + var(--safe-top)); max-width: 960px; margin: 0 auto; }
+.library { min-height: 100%; padding: 0 1rem 1rem; max-width: 960px; margin: 0 auto; }
 .library.drag { outline: 3px dashed var(--accent); outline-offset: -8px; }
-.lib-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+/* stays pinned while the books scroll beneath it; its top padding keeps it clear of the status bar / camera cutout */
+.lib-header { position: sticky; top: 0; z-index: 6; display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 0 -1rem 1rem; padding: calc(1rem + var(--safe-top)) 1rem .8rem; background: var(--bg); border-bottom: 1px solid rgba(127,127,127,.2); }
 .lib-header h1 { margin: 0; font-size: 1.5rem; }
 .lib-tools { display: flex; gap: .6rem; margin-bottom: 1rem; }
 .lib-tools input { flex: 1; min-width: 0; padding: .5rem .8rem; border-radius: 10px; border: 1px solid rgba(128,128,128,.4); background: transparent; color: inherit; font: inherit; }
