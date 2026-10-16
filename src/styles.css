@@ -135,3 +135,12 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: 4px; border: 1px solid rg
 /* inside the scrolling list a floating popup would be clipped, so it opens in flow */
 .dup-list .dd-list { position: static; margin-top: .3rem; box-shadow: none; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
+
+/* folders */
+.folder { align-items: center; padding: 1rem .5rem; border: 1px solid rgba(128,128,128,.3); border-radius: 12px; text-align: center; }
+.folder .meta { align-items: center; }
+.folder-icon { font-size: 3rem; line-height: 1; }
+.folder-bar { display: flex; align-items: center; gap: .8rem; margin-bottom: 1rem; }
+.folder-btn { position: absolute; top: 74px; inset-inline-end: 6px; padding: .15rem .5rem; background: rgba(0,0,0,.55); color: #fff; border-radius: 999px; font-size: .8rem; opacity: .75; }
+.move-list { list-style: none; margin: 0 0 1rem; padding: 0; display: flex; flex-direction: column; gap: .4rem; max-height: 40vh; overflow-y: auto; }
+.move-list button { width: 100%; text-align: start; }

@@ -1,7 +1,8 @@
 import { Dropdown } from './Dropdown'
 import { Dialog } from './Dialog'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { deleteBook, isFinished, listBooks, setFinished, updateMeta, type BookMeta } from '../lib/db'
+import { deleteBook, isFinished, listBooks, setFinished, setFolder, updateMeta, type BookMeta } from '../lib/db'
+import { folderKey, folderToStore, groupFolders } from '../lib/folders'
 import { importFile, DeferredDuplicate, type DuplicateChoice } from '../lib/importBook'
 import { PasswordRequiredError, WrongPasswordError } from '../lib/encrypt'
 import { backupDue, librarySize, markBackedUp } from '../lib/backupReminder'
@@ -85,6 +86,10 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   const [selecting, setSelecting] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [confirmDel, setConfirmDel] = useState<BookMeta[]>()
+  // the folder being viewed (its key; '' = books without an author) and the books being moved
+  const [openFolder, setOpenFolder] = useState<string>()
+  const [moving, setMoving] = useState<BookMeta[]>()
+  const [newFolder, setNewFolder] = useState('')
   // a same-title book already exists: waits for the user's choice
   const [dupBatch, setDupBatch] = useState<{
     items: { name: string; title: string; existing: BookMeta; choice: DuplicateChoice }[]
@@ -194,6 +199,32 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
     else if (sort === 'added') list.sort((a, b) => b.addedAt - a.addedAt)
     return list // 'recent' keeps the order listBooks returns
   }, [books, query, sort, filter])
+
+  const folders = useMemo(() => groupFolders(shown), [shown])
+  const allFolders = useMemo(() => groupFolders(books), [books])
+  // searching looks through every folder at once
+  const searching = !!query.trim()
+  const current = openFolder === undefined ? undefined : folders.find((f) => f.key === openFolder)
+  // a folder that emptied out (or is filtered away) falls back to the folder list
+  useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- leaves a folder that no longer exists
+    if (openFolder !== undefined && !current && !searching) setOpenFolder(undefined)
+  }, [openFolder, current, searching])
+
+  const moveTo = async (list: BookMeta[], name: string | undefined) => {
+    setMoving(undefined)
+    setNewFolder('')
+    // books whose author already names the target folder go back to "filed by author" rather than storing a copy
+    const plain = list.filter((b) => name === undefined || folderToStore(b, name) === undefined)
+    const explicit = list.filter((b) => !plain.includes(b))
+    if (plain.length) await setFolder(plain.map((b) => b.id), undefined)
+    if (explicit.length && name !== undefined) await setFolder(explicit.map((b) => b.id), name)
+    exitSelect()
+    await refresh()
+    showToast(
+      name === undefined ? 'הוחזר לתיקיית המחבר' : name ? `הועבר ל״${name}״` : 'הועבר ל״ללא מחבר״',
+    )
+  }
 
   const addFiles = async (files: FileList | File[]) => {
     setError(undefined)
@@ -528,6 +559,9 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
         <div className="notice select-bar">
           <span>{selected.size} נבחרו</span>
           <button onClick={() => setSelected(new Set(shown.map((b) => b.id)))}>בחר הכול</button>
+          <button disabled={selected.size === 0} onClick={() => setMoving(books.filter((b) => selected.has(b.id)))}>
+            העבר
+          </button>
           <button
             className="danger"
             disabled={selected.size === 0}
@@ -573,9 +607,30 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
         <div className="empty">
           <p>{query ? `לא נמצאו ספרים עבור ״${query}״.` : 'אין ספרים בסינון הזה.'}</p>
         </div>
+      ) : !searching && !current ? (
+        <ul className="grid folders">
+          {folders.map((f) => (
+            <li key={f.key}>
+              <button className="card folder" onClick={() => setOpenFolder(f.key)}>
+                <div className="folder-icon" aria-hidden="true">📁</div>
+                <div className="meta">
+                  <strong>{f.name || 'ללא מחבר'}</strong>
+                  <small>{f.books.length === 1 ? 'ספר אחד' : `${f.books.length} ספרים`}</small>
+                </div>
+              </button>
+            </li>
+          ))}
+        </ul>
       ) : (
+        <>
+        {current && !searching && (
+          <div className="folder-bar">
+            <button onClick={() => setOpenFolder(undefined)}>→ כל התיקיות</button>
+            <strong>{current.name || 'ללא מחבר'}</strong>
+          </div>
+        )}
         <ul className="grid">
-          {shown.map((b) => (
+          {(searching ? shown : current!.books).map((b) => (
             <li key={b.id}>
               <button
                 className={'card' + (selected.has(b.id) ? ' selected' : '')}
@@ -611,6 +666,9 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
                   <button className="edit-btn" aria-label="עריכת שם ומחבר" onClick={() => openEdit(b)}>
                     ✎
                   </button>
+                  <button className="folder-btn" aria-label="העבר לתיקייה" onClick={() => setMoving([b])}>
+                    📁
+                  </button>
                   <button className="del" aria-label="מחק" onClick={() => setConfirmDel([b])}>
                     ✕
                   </button>
@@ -619,6 +677,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
             </li>
           ))}
         </ul>
+        </>
       )}
 
       {toast && (
@@ -741,6 +800,59 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
             <div className="modal-actions">
               <button className="danger" onClick={doDelete}>מחק</button>
               <button onClick={() => setConfirmDel(undefined)} autoFocus>ביטול</button>
+            </div>
+          </Dialog>
+        </div>
+      )}
+
+      {moving && (
+        <div className="modal-backdrop" onClick={() => setMoving(undefined)}>
+          <Dialog
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="העברה לתיקייה"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.key === 'Escape' && setMoving(undefined)}
+          >
+            <h2>
+              להעביר {moving.length === 1 ? `את ״${moving[0]?.title}״` : `${moving.length} ספרים`} ל…
+            </h2>
+            <ul className="move-list">
+              {allFolders
+                .filter((f) => !moving.every((b) => folderKey(b) === f.key))
+                .map((f) => (
+                  <li key={f.key}>
+                    <button onClick={() => moveTo(moving, f.name)}>
+                      📁 {f.name || 'ללא מחבר'} <small>({f.books.length})</small>
+                    </button>
+                  </li>
+                ))}
+              {!allFolders.some((f) => !f.key) && (
+                <li>
+                  <button onClick={() => moveTo(moving, '')}>📁 ללא מחבר</button>
+                </li>
+              )}
+              {moving.some((b) => b.folder !== undefined) && (
+                <li>
+                  <button onClick={() => moveTo(moving, undefined)}>↺ חזרה לתיקיית המחבר</button>
+                </li>
+              )}
+            </ul>
+            <label>
+              תיקייה חדשה
+              <input
+                value={newFolder}
+                onChange={(e) => setNewFolder(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && newFolder.trim() && moveTo(moving, newFolder.trim())}
+                placeholder="שם התיקייה"
+              />
+            </label>
+            <div className="modal-actions">
+              <button className="primary" disabled={!newFolder.trim()} onClick={() => moveTo(moving, newFolder.trim())}>
+                צור והעבר
+              </button>
+              <button onClick={() => setMoving(undefined)}>ביטול</button>
             </div>
           </Dialog>
         </div>

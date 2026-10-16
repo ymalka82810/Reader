@@ -1,5 +1,6 @@
 import { createStore, get, set, del, values, entries } from 'idb-keyval'
 import { deleteStats, loadStats, mergeStats } from './stats'
+import { folderKey } from './folders'
 
 export interface BookRecord {
   id: string
@@ -19,6 +20,8 @@ export interface BookRecord {
   lastOpened?: number
   cfi?: string
   fraction?: number
+  /** folder picked by the user; unset = filed by author, '' = deliberately in no folder */
+  folder?: string
 }
 
 const store = createStore('reader-db', 'books')
@@ -123,6 +126,48 @@ export const updateMeta = (id: string, title: string, author: string) =>
     b.title = title
     b.author = author
     await set(id, b, store)
+  })
+
+/** moves books to a folder; `undefined` puts them back under their author */
+export const setFolder = (ids: string[], folder: string | undefined) =>
+  serial(async () => {
+    for (const id of ids) {
+      const b = await get<BookMeta>(id, store)
+      if (!b) continue
+      if (folder === undefined) delete b.folder
+      else b.folder = folder
+      await set(id, b, store)
+    }
+  })
+
+/** folders the user created, kept even while empty (books alone only keep a folder alive while they are in it) */
+const folderStore = createStore('reader-folders-db', 'folders')
+const FOLDERS_KEY = 'names'
+const sameName = (a: string, b: string) => folderKey({ author: a }) === folderKey({ author: b })
+
+export const listFolderNames = async () => (await get<string[]>(FOLDERS_KEY, folderStore)) ?? []
+
+export const addFolderName = (name: string) =>
+  serial(async () => {
+    const names = await listFolderNames()
+    if (!names.some((n) => sameName(n, name))) await set(FOLDERS_KEY, [...names, name], folderStore)
+  })
+
+/** removes a folder from the list of created ones; its books (if any) stay where they are */
+export const removeFolderName = (name: string) =>
+  serial(async () => {
+    await set(FOLDERS_KEY, (await listFolderNames()).filter((n) => !sameName(n, name)), folderStore)
+  })
+
+/** renames a folder: every book in it (also those filed there only by author) gets the new name explicitly */
+export const renameFolder = (oldName: string, newName: string) =>
+  serial(async () => {
+    for (const b of await values<BookMeta>(store)) {
+      if (folderKey(b) !== folderKey({ author: oldName })) continue
+      await set(b.id, { ...b, folder: newName }, store)
+    }
+    const names = (await listFolderNames()).filter((n) => !sameName(n, oldName) && !sameName(n, newName))
+    await set(FOLDERS_KEY, [...names, newName], folderStore)
   })
 
 /** explicit "read" mark; when unset a book counts as read once its position passes 98% */
