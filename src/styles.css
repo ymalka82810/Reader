@@ -7,8 +7,8 @@
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body, #root { height: 100%; margin: 0; }
-body { direction: rtl; background: #f6f6f4; color: #1a1a1a; }
-@media (prefers-color-scheme: dark) { :root { --bg: #151515; --fg: #e6e6e6; } body { background: #151515; color: #e6e6e6; } }
+body { direction: rtl; background: var(--bg); color: var(--fg); }
+@media (prefers-color-scheme: dark) { :root { --bg: #151515; --fg: #e6e6e6; } }
 button { font: inherit; cursor: pointer; border: 0; border-radius: 10px; padding: 0.55rem 0.9rem; background: rgba(127,127,127,.18); color: inherit; }
 button.primary { background: var(--accent); color: #fff; }
 button:disabled { opacity: .5; }
@@ -26,6 +26,8 @@ button:disabled { opacity: .5; }
 .dd-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
 .dd-list { position: absolute; z-index: 5; inset-inline-start: 0; top: calc(100% + .3rem); min-width: 100%; margin: 0; padding: .3rem; list-style: none; border-radius: 12px; background: var(--bg); color: var(--fg); border: 1px solid rgba(127,127,127,.3); box-shadow: 0 6px 22px rgba(0,0,0,.3); }
 .dd-list li { display: flex; justify-content: space-between; gap: 1rem; padding: .55rem .7rem; border-radius: 8px; white-space: nowrap; cursor: pointer; }
+.dd-list:focus { outline: none; }
+.dd-list li.active,
 .dd-list li:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .dd-list li.on { color: var(--accent); font-weight: 600; }
 .notice { padding: .7rem 1rem; border-radius: 10px; background: rgba(43,108,176,.15); margin-bottom: 1rem; }
