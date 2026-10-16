@@ -19,7 +19,8 @@ jobs:
       - uses: actions/download-artifact@v8
         with: { name: dist, path: dist }
       # Capacitor is installed only here, so package.json and the lockfile stay untouched.
-      - run: npm install --no-save @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7
+      # @capacitor/app makes the back gesture go back in the WebView's history (the reader uses it) instead of closing the app.
+      - run: npm install --no-save @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7 @capacitor/app@7
       - run: npm pkg set version=1.0.${{ github.run_number }}
       - run: npx cap init "קורא ספרים" com.yanivm.reader --web-dir dist
       - run: npx cap add android

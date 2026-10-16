@@ -16,6 +16,7 @@ import { useBookKeys, type KeyActions } from '../hooks/useBookKeys'
 import { useReadingTracker } from '../hooks/useReadingTracker'
 import { useAutoRead } from '../hooks/useAutoRead'
 import { MAX_RATE, MIN_RATE, RATE_STEP, readAloudSupported, useReadAloud } from '../hooks/useReadAloud'
+import { useBackGesture } from '../hooks/useBackGesture'
 import { clampFont, useBookEvents, type Selection } from '../hooks/useBookEvents'
 import { getBook, getNotes, newId, saveNotes, type Annotation } from '../lib/db'
 import { download } from '../lib/download'
@@ -26,6 +27,8 @@ import { formatMinutes, minutesLeft } from '../lib/stats'
 import { bookCSS, loadSettings, saveSettings, themeColors, type Settings } from '../lib/settings'
 
 const TAP_HELP_KEY = 'reader:tapHelpSeen'
+/** a second back swipe within this time leaves the book */
+const BACK_AGAIN_MS = 2000
 
 export default function Reader({ id, onClose }: { id: string; onClose: () => void }) {
   const host = useRef<HTMLDivElement>(null)
@@ -111,6 +114,29 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     window.clearTimeout(toastTimer.current)
     toastTimer.current = window.setTimeout(() => setToast(''), 1800)
   }, [])
+
+  // the phone's back swipe: closes an open panel, else shows the bars and asks for a second swipe
+  // (so a stray edge swipe doesn't drop the reader out of the book)
+  const lastBack = useRef(0)
+  const leaveHistory = useBackGesture(() => {
+    if (panelRef.current) {
+      setPanel(null)
+      return true
+    }
+    const now = Date.now()
+    if (now - lastBack.current < BACK_AGAIN_MS) {
+      onClose()
+      return false
+    }
+    lastBack.current = now
+    setUiVisible(true)
+    flash('החלקה נוספת תחזיר לספרייה')
+    return true
+  })
+  const close = useCallback(() => {
+    leaveHistory()
+    onClose()
+  }, [leaveHistory, onClose])
   useEffect(
     () => () => {
       window.clearTimeout(toastTimer.current)
@@ -500,12 +526,12 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
       {status === 'error' && (
         <div className="overlay-msg error">
           <p>{error}</p>
-          <button onClick={onClose}>חזרה לספרייה</button>
+          <button onClick={close}>חזרה לספרייה</button>
         </div>
       )}
 
       <div className={'topbar' + (uiVisible ? '' : ' hidden')}>
-        <button onClick={onClose} aria-label="חזרה לספרייה" title="חזרה לספרייה">→</button>
+        <button onClick={close} aria-label="חזרה לספרייה" title="חזרה לספרייה">→</button>
         <div className="title">{title}</div>
         <button
           onClick={toggleBookmark}
