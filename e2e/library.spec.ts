@@ -27,6 +27,16 @@ function makePdf(text: string): Buffer {
 const addFile = (page: Page, name: string, mimeType: string, buffer: Buffer) =>
   page.locator('input[type=file]').first().setInputFiles({ name, mimeType, buffer })
 
+/** books without an author are grouped in the "no author" folder */
+async function openNoAuthorFolder(page: Page) {
+  const folder = page.getByRole('button', { name: /תיקייה ללא מחבר/ })
+  await expect(folder).toBeVisible({ timeout: 60_000 })
+  await folder.click()
+}
+
+/** "גיבוי" alone, not "גיבוי אוטומטי לתיקייה…" */
+const backupItem = (page: Page) => page.getByRole('menuitem', { name: 'גיבוי', exact: true })
+
 test.beforeEach(async ({ page }) => {
   // force the in-memory download path for backups instead of the native save picker
   await page.addInitScript('delete window.showSaveFilePicker')
@@ -34,12 +44,14 @@ test.beforeEach(async ({ page }) => {
 })
 
 test('import a PDF', async ({ page }) => {
-  await addFile(page, 'pdf-test.pdf', 'application/pdf', makePdf('Hello PDF world'))
+  await addFile(page, 'pdf-test.pdf', 'application/pdf', makePdf('Hello PDF world, a page with a real text layer'))
+  await openNoAuthorFolder(page)
   await expect(page.getByRole('button', { name: /pdf-test/ })).toBeVisible({ timeout: 60_000 })
 })
 
 test('delete a book, with undo', async ({ page }) => {
   await addFile(page, 'delete-me.txt', 'text/plain', Buffer.from('שלום עולם. '.repeat(50)))
+  await openNoAuthorFolder(page)
   const card = page.getByRole('button', { name: /delete-me/ })
   await expect(card).toBeVisible({ timeout: 30_000 })
 
@@ -47,8 +59,9 @@ test('delete a book, with undo', async ({ page }) => {
   await page.getByRole('alertdialog', { name: 'אישור מחיקה' }).getByRole('button', { name: 'מחק' }).click()
   await expect(card).toHaveCount(0)
 
-  // undo brings it back
+  // undo brings it back (the emptied folder closed, so open it again)
   await page.getByRole('button', { name: 'בטל' }).click()
+  await openNoAuthorFolder(page)
   await expect(card).toBeVisible()
 
   // delete again and let it become final
@@ -62,11 +75,12 @@ test('delete a book, with undo', async ({ page }) => {
 
 test('back up the library, delete the book, restore it', async ({ page }) => {
   await addFile(page, 'backup-me.txt', 'text/plain', Buffer.from('טקסט לגיבוי. '.repeat(50)))
+  await openNoAuthorFolder(page)
   const card = page.getByRole('button', { name: /backup-me/ })
   await expect(card).toBeVisible({ timeout: 30_000 })
 
   await page.getByRole('button', { name: 'עוד פעולות' }).click()
-  await page.getByRole('menuitem', { name: 'גיבוי' }).click()
+  await backupItem(page).click()
   const [download] = await Promise.all([
     page.waitForEvent('download'),
     page.getByRole('dialog', { name: 'גיבוי' }).getByRole('button', { name: 'צור גיבוי' }).click(),
@@ -84,17 +98,18 @@ test('back up the library, delete the book, restore it', async ({ page }) => {
     buffer: await readFile(path),
   })
   await expect(page.getByText(/שוחזרו 1 ספרים/)).toBeVisible({ timeout: 30_000 })
+  await openNoAuthorFolder(page)
   await expect(page.getByRole('button', { name: /backup-me/ })).toBeVisible()
 })
 
 test('dialog keeps focus inside and returns it on close', async ({ page }) => {
   await page.getByRole('button', { name: 'עוד פעולות' }).click()
-  await page.getByRole('menuitem', { name: 'גיבוי' }).click()
+  await backupItem(page).click()
   const dialog = page.getByRole('dialog', { name: 'גיבוי' })
   await expect(dialog).toBeVisible()
   for (let i = 0; i < 6; i++) {
     await page.keyboard.press('Tab')
-    expect(await dialog.evaluate('(d) => d.contains(document.activeElement)')).toBe(true)
+    await expect(dialog.locator(':focus')).toHaveCount(1)
   }
   await page.keyboard.press('Escape')
   await expect(dialog).toHaveCount(0)

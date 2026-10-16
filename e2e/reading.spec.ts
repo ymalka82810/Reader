@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import JSZip from 'jszip'
 
 /** a small but multi-page EPUB, built on the fly so no binary fixture is needed */
@@ -27,6 +27,14 @@ async function makeEpub(): Promise<Buffer> {
   return zip.generateAsync({ type: 'nodebuffer' })
 }
 
+/** the imported book sits in its author's folder */
+async function openBook(page: Page) {
+  const folder = page.getByRole('button', { name: /תיקייה מחבר בדיקה/ })
+  await expect(folder).toBeVisible({ timeout: 30_000 })
+  await folder.click()
+  await page.getByRole('button', { name: /ספר בדיקה/ }).click()
+}
+
 test('import an EPUB, open it, turn a page, reload and keep the position', async ({ page }) => {
   await page.goto('/')
   await page.locator('input[type=file]').first().setInputFiles({
@@ -35,9 +43,7 @@ test('import an EPUB, open it, turn a page, reload and keep the position', async
     buffer: await makeEpub(),
   })
 
-  const card = page.getByRole('button', { name: /ספר בדיקה/ })
-  await expect(card).toBeVisible({ timeout: 30_000 })
-  await card.click()
+  await openBook(page)
 
   const position = page.getByLabel('מיקום בספר')
   await expect(page.getByText(/^עמוד/)).toBeVisible({ timeout: 30_000 })
@@ -59,5 +65,35 @@ test('import an EPUB, open it, turn a page, reload and keep the position', async
 
   // and the library card shows the saved progress
   await page.getByRole('button', { name: 'חזרה לספרייה' }).click()
+  await page.getByRole('button', { name: /תיקייה מחבר בדיקה/ }).click()
   await expect(page.getByRole('button', { name: /ספר בדיקה/ })).toContainText('%')
 })
+
+for (const flow of ['paginated', 'scrolled'] as const) {
+  test(`auto-reading moves the text by itself (${flow})`, async ({ page }) => {
+    // the fastest stored pace, so the test doesn't wait for a real reader's page time
+    await page.addInitScript((f) => {
+      localStorage.setItem('reader:pace', '1')
+      localStorage.setItem('reader:settings', JSON.stringify({ flow: f, pageTransition: false }))
+    }, flow)
+    await page.goto('/')
+    await page.locator('input[type=file]').first().setInputFiles({
+      name: 'test.epub',
+      mimeType: 'application/epub+zip',
+      buffer: await makeEpub(),
+    })
+    await openBook(page)
+    await expect(page.getByText(/^עמוד/)).toBeVisible({ timeout: 30_000 })
+
+    const position = page.getByLabel('מיקום בספר')
+    const readFraction = async () => parseFloat(await position.inputValue())
+    const before = await readFraction()
+
+    await page.getByRole('button', { name: 'קריאה אוטומטית' }).click()
+    await expect.poll(readFraction, { timeout: 15_000 }).toBeGreaterThan(before)
+
+    // the shortcut stops it again
+    await page.keyboard.press('a')
+    await expect(page.getByRole('button', { name: 'קריאה אוטומטית' })).toBeVisible()
+  })
+}

@@ -9,6 +9,9 @@ export interface KeyActions {
   bump: (delta: number) => void
   panel: (p: KeyPanel) => void
   hideBars: () => void
+  /** start / stop auto-reading */
+  autoRead: () => void
+  pace: (faster: boolean) => void
 }
 
 interface Deps {
@@ -60,6 +63,9 @@ export function useBookKeys(deps: Deps) {
     else if (e.code === 'KeyT') a.panel('toc')
     else if (e.code === 'KeyN') a.panel('notes')
     else if (e.code === 'KeyS') a.panel('settings')
+    else if (e.code === 'KeyA') a.autoRead()
+    else if (e.code === 'Period') a.pace(true)
+    else if (e.code === 'Comma') a.pace(false)
     else if (e.key === '/' || e.code === 'Slash') {
       e.preventDefault()
       a.panel('search')

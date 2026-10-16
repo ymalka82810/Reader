@@ -13,10 +13,12 @@ import { TocPanel } from './reader/TocPanel'
 import { useBookSearch } from './reader/useBookSearch'
 import { useBookKeys, type KeyActions } from '../hooks/useBookKeys'
 import { useReadingTracker } from '../hooks/useReadingTracker'
+import { useAutoRead } from '../hooks/useAutoRead'
 import { clampFont, useBookEvents, type Selection } from '../hooks/useBookEvents'
 import { getBook, getNotes, newId, saveNotes, type Annotation } from '../lib/db'
 import { download } from '../lib/download'
 import { bookFromSections } from '../lib/pdfToBook'
+import { linearSizes } from '../lib/pace'
 import { formatMinutes, minutesLeft } from '../lib/stats'
 import { bookCSS, loadSettings, saveSettings, themeColors, type Settings } from '../lib/settings'
 
@@ -57,7 +59,15 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   const lastAnnotationClick = useRef(0)
   const [toast, setToast] = useState('')
   const [left, setLeft] = useState<number | null>(null)
-  const actions = useRef<KeyActions>({ bookmark: () => {}, gotoBookmark: () => {}, bump: () => {}, panel: () => {}, hideBars: () => {} })
+  const actions = useRef<KeyActions>({
+    bookmark: () => {},
+    gotoBookmark: () => {},
+    bump: () => {},
+    panel: () => {},
+    hideBars: () => {},
+    autoRead: () => {},
+    pace: () => {},
+  })
   const attachDocHandlers = useBookEvents({
     viewRef,
     settingsRef,
@@ -67,6 +77,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     setSelection,
     setUiVisible,
     setPanel,
+    onMiddleTap: () => actions.current.autoRead(),
   })
 
   const tracker = useReadingTracker(id)
@@ -103,7 +114,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     const d = detail ?? lastDetail.current
     if (!r || !d?.section || typeof r.pages !== 'number') return
     const sections = view.book.sections
-    const sizes = sections.map((s) => (s.linear !== 'no' && (s.size ?? 0) > 0 ? s.size! : 0))
+    const sizes = linearSizes(sections)
     const idx: number = d.section.current
     const secSize = sizes[idx] ?? 0
     const scrolled: boolean = r.scrolled
@@ -214,7 +225,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
       try {
         view.close?.()
       } catch {
-        /* ignore */
+        /* view may already be closed or half-initialised; teardown continues with remove() */
       }
       view.remove()
       viewRef.current = null
@@ -240,6 +251,18 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   }, [settings, recompute])
 
   const search = useBookSearch(viewRef, panel === 'search')
+  const auto = useAutoRead({
+    id,
+    viewRef,
+    lastDetail,
+    flow: settings.flow,
+    paused: uiVisible || !!panel || !!selection,
+    markActive: tracker.markActive,
+  })
+  const toggleAuto = () => {
+    if (!auto.active) setUiVisible(false)
+    void auto.toggle()
+  }
 
   const addHighlight = (color: string) => {
     const sel = selectionRef.current
@@ -350,6 +373,8 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
       bump: (d) => setSettings((s) => ({ ...s, fontSize: clampFont(s.fontSize + d) })),
       panel: (p) => setPanel((cur) => (cur === p ? null : p)),
       hideBars: () => setUiVisible(false),
+      autoRead: toggleAuto,
+      pace: auto.adjust,
     }
   })
 
@@ -390,6 +415,14 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
             </button>
           </>
         )}
+        <button
+          onClick={toggleAuto}
+          aria-label={auto.active ? 'עצור קריאה אוטומטית' : 'קריאה אוטומטית'}
+          aria-pressed={auto.active}
+          title="קריאה אוטומטית בקצב שלך (a)"
+        >
+          <Icon d={auto.active ? 'M7 5v14M17 5v14' : 'M7 4v16l13-8z'} />
+        </button>
         <button onClick={toggleBookmark} aria-label="סימנייה" title="הוסף/הסר סימנייה">
           <Icon d="M6 3h12v18l-6-4-6 4z" />
         </button>
@@ -406,6 +439,13 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
       </div>
 
       <div className={'bottombar' + (uiVisible ? '' : ' hidden')}>
+        {auto.active && (
+          <div className="auto-pace" role="group" aria-label="קצב קריאה אוטומטית">
+            <button onClick={() => auto.adjust(false)} aria-label="לאט יותר" title="לאט יותר (,)">−</button>
+            <span title="זמן לכל מסך, לפי קצב הקריאה שלך">{auto.secsPerScreen ? `${auto.secsPerScreen} שנ׳/מסך` : '…'}</span>
+            <button onClick={() => auto.adjust(true)} aria-label="מהר יותר" title="מהר יותר (.)">+</button>
+          </div>
+        )}
         <div className="progress">
           <input
             type="range"
