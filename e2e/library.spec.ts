@@ -55,7 +55,8 @@ test('delete a book, with undo', async ({ page }) => {
   const card = page.getByRole('button', { name: /delete-me/ })
   await expect(card).toBeVisible({ timeout: 30_000 })
 
-  await page.getByRole('button', { name: 'מחק' }).first().click()
+  await page.getByRole('button', { name: 'פעולות לספר' }).first().click()
+  await page.getByRole('menuitem', { name: 'מחק' }).click()
   await page.getByRole('alertdialog', { name: 'אישור מחיקה' }).getByRole('button', { name: 'מחק' }).click()
   await expect(card).toHaveCount(0)
 
@@ -65,7 +66,8 @@ test('delete a book, with undo', async ({ page }) => {
   await expect(card).toBeVisible()
 
   // delete again and let it become final
-  await page.getByRole('button', { name: 'מחק' }).first().click()
+  await page.getByRole('button', { name: 'פעולות לספר' }).first().click()
+  await page.getByRole('menuitem', { name: 'מחק' }).click()
   await page.getByRole('alertdialog', { name: 'אישור מחיקה' }).getByRole('button', { name: 'מחק' }).click()
   await expect(card).toHaveCount(0)
   await page.waitForTimeout(7500)
@@ -87,7 +89,8 @@ test('back up the library, delete the book, restore it', async ({ page }) => {
   ])
   const path = await download.path()
 
-  await page.getByRole('button', { name: 'מחק' }).first().click()
+  await page.getByRole('button', { name: 'פעולות לספר' }).first().click()
+  await page.getByRole('menuitem', { name: 'מחק' }).click()
   await page.getByRole('alertdialog', { name: 'אישור מחיקה' }).getByRole('button', { name: 'מחק' }).click()
   await expect(card).toHaveCount(0)
   await page.waitForTimeout(7500)
