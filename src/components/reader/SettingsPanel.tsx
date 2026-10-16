@@ -75,14 +75,18 @@ export function SettingsPanel({
           ))}
         </select>
       </label>
-      <ul className="shortcuts">
-        <li><kbd>←</kbd> <kbd>→</kbd> <kbd>רווח</kbd> מעבר עמוד</li>
-        <li><kbd>+</kbd> <kbd>-</kbd> גודל גופן</li>
-        <li><kbd>b</kbd> סימנייה · <kbd>t</kbd> תוכן · <kbd>n</kbd> הערות</li>
-        <li><kbd>a</kbd> או הקשה באמצע המסך: קריאה אוטומטית · <kbd>,</kbd> <kbd>.</kbd> לאט/מהר יותר</li>
-        <li><kbd>r</kbd> הקראה בקול</li>
-        <li><kbd>/</kbd> חיפוש · <kbd>s</kbd> הגדרות · <kbd>Esc</kbd> סגירה</li>
-      </ul>
+      <details className="shortcuts">
+        <summary>קיצורי מקלדת</summary>
+        <ul>
+          <li><kbd>←</kbd> <kbd>→</kbd> <kbd>רווח</kbd> מעבר עמוד</li>
+          <li><kbd>+</kbd> <kbd>-</kbd> גודל גופן</li>
+          <li><kbd>b</kbd> סימנייה · <kbd>[</kbd> <kbd>]</kbd> סימנייה קודמת/הבאה</li>
+          <li><kbd>t</kbd> תוכן · <kbd>n</kbd> סימניות והדגשות</li>
+          <li><kbd>a</kbd> או הקשה באמצע המסך: קריאה אוטומטית · <kbd>,</kbd> <kbd>.</kbd> לאט/מהר יותר</li>
+          <li><kbd>r</kbd> הקראה בקול</li>
+          <li><kbd>/</kbd> חיפוש · <kbd>s</kbd> הגדרות · <kbd>Esc</kbd> סגירה</li>
+        </ul>
+      </details>
     </Panel>
   )
 }

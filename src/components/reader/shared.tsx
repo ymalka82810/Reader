@@ -2,9 +2,9 @@ import { Dialog } from '../Dialog'
 
 
 /** stroked 24px SVG icon, so toolbar buttons look the same on every platform */
-export function Icon({ d }: { d: string }) {
+export function Icon({ d, filled = false }: { d: string; filled?: boolean }) {
   return (
-    <svg className="icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg className="icon" viewBox="0 0 24 24" width="20" height="20" fill={filled ? 'currentColor' : 'none'}stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d={d} />
     </svg>
   )

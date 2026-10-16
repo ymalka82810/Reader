@@ -2,24 +2,33 @@ import type { Annotation } from '../../lib/db'
 import { COLOR_NAMES, HIGHLIGHT_COLORS } from './colors'
 import { Panel } from './shared'
 
-export function NotesPanel({
+export function NotesList({
   notes,
   onGoTo,
+  onGotoBookmark,
   onEdit,
   onRemove,
   onExport,
 }: {
   notes: Annotation[]
   onGoTo: (cfi: string) => void
+  onGotoBookmark: (dir: 1 | -1) => void
   onEdit: (id: string) => void
   onRemove: (id: string) => void
   onExport: () => void
 }) {
+  if (notes.length === 0) return <p className="muted">אין עדיין. סמן טקסט כדי להדגיש אותו, או לחץ על 🔖 כדי לשמור מקום.</p>
   return (
-    <Panel label="סימניות והדגשות">
-      <h3>סימניות והדגשות</h3>
-      {notes.length > 0 && <button onClick={onExport}>ייצוא ל-Markdown</button>}
-      {notes.length === 0 && <p className="muted">אין עדיין. סמן טקסט כדי להדגיש אותו, או לחץ על 🔖 כדי לשמור מקום.</p>}
+    <>
+      <div className="notes-tools">
+        {notes.some((n) => n.kind === 'bookmark') && (
+          <>
+            <button onClick={() => onGotoBookmark(-1)} title="סימנייה קודמת ([)">סימנייה קודמת</button>
+            <button onClick={() => onGotoBookmark(1)} title="סימנייה הבאה (])">סימנייה הבאה</button>
+          </>
+        )}
+        <button onClick={onExport}>ייצוא ל-Markdown</button>
+      </div>
       <ul className="notes">
         {[...notes]
           .sort((a, b) => a.createdAt - b.createdAt)
@@ -43,7 +52,7 @@ export function NotesPanel({
             </li>
           ))}
       </ul>
-    </Panel>
+    </>
   )
 }
 
