@@ -56,6 +56,15 @@ TypeScript רץ במצב `strict` מלא, בתוספת `noUncheckedIndexedAccess
 - האתר משתמש ב-`base: './'`, ולכן עובד מכל תת-נתיב (`https://<user>.github.io/<repo>/`) בלי הגדרה נוספת. התקנה כ-PWA דורשת HTTPS, ו-Pages מספק אותו.
 - ה-service worker מתעדכן אוטומטית (`registerType: 'autoUpdate'`), אז גרסה חדשה נטענת בביקור הבא אחרי הפריסה.
 
+## זרימת עבודה
+`main` מוגן: אי אפשר לדחוף אליו ישירות, וכל מיזוג אליו מתפרסם מיד למשתמשים (ראו ״פריסה״).
+1. פותחים ענף: `git switch -c my-change`, עושים commit ודוחפים: `git push -u origin my-change`.
+2. פותחים PR: `gh pr create --fill`.
+3. ממתינים שבדיקת ה-CI (`check`) תהיה ירוקה. בלעדיה אי אפשר למזג.
+4. ממזגים: `gh pr merge --squash --delete-branch`. המיזוג מפעיל את הפריסה.
+
+ההגנה חלה גם על בעל הריפו. לעקיפה בחירום: Settings ← Branches, או `gh api -X DELETE repos/ymalka82810/Reader/branches/main/protection`.
+
 ## אפליקציית אנדרואיד
 אותה אפליקציית ווב נארזת ל-APK בעזרת [Capacitor](https://capacitorjs.com/) 7. תיקיית `android/` **לא נמצאת ב-git**: היא נוצרת מחדש בכל בנייה, ו-Capacitor מותקן רק בתוך ה-workflow (`--no-save`), כך ש-`package.json` ו-lockfile לא משתנים.
 
