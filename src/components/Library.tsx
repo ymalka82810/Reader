@@ -139,9 +139,19 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
       return next
     })
 
+  // folders and books are selected separately: the folder list selects folders, a folder's contents select books
+  const [selectedFolders, setSelectedFolders] = useState<Set<string>>(new Set())
+  const toggleFolder = (key: string) =>
+    setSelectedFolders((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(key)) next.add(key)
+      return next
+    })
+
   const exitSelect = () => {
     setSelecting(false)
     setSelected(new Set())
+    setSelectedFolders(new Set())
   }
 
   const commitDelete = async () => {
@@ -254,11 +264,17 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
     await refresh()
   }
 
-  const deleteEmptyFolder = async (name: string) => {
-    await removeFolderName(name)
+  const deleteEmptyFolders = async (list: Folder[]) => {
+    const what = list.length === 1 ? `את התיקייה ״${list[0]?.name}״` : `${list.length} תיקיות`
+    if (!confirm(`למחוק ${what}? התיקיות ריקות, ולא יימחק אף ספר.`)) return
+    for (const f of list) await removeFolderName(f.name)
     setOpenFolder(undefined)
+    exitSelect()
     await refresh()
   }
+  const inFolderList = !searching && !current
+  const pickedFolders = folders.filter((f) => selectedFolders.has(f.key))
+  const canDeleteFolders = pickedFolders.length > 0 && pickedFolders.every((f) => !f.books.length)
 
   const addFiles = async (files: FileList | File[]) => {
     setError(undefined)
@@ -592,18 +608,31 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
 
       {selecting && (
         <div className="notice select-bar">
-          <span>{selected.size} נבחרו</span>
-          <button onClick={() => setSelected(new Set(shown.map((b) => b.id)))}>בחר הכול</button>
-          <button disabled={selected.size === 0} onClick={() => setMoving(books.filter((b) => selected.has(b.id)))}>
-            העבר
-          </button>
-          <button
-            className="danger"
-            disabled={selected.size === 0}
-            onClick={() => setConfirmDel(books.filter((b) => selected.has(b.id)))}
-          >
-            מחק
-          </button>
+          {inFolderList ? (<>
+            <span>{selectedFolders.size} תיקיות נבחרו</span>
+            <button onClick={() => setSelectedFolders(new Set(folders.map((f) => f.key)))}>בחר כל התיקיות</button>
+            <button
+              className="danger"
+              disabled={!canDeleteFolders}
+              title="אפשר למחוק רק תיקיות ריקות"
+              onClick={() => deleteEmptyFolders(pickedFolders)}
+            >
+              מחק תיקיות
+            </button>
+          </>) : (<>
+            <span>{selected.size} ספרים נבחרו</span>
+            <button onClick={() => setSelected(new Set((searching ? shown : current!.books).map((b) => b.id)))}>בחר כל הספרים</button>
+            <button disabled={selected.size === 0} onClick={() => setMoving(books.filter((b) => selected.has(b.id)))}>
+              העבר ספרים
+            </button>
+            <button
+              className="danger"
+              disabled={selected.size === 0}
+              onClick={() => setConfirmDel(books.filter((b) => selected.has(b.id)))}
+            >
+              מחק ספרים
+            </button>
+          </>)}
         </div>
       )}
 
@@ -646,13 +675,21 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
         <ul className="grid folders">
           {folders.map((f) => (
             <li key={f.key}>
-              <button className="card folder" onClick={() => setOpenFolder(f.key)}>
+              <button
+                className={'card folder' + (selectedFolders.has(f.key) ? ' selected' : '')}
+                aria-pressed={selecting ? selectedFolders.has(f.key) : undefined}
+                onClick={() => (selecting ? toggleFolder(f.key) : setOpenFolder(f.key))}
+              >
                 <div className="folder-icon" aria-hidden="true">📁</div>
                 <div className="meta">
+                  <small className="kind">תיקייה</small>
                   <strong>{f.name || 'ללא מחבר'}</strong>
-                  <small>{f.books.length === 1 ? 'ספר אחד' : `${f.books.length} ספרים`}</small>
+                  <small>{!f.books.length ? 'ריקה' : f.books.length === 1 ? 'ספר אחד' : `${f.books.length} ספרים`}</small>
                 </div>
               </button>
+              {selecting && (
+                <span className="sel-mark" aria-hidden="true">{selectedFolders.has(f.key) ? '☑' : '☐'}</span>
+              )}
             </li>
           ))}
         </ul>
@@ -661,12 +698,13 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
         {current && !searching && (
           <div className="folder-bar">
             <button onClick={() => setOpenFolder(undefined)}>→ כל התיקיות</button>
-            <strong>{current.name || 'ללא מחבר'}</strong>
+            <strong>📁 {current.name || 'ללא מחבר'}</strong>
+            <small>{current.books.length === 1 ? 'ספר אחד' : `${current.books.length} ספרים`}</small>
             {current.key && (
               <button onClick={() => setFolderDialog({ rename: current.name, name: current.name })}>שינוי שם</button>
             )}
             {!current.books.length && (
-              <button className="danger" onClick={() => deleteEmptyFolder(current.name)}>מחק תיקייה</button>
+              <button className="danger" onClick={() => deleteEmptyFolders([current])}>מחק תיקייה</button>
             )}
           </div>
         )}
@@ -868,7 +906,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
                 .map((f) => (
                   <li key={f.key}>
                     <button onClick={() => moveTo(moving, f.name)}>
-                      📁 {f.name || 'ללא מחבר'} <small>({f.books.length})</small>
+                      📁 {f.name || 'ללא מחבר'} <small>({f.books.length} ספרים)</small>
                     </button>
                   </li>
                 ))}

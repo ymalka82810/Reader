@@ -138,7 +138,10 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: 4px; border: 1px solid rg
 
 /* folders */
 .folder { align-items: center; padding: 1rem .5rem; border: 1px solid rgba(128,128,128,.3); border-radius: 12px; text-align: center; }
+.folder { background: rgba(49,130,206,.12); border: 2px solid rgba(49,130,206,.45); border-top-width: 6px; }
 .folder .meta { align-items: center; }
+.folder .kind { color: #3182ce; font-weight: 600; }
+.folder-bar { padding: .5rem .8rem; background: rgba(49,130,206,.12); border-inline-start: 6px solid rgba(49,130,206,.6); border-radius: 8px; }
 .folder-icon { font-size: 3rem; line-height: 1; }
 .folder-bar { display: flex; align-items: center; gap: .8rem; margin-bottom: 1rem; }
 .folder-btn { position: absolute; top: 74px; inset-inline-end: 6px; padding: .15rem .5rem; background: rgba(0,0,0,.55); color: #fff; border-radius: 999px; font-size: .8rem; opacity: .75; }
