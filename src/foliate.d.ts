@@ -37,7 +37,7 @@ declare module 'foliate-js/view.js' {
     fraction?: number
     cfi?: string
     section?: { current: number; total: number }
-    tocItem?: { label?: string }
+    tocItem?: { label?: string; href?: string }
     /** the text currently on screen */
     range?: Range
   }
