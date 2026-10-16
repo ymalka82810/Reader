@@ -2,52 +2,27 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import 'foliate-js/view.js'
 import { Overlayer } from 'foliate-js/overlayer.js'
 import { compare as cfiCompare } from 'foliate-js/epubcfi.js'
-import { Dialog } from './Dialog'
+import type { FoliateRelocateDetail, FoliateView } from 'foliate-js/view.js'
+import { EditNotePanel, NotesPanel } from './reader/NotesPanels'
+import { SearchPanel } from './reader/SearchPanel'
+import { SettingsPanel } from './reader/SettingsPanel'
+import { COLOR_NAMES, HIGHLIGHT_COLORS } from './reader/colors'
+import { Icon } from './reader/shared'
+import { flattenToc, type FlatTocItem } from './reader/toc'
+import { TocPanel } from './reader/TocPanel'
+import { useBookSearch } from './reader/useBookSearch'
 import { useBookKeys, type KeyActions } from '../hooks/useBookKeys'
 import { useReadingTracker } from '../hooks/useReadingTracker'
-import { MAX_FONT, MIN_FONT, clampFont, useBookEvents, type Selection } from '../hooks/useBookEvents'
+import { clampFont, useBookEvents, type Selection } from '../hooks/useBookEvents'
 import { getBook, getNotes, newId, saveNotes, type Annotation } from '../lib/db'
 import { download } from '../lib/download'
 import { bookFromSections } from '../lib/pdfToBook'
 import { formatMinutes, minutesLeft } from '../lib/stats'
-import {
-  bookCSS,
-  DICT_LANGS,
-  loadSettings,
-  saveSettings,
-  themeColors,
-  type Flow,
-  type Settings,
-  type Theme,
-} from '../lib/settings'
-
-interface TocItem {
-  label: string
-  href: string
-  subitems?: TocItem[]
-}
-
-interface SearchExcerpt {
-  pre: string
-  match: string
-  post: string
-}
-
-interface SearchGroup {
-  label: string
-  items: { cfi: string; excerpt: SearchExcerpt }[]
-}
-
-const flatten = (items: TocItem[] | null | undefined, depth = 0): (TocItem & { depth: number })[] =>
-  (items ?? []).flatMap((i) => [{ ...i, depth }, ...flatten(i.subitems, depth + 1)])
-
-const HIGHLIGHT_COLORS = ['#f2c744', '#5fbf6a', '#4a9be8', '#e8688c']
-/** a one-letter query in a big book would otherwise flood state and the DOM */
-const MAX_SEARCH_RESULTS = 200
+import { bookCSS, loadSettings, saveSettings, themeColors, type Settings } from '../lib/settings'
 
 export default function Reader({ id, onClose }: { id: string; onClose: () => void }) {
   const host = useRef<HTMLDivElement>(null)
-  const viewRef = useRef<any>(null)
+  const viewRef = useRef<FoliateView | null>(null)
   const [settings, setSettings] = useState<Settings>(loadSettings)
   const settingsRef = useRef(settings)
 
@@ -61,12 +36,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   useEffect(() => {
     panelRef.current = panel
   }, [panel])
-  const [toc, setToc] = useState<(TocItem & { depth: number })[]>([])
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<SearchGroup[]>([])
-  const [searching, setSearching] = useState(false)
-  const searchToken = useRef(0)
-  const [searchCapped, setSearchCapped] = useState(false)
+  const [toc, setToc] = useState<FlatTocItem[]>([])
   /** primary language subtag of the open book ("he", "en", …), '' when unknown */
   const bookLang = useRef('')
   const [fraction, setFraction] = useState(0)
@@ -125,14 +95,14 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
 
   // page-size calibration: bytes of source per rendered page, per section visited since last re-layout
   const calib = useRef(new Map<number, { pages: number; size: number }>())
-  const lastDetail = useRef<any>(null)
+  const lastDetail = useRef<FoliateRelocateDetail | null>(null)
 
-  const recompute = useCallback((detail?: any) => {
+  const recompute = useCallback((detail?: FoliateRelocateDetail) => {
     const view = viewRef.current
     const r = view?.renderer
     const d = detail ?? lastDetail.current
     if (!r || !d?.section || typeof r.pages !== 'number') return
-    const sections: { size?: number; linear?: string }[] = view.book.sections
+    const sections = view.book.sections
     const sizes = sections.map((s) => (s.linear !== 'no' && (s.size ?? 0) > 0 ? s.size! : 0))
     const idx: number = d.section.current
     const secSize = sizes[idx] ?? 0
@@ -163,7 +133,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   // ---- open the book ----
   useEffect(() => {
     let cancelled = false
-    const view: any = document.createElement('foliate-view')
+    const view = document.createElement('foliate-view') as FoliateView
     view.style.cssText = 'display:block;width:100%;height:100%'
 
     ;(async () => {
@@ -196,29 +166,30 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
         setDir(view.book.dir === 'ltr' ? 'ltr' : 'rtl')
         const lang = [view.book.metadata?.language].flat()[0]
         bookLang.current = typeof lang === 'string' ? (lang.split(/[-_]/)[0] ?? '').toLowerCase() : ''
-        setToc(flatten(view.book.toc))
+        setToc(flattenToc(view.book.toc))
 
-        view.addEventListener('load', (e: CustomEvent) => attachDocHandlers(e.detail, onKey))
-        view.addEventListener('draw-annotation', (e: CustomEvent) => {
-          const { draw, annotation } = e.detail
-          draw(Overlayer.highlight, { color: annotation.color })
-        })
-        view.addEventListener('create-overlay', () => {
+        const on = <T,>(type: string, fn: (detail: T) => void) =>
+          view.addEventListener(type, (e) => fn((e as CustomEvent<T>).detail))
+        on<{ doc: Document; index: number }>('load', (d) => attachDocHandlers(d, onKey))
+        on<{ draw: (fn: typeof Overlayer.highlight, opts: object) => void; annotation: { color: string } }>(
+          'draw-annotation',
+          ({ draw, annotation }) => draw(Overlayer.highlight, { color: annotation.color }),
+        )
+        on('create-overlay', () => {
           for (const n of notesRef.current) {
             if (n.kind === 'highlight') view.addAnnotation({ value: n.cfi, color: n.color }).catch(console.error)
           }
         })
-        view.addEventListener('show-annotation', (e: CustomEvent) => {
-          const n = notesRef.current.find((x) => x.cfi === e.detail.value)
+        on<{ value: string }>('show-annotation', (d) => {
+          const n = notesRef.current.find((x) => x.cfi === d.value)
           if (!n) return
           lastAnnotationClick.current = Date.now()
           setEditingId(n.id)
           setPanel('edit')
         })
-        view.addEventListener('relocate', (e: CustomEvent) => {
-          const d = e.detail
+        on<FoliateRelocateDetail>('relocate', (d) => {
           lastDetail.current = d
-          const f: number = d.fraction ?? 0
+          const f = d.fraction ?? 0
           tracker.relocate(d)
           minutesLeft(id, f).then((m) => !cancelled && setLeft(m))
           setFraction(f)
@@ -268,50 +239,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     }
   }, [settings, recompute])
 
-  /** cancels a running search: its loop sees the stale token and stops pulling results */
-  const cancelSearch = useCallback(() => {
-    searchToken.current++
-    setSearching(false)
-  }, [])
-
-  const runSearch = useCallback(async (query: string) => {
-    const view = viewRef.current
-    const token = ++searchToken.current
-    setSearchCapped(false)
-    if (!view || !query.trim()) {
-      view?.clearSearch()
-      setSearchResults([])
-      setSearching(false)
-      return
-    }
-    setSearching(true)
-    setSearchResults([])
-    let count = 0
-    try {
-      // returning from the loop calls the generator's return(), which stops the scan
-      for await (const r of view.search({ query })) {
-        if (token !== searchToken.current) return
-        if (r === 'done') break
-        if (!r.subitems) continue
-        const items = r.subitems.slice(0, MAX_SEARCH_RESULTS - count)
-        count += items.length
-        setSearchResults((prev) => [...prev, { label: r.label, items }])
-        if (count >= MAX_SEARCH_RESULTS) {
-          setSearchCapped(true)
-          break
-        }
-      }
-    } finally {
-      if (token === searchToken.current) setSearching(false)
-    }
-  }, [])
-
-  // stop scanning when the search panel closes or the reader unmounts
-  useEffect(() => {
-    // oxlint-disable-next-line react/set-state-in-effect -- cancelling a search resets its UI state
-    if (panel !== 'search') cancelSearch()
-  }, [panel, cancelSearch])
-  useEffect(() => cancelSearch, [cancelSearch])
+  const search = useBookSearch(viewRef, panel === 'search')
 
   const addHighlight = (color: string) => {
     const sel = selectionRef.current
@@ -328,7 +256,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     }
     commitNotes([...notesRef.current, note])
     view.addAnnotation({ value: note.cfi, color }).catch(console.error)
-    view.renderer.getContents?.().forEach((c: any) => c.doc?.getSelection()?.removeAllRanges())
+    view.renderer.getContents?.().forEach((c) => c.doc?.getSelection()?.removeAllRanges())
     setSelection(null)
   }
 
@@ -371,7 +299,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
       .filter((n) => n.kind === 'bookmark')
       .sort((a, b) => cfiCompare(a.cfi, b.cfi))
     if (!marks.length) return flash('אין סימניות בספר')
-    const here = lastDetail.current?.cfi as string | undefined
+    const here = lastDetail.current?.cfi
     const target = here
       ? dir === 1
         ? marks.find((n) => cfiCompare(n.cfi, here) > 0)
@@ -425,6 +353,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     }
   })
 
+  const editingNote = notes.find((x) => x.id === editingId)
   const colors = themeColors(settings.theme)
   const shownFraction = dragFraction ?? fraction
   const commit = () => {
@@ -521,291 +450,60 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
       )}
 
       {panel === 'notes' && (
-        <Panel label="סימניות והדגשות">
-          <h3>סימניות והדגשות</h3>
-          {notes.length > 0 && <button onClick={exportMarkdown}>ייצוא ל-Markdown</button>}
-          {notes.length === 0 && (
-            <p className="muted">אין עדיין. סמן טקסט כדי להדגיש אותו, או לחץ על 🔖 כדי לשמור מקום.</p>
-          )}
-          <ul className="notes">
-            {[...notes]
-              .sort((a, b) => a.createdAt - b.createdAt)
-              .map((n) => (
-                <li key={n.id}>
-                  <button
-                    className="note-main"
-                    onClick={() => {
-                      viewRef.current?.goTo(n.cfi)
-                      setPanel(null)
-                    }}
-                  >
-                    <span className="note-kind" style={{ background: n.kind === 'bookmark' ? 'transparent' : n.color }}>
-                      {n.kind === 'bookmark' ? '🔖' : ''}
-                    </span>
-                    <span>
-                      {n.text}
-                      {n.note && <small className="note-text">{n.note}</small>}
-                    </span>
-                  </button>
-                  {n.kind === 'highlight' && (
-                    <button
-                      aria-label="ערוך"
-                      onClick={() => {
-                        setEditingId(n.id)
-                        setPanel('edit')
-                      }}
-                    >
-                      ✎
-                    </button>
-                  )}
-                  <button aria-label="מחק" onClick={() => removeNote(n.id)}>✕</button>
-                </li>
-              ))}
-          </ul>
-        </Panel>
+        <NotesPanel
+          notes={notes}
+          onExport={exportMarkdown}
+          onRemove={removeNote}
+          onGoTo={(cfi) => {
+            viewRef.current?.goTo(cfi)
+            setPanel(null)
+          }}
+          onEdit={(noteId) => {
+            setEditingId(noteId)
+            setPanel('edit')
+          }}
+        />
       )}
 
-      {panel === 'edit' &&
-        (() => {
-          const n = notes.find((x) => x.id === editingId)
-          if (!n) return null
-          return (
-            <Panel label="עריכת הדגשה" className="edit">
-              <blockquote style={{ borderColor: n.color }}>{n.text}</blockquote>
-              <textarea
-                placeholder="הוסף הערה…"
-                value={n.note ?? ''}
-                onChange={(e) => updateNote(n.id, { note: e.target.value })}
-                rows={4}
-                autoFocus
-              />
-              <div className="row">
-                {HIGHLIGHT_COLORS.map((c) => (
-                  <button
-                    key={c}
-                    className={'swatch' + (c === n.color ? ' on' : '')}
-                    style={{ background: c }}
-                    aria-label={`צבע ${COLOR_NAMES[HIGHLIGHT_COLORS.indexOf(c)]}`}
-                    aria-pressed={c === n.color}
-                    onClick={() => updateNote(n.id, { color: c })}
-                  />
-                ))}
-                <span style={{ flex: 1 }} />
-                <button
-                  onClick={() => {
-                    removeNote(n.id)
-                    setPanel(null)
-                  }}
-                >
-                  מחק
-                </button>
-                <button className="primary" onClick={() => setPanel(null)}>סיום</button>
-              </div>
-            </Panel>
-          )
-        })()}
+      {panel === 'edit' && editingNote && (
+        <EditNotePanel
+          note={editingNote}
+          onUpdate={(patch) => updateNote(editingNote.id, patch)}
+          onRemove={() => {
+            removeNote(editingNote.id)
+            setPanel(null)
+          }}
+          onClose={() => setPanel(null)}
+        />
+      )}
 
       {panel === 'toc' && (
-        <Panel label="תוכן עניינים">
-          <h3>תוכן עניינים</h3>
-          {toc.length === 0 && <p className="muted">אין תוכן עניינים בספר הזה.</p>}
-          <ul className="toc">
-            {toc.map((t, i) => (
-              <li key={i} style={{ paddingInlineStart: t.depth * 16 }}>
-                <button
-                  onClick={() => {
-                    viewRef.current?.goTo(t.href)
-                    setPanel(null)
-                  }}
-                >
-                  {t.label}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </Panel>
+        <TocPanel
+          toc={toc}
+          onGoTo={(href) => {
+            viewRef.current?.goTo(href)
+            setPanel(null)
+          }}
+        />
       )}
 
       {panel === 'search' && (
-        <Panel label="חיפוש בספר" className="search">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              runSearch(searchQuery)
-            }}
-          >
-            <input
-              type="search"
-              placeholder="חיפוש בספר…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              autoFocus
-            />
-            {searching ? (
-              <button type="button" onClick={cancelSearch}>
-                עצור
-              </button>
-            ) : (
-              <button type="submit" disabled={!searchQuery.trim()}>
-                חפש
-              </button>
-            )}
-          </form>
-          {searching && <p className="muted">מחפש…</p>}
-          {searchCapped && <p className="muted">מוצגות {MAX_SEARCH_RESULTS} התוצאות הראשונות. צמצמו את החיפוש כדי לראות עוד.</p>}
-          {!searching && searchQuery.trim() && searchResults.length === 0 && (
-            <p className="muted">לא נמצאו תוצאות.</p>
-          )}
-          <ul className="search-results">
-            {searchResults.map((group, gi) => (
-              <li key={gi}>
-                <strong>{group.label}</strong>
-                <ul>
-                  {group.items.map((item, ii) => (
-                    <li key={ii}>
-                      <button
-                        onClick={() => {
-                          viewRef.current?.goTo(item.cfi)
-                          setPanel(null)
-                        }}
-                      >
-                        {item.excerpt.pre}
-                        <mark>{item.excerpt.match}</mark>
-                        {item.excerpt.post}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </li>
-            ))}
-          </ul>
-        </Panel>
+        <SearchPanel
+          query={search.query}
+          onQueryChange={search.setQuery}
+          results={search.results}
+          searching={search.searching}
+          capped={search.capped}
+          onSearch={search.run}
+          onCancel={search.cancel}
+          onGoTo={(cfi) => {
+            viewRef.current?.goTo(cfi)
+            setPanel(null)
+          }}
+        />
       )}
 
-      {panel === 'settings' && (
-        <Panel label="הגדרות תצוגה" className="settings">
-          <div className="row">
-            <button onClick={() => bump(-2)} aria-label="הקטן">א−</button>
-            <input
-              type="range"
-              min={MIN_FONT}
-              max={MAX_FONT}
-              value={settings.fontSize}
-              aria-label="גודל גופן"
-              onChange={(e) => set('fontSize', parseInt(e.target.value))}
-            />
-            <button onClick={() => bump(2)} aria-label="הגדל">א+</button>
-          </div>
-          <div className="row">
-            <label htmlFor="lh">ריווח שורות</label>
-            <input
-              id="lh"
-              type="range"
-              min={1.2}
-              max={2.4}
-              step={0.1}
-              value={settings.lineHeight}
-              onChange={(e) => set('lineHeight', parseFloat(e.target.value))}
-            />
-          </div>
-          <Seg<Flow>
-            value={settings.flow}
-            onChange={(v) => set('flow', v)}
-            options={[['scrolled', 'גלילה'], ['paginated', 'עמודים']]}
-          />
-          <Seg<Theme>
-            value={settings.theme}
-            onChange={(v) => set('theme', v)}
-            options={[['light', 'בהיר'], ['sepia', 'ספיה'], ['dark', 'כהה']]}
-          />
-          <Seg<Settings['fontFamily']>
-            value={settings.fontFamily}
-            onChange={(v) => set('fontFamily', v)}
-            options={[['default', 'ברירת מחדל'], ['serif', 'סריף'], ['sans', 'סנס']]}
-          />
-          <label className="check">
-            <input
-              type="checkbox"
-              checked={settings.justify}
-              onChange={(e) => set('justify', e.target.checked)}
-            />
-            יישור לשני הצדדים
-          </label>
-          <label className="check">
-            <input
-              type="checkbox"
-              checked={settings.accessible}
-              onChange={(e) => set('accessible', e.target.checked)}
-            />
-            מצב נגיש (דיסלקסיה / ראייה חלשה): ריווח מוגדל וגופן פשוט
-          </label>
-          <label className="check">
-            <input
-              type="checkbox"
-              checked={settings.pageTransition}
-              onChange={(e) => set('pageTransition', e.target.checked)}
-            />
-            אנימציית מעבר בין עמודים
-          </label>
-          <label className="check">
-            מילון (ויקימילון):{' '}
-            <select value={settings.dictLang} onChange={(e) => set('dictLang', e.target.value)}>
-              <option value="auto">לפי שפת הספר</option>
-              {DICT_LANGS.map(([code, name]) => (
-                <option key={code} value={code}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <ul className="shortcuts">
-            <li><kbd>←</kbd> <kbd>→</kbd> <kbd>רווח</kbd> מעבר עמוד</li>
-            <li><kbd>+</kbd> <kbd>-</kbd> גודל גופן</li>
-            <li><kbd>b</kbd> סימנייה · <kbd>t</kbd> תוכן · <kbd>n</kbd> הערות</li>
-            <li><kbd>/</kbd> חיפוש · <kbd>s</kbd> הגדרות · <kbd>Esc</kbd> סגירה</li>
-          </ul>
-        </Panel>
-      )}
-    </div>
-  )
-}
-
-/** stroked 24px SVG icon, so toolbar buttons look the same on every platform */
-function Icon({ d }: { d: string }) {
-  return (
-    <svg className="icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d={d} />
-    </svg>
-  )
-}
-
-const COLOR_NAMES = ['צהוב', 'ירוק', 'כחול', 'ורוד']
-
-/** floating panel: see Dialog — takes focus on open, traps Tab, returns focus to its opener on close */
-function Panel({ label, className = '', children }: { label: string; className?: string; children: React.ReactNode }) {
-  return (
-    <Dialog className={`panel ${className}`} role="dialog" aria-label={label}>
-      {children}
-    </Dialog>
-  )
-}
-
-function Seg<T extends string>({
-  value,
-  onChange,
-  options,
-}: {
-  value: T
-  onChange: (v: T) => void
-  options: [T, string][]
-}) {
-  return (
-    <div className="seg">
-      {options.map(([v, label]) => (
-        <button key={v} className={v === value ? 'on' : ''} aria-pressed={v === value} onClick={() => onChange(v)}>
-          {label}
-        </button>
-      ))}
+      {panel === 'settings' && <SettingsPanel settings={settings} set={set} bump={bump} />}
     </div>
   )
 }

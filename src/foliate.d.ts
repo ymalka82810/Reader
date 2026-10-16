@@ -1,4 +1,68 @@
 declare module 'foliate-js/view.js' {
+  export interface FoliateTocItem {
+    label: string
+    href: string
+    subitems?: FoliateTocItem[]
+  }
+
+  export interface FoliateSection {
+    /** source size in bytes, used to estimate page counts */
+    size?: number
+    linear?: string
+  }
+
+  /** the paginator / scroller inside the view */
+  export interface FoliateRenderer extends HTMLElement {
+    scrolled: boolean
+    /** page count of the current section, including the two padding pages in paginated mode */
+    pages: number
+    page: number
+    /** size of one page / viewport along the reading axis */
+    size: number
+    start: number
+    end: number
+    viewSize: number
+    setStyles?(css: string): void
+    getContents?(): { doc?: Document }[]
+  }
+
+  export interface FoliateRelocateDetail {
+    fraction?: number
+    cfi?: string
+    section?: { current: number; total: number }
+    tocItem?: { label?: string }
+  }
+
+  export interface FoliateSearchResult {
+    label: string
+    subitems?: { cfi: string; excerpt: { pre: string; match: string; post: string } }[]
+  }
+
+  /** the <foliate-view> custom element */
+  export interface FoliateView extends HTMLElement {
+    renderer: FoliateRenderer
+    book: {
+      dir?: string
+      metadata?: { language?: string | string[] }
+      toc?: FoliateTocItem[]
+      sections: FoliateSection[]
+    }
+    open(source: Blob | File | string | object): Promise<void>
+    init(opts: { lastLocation?: string; showTextStart?: boolean }): Promise<void>
+    close?(): void
+    goTo(target: string | number): Promise<unknown>
+    goToFraction(f: number): Promise<unknown>
+    next(): Promise<unknown>
+    prev(): Promise<unknown>
+    goLeft(): Promise<unknown>
+    goRight(): Promise<unknown>
+    getCFI(index: number, range?: Range): string
+    addAnnotation(a: { value: string; color?: string }): Promise<unknown>
+    deleteAnnotation(a: { value: string }): Promise<unknown>
+    search(opts: { query: string }): AsyncIterable<FoliateSearchResult | 'done'>
+    clearSearch(): void
+  }
+
   export const makeBook: (file: File | Blob | string) => Promise<any>
 }
 declare module 'foliate-js/overlayer.js' {

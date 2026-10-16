@@ -13,7 +13,9 @@ import {
   updateMeta,
   type BookRecord,
 } from './db'
-import { exportLibrary, importLibrary, parseManifest } from './backup'
+import { exportLibrary } from './backupExport'
+import { importLibrary } from './backupImport'
+import { parseManifest } from './backupManifest'
 import { addStats, loadStats } from './stats'
 
 const book = (id: string, extra: Partial<BookRecord> = {}): BookRecord => ({

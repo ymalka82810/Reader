@@ -4,7 +4,10 @@ on:
 permissions:
   contents: write
 jobs:
+  build:
+    uses: ./.github/workflows/build.yml
   apk:
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -13,7 +16,8 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 21 }
       - run: npm ci
-      - run: npm run build
+      - uses: actions/download-artifact@v4
+        with: { name: dist, path: dist }
       # Capacitor is installed only here, so package.json and the lockfile stay untouched.
       - run: npm install --no-save @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7
       - run: npx cap init "קורא ספרים" com.yanivm.reader --web-dir dist

@@ -12,7 +12,8 @@ import {
   type Annotation,
   type BookRecord,
 } from './db'
-import { exportLibrary, exportLibraryTo, importLibrary } from './backup'
+import { exportLibrary, exportLibraryTo } from './backupExport'
+import { importLibrary } from './backupImport'
 import { loadSettings, saveSettings } from './settings'
 import { addStats, loadStats } from './stats'
 

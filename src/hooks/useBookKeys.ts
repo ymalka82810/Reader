@@ -1,3 +1,4 @@
+import type { FoliateView } from 'foliate-js/view.js'
 import { useCallback, useEffect, useLayoutEffect, useRef, type MutableRefObject } from 'react'
 
 type KeyPanel = 'toc' | 'notes' | 'settings' | 'search'
@@ -11,7 +12,7 @@ export interface KeyActions {
 }
 
 interface Deps {
-  viewRef: MutableRefObject<any>
+  viewRef: MutableRefObject<FoliateView | null>
   actions: MutableRefObject<KeyActions>
   closePanel: () => void
   markActive: () => void

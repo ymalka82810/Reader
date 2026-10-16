@@ -1,4 +1,5 @@
 import { useCallback, useLayoutEffect, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react'
+import type { FoliateView } from 'foliate-js/view.js'
 import type { Settings } from '../lib/settings'
 
 export const MIN_FONT = 12
@@ -17,7 +18,7 @@ export const tapZone = (x: number, width: number): TapZone =>
 export const clampFont = (n: number) => Math.round(Math.min(MAX_FONT, Math.max(MIN_FONT, n)))
 
 export interface BookEventsDeps {
-  viewRef: MutableRefObject<any>
+  viewRef: MutableRefObject<FoliateView | null>
   settingsRef: MutableRefObject<Settings>
   panelRef: MutableRefObject<string | null>
   lastAnnotationClick: MutableRefObject<number>
@@ -60,8 +61,10 @@ export function useBookEvents(deps: BookEventsDeps) {
       const rect = range.getBoundingClientRect()
       const fr = (doc.defaultView?.frameElement as HTMLElement | null)?.getBoundingClientRect()
       try {
+        const cfi = viewRef.current?.getCFI(index, range)
+        if (!cfi) return
         setSelection({
-          cfi: viewRef.current.getCFI(index, range),
+          cfi,
           text,
           x: (fr?.left ?? 0) + rect.left + rect.width / 2,
           y: (fr?.top ?? 0) + rect.top,

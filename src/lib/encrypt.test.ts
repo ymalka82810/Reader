@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { decryptBlob, encryptBlob, isEncrypted, PasswordRequiredError, WrongPasswordError } from './encrypt'
 import { deleteBook, getBook, listBooks, saveBook } from './db'
-import { exportLibrary, importLibrary } from './backup'
+import { exportLibrary } from './backupExport'
+import { importLibrary } from './backupImport'
 
 const FAST = 1000 // PBKDF2 rounds; the default is deliberately slow
 
