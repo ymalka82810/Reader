@@ -26,6 +26,15 @@ export const DICT_LANGS: [string, string][] = [
   ['es', 'Español'],
 ]
 
+const prefers = (q: string) => typeof matchMedia === 'function' && matchMedia(q).matches
+
+/** defaults follow the OS: dark theme in dark mode, no animated page turns with reduced motion */
+const defaults = (): Settings => ({
+  ...DEFAULTS,
+  theme: prefers('(prefers-color-scheme: dark)') ? 'dark' : 'light',
+  pageTransition: !prefers('(prefers-reduced-motion: reduce)'),
+})
+
 const DEFAULTS: Settings = {
   fontSize: 20,
   lineHeight: 1.7,
@@ -42,9 +51,9 @@ const KEY = 'reader:settings'
 
 export function loadSettings(): Settings {
   try {
-    return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) ?? '{}') }
+    return { ...defaults(), ...JSON.parse(localStorage.getItem(KEY) ?? '{}') }
   } catch {
-    return DEFAULTS
+    return defaults()
   }
 }
 
