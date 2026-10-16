@@ -14,6 +14,16 @@ export default defineConfig({
       includeAssets: ['icon.svg', 'icon-192.png', 'icon-512.png', 'maskable-512.png'],
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,mjs,woff2}'],
+        // pdf.js (~2 MB with its worker) is only needed when importing a PDF, so keep it out of the
+        // install-time precache and cache it on first use instead.
+        globIgnores: ['**/assets/pdf-*', '**/assets/pdf.worker*'],
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) => /\/assets\/pdf(\.worker)?[.-]/.test(url.pathname),
+            handler: 'CacheFirst',
+            options: { cacheName: 'pdfjs' },
+          },
+        ],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         importScripts: ['share-target.js'],
       },

@@ -24,7 +24,7 @@ type DirHandle = {
 
 const MODE = { mode: 'readwrite' }
 
-export const autoBackupSupported = () => typeof (window as any).showDirectoryPicker === 'function'
+const autoBackupSupported = () => typeof (window as any).showDirectoryPicker === 'function'
 
 export function lastAutoBackup(): number {
   try {

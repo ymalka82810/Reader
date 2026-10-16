@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import JSZip from 'jszip'
 
 /** a small but multi-page EPUB, built on the fly so no binary fixture is needed */
@@ -27,6 +27,14 @@ async function makeEpub(): Promise<Buffer> {
   return zip.generateAsync({ type: 'nodebuffer' })
 }
 
+/** the imported book sits in its author's folder */
+async function openBook(page: Page) {
+  const folder = page.getByRole('button', { name: /תיקייה מחבר בדיקה/ })
+  await expect(folder).toBeVisible({ timeout: 30_000 })
+  await folder.click()
+  await page.getByRole('button', { name: /ספר בדיקה/ }).click()
+}
+
 test('import an EPUB, open it, turn a page, reload and keep the position', async ({ page }) => {
   await page.goto('/')
   await page.locator('input[type=file]').first().setInputFiles({
@@ -35,9 +43,7 @@ test('import an EPUB, open it, turn a page, reload and keep the position', async
     buffer: await makeEpub(),
   })
 
-  const card = page.getByRole('button', { name: /ספר בדיקה/ })
-  await expect(card).toBeVisible({ timeout: 30_000 })
-  await card.click()
+  await openBook(page)
 
   const position = page.getByLabel('מיקום בספר')
   await expect(page.getByText(/^עמוד/)).toBeVisible({ timeout: 30_000 })
@@ -59,6 +65,7 @@ test('import an EPUB, open it, turn a page, reload and keep the position', async
 
   // and the library card shows the saved progress
   await page.getByRole('button', { name: 'חזרה לספרייה' }).click()
+  await page.getByRole('button', { name: /תיקייה מחבר בדיקה/ }).click()
   await expect(page.getByRole('button', { name: /ספר בדיקה/ })).toContainText('%')
 })
 
@@ -75,7 +82,7 @@ for (const flow of ['paginated', 'scrolled'] as const) {
       mimeType: 'application/epub+zip',
       buffer: await makeEpub(),
     })
-    await page.getByRole('button', { name: /ספר בדיקה/ }).click()
+    await openBook(page)
     await expect(page.getByText(/^עמוד/)).toBeVisible({ timeout: 30_000 })
 
     const position = page.getByLabel('מיקום בספר')
