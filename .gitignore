@@ -26,3 +26,4 @@ dist-stats.html
 
 test-results
 playwright-report
+.VSCodeCounter/
