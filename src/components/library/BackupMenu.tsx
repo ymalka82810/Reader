@@ -3,7 +3,35 @@ import { formatBytes, type StorageStatus } from '../../lib/storage'
 import type { AutoBackupState } from '../../lib/autoBackup'
 import { isNativeApp } from '../../lib/updater'
 
+export type Filter = 'all' | 'reading' | 'unread' | 'finished'
+export type Sort = 'recent' | 'title' | 'author' | 'added'
+
+const FILTERS: [Filter, string][] = [
+  ['all', 'הכול'],
+  ['reading', 'בקריאה'],
+  ['unread', 'לא התחלתי'],
+  ['finished', 'נקראו'],
+]
+const SORTS: [Sort, string][] = [
+  ['recent', 'נפתח לאחרונה'],
+  ['added', 'נוסף לאחרונה'],
+  ['title', 'שם (א–ת)'],
+  ['author', 'מחבר (א–ת)'],
+]
+
+type View = {
+  filterSort: boolean
+  filter: Filter
+  onFilter: (f: Filter) => void
+  sort: Sort
+  onSort: (s: Sort) => void
+  onNewFolder?: () => void
+  selecting: boolean
+  onToggleSelect: () => void
+}
+
 type Props = {
+  view?: View
   busy: boolean
   storage?: StorageStatus
   onBackup: () => void
@@ -13,7 +41,7 @@ type Props = {
 }
 
 /** the "⋯" menu in the library header: backup, restore, app update and storage status */
-export function BackupMenu({ busy, storage, onBackup, onRestore, onCheckUpdate, auto }: Props) {
+export function BackupMenu({ view, busy, storage, onBackup, onRestore, onCheckUpdate, auto }: Props) {
   const [open, setOpen] = useState(false)
   const items: [string, () => void, string][] = [
     ['גיבוי', onBackup, 'ספרים, מיקום קריאה, הערות והגדרות (אפשר להצפין בסיסמה)'],
@@ -34,6 +62,38 @@ export function BackupMenu({ busy, storage, onBackup, onRestore, onCheckUpdate, 
         <>
           <div className="menu-backdrop" onClick={() => setOpen(false)} />
           <div className="menu" role="menu" onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}>
+            {view && (
+              <>
+                {view.filterSort && (
+                  <>
+                    <div className="menu-title">סינון</div>
+                    {FILTERS.map(([v, label]) => (
+                      <button key={v} role="menuitemradio" aria-checked={view.filter === v} onClick={() => { view.onFilter(v); setOpen(false) }}>
+                        {label}
+                        {view.filter === v && <span aria-hidden="true"> ✓</span>}
+                      </button>
+                    ))}
+                    <div className="menu-title">מיון</div>
+                    {SORTS.map(([v, label]) => (
+                      <button key={v} role="menuitemradio" aria-checked={view.sort === v} onClick={() => { view.onSort(v); setOpen(false) }}>
+                        {label}
+                        {view.sort === v && <span aria-hidden="true"> ✓</span>}
+                      </button>
+                    ))}
+                    <div className="menu-sep" role="separator" />
+                  </>
+                )}
+                {view.onNewFolder && (
+                  <button role="menuitem" onClick={() => { setOpen(false); view.onNewFolder!() }}>
+                    תיקייה חדשה
+                  </button>
+                )}
+                <button role="menuitem" onClick={() => { setOpen(false); view.onToggleSelect() }}>
+                  {view.selecting ? 'סיום בחירה' : 'בחירה'}
+                </button>
+                <div className="menu-sep" role="separator" />
+              </>
+            )}
             {items.map(([label, fn, tip]) => (
               <button
                 key={label}
