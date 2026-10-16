@@ -14,7 +14,7 @@ button.primary { background: var(--accent); color: #fff; }
 button:disabled { opacity: .5; }
 
 /* library */
-.library { min-height: 100%; padding: 1rem; max-width: 960px; margin: 0 auto; }
+.library { min-height: 100%; padding: 1rem; padding-top: calc(1rem + var(--safe-top)); max-width: 960px; margin: 0 auto; }
 .library.drag { outline: 3px dashed var(--accent); outline-offset: -8px; }
 .lib-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
 .lib-header h1 { margin: 0; font-size: 1.5rem; }
