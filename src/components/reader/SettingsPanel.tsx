@@ -80,6 +80,7 @@ export function SettingsPanel({
         <li><kbd>+</kbd> <kbd>-</kbd> גודל גופן</li>
         <li><kbd>b</kbd> סימנייה · <kbd>t</kbd> תוכן · <kbd>n</kbd> הערות</li>
         <li><kbd>a</kbd> או הקשה באמצע המסך: קריאה אוטומטית · <kbd>,</kbd> <kbd>.</kbd> לאט/מהר יותר</li>
+        <li><kbd>r</kbd> הקראה בקול</li>
         <li><kbd>/</kbd> חיפוש · <kbd>s</kbd> הגדרות · <kbd>Esc</kbd> סגירה</li>
       </ul>
     </Panel>

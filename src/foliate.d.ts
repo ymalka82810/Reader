@@ -27,7 +27,10 @@ declare module 'foliate-js/view.js' {
     /** on the last page of the last section */
     atEnd: boolean
     setStyles?(css: string): void
-    getContents?(): { doc?: Document }[]
+    prev(distance?: number): Promise<unknown>
+    next(distance?: number): Promise<unknown>
+    scrollToAnchor?(anchor: Range | Element | number): Promise<unknown>
+    getContents?(): { doc?: Document; index?: number }[]
   }
 
   export interface FoliateRelocateDetail {
@@ -35,6 +38,8 @@ declare module 'foliate-js/view.js' {
     cfi?: string
     section?: { current: number; total: number }
     tocItem?: { label?: string }
+    /** the text currently on screen */
+    range?: Range
   }
 
   export interface FoliateSearchResult {
@@ -65,6 +70,14 @@ declare module 'foliate-js/view.js' {
     deleteAnnotation(a: { value: string }): Promise<unknown>
     search(opts: { query: string }): AsyncIterable<FoliateSearchResult | 'done'>
     clearSearch(): void
+    /** speech helper for the open section; (re)created by initTTS */
+    tts: {
+      start(): string | undefined
+      next(): string | undefined
+      from(range: Range): string | undefined
+      setMark(name: string): void
+    }
+    initTTS(granularity?: 'word' | 'sentence', highlight?: (range: Range) => void): Promise<void>
   }
 
   export const makeBook: (file: File | Blob | string) => Promise<any>

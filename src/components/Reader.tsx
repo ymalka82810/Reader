@@ -14,9 +14,11 @@ import { useBookSearch } from './reader/useBookSearch'
 import { useBookKeys, type KeyActions } from '../hooks/useBookKeys'
 import { useReadingTracker } from '../hooks/useReadingTracker'
 import { useAutoRead } from '../hooks/useAutoRead'
+import { MAX_RATE, MIN_RATE, RATE_STEP, readAloudSupported, useReadAloud } from '../hooks/useReadAloud'
 import { clampFont, useBookEvents, type Selection } from '../hooks/useBookEvents'
 import { getBook, getNotes, newId, saveNotes, type Annotation } from '../lib/db'
 import { download } from '../lib/download'
+import { fixBookDir, guardBookEdges } from '../lib/foliateFixes'
 import { bookFromSections } from '../lib/pdfToBook'
 import { linearSizes } from '../lib/pace'
 import { formatMinutes, minutesLeft } from '../lib/stats'
@@ -67,6 +69,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     hideBars: () => {},
     autoRead: () => {},
     pace: () => {},
+    readAloud: () => {},
   })
   const attachDocHandlers = useBookEvents({
     viewRef,
@@ -174,9 +177,11 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
         r.setStyles?.(bookCSS(s))
 
         setTitle(rec.title)
-        setDir(view.book.dir === 'ltr' ? 'ltr' : 'rtl')
         const lang = [view.book.metadata?.language].flat()[0]
         bookLang.current = typeof lang === 'string' ? (lang.split(/[-_]/)[0] ?? '').toLowerCase() : ''
+        fixBookDir(view, bookLang.current, rec.title)
+        guardBookEdges(view)
+        setDir(view.book.dir === 'ltr' ? 'ltr' : 'rtl')
         setToc(flattenToc(view.book.toc))
 
         const on = <T,>(type: string, fn: (detail: T) => void) =>
@@ -259,9 +264,21 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     paused: uiVisible || !!panel || !!selection,
     markActive: tracker.markActive,
   })
+  const speech = useReadAloud({ viewRef, lastDetail, lang: bookLang })
   const toggleAuto = () => {
-    if (!auto.active) setUiVisible(false)
+    if (!auto.active) {
+      setUiVisible(false)
+      if (speech.active) void speech.toggle()
+    }
     void auto.toggle()
+  }
+  const toggleSpeech = () => {
+    if (!readAloudSupported) return flash('הקראה אינה נתמכת במכשיר זה')
+    if (!speech.active) {
+      setUiVisible(false)
+      if (auto.active) void auto.toggle()
+    }
+    void speech.toggle()
   }
 
   const addHighlight = (color: string) => {
@@ -375,6 +392,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
       hideBars: () => setUiVisible(false),
       autoRead: toggleAuto,
       pace: auto.adjust,
+      readAloud: toggleSpeech,
     }
   })
 
@@ -423,6 +441,16 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
         >
           <Icon d={auto.active ? 'M7 5v14M17 5v14' : 'M7 4v16l13-8z'} />
         </button>
+        {readAloudSupported && (
+          <button
+            onClick={toggleSpeech}
+            aria-label={speech.active ? 'עצור הקראה' : 'הקרא בקול'}
+            aria-pressed={speech.active}
+            title="הקראת הטקסט בקול (r)"
+          >
+            <Icon d={speech.active ? 'M6 6h12v12H6z' : 'M4 9v6h4l5 4V5L8 9zM16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12'} />
+          </button>
+        )}
         <button onClick={toggleBookmark} aria-label="סימנייה" title="הוסף/הסר סימנייה">
           <Icon d="M6 3h12v18l-6-4-6 4z" />
         </button>
@@ -444,6 +472,13 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
             <button onClick={() => auto.adjust(false)} aria-label="לאט יותר" title="לאט יותר (,)">−</button>
             <span title="זמן לכל מסך, לפי קצב הקריאה שלך">{auto.secsPerScreen ? `${auto.secsPerScreen} שנ׳/מסך` : '…'}</span>
             <button onClick={() => auto.adjust(true)} aria-label="מהר יותר" title="מהר יותר (.)">+</button>
+          </div>
+        )}
+        {speech.active && (
+          <div className="auto-pace" role="group" aria-label="מהירות הקראה">
+            <button onClick={() => speech.setRate(speech.rate - RATE_STEP)} disabled={speech.rate <= MIN_RATE} aria-label="הקראה איטית יותר" title="הקראה איטית יותר">−</button>
+            <span>{`הקראה ×${speech.rate.toFixed(1)}`}</span>
+            <button onClick={() => speech.setRate(speech.rate + RATE_STEP)} disabled={speech.rate >= MAX_RATE} aria-label="הקראה מהירה יותר" title="הקראה מהירה יותר">+</button>
           </div>
         )}
         <div className="progress">
