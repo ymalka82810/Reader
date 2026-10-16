@@ -58,7 +58,7 @@ export async function findUpdate(repo: string, tag: string): Promise<{ version: 
   if (!release) return null
   const body = release.body ?? ''
   const latest = Number(/^versionCode:\s*(\d+)/m.exec(body)?.[1] ?? /(\d+)$/.exec(release.tag_name)?.[1] ?? 0)
-  const sha256 = /^sha256:\s*([0-9a-f]{64})\s*$/im.exec(body)?.[1].toLowerCase()
+  const sha256 = /^sha256:\s*([0-9a-f]{64})\s*$/im.exec(body)?.[1]?.toLowerCase()
   const apk = release.assets.find((a) => a.name.endsWith('.apk'))
   if (latest <= versionCode || !apk) return null
   return { version: release.tag_name.slice(tag.length), url: apk.browser_download_url, sha256 }
