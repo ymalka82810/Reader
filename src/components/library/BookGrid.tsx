@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { isFinished, setFinished, type BookMeta } from '../../lib/db'
 import { Cover } from './Cover'
 
@@ -14,6 +15,8 @@ type Props = {
 }
 
 export function BookGrid({ books, selecting, selected, onOpen, onToggle, onEdit, onMove, onDelete, refresh }: Props) {
+  const [menuFor, setMenuFor] = useState<string>()
+  const close = () => setMenuFor(undefined)
   return (
     <ul className="grid">
       {books.map((b) => (
@@ -23,15 +26,20 @@ export function BookGrid({ books, selecting, selected, onOpen, onToggle, onEdit,
             aria-pressed={selecting ? selected.has(b.id) : undefined}
             onClick={() => (selecting ? onToggle(b.id) : onOpen(b.id))}
           >
-            <Cover book={b} />
+            <div className="cover-wrap">
+              <Cover book={b} />
+              {isFinished(b) ? (
+                <span className="done-badge" aria-label="נקרא">✓</span>
+              ) : (
+                !!b.fraction && (
+                  <progress className="cover-progress" value={b.fraction} max={1} aria-label={`${Math.round(b.fraction * 100)}% נקרא`} />
+                )
+              )}
+            </div>
             <div className="meta">
               <strong>{b.title}</strong>
               {b.author && <small>{b.author}</small>}
-              <small className="kind">
-                {b.fromPdf ? 'PDF' : b.kind.toUpperCase()}
-                {b.fraction ? ` · ${Math.round(b.fraction * 100)}%` : ''}
-                {isFinished(b) ? ' · נקרא ✓' : ''}
-              </small>
+              <small className="kind">{b.fromPdf ? 'PDF' : b.kind.toUpperCase()}</small>
             </div>
           </button>
           {selecting ? (
@@ -39,25 +47,35 @@ export function BookGrid({ books, selecting, selected, onOpen, onToggle, onEdit,
           ) : (
             <>
               <button
-                className={'fin' + (isFinished(b) ? ' on' : '')}
-                aria-label={isFinished(b) ? 'סמן כלא נקרא' : 'סמן כנקרא'}
-                aria-pressed={isFinished(b)}
-                onClick={async () => {
-                  await setFinished(b.id, !isFinished(b))
-                  refresh()
-                }}
+                className="more-btn"
+                aria-label="פעולות לספר"
+                aria-haspopup="menu"
+                aria-expanded={menuFor === b.id}
+                onClick={() => setMenuFor(menuFor === b.id ? undefined : b.id)}
               >
-                ✓
+                ⋯
               </button>
-              <button className="edit-btn" aria-label="עריכת שם ומחבר" onClick={() => onEdit(b)}>
-                ✎
-              </button>
-              <button className="folder-btn" aria-label="העבר לתיקייה" onClick={() => onMove(b)}>
-                📁
-              </button>
-              <button className="del" aria-label="מחק" onClick={() => onDelete(b)}>
-                ✕
-              </button>
+              {menuFor === b.id && (
+                <>
+                  <div className="menu-backdrop" onClick={close} />
+                  <div className="menu card-menu" role="menu" onKeyDown={(e) => e.key === 'Escape' && close()}>
+                    <button
+                      role="menuitem"
+                      onClick={async () => {
+                        close()
+                        await setFinished(b.id, !isFinished(b))
+                        refresh()
+                      }}
+                    >
+                      {isFinished(b) ? 'סמן כלא נקרא' : 'סמן כנקרא'}
+                    </button>
+                    <button role="menuitem" onClick={() => { close(); onEdit(b) }}>עריכת שם ומחבר</button>
+                    <button role="menuitem" onClick={() => { close(); onMove(b) }}>העבר לתיקייה</button>
+                    <div className="menu-sep" role="separator" />
+                    <button role="menuitem" className="danger-item" onClick={() => { close(); onDelete(b) }}>מחק</button>
+                  </div>
+                </>
+              )}
             </>
           )}
         </li>

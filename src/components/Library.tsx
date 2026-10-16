@@ -12,6 +12,7 @@ import { useAutoBackup } from '../hooks/useAutoBackup'
 import { useUpdateCheck } from '../hooks/useUpdateCheck'
 import { BackupMenu, type Filter, type Sort } from './library/BackupMenu'
 import { BookGrid } from './library/BookGrid'
+import { Cover } from './library/Cover'
 import { FolderBar, FolderList } from './library/FolderBar'
 import {
   ConfirmDeleteDialog,
@@ -78,6 +79,17 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   const inFolderList = !searching && !current
   const pickedFolders = folders.filter((f) => selectedFolders.has(f.key))
   const canDeleteFolders = pickedFolders.length > 0 && pickedFolders.every((f) => !f.books.length)
+
+  // the book opened last that is still in progress, offered as a one-tap way back
+  const resume = useMemo(() => {
+    if (selecting || query.trim() || filter !== 'all') return undefined
+    let best: BookMeta | undefined
+    for (const b of books) {
+      if (!b.fraction || isFinished(b) || !b.lastOpened) continue
+      if (!best || b.lastOpened > best.lastOpened!) best = b
+    }
+    return best
+  }, [books, selecting, query, filter])
 
   const doDelete = async () => {
     const list = confirmDel
@@ -175,6 +187,19 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
             ? 'הדפדפן לא אישר אחסון קבוע, והספרייה עלולה להימחק בכל רגע. עברו כמה ימים בלי גיבוי — ב־⋯ בחר ״גיבוי״ לשמירת עותק.'
             : 'עברו יותר משבועיים בלי גיבוי. הדפדפן עלול למחוק את הספרייה — ב־⋯ בחר ״גיבוי״ לשמירת עותק.'}
         </div>
+      )}
+
+      {resume && (
+        <button className="continue" onClick={() => onOpen(resume.id)}>
+          <Cover book={resume} />
+          <span className="continue-info">
+            <small>המשך לקרוא</small>
+            <strong>{resume.title}</strong>
+            {resume.author && <small>{resume.author}</small>}
+            <progress value={resume.fraction} max={1} aria-label={`${Math.round((resume.fraction ?? 0) * 100)}% נקרא`} />
+          </span>
+          <span className="continue-cta">המשך</span>
+        </button>
       )}
 
       {books.length > 1 && (
