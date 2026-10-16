@@ -29,7 +29,6 @@ export interface BookEventsDeps {
   setUiVisible: Dispatch<SetStateAction<boolean>>
   setPanel: (p: null) => void
   /** single tap in the middle of the page */
-  onMiddleTap: () => void
 }
 
 /**
@@ -91,13 +90,6 @@ export function useBookEvents(deps: BookEventsDeps) {
       if ((ev.target as Element).closest?.('a')) return
       // click position relative to the whole screen (the iframe can be offset/scrolled)
       const zone = tapZone(frameLeft() + ev.clientX, window.innerWidth)
-      // double tap in the middle toggles the bars; drop the word it selected
-      if (zone === 'middle' && ev.detail >= 2 && !panelRef.current) {
-        doc.getSelection()?.removeAllRanges()
-        setSelection(null)
-        setUiVisible((vis) => !vis)
-        return
-      }
       // rapid taps on the edges are page turns, not word selections
       if (zone !== 'middle' && ev.detail >= 2) {
         doc.getSelection()?.removeAllRanges()
@@ -119,7 +111,7 @@ export function useBookEvents(deps: BookEventsDeps) {
         requestAnimationFrame(() => requestAnimationFrame(() => viewRef.current?.[turn]()))
       } else if (ev.detail === 1) {
         middleTap = window.setTimeout(() => {
-          if (!doc.getSelection()?.toString()) d.current.onMiddleTap()
+          if (!doc.getSelection()?.toString()) d.current.setUiVisible((vis) => !vis)
         }, DOUBLE_TAP_MS)
       }
     })

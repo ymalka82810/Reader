@@ -291,7 +291,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
           {current && !searching && (
             <FolderBar
               folder={current}
-              onBack={() => fo.setOpenFolder(undefined)}
+              onBack={folders.length > 1 ? () => fo.setOpenFolder(undefined) : undefined}
               onRename={() => fo.setFolderDialog({ rename: current.name, name: current.name })}
               onDelete={() => fo.deleteFolders([current])}
             />

@@ -45,7 +45,6 @@ for (const flow of ['scrolled', 'paginated'] as const) {
       mimeType: 'application/epub+zip',
       buffer: await makeEpub(),
     })
-    await page.getByRole('button', { name: /תיקייה מחבר מגע/ }).click({ timeout: 30_000 })
     await page.getByRole('button', { name: /ספר מגע/ }).click()
     await expect(page.getByText(/^עמוד/)).toBeVisible({ timeout: 30_000 })
 
@@ -66,6 +65,6 @@ for (const flow of ['scrolled', 'paginated'] as const) {
 
     await page.keyboard.press('t')
     await page.getByRole('button', { name: 'פרק 3' }).click()
-    await expect(page.locator('.progress .label')).toContainText('פרק 3')
+    await expect(page.locator('.progress .label')).toHaveAttribute('title', /פרק 3/)
   })
 }

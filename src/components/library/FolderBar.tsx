@@ -37,7 +37,8 @@ export function FolderList({ folders, selecting, selectedFolders, onOpen, onTogg
 
 type BarProps = {
   folder: Folder
-  onBack: () => void
+  /** absent when it is the only folder */
+  onBack?: () => void
   onRename: () => void
   onDelete: () => void
 }
@@ -46,7 +47,7 @@ type BarProps = {
 export function FolderBar({ folder, onBack, onRename, onDelete }: BarProps) {
   return (
     <div className="folder-bar">
-      <button onClick={onBack}>→ כל התיקיות</button>
+      {onBack && <button onClick={onBack}>→ כל התיקיות</button>}
       <strong>📁 {folder.name || 'ללא מחבר'}</strong>
       <small>{folder.books.length === 1 ? 'ספר אחד' : `${folder.books.length} ספרים`}</small>
       {folder.key && <button onClick={onRename}>שינוי שם</button>}
