@@ -47,11 +47,15 @@ type BarProps = {
 export function FolderBar({ folder, onBack, onRename, onDelete }: BarProps) {
   return (
     <div className="folder-bar">
-      {onBack && <button onClick={onBack}>→ כל התיקיות</button>}
-      <strong>📁 {folder.name || 'ללא מחבר'}</strong>
-      <small>{folder.books.length === 1 ? 'ספר אחד' : `${folder.books.length} ספרים`}</small>
-      {folder.key && <button onClick={onRename}>שינוי שם</button>}
-      <button className="danger" onClick={onDelete}>מחק תיקייה</button>
+      <div className="folder-title">
+        <strong>📁 {folder.name || 'ללא מחבר'}</strong>
+        <small>{folder.books.length === 1 ? 'ספר אחד' : `${folder.books.length} ספרים`}</small>
+      </div>
+      <div className="folder-actions">
+        {onBack && <button onClick={onBack}>→ כל התיקיות</button>}
+        {folder.key && <button onClick={onRename}>שינוי שם</button>}
+        <button className="danger" onClick={onDelete}>מחק תיקייה</button>
+      </div>
     </div>
   )
 }
