@@ -333,7 +333,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
       if (!confirm(`יש גרסה חדשה (${update.version}). להוריד ולהתקין?`)) return
       const label = 'מוריד עדכון…'
       setBusy(label)
-      await installUpdate(update.url, (p) => setBusy(p >= 0 ? `${label} ${Math.round(p)}%` : label))
+      await installUpdate(update.url, update.sha256, (p) => setBusy(p >= 0 ? `${label} ${Math.round(p)}%` : label))
     } catch (e) {
       setError(`עדכון נכשל: ${e instanceof Error ? e.message : String(e)}`)
     }

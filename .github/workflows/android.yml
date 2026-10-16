@@ -56,6 +56,10 @@ jobs:
           name: reader-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
       - name: Publish release (used by the in-app updater)
-        run: gh release create "v1.0.${{ github.run_number }}" android/app/build/outputs/apk/debug/app-debug.apk --title "v1.0.${{ github.run_number }}" --notes "Build ${{ github.run_number }}"
+        run: |
+          apk=android/app/build/outputs/apk/debug/app-debug.apk
+          sha=$(sha256sum "$apk" | cut -d' ' -f1)
+          gh release create "v1.0.${{ github.run_number }}" "$apk" --title "v1.0.${{ github.run_number }}" \
+            --notes "$(printf 'versionCode: %s\nsha256: %s' '${{ github.run_number }}' "$sha")"
         env:
           GH_TOKEN: ${{ github.token }}

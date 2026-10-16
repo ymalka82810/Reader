@@ -24,7 +24,11 @@ import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 /**
  * Self-update for a sideloaded APK: downloads the new APK and opens the system install dialog,
@@ -41,8 +45,8 @@ import java.io.IOException;
  * Register it in MainActivity: registerPlugin(AppUpdaterPlugin.class) before super.onCreate().
  *
  * JS: appInfo() -> {versionCode, versionName}
- *     downloadAndInstall({url}) -> resolves once the install dialog is shown; rejects with
- *       "busy", "bad url", "download", "not an update", "permission" or "no installer"
+ *     downloadAndInstall({url, sha256?}) -> resolves once the install dialog is shown; rejects with
+ *       "busy", "bad url", "download", "checksum", "not an update", "permission" or "no installer"
  *     event "progress" -> {percent} while downloading (-1 when the size is unknown)
  */
 @CapacitorPlugin(name = "AppUpdater")
@@ -100,6 +104,12 @@ public class AppUpdaterPlugin extends Plugin {
                     long id = sameUrl ? runningDownload() : -1;
                     if (id == -1) id = enqueue(url);
                     waitFor(id);
+                }
+                String sha256 = call.getString("sha256");
+                if (sha256 != null && !sha256.equalsIgnoreCase(sha256(apk))) {
+                    apk.delete();
+                    call.reject("checksum");
+                    return;
                 }
                 if (!isUpdateOfThisApp(apk)) {
                     apk.delete();
@@ -191,6 +201,19 @@ public class AppUpdaterPlugin extends Plugin {
         Runnable action = onResume;
         onResume = null;
         if (action != null) action.run();
+    }
+
+    private static String sha256(File file) throws IOException {
+        try (InputStream in = new FileInputStream(file)) {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] buf = new byte[65536];
+            for (int n; (n = in.read(buf)) > 0; ) md.update(buf, 0, n);
+            StringBuilder hex = new StringBuilder();
+            for (byte b : md.digest()) hex.append(String.format("%02x", b));
+            return hex.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IOException(e);
+        }
     }
 
     // Same package and a newer version; otherwise the installer would fail with a vaguer message
