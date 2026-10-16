@@ -1,8 +1,7 @@
 name: Build Android APK
 on:
   workflow_dispatch:
-permissions:
-  contents: read
+permissions:\n  contents: write
 jobs:
   apk:
     runs-on: ubuntu-latest
@@ -22,6 +21,16 @@ jobs:
       - run: |
           rm -f android/app/src/main/res/mipmap-*/ic_launcher*.png
           cp -r resources/android/. android/app/src/main/res/
+      # Self-update: native plugin + permission + FileProvider path + versionCode = run number (tag v1.0.<n> ends with it).
+      - run: |
+          pkg=android/app/src/main/java/com/yanivm/reader
+          cp resources/android-updater/AppUpdaterPlugin.java $pkg/
+          sed -i 's/^public class MainActivity extends BridgeActivity {}$/public class MainActivity extends BridgeActivity {\n    @Override\n    public void onCreate(android.os.Bundle savedInstanceState) {\n        registerPlugin(AppUpdaterPlugin.class);\n        super.onCreate(savedInstanceState);\n    }\n}/' $pkg/MainActivity.java
+          grep -q registerPlugin $pkg/MainActivity.java
+          sed -i 's#<application#<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />\n    <application#' android/app/src/main/AndroidManifest.xml
+          sed -i 's#</paths>#    <external-files-path name="app_update" path="app-update/" />\n</paths>#' android/app/src/main/res/xml/file_paths.xml
+          sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"1.0.${{ github.run_number }}\"/" android/app/build.gradle
+          grep -q "versionCode ${{ github.run_number }}" android/app/build.gradle
       - run: npx cap sync android
       - run: ./gradlew assembleDebug
         working-directory: android
@@ -29,3 +38,7 @@ jobs:
         with:
           name: reader-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Publish release (used by the in-app updater)
+        run: gh release create "v1.0.${{ github.run_number }}" android/app/build/outputs/apk/debug/app-debug.apk --title "v1.0.${{ github.run_number }}" --notes "Build ${{ github.run_number }}"
+        env:
+          GH_TOKEN: ${{ github.token }}

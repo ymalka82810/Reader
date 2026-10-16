@@ -8,6 +8,9 @@ import { backupDue, exportLibrary, exportLibraryTo, importLibrary, librarySize, 
 import { download } from '../lib/download'
 import { onLaunchFiles, takeSharedFiles } from '../lib/inbox'
 import { formatBytes, getStorageStatus, type StorageStatus } from '../lib/storage'
+import { findUpdate, installUpdate, isNativeApp } from '../lib/updater'
+
+const UPDATE_REPO = 'ymalka82810/Reader'
 
 function Cover({ book }: { book: BookMeta }) {
   const [url, setUrl] = useState<string>()
@@ -316,6 +319,27 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
     setBusy(undefined)
   }
 
+  const checkUpdate = async () => {
+    setError(undefined)
+    try {
+      setBusy('בודק עדכונים…')
+      const update = await findUpdate(UPDATE_REPO, 'v')
+      if (!update) {
+        setBusy(undefined)
+        showToast('האפליקציה מעודכנת', undefined, 4000)
+        return
+      }
+      setBusy(undefined)
+      if (!confirm(`יש גרסה חדשה (${update.version}). להוריד ולהתקין?`)) return
+      const label = 'מוריד עדכון…'
+      setBusy(label)
+      await installUpdate(update.url, (p) => setBusy(p >= 0 ? `${label} ${Math.round(p)}%` : label))
+    } catch (e) {
+      setError(`עדכון נכשל: ${e instanceof Error ? e.message : String(e)}`)
+    }
+    setBusy(undefined)
+  }
+
   const doImport = async (file: File, password?: string) => {
     setError(undefined)
     try {
@@ -410,7 +434,9 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
                     ['גיבוי', () => { setPw(''); setPwAsk({ kind: 'export' }) }, 'ספרים, מיקום קריאה, הערות והגדרות (אפשר להצפין בסיסמה)'],
                     ['שחזור', pickRestore, 'מוסיף ספרים חסרים וממזג מיקום והערות'],
                   ] as [string, () => void, string][]
-                ).map(([label, fn, tip]) => (
+                )
+                  .concat(isNativeApp ? [['בדוק עדכון', checkUpdate, 'מחפש גרסה חדשה של האפליקציה ב-GitHub']] : [])
+                  .map(([label, fn, tip]) => (
                   <button
                     key={label}
                     role="menuitem"
