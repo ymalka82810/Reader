@@ -93,3 +93,21 @@ for (const flow of ['paginated', 'scrolled'] as const) {
     await expect(page.getByRole('button', { name: 'קריאה אוטומטית' })).toBeVisible()
   })
 }
+
+test('the back gesture leaves the book only when repeated', async ({ page }) => {
+  await page.goto('/')
+  await page.locator('input[type=file]').first().setInputFiles({
+    name: 'test.epub',
+    mimeType: 'application/epub+zip',
+    buffer: await makeEpub(),
+  })
+  await openBook(page)
+  await expect(page.getByText(/^עמוד/)).toBeVisible({ timeout: 30_000 })
+
+  await page.goBack()
+  await expect(page.getByText('החלקה נוספת תחזיר לספרייה')).toBeVisible()
+  await expect(page.getByText(/^עמוד/)).toBeVisible()
+
+  await page.goBack()
+  await expect(page.locator('.card', { hasText: 'ספר בדיקה' })).toBeVisible()
+})

@@ -8,6 +8,15 @@ export const MAX_FONT = 48
 const EDGE = 0.3
 /** a single tap in the middle waits this long to make sure it isn't the start of a double tap */
 const DOUBLE_TAP_MS = 300
+/** a touch that lifts within this time without moving is a tap */
+const TAP_MAX_MS = 500
+/** how far (px) a finger may drift during a tap */
+const TAP_SLOP = 12
+/** how long a tap waits for the browser's own click before handling the touch itself */
+const CLICK_WAIT_MS = 120
+
+const isMoved = (from: { x: number; y: number }, x: number, y: number) =>
+  Math.abs(x - from.x) > TAP_SLOP || Math.abs(y - from.y) > TAP_SLOP
 
 export type Selection = { cfi: string; text: string; x: number; y: number }
 
@@ -84,14 +93,13 @@ export function useBookEvents(deps: BookEventsDeps) {
     })
 
     let middleTap: number | undefined
-    doc.addEventListener('click', (ev: MouseEvent) => {
+    const onTap = (clientX: number, detail: number) => {
       window.clearTimeout(middleTap)
       const { viewRef, panelRef, lastAnnotationClick, setSelection, setUiVisible, setPanel } = d.current
-      if ((ev.target as Element).closest?.('a')) return
       // click position relative to the whole screen (the iframe can be offset/scrolled)
-      const zone = tapZone(frameLeft() + ev.clientX, window.innerWidth)
+      const zone = tapZone(frameLeft() + clientX, window.innerWidth)
       // rapid taps on the edges are page turns, not word selections
-      if (zone !== 'middle' && ev.detail >= 2) {
+      if (zone !== 'middle' && detail >= 2) {
         doc.getSelection()?.removeAllRanges()
         setSelection(null)
       }
@@ -109,11 +117,58 @@ export function useBookEvents(deps: BookEventsDeps) {
       if (turn) {
         setUiVisible(false)
         requestAnimationFrame(() => requestAnimationFrame(() => viewRef.current?.[turn]()))
-      } else if (ev.detail === 1) {
+      } else if (detail === 1) {
         middleTap = window.setTimeout(() => {
           if (!doc.getSelection()?.toString()) d.current.setUiVisible((vis) => !vis)
         }, DOUBLE_TAP_MS)
       }
+    }
+
+    // foliate's paginator cancels every touchmove, and the browser then often drops the click of
+    // a tap whose finger shifted a little, so the bars would not appear. A short, still touch is
+    // a tap too: if no click follows it soon, handle the touch itself.
+    let touchTap: { x: number; y: number; t: number } | null = null
+    let tapFallback: number | undefined
+    let fallbackAt = 0
+    let lastTouchTap = 0
+    doc.addEventListener(
+      'touchstart',
+      (ev: TouchEvent) => {
+        const t = ev.touches[0]
+        touchTap = ev.touches.length === 1 && t ? { x: t.clientX, y: t.clientY, t: Date.now() } : null
+      },
+      { passive: true },
+    )
+    doc.addEventListener(
+      'touchmove',
+      (ev: TouchEvent) => {
+        const t = ev.touches[0]
+        if (touchTap && (ev.touches.length !== 1 || !t || isMoved(touchTap, t.clientX, t.clientY))) touchTap = null
+      },
+      { passive: true },
+    )
+    doc.addEventListener('touchend', (ev: TouchEvent) => {
+      const start = touchTap
+      touchTap = null
+      const t = ev.changedTouches[0]
+      if (!start || !t || ev.touches.length || Date.now() - start.t > TAP_MAX_MS) return
+      if (isMoved(start, t.clientX, t.clientY) || (ev.target as Element).closest?.('a')) return
+      const now = Date.now()
+      const detail = now - lastTouchTap < DOUBLE_TAP_MS ? 2 : 1
+      lastTouchTap = now
+      window.clearTimeout(tapFallback)
+      tapFallback = window.setTimeout(() => {
+        fallbackAt = Date.now()
+        onTap(t.clientX, detail)
+      }, CLICK_WAIT_MS)
+    })
+
+    doc.addEventListener('click', (ev: MouseEvent) => {
+      window.clearTimeout(tapFallback)
+      // a late click for a tap the fallback already handled
+      if (Date.now() - fallbackAt < 600) return
+      if ((ev.target as Element).closest?.('a')) return
+      onTap(ev.clientX, ev.detail)
     })
 
     // scrolling hides the bars; pushing further once the section's end (start) is on screen moves
