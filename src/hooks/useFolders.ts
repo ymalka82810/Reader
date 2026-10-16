@@ -36,7 +36,13 @@ export function useFolders({ books, shown, createdNames, searching, refresh, sho
     const withBooks = new Map(groupFolders(shown).map((f) => [f.key, f]))
     return allFolders.flatMap((f) => (f.books.length ? (withBooks.get(f.key) ?? []) : f))
   }, [allFolders, shown])
-  const current = openFolder === undefined ? undefined : folders.find((f) => f.key === openFolder)
+  // with a single folder there is nothing to choose: show its books straight away
+  const current =
+    openFolder === undefined
+      ? folders.length === 1
+        ? folders[0]
+        : undefined
+      : folders.find((f) => f.key === openFolder)
   // a folder that emptied out (or is filtered away) falls back to the folder list
   useEffect(() => {
     // oxlint-disable-next-line react/set-state-in-effect -- leaves a folder that no longer exists

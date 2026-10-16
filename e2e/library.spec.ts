@@ -27,11 +27,10 @@ function makePdf(text: string): Buffer {
 const addFile = (page: Page, name: string, mimeType: string, buffer: Buffer) =>
   page.locator('input[type=file]').first().setInputFiles({ name, mimeType, buffer })
 
-/** books without an author are grouped in the "no author" folder */
+/** a lone folder opens by itself; wait for its bar */
 async function openNoAuthorFolder(page: Page) {
-  const folder = page.getByRole('button', { name: /תיקייה ללא מחבר/ })
-  await expect(folder).toBeVisible({ timeout: 60_000 })
-  await folder.click()
+  const bar = page.locator('.folder-bar')
+  await expect(bar).toBeVisible({ timeout: 60_000 })
 }
 
 /** "גיבוי" alone, not "גיבוי אוטומטי לתיקייה…" */

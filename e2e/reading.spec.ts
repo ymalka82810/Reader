@@ -27,12 +27,9 @@ async function makeEpub(): Promise<Buffer> {
   return zip.generateAsync({ type: 'nodebuffer' })
 }
 
-/** the imported book sits in its author's folder */
+/** the imported book sits in its author's folder, which opens by itself */
 async function openBook(page: Page) {
-  const folder = page.getByRole('button', { name: /תיקייה מחבר בדיקה/ })
-  await expect(folder).toBeVisible({ timeout: 30_000 })
-  await folder.click()
-  await page.locator('.card', { hasText: 'ספר בדיקה' }).click()
+  await page.locator('.card', { hasText: 'ספר בדיקה' }).click({ timeout: 30_000 })
 }
 
 test('import an EPUB, open it, turn a page, reload and keep the position', async ({ page }) => {
@@ -65,7 +62,6 @@ test('import an EPUB, open it, turn a page, reload and keep the position', async
 
   // and the library card shows the saved progress
   await page.getByRole('button', { name: 'חזרה לספרייה' }).click()
-  await page.getByRole('button', { name: /תיקייה מחבר בדיקה/ }).click()
   await expect(page.locator('.card', { hasText: 'ספר בדיקה' }).getByRole('progressbar')).toBeVisible()
 })
 

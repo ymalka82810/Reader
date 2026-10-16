@@ -99,7 +99,6 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     setSelection,
     setUiVisible,
     setPanel,
-    onMiddleTap: () => actions.current.autoRead(),
   })
 
   const tracker = useReadingTracker(id)
@@ -291,10 +290,15 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     paused: uiVisible || !!panel || !!selection,
     markActive: tracker.markActive,
   })
+  // search marks stay only while the search panel or the result stepper is open
+  useEffect(() => {
+    if (panel !== 'search' && hitIdx === null) viewRef.current?.clearSearch()
+  }, [panel, hitIdx])
   const speech = useReadAloud({ viewRef, lastDetail, lang: bookLang })
   const toggleAuto = () => {
     if (!auto.active) {
       setUiVisible(false)
+      flash('קריאה אוטומטית — הקשה באמצע עוצרת ומציגה תפריטים')
       if (speech.active) void speech.toggle()
     }
     void auto.toggle()
@@ -562,11 +566,10 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
             onPointerUp={commit}
             onKeyUp={commit}
           />
-          <div className="label">
-            {pages ? `עמוד ${pages.approx ? '~' : ''}${pages.current} מתוך ${pages.approx ? '~' : ''}${pages.total}` : ''}
-            {pages ? ' · ' : ''}
-            {Math.round(shownFraction * 100)}%{chapter ? ` · ${chapter}` : ''}
-            {left ? ` · נותרו ~${formatMinutes(left)}` : ''}
+          <div className="label" title={chapter || undefined}>
+            {pages ? `עמוד ${pages.current} מתוך ${pages.total} · ` : ''}
+            {Math.round(shownFraction * 100)}%
+            {left ? ` · נותרו ${formatMinutes(left)}` : ''}
           </div>
         </div>
         {readAloudSupported && (
