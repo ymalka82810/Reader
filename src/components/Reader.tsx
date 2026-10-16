@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import 'foliate-js/view.js'
 import { Overlayer } from 'foliate-js/overlayer.js'
 import { compare as cfiCompare } from 'foliate-js/epubcfi.js'
@@ -25,6 +25,8 @@ import { linearSizes } from '../lib/pace'
 import { formatMinutes, minutesLeft } from '../lib/stats'
 import { bookCSS, loadSettings, saveSettings, themeColors, type Settings } from '../lib/settings'
 
+const TAP_HELP_KEY = 'reader:tapHelpSeen'
+
 export default function Reader({ id, onClose }: { id: string; onClose: () => void }) {
   const host = useRef<HTMLDivElement>(null)
   const viewRef = useRef<FoliateView | null>(null)
@@ -50,6 +52,20 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   const [chapter, setChapter] = useState('')
   /** CFI of the current location, to show whether it is bookmarked */
   const [here, setHere] = useState('')
+  /** href of the current table-of-contents entry, to mark it in the list */
+  const [chapterHref, setChapterHref] = useState('')
+  /** where the reader was before the last jump, so one tap can go back */
+  const [backTo, setBackTo] = useState<{ cfi: string; page: number | null } | null>(null)
+  const backTimer = useRef<number | undefined>(undefined)
+  /** index of the search result the reader last went to, for the previous/next arrows */
+  const [hitIdx, setHitIdx] = useState<number | null>(null)
+  const [tapHelp, setTapHelp] = useState(() => {
+    try {
+      return !localStorage.getItem(TAP_HELP_KEY)
+    } catch {
+      return false
+    }
+  })
 
   const [notes, setNotes] = useState<Annotation[]>([])
   const notesRef = useRef<Annotation[]>([])
@@ -96,7 +112,13 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     window.clearTimeout(toastTimer.current)
     toastTimer.current = window.setTimeout(() => setToast(''), 1800)
   }, [])
-  useEffect(() => () => window.clearTimeout(toastTimer.current), [])
+  useEffect(
+    () => () => {
+      window.clearTimeout(toastTimer.current)
+      window.clearTimeout(backTimer.current)
+    },
+    [],
+  )
 
   const commitNotes = useCallback(
     (next: Annotation[]) => {
@@ -214,6 +236,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
           setFraction(f)
           setChapter(d.tocItem?.label ?? '')
           setHere(d.cfi ?? '')
+          setChapterHref(d.tocItem?.href ?? '')
           requestAnimationFrame(() => recompute(d))
         })
 
@@ -285,10 +308,36 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     void speech.toggle()
   }
 
+  /** go to a location, remembering the current one for a while so the reader can return to it */
+  const jumpTo = (target: string | number, isFraction = false) => {
+    const view = viewRef.current
+    if (!view) return
+    const cfi = lastDetail.current?.cfi
+    if (cfi) {
+      setBackTo({ cfi, page: pages?.current ?? null })
+      window.clearTimeout(backTimer.current)
+      backTimer.current = window.setTimeout(() => setBackTo(null), 20000)
+    }
+    if (isFraction) void view.goToFraction(target as number)
+    else void view.goTo(target as string)
+  }
+  const goBack = () => {
+    if (backTo) viewRef.current?.goTo(backTo.cfi)
+    setBackTo(null)
+  }
+
+  const hits = useMemo(() => search.results.flatMap((g) => g.items), [search.results])
+  const stepHit = (d: 1 | -1) => {
+    if (!hits.length) return
+    const next = ((hitIdx ?? (d === 1 ? -1 : 0)) + d + hits.length) % hits.length
+    setHitIdx(next)
+    viewRef.current?.goTo(hits[next]!.cfi)
+  }
+
   const addHighlight = (color: string) => {
     const sel = selectionRef.current
     const view = viewRef.current
-    if (!sel || !view) return
+    if (!sel || !view) return undefined
     const note: Annotation = {
       id: newId(),
       kind: 'highlight',
@@ -301,6 +350,31 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     commitNotes([...notesRef.current, note])
     view.addAnnotation({ value: note.cfi, color }).catch(console.error)
     view.renderer.getContents?.().forEach((c) => c.doc?.getSelection()?.removeAllRanges())
+    setSelection(null)
+    return note.id
+  }
+
+  const addNote = () => {
+    const noteId = addHighlight(HIGHLIGHT_COLORS[0] ?? '')
+    if (!noteId) return
+    setEditingId(noteId)
+    setPanel('edit')
+  }
+
+  const copySelection = () => {
+    const text = selectionRef.current?.text
+    if (!text) return
+    navigator.clipboard
+      ?.writeText(text)
+      .then(() => flash('הועתק'))
+      .catch(() => flash('ההעתקה נכשלה'))
+    setSelection(null)
+  }
+
+  const shareSelection = () => {
+    const text = selectionRef.current?.text
+    if (!text) return
+    navigator.share?.({ text, title }).catch(() => {})
     setSelection(null)
   }
 
@@ -350,7 +424,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
         : [...marks].reverse().find((n) => cfiCompare(n.cfi, here) < 0)
       : marks[0]
     if (!target) return flash(dir === 1 ? 'אין סימנייה נוספת קדימה' : 'אין סימנייה קודמת')
-    viewRef.current?.goTo(target.cfi)
+    jumpTo(target.cfi)
     flash(target.text)
   }
 
@@ -406,7 +480,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   const colors = themeColors(settings.theme)
   const shownFraction = dragFraction ?? fraction
   const commit = () => {
-    if (dragFraction !== null) viewRef.current?.goToFraction(dragFraction)
+    if (dragFraction !== null) jumpTo(dragFraction, true)
     setDragFraction(null)
   }
 
@@ -520,7 +594,45 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
           {HIGHLIGHT_COLORS.map((c, i) => (
             <button key={c} className="swatch" style={{ background: c }} aria-label={`הדגש בצבע ${COLOR_NAMES[i]}`} onClick={() => addHighlight(c)} />
           ))}
+          <button aria-label="הוסף הערה" title="הערה" onClick={addNote}>✎</button>
+          <button aria-label="העתק" title="העתק" onClick={copySelection}>⧉</button>
+          {typeof navigator.share === 'function' && (
+            <button aria-label="שתף" title="שתף" onClick={shareSelection}>⇪</button>
+          )}
           <button aria-label="חפש במילון" title="מילון" onClick={lookUp}>📖</button>
+        </div>
+      )}
+      {(backTo || (hitIdx !== null && hits.length > 0)) && !panel && (
+        <div className={'jump-chips' + (uiVisible ? '' : ' low')}>
+          {backTo && <button onClick={goBack}>{backTo.page ? `↩ חזרה לעמוד ${backTo.page}` : '↩ חזרה'}</button>}
+          {hitIdx !== null && hits.length > 0 && (
+            <div className="hit-nav" role="group" aria-label="תוצאות חיפוש">
+              <button onClick={() => stepHit(-1)} aria-label="התוצאה הקודמת" title="התוצאה הקודמת">›</button>
+              <span>{`${Math.max(hitIdx, 0) + 1} / ${hits.length}`}</span>
+              <button onClick={() => stepHit(1)} aria-label="התוצאה הבאה" title="התוצאה הבאה">‹</button>
+              <button onClick={() => setHitIdx(null)} aria-label="סגור ניווט תוצאות" title="סגור">✕</button>
+            </div>
+          )}
+        </div>
+      )}
+      {tapHelp && status === 'ready' && (
+        <div
+          className="tap-help"
+          role="dialog"
+          aria-label="הסבר על אזורי הלחיצה"
+          onClick={() => {
+            setTapHelp(false)
+            try {
+              localStorage.setItem(TAP_HELP_KEY, '1')
+            } catch {
+              /* private mode: the hint shows again next time */
+            }
+          }}
+        >
+          <div>הקשה בצד<br />מעבר עמוד</div>
+          <div>הקשה באמצע<br />תפריטים</div>
+          <div>הקשה בצד<br />מעבר עמוד</div>
+          <p>הקש בכל מקום כדי להמשיך</p>
         </div>
       )}
       {toast && (
@@ -534,8 +646,9 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
           {panel === 'toc' ? (
             <TocList
               toc={toc}
+              currentHref={chapterHref}
               onGoTo={(href) => {
-                viewRef.current?.goTo(href)
+                jumpTo(href)
                 setPanel(null)
               }}
             />
@@ -545,7 +658,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
               onExport={exportMarkdown}
               onRemove={removeNote}
               onGoTo={(cfi) => {
-                viewRef.current?.goTo(cfi)
+                jumpTo(cfi)
                 setPanel(null)
               }}
               onGotoBookmark={(d) => {
@@ -583,7 +696,8 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
           onSearch={search.run}
           onCancel={search.cancel}
           onGoTo={(cfi) => {
-            viewRef.current?.goTo(cfi)
+            setHitIdx(hits.findIndex((h) => h.cfi === cfi))
+            jumpTo(cfi)
             setPanel(null)
           }}
         />
