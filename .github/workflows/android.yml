@@ -18,6 +18,10 @@ jobs:
       - run: npm install --no-save @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7
       - run: npx cap init "קורא ספרים" com.yanivm.reader --web-dir dist
       - run: npx cap add android
+      # Launcher icons: Capacitor generates android/ fresh each run, so copy ours in.
+      - run: |
+          rm -f android/app/src/main/res/mipmap-*/ic_launcher*.png
+          cp -r resources/android/. android/app/src/main/res/
       - run: npx cap sync android
       - run: ./gradlew assembleDebug
         working-directory: android

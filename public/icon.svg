@@ -1,1 +1,65 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" fill="#2b6cb0"/><path d="M96 140c60-20 120-10 160 20v236c-40-30-100-40-160-20zM416 140c-60-20-120-10-160 20v236c40-30 100-40 160-20z" fill="#fff"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 432 432" width="512" height="512">
+<defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1E3A6B"/>
+      <stop offset="0.55" stop-color="#15294D"/>
+      <stop offset="1" stop-color="#0E1B33"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.42" r="0.6">
+      <stop offset="0" stop-color="#4C7FD1" stop-opacity="0.38"/>
+      <stop offset="1" stop-color="#4C7FD1" stop-opacity="0"/>
+    </radialGradient>
+  
+    <linearGradient id="pageR" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFDF7"/>
+      <stop offset="1" stop-color="#F0E7D6"/>
+    </linearGradient>
+    <linearGradient id="pageL" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FBF6EA"/>
+      <stop offset="1" stop-color="#E6DCC6"/>
+    </linearGradient>
+    <linearGradient id="ribbon" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F2B01E"/>
+      <stop offset="1" stop-color="#D98A09"/>
+    </linearGradient>
+    <filter id="sh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="7" stdDeviation="9" flood-color="#0B1B33" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  
+  <rect width="432" height="432" fill="url(#bg)"/>
+  <rect width="432" height="432" fill="url(#glow)"/>
+
+  
+
+  <g filter="url(#sh)">
+    <!-- left page -->
+    <path d="M216 142 C 186 118, 146 110, 104 114 C 96 115, 92 120, 92 128 L 92 290 C 92 298, 97 303, 105 302 C 146 298, 186 306, 216 328 Z" fill="url(#pageL)"/>
+    <!-- right page -->
+    <path d="M216 142 C 246 118, 286 110, 328 114 C 336 115, 340 120, 340 128 L 340 290 C 340 298, 335 303, 327 302 C 286 298, 246 306, 216 328 Z" fill="url(#pageR)"/>
+    <!-- spine shading -->
+    <path d="M216 142 L216 328" stroke="#C9BB9E" stroke-width="5" stroke-linecap="round" opacity="0.75"/>
+  </g>
+
+  <!-- RTL text lines: right page -->
+  <g fill="#2B4A7E" opacity="0.85">
+    <rect x="240" y="166" width="50" height="9" rx="4.5"/>
+    <rect x="236" y="190" width="54" height="9" rx="4.5"/>
+    <rect x="240" y="214" width="86" height="9" rx="4.5"/>
+    <rect x="236" y="238" width="90" height="9" rx="4.5"/>
+    <rect x="268" y="262" width="58" height="9" rx="4.5"/>
+  </g>
+  <!-- RTL text lines: left page -->
+  <g fill="#2B4A7E" opacity="0.5">
+    <rect x="110" y="166" width="82" height="9" rx="4.5"/>
+    <rect x="106" y="190" width="86" height="9" rx="4.5"/>
+    <rect x="118" y="214" width="74" height="9" rx="4.5"/>
+    <rect x="106" y="238" width="86" height="9" rx="4.5"/>
+    <rect x="138" y="262" width="54" height="9" rx="4.5"/>
+  </g>
+
+  <!-- bookmark ribbon -->
+  <path d="M298 110 L334 110 L334 200 L316 181 L298 200 Z" fill="url(#ribbon)"/>
+
+</svg>

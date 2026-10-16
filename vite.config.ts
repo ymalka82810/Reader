@@ -11,9 +11,9 @@ export default defineConfig({
     !!process.env.ANALYZE && visualizer({ filename: 'dist-stats.html', gzipSize: true }),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon.svg'],
+      includeAssets: ['icon.svg', 'icon-192.png', 'icon-512.png', 'maskable-512.png'],
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,mjs,woff2}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,mjs,woff2}'],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         importScripts: ['share-target.js'],
       },
@@ -50,7 +50,10 @@ export default defineConfig({
           },
         ],
         icons: [
-          { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
+          { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
     }),
