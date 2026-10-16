@@ -40,9 +40,46 @@ type Props = {
   auto: { state: AutoBackupState; last: number; onEnable: () => void; onDisable: () => void; onRenew: () => void }
 }
 
+/** a menu row that expands in place to show its choices; the row shows the current one */
+function SubMenu<T extends string>({ label, options, value, open, onToggle, onPick }: {
+  label: string
+  options: [T, string][]
+  value: T
+  open: boolean
+  onToggle: () => void
+  onPick: (v: T) => void
+}) {
+  return (
+    <>
+      <button className="menu-sub" role="menuitem" aria-haspopup="menu" aria-expanded={open} onClick={onToggle}>
+        <span>{label}</span>
+        <span className="menu-sub-value">
+          {options.find(([v]) => v === value)?.[1]} <span aria-hidden="true">{open ? '▴' : '▾'}</span>
+        </span>
+      </button>
+      {open && (
+        <div className="menu-sub-list" role="menu" aria-label={label}>
+          {options.map(([v, text]) => (
+            <button key={v} role="menuitemradio" aria-checked={value === v} onClick={() => onPick(v)}>
+              {text}
+              {value === v && <span aria-hidden="true"> ✓</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </>
+  )
+}
+
 /** the "⋯" menu in the library header: backup, restore, app update and storage status */
 export function BackupMenu({ view, busy, storage, onBackup, onRestore, onCheckUpdate, auto }: Props) {
   const [open, setOpen] = useState(false)
+  const [sub, setSub] = useState<'filter' | 'sort' | null>(null)
+  const close = () => {
+    setOpen(false)
+    setSub(null)
+  }
+  const toggleSub = (s: 'filter' | 'sort') => setSub((cur) => (cur === s ? null : s))
   const items: [string, () => void, string][] = [
     ['גיבוי', onBackup, 'ספרים, מיקום קריאה, הערות והגדרות (אפשר להצפין בסיסמה)'],
     ['שחזור', onRestore, 'מוסיף ספרים חסרים וממזג מיקום והערות'],
@@ -55,40 +92,28 @@ export function BackupMenu({ view, busy, storage, onBackup, onRestore, onCheckUp
 
   return (
     <div className="menu-wrap">
-      <button aria-label="עוד פעולות" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((m) => !m)}>
+      <button aria-label="עוד פעולות" aria-haspopup="menu" aria-expanded={open} onClick={() => (open ? close() : setOpen(true))}>
         ⋯
       </button>
       {open && (
         <>
-          <div className="menu-backdrop" onClick={() => setOpen(false)} />
-          <div className="menu" role="menu" onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}>
+          <div className="menu-backdrop" onClick={() => close()} />
+          <div className="menu" role="menu" onKeyDown={(e) => e.key === 'Escape' && close()}>
             {view && (
               <>
                 {view.filterSort && (
                   <>
-                    <div className="menu-title">סינון</div>
-                    {FILTERS.map(([v, label]) => (
-                      <button key={v} role="menuitemradio" aria-checked={view.filter === v} onClick={() => { view.onFilter(v); setOpen(false) }}>
-                        {label}
-                        {view.filter === v && <span aria-hidden="true"> ✓</span>}
-                      </button>
-                    ))}
-                    <div className="menu-title">מיון</div>
-                    {SORTS.map(([v, label]) => (
-                      <button key={v} role="menuitemradio" aria-checked={view.sort === v} onClick={() => { view.onSort(v); setOpen(false) }}>
-                        {label}
-                        {view.sort === v && <span aria-hidden="true"> ✓</span>}
-                      </button>
-                    ))}
+                    <SubMenu label="סינון" options={FILTERS} value={view.filter} open={sub === 'filter'} onToggle={() => toggleSub('filter')} onPick={(v) => { view.onFilter(v); close() }} />
+                    <SubMenu label="מיון" options={SORTS} value={view.sort} open={sub === 'sort'} onToggle={() => toggleSub('sort')} onPick={(v) => { view.onSort(v); close() }} />
                     <div className="menu-sep" role="separator" />
                   </>
                 )}
                 {view.onNewFolder && (
-                  <button role="menuitem" onClick={() => { setOpen(false); view.onNewFolder!() }}>
+                  <button role="menuitem" onClick={() => { close(); view.onNewFolder!() }}>
                     תיקייה חדשה
                   </button>
                 )}
-                <button role="menuitem" onClick={() => { setOpen(false); view.onToggleSelect() }}>
+                <button role="menuitem" onClick={() => { close(); view.onToggleSelect() }}>
                   {view.selecting ? 'סיום בחירה' : 'בחירה'}
                 </button>
                 <div className="menu-sep" role="separator" />
@@ -101,7 +126,7 @@ export function BackupMenu({ view, busy, storage, onBackup, onRestore, onCheckUp
                 title={tip}
                 disabled={busy}
                 onClick={() => {
-                  setOpen(false)
+                  close()
                   fn()
                 }}
               >
