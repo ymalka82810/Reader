@@ -20,7 +20,8 @@ async function migrateLegacy(id: string): Promise<Stats | undefined> {
     await set(id, s, store)
     localStorage.removeItem(legacyKey(id))
     return s
-  } catch {
+  } catch (e) {
+    console.warn('legacy stats migration failed', e)
     return undefined
   }
 }
@@ -30,7 +31,8 @@ export async function loadStats(id: string): Promise<Stats> {
     const s = await get<Stats>(id, store)
     if (s) return clean(s)
     return (await migrateLegacy(id)) ?? { secs: 0, frac: 0 }
-  } catch {
+  } catch (e) {
+    console.warn('stats read failed', e)
     return { secs: 0, frac: 0 }
   }
 }
@@ -38,7 +40,8 @@ export async function loadStats(id: string): Promise<Stats> {
 /** read-modify-write calls are chained so overlapping flushes never lose an increment */
 let queue: Promise<unknown> = Promise.resolve()
 const enqueue = (fn: () => Promise<void>) => {
-  queue = queue.then(fn, fn).catch(() => {})
+  // stats are best-effort: a failed write is logged and must not block later ones
+  queue = queue.then(fn, fn).catch((e) => console.warn('stats write failed', e))
   return queue as Promise<void>
 }
 
@@ -68,7 +71,7 @@ export function deleteStats(id: string): Promise<void> {
   try {
     localStorage.removeItem(legacyKey(id))
   } catch {
-    /* ignore */
+    /* localStorage unavailable: the legacy key is cleaned up on a later read */
   }
   return enqueue(() => del(id, store))
 }

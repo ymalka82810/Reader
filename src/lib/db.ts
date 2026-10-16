@@ -51,6 +51,7 @@ export const getFile = (id: string) => get<Blob>(id, fileStore)
 let writeQueue: Promise<unknown> = Promise.resolve()
 const serial = <T>(fn: () => Promise<T>): Promise<T> => {
   const run = writeQueue.then(fn, fn)
+  // the caller still gets `run` and its rejection; only the queue's own tail swallows it, so one failed write doesn't block the next
   writeQueue = run.catch(() => {})
   return run
 }

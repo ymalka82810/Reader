@@ -50,6 +50,6 @@ export function savePace(p: number) {
   try {
     localStorage.setItem(KEY, String(clampPace(p)))
   } catch {
-    /* ignore */
+    /* localStorage unavailable or full: the setting just won't persist */
   }
 }

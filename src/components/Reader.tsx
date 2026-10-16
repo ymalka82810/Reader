@@ -225,7 +225,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
       try {
         view.close?.()
       } catch {
-        /* ignore */
+        /* view may already be closed or half-initialised; teardown continues with remove() */
       }
       view.remove()
       viewRef.current = null
