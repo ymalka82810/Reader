@@ -11,10 +11,11 @@ type Deps = {
   refresh: () => Promise<void>
   showToast: (msg: string) => void
   exitSelect: () => void
+  deleteBooks: (list: BookMeta[]) => Promise<void>
 }
 
 /** folder grouping, the folder being viewed, and moving books between folders */
-export function useFolders({ books, shown, createdNames, searching, refresh, showToast, exitSelect }: Deps) {
+export function useFolders({ books, shown, createdNames, searching, refresh, showToast, exitSelect, deleteBooks }: Deps) {
   // the folder being viewed (its key; '' = books without an author) and the books being moved
   const [openFolder, setOpenFolder] = useState<string>()
   const [moving, setMoving] = useState<BookMeta[]>()
@@ -70,18 +71,25 @@ export function useFolders({ books, shown, createdNames, searching, refresh, sho
     await refresh()
   }
 
-  const deleteEmptyFolders = async (list: Folder[]) => {
-    const what = list.length === 1 ? `את התיקייה ״${list[0]?.name}״` : `${list.length} תיקיות`
-    if (!confirm(`למחוק ${what}? התיקיות ריקות, ולא יימחק אף ספר.`)) return
-    for (const f of list) await removeFolderName(f.name)
+  /** deletes the folders and every book in them (the books can be undone from the toast) */
+  const deleteFolders = async (list: Folder[]) => {
+    // the visible folder may hold only the books that pass the filter, so count the real ones
+    const keys = new Set(list.map((f) => f.key))
+    const all = allFolders.filter((f) => keys.has(f.key))
+    const doomed = all.flatMap((f) => f.books)
+    const what = all.length === 1 ? `את התיקייה ״${all[0]?.name}״` : `${all.length} תיקיות`
+    const extra = doomed.length ? ` וגם ${doomed.length === 1 ? 'הספר שבה' : `${doomed.length} ספרים שבהן`}` : ''
+    if (!confirm(`למחוק ${what}${extra}? אפשר לבטל את מחיקת הספרים מיד אחרי.`)) return
+    for (const f of all) if (f.key) await removeFolderName(f.name)
     setOpenFolder(undefined)
     exitSelect()
-    await refresh()
+    if (doomed.length) await deleteBooks(doomed)
+    else await refresh()
   }
 
   return {
     allFolders, folders, current, openFolder, setOpenFolder,
     moving, setMoving, newFolder, setNewFolder,
-    folderDialog, setFolderDialog, moveTo, saveFolderDialog, deleteEmptyFolders,
+    folderDialog, setFolderDialog, moveTo, saveFolderDialog, deleteFolders,
   }
 }

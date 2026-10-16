@@ -32,7 +32,7 @@ async function openBook(page: Page) {
   const folder = page.getByRole('button', { name: /תיקייה מחבר בדיקה/ })
   await expect(folder).toBeVisible({ timeout: 30_000 })
   await folder.click()
-  await page.getByRole('button', { name: /ספר בדיקה/ }).click()
+  await page.locator('.card', { hasText: 'ספר בדיקה' }).click()
 }
 
 test('import an EPUB, open it, turn a page, reload and keep the position', async ({ page }) => {
@@ -66,7 +66,7 @@ test('import an EPUB, open it, turn a page, reload and keep the position', async
   // and the library card shows the saved progress
   await page.getByRole('button', { name: 'חזרה לספרייה' }).click()
   await page.getByRole('button', { name: /תיקייה מחבר בדיקה/ }).click()
-  await expect(page.getByRole('button', { name: /ספר בדיקה/ })).toContainText('%')
+  await expect(page.locator('.card', { hasText: 'ספר בדיקה' }).getByRole('progressbar')).toBeVisible()
 })
 
 for (const flow of ['paginated', 'scrolled'] as const) {

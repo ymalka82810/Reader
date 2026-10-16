@@ -50,9 +50,7 @@ export function FolderBar({ folder, onBack, onRename, onDelete }: BarProps) {
       <strong>📁 {folder.name || 'ללא מחבר'}</strong>
       <small>{folder.books.length === 1 ? 'ספר אחד' : `${folder.books.length} ספרים`}</small>
       {folder.key && <button onClick={onRename}>שינוי שם</button>}
-      {!folder.books.length && (
-        <button className="danger" onClick={onDelete}>מחק תיקייה</button>
-      )}
+      <button className="danger" onClick={onDelete}>מחק תיקייה</button>
     </div>
   )
 }
