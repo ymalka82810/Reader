@@ -11,6 +11,8 @@ export default defineConfig({
     !!process.env.ANALYZE && visualizer({ filename: 'dist-stats.html', gzipSize: true }),
     VitePWA({
       registerType: 'autoUpdate',
+      // registered by src/lib/serviceWorker.ts, which skips the Android app
+      injectRegister: false,
       includeAssets: ['icon.svg', 'icon-192.png', 'icon-512.png', 'maskable-512.png'],
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,mjs,woff2}'],
