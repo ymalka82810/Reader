@@ -124,38 +124,50 @@ export function useBookEvents(deps: BookEventsDeps) {
       }
     })
 
-    // scrolling hides the bars; pushing further once the section's end is on screen moves to the next section
-    const atSectionEnd = () => {
+    // scrolling hides the bars; pushing further once the section's end (start) is on screen moves
+    // to the next (previous) section
+    const atSectionEdge = (dir: 1 | -1) => {
       const r = d.current.viewRef.current?.renderer
-      return !!r?.scrolled && r.viewSize - r.end <= 2
+      if (!r?.scrolled) return false
+      return dir === 1 ? r.viewSize - r.end <= 2 : r.start <= 2
+    }
+    const turnSection = (dir: 1 | -1) => {
+      const view = d.current.viewRef.current
+      if (dir === 1) view?.next()
+      else view?.prev()
     }
     const hideBars = () => d.current.setUiVisible((vis) => (vis ? false : vis))
-    let wheelAtEnd = 0
+    let wheelAtEdge = 0
+    let wheelDir: 1 | -1 = 1
     doc.addEventListener(
       'wheel',
       (ev: WheelEvent) => {
-        if (ev.deltaY <= 0 || ev.ctrlKey) return
-        hideBars()
-        if (!atSectionEnd()) {
-          wheelAtEnd = 0
-          return
+        if (ev.deltaY === 0 || ev.ctrlKey) return
+        const dir = ev.deltaY > 0 ? 1 : -1
+        if (dir === 1) hideBars()
+        if (dir !== wheelDir || !atSectionEdge(dir)) {
+          wheelAtEdge = 0
+          wheelDir = dir
+          if (!atSectionEdge(dir)) return
         }
-        // the first wheel notch that reaches the end must not also turn the section
-        if (wheelAtEnd === 0) wheelAtEnd = Date.now()
-        else if (Date.now() - wheelAtEnd > 150) {
-          wheelAtEnd = 0
-          d.current.viewRef.current?.next()
+        // the first wheel notch that reaches the edge must not also turn the section
+        if (wheelAtEdge === 0) wheelAtEdge = Date.now()
+        else if (Date.now() - wheelAtEdge > 150) {
+          wheelAtEdge = 0
+          turnSection(dir)
         }
       },
       { passive: true },
     )
     let dragY: number | null = null
     let dragWasAtEnd = false
+    let dragWasAtStart = false
     doc.addEventListener(
       'touchstart',
       (ev: TouchEvent) => {
         dragY = ev.touches.length === 1 ? (ev.touches[0]?.clientY ?? null) : null
-        dragWasAtEnd = atSectionEnd()
+        dragWasAtEnd = atSectionEdge(1)
+        dragWasAtStart = atSectionEdge(-1)
       },
       { passive: true },
     )
@@ -169,8 +181,9 @@ export function useBookEvents(deps: BookEventsDeps) {
     )
     doc.addEventListener('touchend', (ev: TouchEvent) => {
       const endY = ev.changedTouches[0]?.clientY
-      if (dragY !== null && endY !== undefined && dragWasAtEnd && dragY - endY > 60 && atSectionEnd()) {
-        d.current.viewRef.current?.next()
+      if (dragY !== null && endY !== undefined) {
+        if (dragWasAtEnd && dragY - endY > 60 && atSectionEdge(1)) turnSection(1)
+        else if (dragWasAtStart && endY - dragY > 60 && atSectionEdge(-1)) turnSection(-1)
       }
       dragY = null
     })
