@@ -9,6 +9,7 @@ import { useLibrary } from '../hooks/useLibrary'
 import { useImport } from '../hooks/useImport'
 import { useFolders } from '../hooks/useFolders'
 import { useBackup } from '../hooks/useBackup'
+import { useAutoBackup } from '../hooks/useAutoBackup'
 import { useUpdateCheck } from '../hooks/useUpdateCheck'
 import { BackupMenu } from './library/BackupMenu'
 import { BookGrid } from './library/BookGrid'
@@ -49,6 +50,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   const imp = useImport({ refresh, setBusy, setError })
   const backup = useBackup({ refresh, setBusy, setError, showToast, onBackedUp: () => setDismissed(true) })
   const checkUpdate = useUpdateCheck({ setBusy, setError, showToast })
+  const auto = useAutoBackup({ setError, showToast })
 
   // without persistent storage the browser may evict the library, so remind sooner
   const unprotected = storage ? !storage.persisted : false
@@ -139,6 +141,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
           onBackup={backup.askExport}
           onRestore={() => restoreInput.current?.click()}
           onCheckUpdate={checkUpdate}
+          auto={{ state: auto.state, last: auto.last, onEnable: auto.enable, onDisable: auto.disable, onRenew: auto.renew }}
         />
         <input
           ref={restoreInput}
