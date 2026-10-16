@@ -31,9 +31,25 @@ jobs:
           sed -i 's#</paths>#    <external-files-path name="app_update" path="app-update/" />\n</paths>#' android/app/src/main/res/xml/file_paths.xml
           sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"1.0.${{ github.run_number }}\"/" android/app/build.gradle
           grep -q "versionCode ${{ github.run_number }}" android/app/build.gradle
+      # Sign with the fixed key (secrets) so every build can update the previous one.
+      - run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/release.p12
+          cat >> android/app/build.gradle <<'EOF'
+          android.signingConfigs.debug {
+              storeFile file('release.p12')
+              storeType 'pkcs12'
+              storePassword System.getenv('KEYSTORE_PASSWORD')
+              keyAlias 'reader'
+              keyPassword System.getenv('KEYSTORE_PASSWORD')
+          }
+          EOF
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
       - run: npx cap sync android
       - run: ./gradlew assembleDebug
         working-directory: android
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
       - uses: actions/upload-artifact@v4
         with:
           name: reader-debug-apk
