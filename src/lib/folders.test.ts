@@ -15,6 +15,12 @@ describe('folders', () => {
     ])
   })
 
+  it('ignores nikud, showing the plain spelling', () => {
+    const f = groupFolders([book('a', 'מֹשֶׁה'), book('b', 'משה'), book('c', 'מֹשה')])
+    expect(f.map((x) => [x.name, x.books.map((b) => b.id)])).toEqual([['משה', ['a', 'b', 'c']]])
+    expect(folderToStore({ author: 'מֹשֶׁה' }, 'משה')).toBeUndefined()
+  })
+
   it('a chosen folder overrides the author, and an empty choice means no folder', () => {
     expect(folderName(book('a', 'ב', 'סדרה'))).toBe('סדרה')
     expect(folderName(book('a', 'ב', ''))).toBe('')

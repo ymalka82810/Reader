@@ -1,7 +1,7 @@
 import type { BookMeta } from './db'
 
 export interface Folder {
-  /** case-insensitive identity; '' is the "no author" folder */
+  /** identity ignoring case and nikud/accents; '' is the "no author" folder */
   key: string
   /** the name to show; '' for the "no author" folder */
   name: string
@@ -9,7 +9,8 @@ export interface Folder {
 }
 
 const clean = (s: string | undefined) => (s ?? '').replace(/\s+/g, ' ').trim()
-const keyOf = (name: string) => name.toLocaleLowerCase('he')
+/** nikud and accents are dropped so "משה" and "מֹשֶׁה" land in the same folder */
+const keyOf = (name: string) => name.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('he')
 
 /** A book's folder name: the one the user picked (an empty pick means "no folder"), otherwise its author. */
 export const folderName = (b: Pick<BookMeta, 'author' | 'folder'>) => clean(b.folder ?? b.author)
@@ -23,8 +24,11 @@ export function groupFolders(books: BookMeta[]): Folder[] {
     const name = folderName(b)
     const key = keyOf(name)
     const f = map.get(key)
-    if (f) f.books.push(b)
-    else map.set(key, { key, name, books: [b] })
+    if (f) {
+      f.books.push(b)
+      // show the plainest spelling (the one with the fewest marks)
+      if (name.normalize('NFD').length < f.name.normalize('NFD').length) f.name = name
+    } else map.set(key, { key, name, books: [b] })
   }
   return [...map.values()].sort((a, b) =>
     !a.key ? 1 : !b.key ? -1 : a.name.localeCompare(b.name, 'he'),
