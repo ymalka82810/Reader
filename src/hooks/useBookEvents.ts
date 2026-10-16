@@ -6,6 +6,8 @@ export const MIN_FONT = 12
 export const MAX_FONT = 48
 /** share of the screen width, on each side, that turns the page when tapped */
 const EDGE = 0.3
+/** a single tap in the middle waits this long to make sure it isn't the start of a double tap */
+const DOUBLE_TAP_MS = 300
 
 export type Selection = { cfi: string; text: string; x: number; y: number }
 
@@ -26,6 +28,8 @@ export interface BookEventsDeps {
   setSelection: Dispatch<SetStateAction<Selection | null>>
   setUiVisible: Dispatch<SetStateAction<boolean>>
   setPanel: (p: null) => void
+  /** single tap in the middle of the page */
+  onMiddleTap: () => void
 }
 
 /**
@@ -80,7 +84,9 @@ export function useBookEvents(deps: BookEventsDeps) {
       if (tapZone(frameLeft() + ev.clientX, window.innerWidth) !== 'middle') ev.preventDefault()
     })
 
+    let middleTap: number | undefined
     doc.addEventListener('click', (ev: MouseEvent) => {
+      window.clearTimeout(middleTap)
       const { viewRef, panelRef, lastAnnotationClick, setSelection, setUiVisible, setPanel } = d.current
       if ((ev.target as Element).closest?.('a')) return
       // click position relative to the whole screen (the iframe can be offset/scrolled)
@@ -111,6 +117,10 @@ export function useBookEvents(deps: BookEventsDeps) {
       if (turn) {
         setUiVisible(false)
         requestAnimationFrame(() => requestAnimationFrame(() => viewRef.current?.[turn]()))
+      } else if (ev.detail === 1) {
+        middleTap = window.setTimeout(() => {
+          if (!doc.getSelection()?.toString()) d.current.onMiddleTap()
+        }, DOUBLE_TAP_MS)
       }
     })
 

@@ -61,3 +61,32 @@ test('import an EPUB, open it, turn a page, reload and keep the position', async
   await page.getByRole('button', { name: 'חזרה לספרייה' }).click()
   await expect(page.getByRole('button', { name: /ספר בדיקה/ })).toContainText('%')
 })
+
+for (const flow of ['paginated', 'scrolled'] as const) {
+  test(`auto-reading moves the text by itself (${flow})`, async ({ page }) => {
+    // the fastest stored pace, so the test doesn't wait for a real reader's page time
+    await page.addInitScript((f) => {
+      localStorage.setItem('reader:pace', '1')
+      localStorage.setItem('reader:settings', JSON.stringify({ flow: f, pageTransition: false }))
+    }, flow)
+    await page.goto('/')
+    await page.locator('input[type=file]').first().setInputFiles({
+      name: 'test.epub',
+      mimeType: 'application/epub+zip',
+      buffer: await makeEpub(),
+    })
+    await page.getByRole('button', { name: /ספר בדיקה/ }).click()
+    await expect(page.getByText(/^עמוד/)).toBeVisible({ timeout: 30_000 })
+
+    const position = page.getByLabel('מיקום בספר')
+    const readFraction = async () => parseFloat(await position.inputValue())
+    const before = await readFraction()
+
+    await page.getByRole('button', { name: 'קריאה אוטומטית' }).click()
+    await expect.poll(readFraction, { timeout: 15_000 }).toBeGreaterThan(before)
+
+    // the shortcut stops it again
+    await page.keyboard.press('a')
+    await expect(page.getByRole('button', { name: 'קריאה אוטומטית' })).toBeVisible()
+  })
+}
