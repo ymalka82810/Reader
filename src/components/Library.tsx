@@ -74,11 +74,10 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
 
   // searching looks through every folder at once
   const searching = !!query.trim()
-  const fo = useFolders({ books, shown, createdNames, searching, refresh, showToast, exitSelect })
+  const fo = useFolders({ books, shown, createdNames, searching, refresh, showToast, exitSelect, deleteBooks })
   const { folders, current } = fo
   const inFolderList = !searching && !current
   const pickedFolders = folders.filter((f) => selectedFolders.has(f.key))
-  const canDeleteFolders = pickedFolders.length > 0 && pickedFolders.every((f) => !f.books.length)
 
   // the book opened last that is still in progress, offered as a one-tap way back
   const resume = useMemo(() => {
@@ -221,9 +220,8 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
             <button onClick={() => setSelectedFolders(new Set(folders.map((f) => f.key)))}>בחר כל התיקיות</button>
             <button
               className="danger"
-              disabled={!canDeleteFolders}
-              title="אפשר למחוק רק תיקיות ריקות"
-              onClick={() => fo.deleteEmptyFolders(pickedFolders)}
+              disabled={pickedFolders.length === 0}
+              onClick={() => fo.deleteFolders(pickedFolders)}
             >
               מחק תיקיות
             </button>
@@ -295,7 +293,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
               folder={current}
               onBack={() => fo.setOpenFolder(undefined)}
               onRename={() => fo.setFolderDialog({ rename: current.name, name: current.name })}
-              onDelete={() => fo.deleteEmptyFolders([current])}
+              onDelete={() => fo.deleteFolders([current])}
             />
           )}
           {current && !current.books.length && !searching && (

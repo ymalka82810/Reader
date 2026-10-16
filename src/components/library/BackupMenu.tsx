@@ -40,46 +40,51 @@ type Props = {
   auto: { state: AutoBackupState; last: number; onEnable: () => void; onDisable: () => void; onRenew: () => void }
 }
 
-/** a menu row that expands in place to show its choices; the row shows the current one */
-function SubMenu<T extends string>({ label, options, value, open, onToggle, onPick }: {
+/** a menu row that opens its choices in a separate panel beside the menu; the row shows the current one */
+function SubMenuRow({ label, current, open, onToggle }: {
+  label: string
+  current?: string
+  open: boolean
+  onToggle: (top: number) => void
+}) {
+  return (
+    <button className="menu-sub" role="menuitem" aria-haspopup="menu" aria-expanded={open} onClick={(e) => onToggle(e.currentTarget.offsetTop)}>
+      <span>{label}</span>
+      <span className="menu-sub-value">
+        {current} <span aria-hidden="true">{open ? '◂' : '▸'}</span>
+      </span>
+    </button>
+  )
+}
+
+function SubMenuPanel<T extends string>({ label, options, value, top, onPick }: {
   label: string
   options: [T, string][]
   value: T
-  open: boolean
-  onToggle: () => void
+  top: number
   onPick: (v: T) => void
 }) {
   return (
-    <>
-      <button className="menu-sub" role="menuitem" aria-haspopup="menu" aria-expanded={open} onClick={onToggle}>
-        <span>{label}</span>
-        <span className="menu-sub-value">
-          {options.find(([v]) => v === value)?.[1]} <span aria-hidden="true">{open ? '▴' : '▾'}</span>
-        </span>
-      </button>
-      {open && (
-        <div className="menu-sub-list" role="menu" aria-label={label}>
-          {options.map(([v, text]) => (
-            <button key={v} role="menuitemradio" aria-checked={value === v} onClick={() => onPick(v)}>
-              {text}
-              {value === v && <span aria-hidden="true"> ✓</span>}
-            </button>
-          ))}
-        </div>
-      )}
-    </>
+    <div className="menu menu-side" role="menu" aria-label={label} style={{ marginTop: top }}>
+      {options.map(([v, text]) => (
+        <button key={v} role="menuitemradio" aria-checked={value === v} onClick={() => onPick(v)}>
+          {text}
+          {value === v && <span aria-hidden="true"> ✓</span>}
+        </button>
+      ))}
+    </div>
   )
 }
 
 /** the "⋯" menu in the library header: backup, restore, app update and storage status */
 export function BackupMenu({ view, busy, storage, onBackup, onRestore, onCheckUpdate, auto }: Props) {
   const [open, setOpen] = useState(false)
-  const [sub, setSub] = useState<'filter' | 'sort' | null>(null)
+  const [sub, setSub] = useState<{ which: 'filter' | 'sort'; top: number } | null>(null)
   const close = () => {
     setOpen(false)
     setSub(null)
   }
-  const toggleSub = (s: 'filter' | 'sort') => setSub((cur) => (cur === s ? null : s))
+  const toggleSub = (which: 'filter' | 'sort', top: number) => setSub((cur) => (cur?.which === which ? null : { which, top }))
   const items: [string, () => void, string][] = [
     ['גיבוי', onBackup, 'ספרים, מיקום קריאה, הערות והגדרות (אפשר להצפין בסיסמה)'],
     ['שחזור', onRestore, 'מוסיף ספרים חסרים וממזג מיקום והערות'],
@@ -98,13 +103,14 @@ export function BackupMenu({ view, busy, storage, onBackup, onRestore, onCheckUp
       {open && (
         <>
           <div className="menu-backdrop" onClick={() => close()} />
-          <div className="menu" role="menu" onKeyDown={(e) => e.key === 'Escape' && close()}>
+          <div className="menu-pop" onKeyDown={(e) => e.key === 'Escape' && close()}>
+          <div className="menu" role="menu">
             {view && (
               <>
                 {view.filterSort && (
                   <>
-                    <SubMenu label="סינון" options={FILTERS} value={view.filter} open={sub === 'filter'} onToggle={() => toggleSub('filter')} onPick={(v) => { view.onFilter(v); close() }} />
-                    <SubMenu label="מיון" options={SORTS} value={view.sort} open={sub === 'sort'} onToggle={() => toggleSub('sort')} onPick={(v) => { view.onSort(v); close() }} />
+                    <SubMenuRow label="סינון" current={FILTERS.find(([v]) => v === view.filter)?.[1]} open={sub?.which === 'filter'} onToggle={(top) => toggleSub('filter', top)} />
+                    <SubMenuRow label="מיון" current={SORTS.find(([v]) => v === view.sort)?.[1]} open={sub?.which === 'sort'} onToggle={(top) => toggleSub('sort', top)} />
                     <div className="menu-sep" role="separator" />
                   </>
                 )}
@@ -147,6 +153,13 @@ export function BackupMenu({ view, busy, storage, onBackup, onRestore, onCheckUp
                   : ''}
               </div>
             )}
+          </div>
+          {view?.filterSort && sub?.which === 'filter' && (
+            <SubMenuPanel label="סינון" options={FILTERS} value={view.filter} top={sub.top} onPick={(v) => { view.onFilter(v); close() }} />
+          )}
+          {view?.filterSort && sub?.which === 'sort' && (
+            <SubMenuPanel label="מיון" options={SORTS} value={view.sort} top={sub.top} onPick={(v) => { view.onSort(v); close() }} />
+          )}
           </div>
         </>
       )}
