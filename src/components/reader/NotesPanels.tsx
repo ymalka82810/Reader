@@ -1,3 +1,4 @@
+import { compare as cfiCompare } from 'foliate-js/epubcfi.js'
 import type { Annotation } from '../../lib/db'
 import { COLOR_NAMES, HIGHLIGHT_COLORS } from './colors'
 import { Panel } from './shared'
@@ -31,7 +32,7 @@ export function NotesList({
       </div>
       <ul className="notes">
         {[...notes]
-          .sort((a, b) => a.createdAt - b.createdAt)
+          .sort((a, b) => cfiCompare(a.cfi, b.cfi))
           .map((n) => (
             <li key={n.id}>
               <button className="note-main" onClick={() => onGoTo(n.cfi)}>
