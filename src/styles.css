@@ -120,6 +120,9 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: 4px; border: 1px solid rg
 .menu-backdrop { position: fixed; inset: 0; z-index: 4; }
 .menu { position: absolute; z-index: 5; inset-inline-end: 0; top: calc(100% + .3rem); min-width: 13rem; padding: .3rem; border-radius: 10px; background: var(--bg); color: var(--fg); box-shadow: 0 4px 18px rgba(0,0,0,.3); display: flex; flex-direction: column; gap: .15rem; }
 .menu button { text-align: start; background: transparent; }
+.menu { max-height: 80vh; overflow-y: auto; }
+.menu-title { padding: .4rem .6rem .1rem; font-size: .75rem; opacity: .65; }
+.menu-sep { border-top: 1px solid rgba(128,128,128,.3); margin: .2rem 0; }
 .menu-info { padding: .5rem .6rem; font-size: .8rem; opacity: .75; border-top: 1px solid rgba(128,128,128,.3); margin-top: .2rem; }
 .lib-toast { position: fixed; z-index: 9; bottom: 1.2rem; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: .8rem; max-width: 92vw; padding: .5rem .5rem .5rem 1rem; border-radius: 999px; background: rgba(0,0,0,.85); color: #fff; font-size: .9rem; }
 .lib-toast button { background: transparent; color: #8cc4ff; font-weight: 600; }

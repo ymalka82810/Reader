@@ -1,4 +1,3 @@
-import { Dropdown } from './Dropdown'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { isFinished, updateMeta, type BookMeta } from '../lib/db'
 import { backupDue } from '../lib/backupReminder'
@@ -11,7 +10,7 @@ import { useFolders } from '../hooks/useFolders'
 import { useBackup } from '../hooks/useBackup'
 import { useAutoBackup } from '../hooks/useAutoBackup'
 import { useUpdateCheck } from '../hooks/useUpdateCheck'
-import { BackupMenu } from './library/BackupMenu'
+import { BackupMenu, type Filter, type Sort } from './library/BackupMenu'
 import { BookGrid } from './library/BookGrid'
 import { FolderBar, FolderList } from './library/FolderBar'
 import {
@@ -29,8 +28,8 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   const [error, setError] = useState<string>()
   const [drag, setDrag] = useState(false)
   const [query, setQuery] = useState('')
-  const [sort, setSort] = useState<'recent' | 'title' | 'author' | 'added'>('recent')
-  const [filter, setFilter] = useState<'all' | 'reading' | 'unread' | 'finished'>('all')
+  const [sort, setSort] = useState<Sort>('recent')
+  const [filter, setFilter] = useState<Filter>('all')
   const [editing, setEditing] = useState<BookMeta>()
   const [editTitle, setEditTitle] = useState('')
   const [editAuthor, setEditAuthor] = useState('')
@@ -136,6 +135,20 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
           }}
         />
         <BackupMenu
+          view={
+            books.length > 0
+              ? {
+                  filterSort: books.length > 1,
+                  filter,
+                  onFilter: setFilter,
+                  sort,
+                  onSort: setSort,
+                  onNewFolder: inFolderList ? () => fo.setFolderDialog({ name: '' }) : undefined,
+                  selecting,
+                  onToggleSelect: () => (selecting ? exitSelect() : setSelecting(true)),
+                }
+              : undefined
+          }
           busy={!!busy}
           storage={storage}
           onBackup={backup.askExport}
@@ -164,9 +177,8 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
         </div>
       )}
 
-      {books.length > 0 && (
+      {books.length > 1 && (
         <div className="lib-tools">
-          {books.length > 1 && (<>
           <input
             type="search"
             placeholder="חיפוש לפי שם או מחבר…"
@@ -174,33 +186,6 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <Dropdown
-            label="סינון"
-            value={filter}
-            onChange={setFilter}
-            options={[
-              { value: 'all', label: 'הכול' },
-              { value: 'reading', label: 'בקריאה' },
-              { value: 'unread', label: 'לא התחלתי' },
-              { value: 'finished', label: 'נקראו' },
-            ]}
-          />
-          <Dropdown
-            label="מיון"
-            value={sort}
-            onChange={setSort}
-            options={[
-              { value: 'recent', label: 'נפתח לאחרונה' },
-              { value: 'added', label: 'נוסף לאחרונה' },
-              { value: 'title', label: 'שם (א–ת)' },
-              { value: 'author', label: 'מחבר (א–ת)' },
-            ]}
-          />
-          </>)}
-          {inFolderList && <button onClick={() => fo.setFolderDialog({ name: '' })}>תיקייה חדשה</button>}
-          <button onClick={() => (selecting ? exitSelect() : setSelecting(true))} aria-pressed={selecting}>
-            {selecting ? 'סיום' : 'בחירה'}
-          </button>
         </div>
       )}
 
@@ -231,6 +216,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
               מחק ספרים
             </button>
           </>)}
+          <button onClick={exitSelect}>סיום</button>
         </div>
       )}
 
