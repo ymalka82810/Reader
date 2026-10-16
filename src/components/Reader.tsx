@@ -3,13 +3,14 @@ import 'foliate-js/view.js'
 import { Overlayer } from 'foliate-js/overlayer.js'
 import { compare as cfiCompare } from 'foliate-js/epubcfi.js'
 import type { FoliateRelocateDetail, FoliateView } from 'foliate-js/view.js'
-import { EditNotePanel, NotesPanel } from './reader/NotesPanels'
+import { NavPanel } from './reader/NavPanel'
+import { EditNotePanel, NotesList } from './reader/NotesPanels'
 import { SearchPanel } from './reader/SearchPanel'
 import { SettingsPanel } from './reader/SettingsPanel'
 import { COLOR_NAMES, HIGHLIGHT_COLORS } from './reader/colors'
 import { Icon } from './reader/shared'
 import { flattenToc, type FlatTocItem } from './reader/toc'
-import { TocPanel } from './reader/TocPanel'
+import { TocList } from './reader/TocPanel'
 import { useBookSearch } from './reader/useBookSearch'
 import { useBookKeys, type KeyActions } from '../hooks/useBookKeys'
 import { useReadingTracker } from '../hooks/useReadingTracker'
@@ -47,6 +48,8 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   const [dragFraction, setDragFraction] = useState<number | null>(null)
   const [pages, setPages] = useState<{ current: number; total: number; approx: boolean } | null>(null)
   const [chapter, setChapter] = useState('')
+  /** CFI of the current location, to show whether it is bookmarked */
+  const [here, setHere] = useState('')
 
   const [notes, setNotes] = useState<Annotation[]>([])
   const notesRef = useRef<Annotation[]>([])
@@ -210,6 +213,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
           minutesLeft(id, f).then((m) => !cancelled && setLeft(m))
           setFraction(f)
           setChapter(d.tocItem?.label ?? '')
+          setHere(d.cfi ?? '')
           requestAnimationFrame(() => recompute(d))
         })
 
@@ -397,6 +401,8 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   })
 
   const editingNote = notes.find((x) => x.id === editingId)
+  const bookmarked = !!here && notes.some((n) => n.kind === 'bookmark' && n.cfi === here)
+  const navOpen = panel === 'toc' || panel === 'notes'
   const colors = themeColors(settings.theme)
   const shownFraction = dragFraction ?? fraction
   const commit = () => {
@@ -423,41 +429,20 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
       <div className={'topbar' + (uiVisible ? '' : ' hidden')}>
         <button onClick={onClose} aria-label="חזרה לספרייה" title="חזרה לספרייה">→</button>
         <div className="title">{title}</div>
-        {notes.some((n) => n.kind === 'bookmark') && (
-          <>
-            <button onClick={() => gotoBookmark(-1)} aria-label="סימנייה קודמת" title="סימנייה קודמת ([)">
-              <Icon d="M19 20 9 12l10-8zM5 4v16" />
-            </button>
-            <button onClick={() => gotoBookmark(1)} aria-label="סימנייה הבאה" title="סימנייה הבאה (])">
-              <Icon d="M5 4l10 8-10 8zM19 4v16" />
-            </button>
-          </>
-        )}
         <button
-          onClick={toggleAuto}
-          aria-label={auto.active ? 'עצור קריאה אוטומטית' : 'קריאה אוטומטית'}
-          aria-pressed={auto.active}
-          title="קריאה אוטומטית בקצב שלך (a)"
+          onClick={toggleBookmark}
+          aria-label="סימנייה"
+          aria-pressed={bookmarked}
+          title={bookmarked ? 'הסר סימנייה (b)' : 'הוסף סימנייה (b)'}
         >
-          <Icon d={auto.active ? 'M7 5v14M17 5v14' : 'M7 4v16l13-8z'} />
+          <Icon d="M6 3h12v18l-6-4-6 4z" filled={bookmarked} />
         </button>
-        {readAloudSupported && (
-          <button
-            onClick={toggleSpeech}
-            aria-label={speech.active ? 'עצור הקראה' : 'הקרא בקול'}
-            aria-pressed={speech.active}
-            title="הקראת הטקסט בקול (r)"
-          >
-            <Icon d={speech.active ? 'M6 6h12v12H6z' : 'M4 9v6h4l5 4V5L8 9zM16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12'} />
-          </button>
-        )}
-        <button onClick={toggleBookmark} aria-label="סימנייה" title="הוסף/הסר סימנייה">
-          <Icon d="M6 3h12v18l-6-4-6 4z" />
-        </button>
-        <button onClick={() => setPanel(panel === 'notes' ? null : 'notes')} aria-label="סימניות והדגשות" title="סימניות והדגשות">
-          <Icon d="M4 20h4L19 9l-4-4L4 16zM13 7l4 4" />
-        </button>
-        <button onClick={() => setPanel(panel === 'toc' ? null : 'toc')} aria-label="תוכן עניינים" title="תוכן עניינים">
+        <button
+          onClick={() => setPanel(navOpen ? null : 'toc')}
+          aria-label="ניווט בספר"
+          aria-expanded={navOpen}
+          title="תוכן עניינים, סימניות והדגשות (t / n)"
+        >
           <Icon d="M4 6h16M4 12h16M4 18h16" />
         </button>
         <button onClick={() => setPanel(panel === 'search' ? null : 'search')} aria-label="חיפוש" title="חיפוש">
@@ -467,6 +452,15 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
       </div>
 
       <div className={'bottombar' + (uiVisible ? '' : ' hidden')}>
+        <button
+          className="play"
+          onClick={toggleAuto}
+          aria-label={auto.active ? 'עצור קריאה אוטומטית' : 'קריאה אוטומטית'}
+          aria-pressed={auto.active}
+          title="קריאה אוטומטית בקצב שלך (a)"
+        >
+          <Icon d={auto.active ? 'M7 5v14M17 5v14' : 'M7 4v16l13-8z'} />
+        </button>
         {auto.active && (
           <div className="auto-pace" role="group" aria-label="קצב קריאה אוטומטית">
             <button onClick={() => auto.adjust(false)} aria-label="לאט יותר" title="לאט יותר (,)">−</button>
@@ -501,6 +495,17 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
             {left ? ` · נותרו ~${formatMinutes(left)}` : ''}
           </div>
         </div>
+        {readAloudSupported && (
+          <button
+            className="play"
+            onClick={toggleSpeech}
+            aria-label={speech.active ? 'עצור הקראה' : 'הקרא בקול'}
+            aria-pressed={speech.active}
+            title="הקראת הטקסט בקול (r)"
+          >
+            <Icon d={speech.active ? 'M6 6h12v12H6z' : 'M4 9v6h4l5 4V5L8 9zM16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12'} />
+          </button>
+        )}
       </div>
 
       {selection && !panel && (
@@ -524,20 +529,36 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
         </div>
       )}
 
-      {panel === 'notes' && (
-        <NotesPanel
-          notes={notes}
-          onExport={exportMarkdown}
-          onRemove={removeNote}
-          onGoTo={(cfi) => {
-            viewRef.current?.goTo(cfi)
-            setPanel(null)
-          }}
-          onEdit={(noteId) => {
-            setEditingId(noteId)
-            setPanel('edit')
-          }}
-        />
+      {(panel === 'toc' || panel === 'notes') && (
+        <NavPanel tab={panel} onTab={setPanel}>
+          {panel === 'toc' ? (
+            <TocList
+              toc={toc}
+              onGoTo={(href) => {
+                viewRef.current?.goTo(href)
+                setPanel(null)
+              }}
+            />
+          ) : (
+            <NotesList
+              notes={notes}
+              onExport={exportMarkdown}
+              onRemove={removeNote}
+              onGoTo={(cfi) => {
+                viewRef.current?.goTo(cfi)
+                setPanel(null)
+              }}
+              onGotoBookmark={(d) => {
+                setPanel(null)
+                gotoBookmark(d)
+              }}
+              onEdit={(noteId) => {
+                setEditingId(noteId)
+                setPanel('edit')
+              }}
+            />
+          )}
+        </NavPanel>
       )}
 
       {panel === 'edit' && editingNote && (
@@ -549,16 +570,6 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
             setPanel(null)
           }}
           onClose={() => setPanel(null)}
-        />
-      )}
-
-      {panel === 'toc' && (
-        <TocPanel
-          toc={toc}
-          onGoTo={(href) => {
-            viewRef.current?.goTo(href)
-            setPanel(null)
-          }}
         />
       )}
 
