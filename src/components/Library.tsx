@@ -10,12 +10,14 @@ import { useFolders } from '../hooks/useFolders'
 import { useBackup } from '../hooks/useBackup'
 import { useAutoBackup } from '../hooks/useAutoBackup'
 import { useUpdateCheck } from '../hooks/useUpdateCheck'
+import { useConfirm } from '../hooks/useConfirm'
 import { BackupMenu, type Filter, type Sort } from './library/BackupMenu'
 import { BookGrid } from './library/BookGrid'
 import { Cover } from './library/Cover'
 import { FolderBar, FolderList } from './library/FolderBar'
 import {
   ConfirmDeleteDialog,
+  ConfirmDialog,
   DuplicateAskDialog,
   DuplicateBatchDialog,
   EditBookDialog,
@@ -47,9 +49,10 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   const selection = useSelection()
   const { selecting, setSelecting, selected, setSelected, selectedFolders, setSelectedFolders, exitSelect } = selection
   const { books, createdNames, refresh, deleteBooks } = useLibrary(setError, { showToast, clearToast })
+  const { pending: confirmAsk, confirm } = useConfirm()
   const imp = useImport({ refresh, setBusy, setError })
-  const backup = useBackup({ refresh, setBusy, setError, showToast, onBackedUp: () => setDismissed(true) })
-  const checkUpdate = useUpdateCheck({ setBusy, setError, showToast })
+  const backup = useBackup({ refresh, setBusy, setError, showToast, onBackedUp: () => setDismissed(true), confirm })
+  const checkUpdate = useUpdateCheck({ setBusy, setError, showToast, confirm })
   const auto = useAutoBackup({ setError, showToast })
 
   // without persistent storage the browser may evict the library, so remind sooner
@@ -74,7 +77,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
 
   // searching looks through every folder at once
   const searching = !!query.trim()
-  const fo = useFolders({ books, shown, createdNames, searching, refresh, showToast, exitSelect, deleteBooks })
+  const fo = useFolders({ books, shown, createdNames, searching, refresh, showToast, exitSelect, deleteBooks, confirm })
   const { folders, current } = fo
   const inFolderList = !searching && !current
   const pickedFolders = folders.filter((f) => selectedFolders.has(f.key))
@@ -359,6 +362,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
           onCancel={() => backup.setPwAsk(undefined)}
         />
       )}
+      {confirmAsk && <ConfirmDialog ask={confirmAsk} />}
       {editing && (
         <EditBookDialog
           title={editTitle}

@@ -1,4 +1,5 @@
 import { findUpdate, installUpdate } from '../lib/updater'
+import type { Confirm } from './useConfirm'
 
 const UPDATE_REPO = 'ymalka82810/Reader'
 
@@ -6,10 +7,11 @@ type Deps = {
   setBusy: (msg: string | undefined) => void
   setError: (msg: string | undefined) => void
   showToast: (msg: string, undo?: () => void, ms?: number) => void
+  confirm: Confirm
 }
 
 /** looks for a newer app release on GitHub and installs it after confirmation */
-export function useUpdateCheck({ setBusy, setError, showToast }: Deps) {
+export function useUpdateCheck({ setBusy, setError, showToast, confirm }: Deps) {
   return async () => {
     setError(undefined)
     try {
@@ -21,7 +23,7 @@ export function useUpdateCheck({ setBusy, setError, showToast }: Deps) {
         return
       }
       setBusy(undefined)
-      if (!confirm(`יש גרסה חדשה (${update.version}). להוריד ולהתקין?`)) return
+      if (!(await confirm({ title: 'יש גרסה חדשה', text: `גרסה ${update.version} זמינה. להוריד ולהתקין אותה?`, ok: 'עדכן' }))) return
       const label = 'מוריד עדכון…'
       setBusy(label)
       await installUpdate(update.url, update.sha256, (p) => setBusy(p >= 0 ? `${label} ${Math.round(p)}%` : label))

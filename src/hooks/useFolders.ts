@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { addFolderName, removeFolderName, renameFolder, setFolder, type BookMeta } from '../lib/db'
 import { folderKey, folderToStore, groupFolders, type Folder } from '../lib/folders'
+import type { Confirm } from './useConfirm'
 
 type Deps = {
   books: BookMeta[]
@@ -12,10 +13,11 @@ type Deps = {
   showToast: (msg: string) => void
   exitSelect: () => void
   deleteBooks: (list: BookMeta[]) => Promise<void>
+  confirm: Confirm
 }
 
 /** folder grouping, the folder being viewed, and moving books between folders */
-export function useFolders({ books, shown, createdNames, searching, refresh, showToast, exitSelect, deleteBooks }: Deps) {
+export function useFolders({ books, shown, createdNames, searching, refresh, showToast, exitSelect, deleteBooks, confirm }: Deps) {
   // the folder being viewed (its key; '' = books without an author) and the books being moved
   const [openFolder, setOpenFolder] = useState<string>()
   const [moving, setMoving] = useState<BookMeta[]>()
@@ -83,9 +85,11 @@ export function useFolders({ books, shown, createdNames, searching, refresh, sho
     const keys = new Set(list.map((f) => f.key))
     const all = allFolders.filter((f) => keys.has(f.key))
     const doomed = all.flatMap((f) => f.books)
-    const what = all.length === 1 ? `את התיקייה ״${all[0]?.name}״` : `${all.length} תיקיות`
-    const extra = doomed.length ? ` וגם ${doomed.length === 1 ? 'הספר שבה' : `${doomed.length} ספרים שבהן`}` : ''
-    if (!confirm(`למחוק ${what}${extra}? אפשר לבטל את מחיקת הספרים מיד אחרי.`)) return
+    const what = all.length === 1 ? `את התיקייה ״${all[0]?.name || 'ללא מחבר'}״` : `${all.length} תיקיות`
+    const text = doomed.length
+      ? `${doomed.length === 1 ? 'הספר שבה יימחק' : `${doomed.length} הספרים שבהן יימחקו`} יחד עם מיקום הקריאה וההערות. אפשר יהיה לבטל את מחיקת הספרים תוך כמה שניות.`
+      : all.length === 1 ? 'התיקייה ריקה.' : 'התיקיות ריקות.'
+    if (!(await confirm({ title: `למחוק ${what}?`, text, ok: 'מחק', danger: true }))) return
     for (const f of all) if (f.key) await removeFolderName(f.name)
     setOpenFolder(undefined)
     exitSelect()

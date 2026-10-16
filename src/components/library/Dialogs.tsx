@@ -4,6 +4,7 @@ import type { BookMeta } from '../../lib/db'
 import { folderKey, type Folder } from '../../lib/folders'
 import type { DupAsk, DupBatch } from '../../hooks/useImport'
 import type { PwAsk } from '../../hooks/useBackup'
+import type { ConfirmAsk } from '../../hooks/useConfirm'
 
 export function DuplicateBatchDialog({
   batch,
@@ -123,6 +124,33 @@ export function ConfirmDeleteDialog({
         <div className="modal-actions">
           <button className="danger" onClick={onConfirm}>מחק</button>
           <button onClick={onCancel} autoFocus>ביטול</button>
+        </div>
+      </Dialog>
+    </div>
+  )
+}
+
+export function ConfirmDialog({ ask }: { ask: ConfirmAsk & { answer: (yes: boolean) => void } }) {
+  const cancel = () => ask.answer(false)
+  return (
+    <div className="modal-backdrop" onClick={cancel}>
+      <Dialog
+        className="modal"
+        role="alertdialog"
+        aria-modal="true"
+        aria-label={ask.title}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.key === 'Escape' && cancel()}
+      >
+        <h2>{ask.title}</h2>
+        {ask.text && <p>{ask.text}</p>}
+        <div className="modal-actions">
+          <button className={ask.danger ? 'danger' : 'primary'} onClick={() => ask.answer(true)} autoFocus={!ask.danger}>
+            {ask.ok}
+          </button>
+          <button onClick={cancel} autoFocus={ask.danger}>
+            ביטול
+          </button>
         </div>
       </Dialog>
     </div>

@@ -4,6 +4,7 @@ import { librarySize, markBackedUp } from '../lib/backupReminder'
 import { exportLibrary, exportLibraryTo } from '../lib/backupExport'
 import { importLibrary } from '../lib/backupImport'
 import { download } from '../lib/download'
+import type { Confirm } from './useConfirm'
 
 /** above this, building the backup in memory risks crashing a phone */
 const BIG_BACKUP = 500 * 1024 * 1024
@@ -16,10 +17,11 @@ type Deps = {
   setError: (msg: string | undefined) => void
   showToast: (msg: string, undo?: () => void, ms?: number) => void
   onBackedUp: () => void
+  confirm: Confirm
 }
 
 /** exporting and restoring a library backup, including the password prompt for encrypted ones */
-export function useBackup({ refresh, setBusy, setError, showToast, onBackedUp }: Deps) {
+export function useBackup({ refresh, setBusy, setError, showToast, onBackedUp, confirm }: Deps) {
   // password prompt: for a new backup (optional password) or for restoring an encrypted one
   const [pwAsk, setPwAsk] = useState<PwAsk>()
   const [pw, setPw] = useState('')
@@ -46,7 +48,12 @@ export function useBackup({ refresh, setBusy, setError, showToast, onBackedUp }:
       }
       if (!sink) {
         const size = await librarySize()
-        if (size > BIG_BACKUP && !confirm(`הספרייה גדולה (${Math.round(size / 1024 / 1024)}MB). הגיבוי נבנה בזיכרון ועלול להיכשל במכשיר חלש. להמשיך?`)) return
+        const ask = {
+          title: `הספרייה גדולה (${Math.round(size / 1024 / 1024)}MB)`,
+          text: 'הגיבוי נבנה בזיכרון ועלול להיכשל במכשיר חלש. להמשיך?',
+          ok: 'המשך',
+        }
+        if (size > BIG_BACKUP && !(await confirm(ask))) return
       }
       setBusy('מכין גיבוי…')
       const progress = (d: number, t: number) => setBusy(`מכין גיבוי… ${d}/${t}`)
