@@ -35,7 +35,8 @@ export async function exportLibraryTo(
     }
     await sink.close()
   } catch (e) {
-    await sink.abort?.().catch(() => {})
+    // the original error is what the user needs to see; a failed abort must not replace it
+    await sink.abort?.().catch((abortErr) => console.warn('backup sink abort failed', abortErr))
     throw e
   }
 }

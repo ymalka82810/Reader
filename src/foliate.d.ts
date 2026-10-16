@@ -22,6 +22,10 @@ declare module 'foliate-js/view.js' {
     start: number
     end: number
     viewSize: number
+    /** container property that holds the scroll position ('scrollLeft' for vertical writing in scrolled mode) */
+    scrollProp: 'scrollTop' | 'scrollLeft'
+    /** on the last page of the last section */
+    atEnd: boolean
     setStyles?(css: string): void
     getContents?(): { doc?: Document }[]
   }

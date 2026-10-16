@@ -61,7 +61,7 @@ export function saveSettings(s: Settings) {
   try {
     localStorage.setItem(KEY, JSON.stringify(s))
   } catch {
-    /* ignore */
+    /* localStorage unavailable or full: the setting just won't persist */
   }
 }
 

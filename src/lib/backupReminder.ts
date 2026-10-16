@@ -9,7 +9,7 @@ export function markBackedUp() {
   try {
     localStorage.setItem(BACKUP_KEY, String(Date.now()))
   } catch {
-    /* ignore */
+    /* localStorage unavailable or full: the setting just won't persist */
   }
 }
 

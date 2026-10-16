@@ -1,70 +1,31 @@
 import { Dropdown } from './Dropdown'
-import { Dialog } from './Dialog'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { addFolderName, deleteBook, isFinished, listBooks, listFolderNames, removeFolderName, renameFolder, setFinished, setFolder, updateMeta, type BookMeta } from '../lib/db'
-import { folderKey, folderToStore, groupFolders, type Folder } from '../lib/folders'
-import { importFile, DeferredDuplicate, type DuplicateChoice } from '../lib/importBook'
-import { PasswordRequiredError, WrongPasswordError } from '../lib/encrypt'
-import { backupDue, librarySize, markBackedUp } from '../lib/backupReminder'
-import { exportLibrary, exportLibraryTo } from '../lib/backupExport'
-import { importLibrary } from '../lib/backupImport'
-import { download } from '../lib/download'
-import { onLaunchFiles, takeSharedFiles } from '../lib/inbox'
-import { formatBytes, getStorageStatus, type StorageStatus } from '../lib/storage'
-import { findUpdate, installUpdate, isNativeApp } from '../lib/updater'
-
-const UPDATE_REPO = 'ymalka82810/Reader'
-
-function Cover({ book }: { book: BookMeta }) {
-  const [url, setUrl] = useState<string>()
-  const holder = useRef<HTMLDivElement>(null)
-  const [visible, setVisible] = useState(typeof IntersectionObserver === 'undefined')
-  // Only materialise the cover blob once the card is near the viewport.
-  useEffect(() => {
-    const el = holder.current
-    if (visible || !el) return
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) {
-          setVisible(true)
-          io.disconnect()
-        }
-      },
-      { rootMargin: '300px' },
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [visible])
-  useEffect(() => {
-    if (!visible || !book.cover) return
-    const u = URL.createObjectURL(book.cover)
-    // oxlint-disable-next-line react/set-state-in-effect -- syncs an object URL, an external resource
-    setUrl(u)
-    return () => URL.revokeObjectURL(u)
-  }, [visible, book.cover])
-  if (url) return <img className="cover" src={url} alt="" decoding="async" />
-  return (
-    <div className="cover placeholder" ref={holder}>
-      <span>{book.title}</span>
-    </div>
-  )
-}
-
-/** above this, building the backup in memory risks crashing a phone */
-const BIG_BACKUP = 500 * 1024 * 1024
-/** how long a deleted book can still be restored with "בטל" */
-const UNDO_MS = 7000
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { isFinished, updateMeta, type BookMeta } from '../lib/db'
+import { backupDue } from '../lib/backupReminder'
+import { getStorageStatus, type StorageStatus } from '../lib/storage'
+import { useToast } from '../hooks/useToast'
+import { useSelection } from '../hooks/useSelection'
+import { useLibrary } from '../hooks/useLibrary'
+import { useImport } from '../hooks/useImport'
+import { useFolders } from '../hooks/useFolders'
+import { useBackup } from '../hooks/useBackup'
+import { useAutoBackup } from '../hooks/useAutoBackup'
+import { useUpdateCheck } from '../hooks/useUpdateCheck'
+import { BackupMenu } from './library/BackupMenu'
+import { BookGrid } from './library/BookGrid'
+import { FolderBar, FolderList } from './library/FolderBar'
+import {
+  ConfirmDeleteDialog,
+  DuplicateAskDialog,
+  DuplicateBatchDialog,
+  EditBookDialog,
+  FolderNameDialog,
+  MoveDialog,
+  PasswordDialog,
+} from './library/Dialogs'
 
 export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
-  const [books, setBooks] = useState<BookMeta[]>([])
   const [busy, setBusy] = useState<string>()
-  const [batch, setBatch] = useState<{ done: number; total: number; deadline?: number }>()
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    if (!batch) return
-    const id = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(id)
-  }, [!!batch]) // eslint-disable-line react-hooks/exhaustive-deps
   const [error, setError] = useState<string>()
   const [drag, setDrag] = useState(false)
   const [query, setQuery] = useState('')
@@ -77,126 +38,23 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   const restoreInput = useRef<HTMLInputElement>(null)
   const [storage, setStorage] = useState<StorageStatus>()
   const [dismissed, setDismissed] = useState(false)
-  const [menu, setMenu] = useState(false)
-  const [toast, setToast] = useState<{ msg: string; undo?: () => void }>()
-  const toastTimer = useRef<number>(undefined)
-  // books removed from view that can still be restored; they are deleted for real once `timer` fires
-  const pendingDel = useRef<{ ids: string[]; timer: number }>(undefined)
-  // multi-select mode and the delete confirmation
-  const [selecting, setSelecting] = useState(false)
-  const [selected, setSelected] = useState<Set<string>>(new Set())
   const [confirmDel, setConfirmDel] = useState<BookMeta[]>()
-  // the folder being viewed (its key; '' = books without an author) and the books being moved
-  const [openFolder, setOpenFolder] = useState<string>()
-  const [moving, setMoving] = useState<BookMeta[]>()
-  const [newFolder, setNewFolder] = useState('')
-  const [createdNames, setCreatedNames] = useState<string[]>([])
-  // creating a folder, or renaming the one being viewed (name typed so far)
-  const [folderDialog, setFolderDialog] = useState<{ rename?: string; name: string }>()
-  // a same-title book already exists: waits for the user's choice
-  const [dupBatch, setDupBatch] = useState<{
-    items: { name: string; title: string; existing: BookMeta; choice: DuplicateChoice }[]
-    done: (choices: DuplicateChoice[]) => void
-  }>()
-  const [dupDetail, setDupDetail] = useState(false)
-  const [dupAsk, setDupAsk] = useState<{ file: string; existing: BookMeta; answer: (c: DuplicateChoice) => void }>()
-  // password prompt: for a new backup (optional password) or for restoring an encrypted one
-  const [pwAsk, setPwAsk] = useState<{ kind: 'export' } | { kind: 'import'; file: File; wrong?: boolean }>()
-  const [pw, setPw] = useState('')
-
-  const refresh = useCallback(async () => {
-    try {
-      const hidden = new Set(pendingDel.current?.ids)
-      setBooks((await listBooks()).filter((b) => !hidden.has(b.id)))
-      setCreatedNames(await listFolderNames())
-    } catch (e) {
-      console.error(e)
-      setError('לא ניתן לגשת לאחסון של הדפדפן, אז הספרייה לא נטענה. ייתכן שמצב גלישה פרטית חוסם אותו.')
-    }
-  }, [])
-  useEffect(() => {
-    // oxlint-disable-next-line react/set-state-in-effect -- loads the library from IndexedDB
-    refresh()
-  }, [refresh])
   useEffect(() => {
     getStorageStatus().then(setStorage)
   }, [])
 
+  const { toast, showToast, clearToast } = useToast()
+  const selection = useSelection()
+  const { selecting, setSelecting, selected, setSelected, selectedFolders, setSelectedFolders, exitSelect } = selection
+  const { books, createdNames, refresh, deleteBooks } = useLibrary(setError, { showToast, clearToast })
+  const imp = useImport({ refresh, setBusy, setError })
+  const backup = useBackup({ refresh, setBusy, setError, showToast, onBackedUp: () => setDismissed(true) })
+  const checkUpdate = useUpdateCheck({ setBusy, setError, showToast })
+  const auto = useAutoBackup({ setError, showToast })
+
   // without persistent storage the browser may evict the library, so remind sooner
   const unprotected = storage ? !storage.persisted : false
   const remind = useMemo(() => !dismissed && backupDue(unprotected), [dismissed, unprotected])
-
-  const showToast = (msg: string, undo?: () => void, ms = 4000) => {
-    window.clearTimeout(toastTimer.current)
-    setToast({ msg, undo })
-    toastTimer.current = window.setTimeout(() => setToast(undefined), ms)
-  }
-
-  const toggleSelect = (id: string) =>
-    setSelected((prev) => {
-      const next = new Set(prev)
-      if (!next.delete(id)) next.add(id)
-      return next
-    })
-
-  // folders and books are selected separately: the folder list selects folders, a folder's contents select books
-  const [selectedFolders, setSelectedFolders] = useState<Set<string>>(new Set())
-  const toggleFolder = (key: string) =>
-    setSelectedFolders((prev) => {
-      const next = new Set(prev)
-      if (!next.delete(key)) next.add(key)
-      return next
-    })
-
-  const exitSelect = () => {
-    setSelecting(false)
-    setSelected(new Set())
-    setSelectedFolders(new Set())
-  }
-
-  const commitDelete = async () => {
-    const p = pendingDel.current
-    if (!p) return
-    window.clearTimeout(p.timer)
-    pendingDel.current = undefined
-    try {
-      for (const id of p.ids) await deleteBook(id)
-    } catch (e) {
-      setError(`מחיקה נכשלה: ${e instanceof Error ? e.message : String(e)}`)
-    }
-    await refresh()
-  }
-  // leaving the library (or closing the page) finishes a deletion that is still waiting out its undo window
-  useEffect(() => {
-    window.addEventListener('pagehide', commitDelete)
-    return () => {
-      window.removeEventListener('pagehide', commitDelete)
-      commitDelete()
-    }
-    // oxlint-disable-next-line react-hooks/exhaustive-deps -- commitDelete only reads refs and stable setters
-  }, [])
-
-  const undoDelete = () => {
-    const p = pendingDel.current
-    if (!p) return
-    window.clearTimeout(p.timer)
-    pendingDel.current = undefined
-    window.clearTimeout(toastTimer.current)
-    setToast(undefined)
-    refresh()
-  }
-
-  const doDelete = async () => {
-    const list = confirmDel
-    if (!list) return
-    setConfirmDel(undefined)
-    await commitDelete() // an earlier deletion still waiting becomes final
-    const ids = list.map((b) => b.id)
-    pendingDel.current = { ids, timer: window.setTimeout(commitDelete, UNDO_MS) }
-    setBooks((prev) => prev.filter((b) => !ids.includes(b.id)))
-    showToast(list.length === 1 ? `״${list[0]?.title}״ נמחק` : `${list.length} ספרים נמחקו`, undoDelete, UNDO_MS)
-    exitSelect()
-  }
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -214,243 +72,21 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
     return list // 'recent' keeps the order listBooks returns
   }, [books, query, sort, filter])
 
-  // created folders with no books at all are listed too (a filter hiding a folder's books doesn't make it empty)
-  const allFolders = useMemo(() => {
-    const full = groupFolders(books)
-    const keys = new Set(full.map((f) => f.key))
-    const empty: Folder[] = createdNames
-      .map((name) => ({ key: folderKey({ author: name }), name, books: [] }))
-      .filter((f) => f.key && !keys.has(f.key))
-    return [...full, ...empty].sort((a, b) => (!a.key ? 1 : !b.key ? -1 : a.name.localeCompare(b.name, 'he')))
-  }, [books, createdNames])
-  const folders = useMemo(() => {
-    const withBooks = new Map(groupFolders(shown).map((f) => [f.key, f]))
-    return allFolders.flatMap((f) => (f.books.length ? (withBooks.get(f.key) ?? []) : f))
-  }, [allFolders, shown])
   // searching looks through every folder at once
   const searching = !!query.trim()
-  const current = openFolder === undefined ? undefined : folders.find((f) => f.key === openFolder)
-  // a folder that emptied out (or is filtered away) falls back to the folder list
-  useEffect(() => {
-    // oxlint-disable-next-line react/set-state-in-effect -- leaves a folder that no longer exists
-    if (openFolder !== undefined && !current && !searching) setOpenFolder(undefined)
-  }, [openFolder, current, searching])
-
-  const moveTo = async (list: BookMeta[], name: string | undefined, created = false) => {
-    setMoving(undefined)
-    setNewFolder('')
-    // books whose author already names the target folder go back to "filed by author" rather than storing a copy
-    const plain = list.filter((b) => name === undefined || folderToStore(b, name) === undefined)
-    const explicit = list.filter((b) => !plain.includes(b))
-    if (plain.length) await setFolder(plain.map((b) => b.id), undefined)
-    if (explicit.length && name !== undefined) await setFolder(explicit.map((b) => b.id), name)
-    if (created && name) await addFolderName(name)
-    exitSelect()
-    await refresh()
-    showToast(
-      name === undefined ? 'הוחזר לתיקיית המחבר' : name ? `הועבר ל״${name}״` : 'הועבר ל״ללא מחבר״',
-    )
-  }
-
-  const saveFolderDialog = async () => {
-    const d = folderDialog
-    const name = d?.name.replace(/\s+/g, ' ').trim()
-    if (!d || !name) return
-    if (d.rename !== undefined) {
-      await renameFolder(d.rename, name)
-      setOpenFolder(folderKey({ author: name }))
-    } else await addFolderName(name)
-    setFolderDialog(undefined)
-    await refresh()
-  }
-
-  const deleteEmptyFolders = async (list: Folder[]) => {
-    const what = list.length === 1 ? `את התיקייה ״${list[0]?.name}״` : `${list.length} תיקיות`
-    if (!confirm(`למחוק ${what}? התיקיות ריקות, ולא יימחק אף ספר.`)) return
-    for (const f of list) await removeFolderName(f.name)
-    setOpenFolder(undefined)
-    exitSelect()
-    await refresh()
-  }
+  const fo = useFolders({ books, shown, createdNames, searching, refresh, showToast, exitSelect })
+  const { folders, current } = fo
   const inFolderList = !searching && !current
   const pickedFolders = folders.filter((f) => selectedFolders.has(f.key))
   const canDeleteFolders = pickedFolders.length > 0 && pickedFolders.every((f) => !f.books.length)
 
-  const addFiles = async (files: FileList | File[]) => {
-    setError(undefined)
-    const errors: string[] = []
-    const list = Array.from(files)
-    let started = Date.now()
-    setBatch(list.length > 1 ? { done: 0, total: list.length, deadline: undefined } : undefined)
-    setNow(started)
-    // keep the screen awake while importing; best-effort, released on completion
-    let wake: { release(): Promise<void> } | undefined
-    const takeWake = () =>
-      (navigator as Navigator & { wakeLock?: { request(t: 'screen'): Promise<{ release(): Promise<void> }> } }).wakeLock
-        ?.request('screen')
-        .then((w) => (wake = w))
-        .catch(() => {})
-    void takeWake()
-    const warn = (e: BeforeUnloadEvent) => e.preventDefault()
-    window.addEventListener('beforeunload', warn)
-    const deferred: { name: string; err: DeferredDuplicate }[] = []
-    for (const [i, f] of list.entries()) {
-      // leaving the tab pauses the queue instead of failing the next file; paused time doesn't count towards the ETA
-      if (document.visibilityState === 'hidden') {
-        const pausedAt = Date.now()
-        await new Promise<void>((resolve) => {
-          const on = () => {
-            if (document.visibilityState !== 'visible') return
-            document.removeEventListener('visibilitychange', on)
-            resolve()
-          }
-          document.addEventListener('visibilitychange', on)
-        })
-        started += Date.now() - pausedAt
-        void takeWake()
-      }
-      try {
-        setBusy(`מוסיף את ${f.name}…`)
-        await importFile(
-          f,
-          setBusy,
-          // in a batch, duplicates wait until the rest are done and are then asked about together
-          list.length > 1
-            ? async () => 'defer'
-            : (existing) => new Promise<DuplicateChoice>((resolve) => setDupAsk({ file: f.name, existing, answer: resolve })),
-        )
-        await refresh() // show each book as soon as it's done
-      } catch (e) {
-        if (e instanceof DeferredDuplicate) deferred.push({ name: f.name, err: e })
-        else errors.push(`${f.name}: ${e instanceof Error ? e.message : String(e)}`)
-      }
-      const done = i + 1
-      const t = Date.now()
-      setNow(t)
-      setBatch(
-        list.length > 1
-          ? { done, total: list.length, deadline: t + ((t - started) / done) * (list.length - done) }
-          : undefined,
-      )
-    }
-    if (deferred.length) {
-      setBusy(undefined)
-      setBatch(undefined)
-      setDupDetail(false)
-      const choices = await new Promise<DuplicateChoice[]>((done) =>
-        setDupBatch({
-          items: deferred.map((d) => ({ name: d.name, title: d.err.title, existing: d.err.existing, choice: 'skip' })),
-          done,
-        }),
-      )
-      setDupBatch(undefined)
-      for (const [i, d] of deferred.entries()) {
-        try {
-          await d.err.commit(choices[i] ?? 'skip')
-        } catch (e) {
-          errors.push(`${d.name}: ${e instanceof Error ? e.message : String(e)}`)
-        }
-      }
-    }
-    window.removeEventListener('beforeunload', warn)
-    void wake?.release().catch(() => {})
-    setBatch(undefined)
-    setBusy(undefined)
-    if (errors.length) setError(errors.join('\n'))
-    await refresh()
+  const doDelete = async () => {
+    const list = confirmDel
+    if (!list) return
+    setConfirmDel(undefined)
+    await deleteBooks(list)
+    exitSelect()
   }
-
-  const addRef = useRef(addFiles)
-  useLayoutEffect(() => {
-    addRef.current = addFiles
-  })
-  useEffect(() => {
-    takeSharedFiles().then((f) => {
-      if (f.length) addRef.current(f)
-    })
-    onLaunchFiles((f) => addRef.current(f))
-  }, [])
-
-  const doExport = async (password?: string) => {
-    setError(undefined)
-    const name = `גיבוי-ספרייה-${new Date().toISOString().slice(0, 10)}.readerbackup`
-    try {
-      // must run first: the save dialog needs the click's user activation, which awaits can use up
-      const picker = (window as any).showSaveFilePicker as undefined | ((o: object) => Promise<any>)
-      let sink: any
-      if (picker) {
-        try {
-          sink = await (await picker({ suggestedName: name })).createWritable()
-        } catch (e) {
-          if (e instanceof DOMException && e.name === 'AbortError') return
-          /* picker unavailable here: fall back to an in-memory download */
-        }
-      }
-      if (!sink) {
-        const size = await librarySize()
-        if (size > BIG_BACKUP && !confirm(`הספרייה גדולה (${Math.round(size / 1024 / 1024)}MB). הגיבוי נבנה בזיכרון ועלול להיכשל במכשיר חלש. להמשיך?`)) return
-      }
-      setBusy('מכין גיבוי…')
-      const progress = (d: number, t: number) => setBusy(`מכין גיבוי… ${d}/${t}`)
-      if (sink) await exportLibraryTo(sink, progress, password)
-      else download(await exportLibrary(progress, password), name)
-      markBackedUp()
-      setDismissed(true)
-    } catch (e) {
-      setError(`גיבוי נכשל: ${e instanceof Error ? e.message : String(e)}`)
-    }
-    setBusy(undefined)
-  }
-
-  const checkUpdate = async () => {
-    setError(undefined)
-    try {
-      setBusy('בודק עדכונים…')
-      const update = await findUpdate(UPDATE_REPO, 'v')
-      if (!update) {
-        setBusy(undefined)
-        showToast('האפליקציה מעודכנת', undefined, 4000)
-        return
-      }
-      setBusy(undefined)
-      if (!confirm(`יש גרסה חדשה (${update.version}). להוריד ולהתקין?`)) return
-      const label = 'מוריד עדכון…'
-      setBusy(label)
-      await installUpdate(update.url, update.sha256, (p) => setBusy(p >= 0 ? `${label} ${Math.round(p)}%` : label))
-    } catch (e) {
-      setError(`עדכון נכשל: ${e instanceof Error ? e.message : String(e)}`)
-    }
-    setBusy(undefined)
-  }
-
-  const doImport = async (file: File, password?: string) => {
-    setError(undefined)
-    try {
-      setBusy('משחזר גיבוי…')
-      const { restored, skipped } = await importLibrary(file, (d, t) => setBusy(`משחזר גיבוי… ${d}/${t}`), password)
-      setBusy(undefined)
-      showToast(`שוחזרו ${restored} ספרים` + (skipped ? ` (${skipped} כבר היו בספרייה בשם ובמחבר זהים ולא נוספו)` : ''), undefined, 6000)
-    } catch (e) {
-      setBusy(undefined)
-      if (e instanceof PasswordRequiredError || e instanceof WrongPasswordError) {
-        setPw('')
-        setPwAsk({ kind: 'import', file, wrong: e instanceof WrongPasswordError })
-      } else {
-        setError(`שחזור נכשל: ${e instanceof SyntaxError ? 'קובץ הגיבוי פגום' : e instanceof Error ? e.message : String(e)}`)
-      }
-    }
-    await refresh()
-  }
-
-  const submitPw = () => {
-    const ask = pwAsk
-    if (!ask) return
-    setPwAsk(undefined)
-    if (ask.kind === 'export') doExport(pw || undefined)
-    else doImport(ask.file, pw)
-  }
-
-  const pickRestore = () => restoreInput.current?.click()
 
   const openEdit = (b: BookMeta) => {
     setEditing(b)
@@ -467,6 +103,8 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
     await refresh()
   }
 
+  const { batch, now } = imp
+
   return (
     <div
       className={'library' + (drag ? ' drag' : '')}
@@ -478,7 +116,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
       onDrop={(e) => {
         e.preventDefault()
         setDrag(false)
-        addFiles(e.dataTransfer.files)
+        imp.addFiles(e.dataTransfer.files)
       }}
     >
       <header className="lib-header">
@@ -493,58 +131,18 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
           multiple
           accept=".epub,.pdf,.txt,application/epub+zip,application/pdf,text/plain"
           onChange={(e) => {
-            if (e.target.files) addFiles(e.target.files)
+            if (e.target.files) imp.addFiles(e.target.files)
             e.target.value = ''
           }}
         />
-        <div className="menu-wrap">
-          <button
-            aria-label="עוד פעולות"
-            aria-haspopup="menu"
-            aria-expanded={menu}
-            onClick={() => setMenu((m) => !m)}
-          >
-            ⋯
-          </button>
-          {menu && (
-            <>
-              <div className="menu-backdrop" onClick={() => setMenu(false)} />
-              <div className="menu" role="menu" onKeyDown={(e) => e.key === 'Escape' && setMenu(false)}>
-                {/* oxlint-disable-next-line react/refs -- only read when the menu item is clicked */}
-                {(
-                  // oxlint-disable-next-line react/refs -- only read when the menu item is clicked
-                  [
-                    ['גיבוי', () => { setPw(''); setPwAsk({ kind: 'export' }) }, 'ספרים, מיקום קריאה, הערות והגדרות (אפשר להצפין בסיסמה)'],
-                    ['שחזור', pickRestore, 'מוסיף ספרים חסרים וממזג מיקום והערות'],
-                  ] as [string, () => void, string][]
-                )
-                  .concat(isNativeApp ? [['בדוק עדכון', checkUpdate, 'מחפש גרסה חדשה של האפליקציה ב-GitHub']] : [])
-                  .map(([label, fn, tip]) => (
-                  <button
-                    key={label}
-                    role="menuitem"
-                    title={tip}
-                    disabled={!!busy}
-                    onClick={() => {
-                      setMenu(false)
-                      fn()
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
-                {storage && (
-                  <div className="menu-info" role="status">
-                    {storage.persisted ? 'אחסון קבוע ✓' : 'אחסון לא קבוע — הדפדפן עלול למחוק את הספרייה'}
-                    {storage.usage != null && storage.quota
-                      ? ` · בשימוש ${formatBytes(storage.usage)} מתוך ${formatBytes(storage.quota)}`
-                      : ''}
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </div>
+        <BackupMenu
+          busy={!!busy}
+          storage={storage}
+          onBackup={backup.askExport}
+          onRestore={() => restoreInput.current?.click()}
+          onCheckUpdate={checkUpdate}
+          auto={{ state: auto.state, last: auto.last, onEnable: auto.enable, onDisable: auto.disable, onRenew: auto.renew }}
+        />
         <input
           ref={restoreInput}
           type="file"
@@ -552,7 +150,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
           accept=".readerbackup"
           onChange={(e) => {
             const f = e.target.files?.[0]
-            if (f) doImport(f)
+            if (f) backup.doImport(f)
             e.target.value = ''
           }}
         />
@@ -599,7 +197,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
             ]}
           />
           </>)}
-          {!searching && !current && <button onClick={() => setFolderDialog({ name: '' })}>תיקייה חדשה</button>}
+          {inFolderList && <button onClick={() => fo.setFolderDialog({ name: '' })}>תיקייה חדשה</button>}
           <button onClick={() => (selecting ? exitSelect() : setSelecting(true))} aria-pressed={selecting}>
             {selecting ? 'סיום' : 'בחירה'}
           </button>
@@ -615,14 +213,14 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
               className="danger"
               disabled={!canDeleteFolders}
               title="אפשר למחוק רק תיקיות ריקות"
-              onClick={() => deleteEmptyFolders(pickedFolders)}
+              onClick={() => fo.deleteEmptyFolders(pickedFolders)}
             >
               מחק תיקיות
             </button>
           </>) : (<>
             <span>{selected.size} ספרים נבחרו</span>
             <button onClick={() => setSelected(new Set((searching ? shown : current!.books).map((b) => b.id)))}>בחר כל הספרים</button>
-            <button disabled={selected.size === 0} onClick={() => setMoving(books.filter((b) => selected.has(b.id)))}>
+            <button disabled={selected.size === 0} onClick={() => fo.setMoving(books.filter((b) => selected.has(b.id)))}>
               העבר ספרים
             </button>
             <button
@@ -671,94 +269,38 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
         <div className="empty">
           <p>{query ? `לא נמצאו ספרים עבור ״${query}״.` : 'אין ספרים בסינון הזה.'}</p>
         </div>
-      ) : !searching && !current ? (
-        <ul className="grid folders">
-          {folders.map((f) => (
-            <li key={f.key}>
-              <button
-                className={'card folder' + (selectedFolders.has(f.key) ? ' selected' : '')}
-                aria-pressed={selecting ? selectedFolders.has(f.key) : undefined}
-                onClick={() => (selecting ? toggleFolder(f.key) : setOpenFolder(f.key))}
-              >
-                <div className="folder-icon" aria-hidden="true">📁</div>
-                <div className="meta">
-                  <small className="kind">תיקייה</small>
-                  <strong>{f.name || 'ללא מחבר'}</strong>
-                  <small>{!f.books.length ? 'ריקה' : f.books.length === 1 ? 'ספר אחד' : `${f.books.length} ספרים`}</small>
-                </div>
-              </button>
-              {selecting && (
-                <span className="sel-mark" aria-hidden="true">{selectedFolders.has(f.key) ? '☑' : '☐'}</span>
-              )}
-            </li>
-          ))}
-        </ul>
+      ) : inFolderList ? (
+        <FolderList
+          folders={folders}
+          selecting={selecting}
+          selectedFolders={selectedFolders}
+          onOpen={fo.setOpenFolder}
+          onToggle={selection.toggleFolder}
+        />
       ) : (
         <>
-        {current && !searching && (
-          <div className="folder-bar">
-            <button onClick={() => setOpenFolder(undefined)}>→ כל התיקיות</button>
-            <strong>📁 {current.name || 'ללא מחבר'}</strong>
-            <small>{current.books.length === 1 ? 'ספר אחד' : `${current.books.length} ספרים`}</small>
-            {current.key && (
-              <button onClick={() => setFolderDialog({ rename: current.name, name: current.name })}>שינוי שם</button>
-            )}
-            {!current.books.length && (
-              <button className="danger" onClick={() => deleteEmptyFolders([current])}>מחק תיקייה</button>
-            )}
-          </div>
-        )}
-        {current && !current.books.length && !searching && (
-          <div className="empty"><p>התיקייה ריקה. העבירו אליה ספרים עם 📁.</p></div>
-        )}
-        <ul className="grid">
-          {(searching ? shown : current!.books).map((b) => (
-            <li key={b.id}>
-              <button
-                className={'card' + (selected.has(b.id) ? ' selected' : '')}
-                aria-pressed={selecting ? selected.has(b.id) : undefined}
-                onClick={() => (selecting ? toggleSelect(b.id) : onOpen(b.id))}
-              >
-                <Cover book={b} />
-                <div className="meta">
-                  <strong>{b.title}</strong>
-                  {b.author && <small>{b.author}</small>}
-                  <small className="kind">
-                    {b.fromPdf ? 'PDF' : b.kind.toUpperCase()}
-                    {b.fraction ? ` · ${Math.round(b.fraction * 100)}%` : ''}
-                    {isFinished(b) ? ' · נקרא ✓' : ''}
-                  </small>
-                </div>
-              </button>
-              {selecting ? (
-                <span className="sel-mark" aria-hidden="true">{selected.has(b.id) ? '☑' : '☐'}</span>
-              ) : (
-                <>
-                  <button
-                    className={'fin' + (isFinished(b) ? ' on' : '')}
-                    aria-label={isFinished(b) ? 'סמן כלא נקרא' : 'סמן כנקרא'}
-                    aria-pressed={isFinished(b)}
-                    onClick={async () => {
-                      await setFinished(b.id, !isFinished(b))
-                      refresh()
-                    }}
-                  >
-                    ✓
-                  </button>
-                  <button className="edit-btn" aria-label="עריכת שם ומחבר" onClick={() => openEdit(b)}>
-                    ✎
-                  </button>
-                  <button className="folder-btn" aria-label="העבר לתיקייה" onClick={() => setMoving([b])}>
-                    📁
-                  </button>
-                  <button className="del" aria-label="מחק" onClick={() => setConfirmDel([b])}>
-                    ✕
-                  </button>
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
+          {current && !searching && (
+            <FolderBar
+              folder={current}
+              onBack={() => fo.setOpenFolder(undefined)}
+              onRename={() => fo.setFolderDialog({ rename: current.name, name: current.name })}
+              onDelete={() => fo.deleteEmptyFolders([current])}
+            />
+          )}
+          {current && !current.books.length && !searching && (
+            <div className="empty"><p>התיקייה ריקה. העבירו אליה ספרים עם 📁.</p></div>
+          )}
+          <BookGrid
+            books={searching ? shown : current!.books}
+            selecting={selecting}
+            selected={selected}
+            onOpen={onOpen}
+            onToggle={selection.toggleSelect}
+            onEdit={openEdit}
+            onMove={(b) => fo.setMoving([b])}
+            onDelete={(b) => setConfirmDel([b])}
+            refresh={refresh}
+          />
         </>
       )}
 
@@ -769,277 +311,54 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
         </div>
       )}
 
-      {dupBatch && (
-        <div className="modal-backdrop">
-          <Dialog className="modal" role="alertdialog" aria-modal="true" aria-label="ספרים כפולים">
-            <h2>{dupBatch.items.length} ספרים כבר קיימים בספרייה</h2>
-            <p>שאר הספרים נוספו. מה לעשות עם הכפולים? החלפה מוחקת את הגרסה הקיימת יחד עם מיקום הקריאה וההערות שלה.</p>
-            {dupDetail && (
-              <ul className="dup-list">
-                {dupBatch.items.map((it, i) => (
-                  <li key={i}>
-                    <span>
-                      ״{it.existing.title}״ ← {it.name}
-                    </span>
-                    <Dropdown
-                      label={`פעולה עבור ${it.existing.title}`}
-                      value={it.choice}
-                      onChange={(choice) =>
-                        setDupBatch({
-                          ...dupBatch,
-                          items: dupBatch.items.map((x, j) => (j === i ? { ...x, choice } : x)),
-                        })
-                      }
-                      options={[
-                        { value: 'skip', label: 'דלג' },
-                        { value: 'add', label: 'הוסף בכל זאת' },
-                        { value: 'replace', label: 'החלף' },
-                      ]}
-                    />
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div className="modal-actions">
-              {dupDetail ? (
-                <button className="primary" onClick={() => dupBatch.done(dupBatch.items.map((x) => x.choice))}>
-                  אישור
-                </button>
-              ) : (
-                <>
-                  <button className="danger" onClick={() => dupBatch.done(dupBatch.items.map(() => 'replace'))}>
-                    החלף הכל
-                  </button>
-                  <button onClick={() => dupBatch.done(dupBatch.items.map(() => 'add'))}>הוסף הכל</button>
-                  <button onClick={() => dupBatch.done(dupBatch.items.map(() => 'skip'))} autoFocus>
-                    דלג על הכל
-                  </button>
-                  <button onClick={() => setDupDetail(true)}>פירוט</button>
-                </>
-              )}
-            </div>
-          </Dialog>
-        </div>
+      {imp.dupBatch && (
+        <DuplicateBatchDialog
+          batch={imp.dupBatch}
+          detail={imp.dupDetail}
+          onDetail={() => imp.setDupDetail(true)}
+          onChange={imp.setDupBatch}
+        />
       )}
-
-      {dupAsk && (
-        <div className="modal-backdrop">
-          <Dialog className="modal" role="alertdialog" aria-modal="true" aria-label="הספר כבר קיים">
-            <h2>הספר כבר קיים בספרייה</h2>
-            <p>
-              ״{dupAsk.existing.title}״ כבר בספרייה. להחליף אותו בקובץ {dupAsk.file}? החלפה תמחק את הגרסה הקיימת יחד
-              עם מיקום הקריאה וההערות שלה.
-            </p>
-            <div className="modal-actions">
-              <button
-                className="danger"
-                onClick={() => {
-                  dupAsk.answer('replace')
-                  setDupAsk(undefined)
-                }}
-              >
-                החלף
-              </button>
-              <button
-                onClick={() => {
-                  dupAsk.answer('add')
-                  setDupAsk(undefined)
-                }}
-              >
-                הוסף בכל זאת
-              </button>
-              <button
-                onClick={() => {
-                  dupAsk.answer('skip')
-                  setDupAsk(undefined)
-                }}
-                autoFocus
-              >
-                דלג
-              </button>
-            </div>
-          </Dialog>
-        </div>
-      )}
-
+      {imp.dupAsk && <DuplicateAskDialog ask={imp.dupAsk} onDone={() => imp.setDupAsk(undefined)} />}
       {confirmDel && (
-        <div className="modal-backdrop" onClick={() => setConfirmDel(undefined)}>
-          <Dialog
-            className="modal"
-            role="alertdialog"
-            aria-modal="true"
-            aria-label="אישור מחיקה"
-            onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => e.key === 'Escape' && setConfirmDel(undefined)}
-          >
-            <h2>למחוק {confirmDel.length === 1 ? 'את הספר' : `${confirmDel.length} ספרים`}?</h2>
-            <p>
-              {confirmDel.length === 1
-                ? `״${confirmDel[0]?.title}״ יימחק יחד עם מיקום הקריאה וההערות שלו.`
-                : 'הספרים שנבחרו יימחקו יחד עם מיקום הקריאה וההערות שלהם.'}{' '}
-              אפשר יהיה לבטל תוך כמה שניות.
-            </p>
-            <div className="modal-actions">
-              <button className="danger" onClick={doDelete}>מחק</button>
-              <button onClick={() => setConfirmDel(undefined)} autoFocus>ביטול</button>
-            </div>
-          </Dialog>
-        </div>
+        <ConfirmDeleteDialog books={confirmDel} onConfirm={doDelete} onCancel={() => setConfirmDel(undefined)} />
       )}
-
-      {moving && (
-        <div className="modal-backdrop" onClick={() => setMoving(undefined)}>
-          <Dialog
-            className="modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="העברה לתיקייה"
-            onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => e.key === 'Escape' && setMoving(undefined)}
-          >
-            <h2>
-              להעביר {moving.length === 1 ? `את ״${moving[0]?.title}״` : `${moving.length} ספרים`} ל…
-            </h2>
-            <ul className="move-list">
-              {allFolders
-                .filter((f) => !moving.every((b) => folderKey(b) === f.key))
-                .map((f) => (
-                  <li key={f.key}>
-                    <button onClick={() => moveTo(moving, f.name)}>
-                      📁 {f.name || 'ללא מחבר'} <small>({f.books.length} ספרים)</small>
-                    </button>
-                  </li>
-                ))}
-              {!allFolders.some((f) => !f.key) && (
-                <li>
-                  <button onClick={() => moveTo(moving, '')}>📁 ללא מחבר</button>
-                </li>
-              )}
-              {moving.some((b) => b.folder !== undefined) && (
-                <li>
-                  <button onClick={() => moveTo(moving, undefined)}>↺ חזרה לתיקיית המחבר</button>
-                </li>
-              )}
-            </ul>
-            <label>
-              תיקייה חדשה
-              <input
-                value={newFolder}
-                onChange={(e) => setNewFolder(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && newFolder.trim() && moveTo(moving, newFolder.trim(), true)}
-                placeholder="שם התיקייה"
-              />
-            </label>
-            <div className="modal-actions">
-              <button className="primary" disabled={!newFolder.trim()} onClick={() => moveTo(moving, newFolder.trim(), true)}>
-                צור והעבר
-              </button>
-              <button onClick={() => setMoving(undefined)}>ביטול</button>
-            </div>
-          </Dialog>
-        </div>
+      {fo.moving && (
+        <MoveDialog
+          books={fo.moving}
+          folders={fo.allFolders}
+          newFolder={fo.newFolder}
+          onNewFolder={fo.setNewFolder}
+          onMove={(name, created) => fo.moveTo(fo.moving!, name, created)}
+          onCancel={() => fo.setMoving(undefined)}
+        />
       )}
-
-      {folderDialog && (
-        <div className="modal-backdrop" onClick={() => setFolderDialog(undefined)}>
-          <Dialog
-            className="modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label={folderDialog.rename !== undefined ? 'שינוי שם תיקייה' : 'תיקייה חדשה'}
-            onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') setFolderDialog(undefined)
-              else if (e.key === 'Enter') saveFolderDialog()
-            }}
-          >
-            <h2>{folderDialog.rename !== undefined ? 'שינוי שם תיקייה' : 'תיקייה חדשה'}</h2>
-            <label>
-              שם התיקייה
-              <input
-                value={folderDialog.name}
-                onChange={(e) => setFolderDialog({ ...folderDialog, name: e.target.value })}
-                autoFocus
-              />
-            </label>
-            <div className="modal-actions">
-              <button className="primary" disabled={!folderDialog.name.trim()} onClick={saveFolderDialog}>
-                שמירה
-              </button>
-              <button onClick={() => setFolderDialog(undefined)}>ביטול</button>
-            </div>
-          </Dialog>
-        </div>
+      {fo.folderDialog && (
+        <FolderNameDialog
+          dialog={fo.folderDialog}
+          onChange={fo.setFolderDialog}
+          onSave={fo.saveFolderDialog}
+          onCancel={() => fo.setFolderDialog(undefined)}
+        />
       )}
-
-      {pwAsk && (
-        <div className="modal-backdrop" onClick={() => setPwAsk(undefined)}>
-          <Dialog
-            className="modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label={pwAsk.kind === 'export' ? 'גיבוי' : 'גיבוי מוצפן'}
-            onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') setPwAsk(undefined)
-              else if (e.key === 'Enter' && (pwAsk.kind === 'export' || pw)) submitPw()
-            }}
-          >
-            <h2>{pwAsk.kind === 'export' ? 'גיבוי' : 'הגיבוי מוצפן'}</h2>
-            <label>
-              {pwAsk.kind === 'export' ? 'סיסמה להצפנה (אופציונלי)' : 'סיסמה'}
-              <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoFocus autoComplete="off" />
-            </label>
-            {pwAsk.kind === 'export' && (
-              <small>
-                השאירו ריק לגיבוי רגיל. עם סיסמה אין דרך לשחזר את הגיבוי אם היא אבדה.
-              </small>
-            )}
-            {pwAsk.kind === 'import' && pwAsk.wrong && <small role="alert">הסיסמה שגויה, נסו שוב.</small>}
-            <div className="modal-actions">
-              <button className="primary" onClick={submitPw} disabled={pwAsk.kind === 'import' && !pw}>
-                {pwAsk.kind === 'export' ? 'צור גיבוי' : 'שחזר'}
-              </button>
-              <button onClick={() => setPwAsk(undefined)}>ביטול</button>
-            </div>
-          </Dialog>
-        </div>
+      {backup.pwAsk && (
+        <PasswordDialog
+          ask={backup.pwAsk}
+          pw={backup.pw}
+          onPw={backup.setPw}
+          onSubmit={backup.submitPw}
+          onCancel={() => backup.setPwAsk(undefined)}
+        />
       )}
-
       {editing && (
-        <div className="modal-backdrop" onClick={() => setEditing(undefined)}>
-          <Dialog
-            className="modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="עריכת פרטי ספר"
-            onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') setEditing(undefined)
-              else if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') saveEdit()
-            }}
-          >
-            <h2>עריכת פרטי ספר</h2>
-            <label>
-              שם הספר
-              <input
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-                autoFocus
-              />
-            </label>
-            <label>
-              מחבר
-              <input value={editAuthor} onChange={(e) => setEditAuthor(e.target.value)} />
-            </label>
-            <div className="modal-actions">
-              <button className="primary" onClick={saveEdit} disabled={!editTitle.trim()}>
-                שמירה
-              </button>
-              <button onClick={() => setEditing(undefined)}>ביטול</button>
-            </div>
-          </Dialog>
-        </div>
+        <EditBookDialog
+          title={editTitle}
+          author={editAuthor}
+          onTitle={setEditTitle}
+          onAuthor={setEditAuthor}
+          onSave={saveEdit}
+          onCancel={() => setEditing(undefined)}
+        />
       )}
     </div>
   )
