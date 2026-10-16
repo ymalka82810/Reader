@@ -122,8 +122,9 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: 4px; border: 1px solid rg
 .menu-wrap { position: relative; margin-inline-start: auto; }
 .menu-backdrop { position: fixed; inset: 0; z-index: 4; }
 .menu-pop { position: absolute; z-index: 5; inset-inline-end: 0; top: calc(100% + .3rem); display: flex; align-items: flex-start; gap: .3rem; }
+.menu-pop .menu { position: static; }
 .menu-side { min-width: 9rem; }
-.menu { min-width: 13rem; padding: .3rem; border-radius: 10px; background: var(--bg); color: var(--fg); box-shadow: 0 4px 18px rgba(0,0,0,.3); display: flex; flex-direction: column; gap: .15rem; }
+.menu { position: absolute; z-index: 5; inset-inline-end: 0; top: calc(100% + .3rem); min-width: 13rem; padding: .3rem; border-radius: 10px; background: var(--bg); color: var(--fg); box-shadow: 0 4px 18px rgba(0,0,0,.3); display: flex; flex-direction: column; gap: .15rem; }
 .menu button { text-align: start; background: transparent; }
 .menu { max-height: 80vh; overflow-y: auto; }
 .menu-title { padding: .4rem .6rem .1rem; font-size: .75rem; opacity: .65; }
