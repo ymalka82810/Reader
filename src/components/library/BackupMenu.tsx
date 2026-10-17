@@ -34,6 +34,7 @@ type Props = {
   view?: View
   busy: boolean
   storage?: StorageStatus
+  onPersist: () => void
   onBackup: () => void
   onRestore: () => void
   onCheckUpdate: () => void
@@ -77,7 +78,7 @@ function SubMenuPanel<T extends string>({ label, options, value, top, onPick }: 
 }
 
 /** the "⋯" menu in the library header: backup, restore, app update and storage status */
-export function BackupMenu({ view, busy, storage, onBackup, onRestore, onCheckUpdate, auto }: Props) {
+export function BackupMenu({ view, busy, storage, onPersist, onBackup, onRestore, onCheckUpdate, auto }: Props) {
   const [open, setOpen] = useState(false)
   const [sub, setSub] = useState<{ which: 'filter' | 'sort'; top: number } | null>(null)
   const close = () => {
@@ -93,6 +94,7 @@ export function BackupMenu({ view, busy, storage, onBackup, onRestore, onCheckUp
   if (auto.state === 'off') items.push(['גיבוי אוטומטי לתיקייה…', auto.onEnable, autoTip])
   else if (auto.state === 'needs-permission') items.push(['אשר גישה לגיבוי אוטומטי', auto.onRenew, 'הדפדפן ביקש לאשר מחדש גישה לתיקייה'])
   else if (auto.state === 'ready') items.push(['כבה גיבוי אוטומטי', auto.onDisable, autoTip])
+  if (storage && !storage.persisted) items.push(['בקש אחסון קבוע', onPersist, 'מבקש מהדפדפן לא למחוק את הספרייה כשחסר מקום. אם הוא מסרב, גיבוי הוא ההגנה הבטוחה'])
   if (isNativeApp) items.push(['בדוק עדכון', onCheckUpdate, 'מחפש גרסה חדשה של האפליקציה ב-GitHub'])
 
   return (
@@ -147,7 +149,7 @@ export function BackupMenu({ view, busy, storage, onBackup, onRestore, onCheckUp
             )}
             {storage && (
               <div className="menu-info" role="status">
-                {storage.persisted ? 'אחסון קבוע ✓' : 'אחסון לא קבוע — הדפדפן עלול למחוק את הספרייה'}
+                {storage.persisted ? 'אחסון קבוע ✓' : 'אחסון לא קבוע'}
                 {storage.usage != null && storage.quota
                   ? ` · בשימוש ${formatBytes(storage.usage)} מתוך ${formatBytes(storage.quota)}`
                   : ''}

@@ -1,9 +1,14 @@
 import type { Folder } from '../../lib/folders'
+import { BookCard, type BookActions } from './BookGrid'
+import { Cover } from './Cover'
 
 const bookCount = (n: number) => (!n ? 'ריקה' : n === 1 ? 'ספר אחד' : `${n} ספרים`)
 
 type ListProps = {
   folders: Folder[]
+  /** keys of folders that only hold one book their author put there: shown as that book's card */
+  loose: Set<string>
+  bookActions: Omit<BookActions, 'selecting' | 'onToggle'>
   selecting: boolean
   selectedFolders: Set<string>
   onOpen: (key: string) => void
@@ -11,17 +16,39 @@ type ListProps = {
 }
 
 /** the grid of folders shown at the top level of the library */
-export function FolderList({ folders, selecting, selectedFolders, onOpen, onToggle }: ListProps) {
+export function FolderList({ folders, loose, bookActions, selecting, selectedFolders, onOpen, onToggle }: ListProps) {
   return (
     <ul className="grid folders">
-      {folders.map((f) => (
+      {folders.map((f) => {
+        const lone = loose.has(f.key) ? f.books[0] : undefined
+        if (lone)
+          return (
+            <BookCard
+              key={f.key}
+              book={lone}
+              picked={selectedFolders.has(f.key)}
+              selecting={selecting}
+              onToggle={() => onToggle(f.key)}
+              {...bookActions}
+            />
+          )
+        // the folder wears the cover of the first book that has one
+        const covered = f.books.find((b) => b.cover)
+        return (
         <li key={f.key}>
           <button
-            className={'card folder' + (selectedFolders.has(f.key) ? ' selected' : '')}
+            className={'card folder' + (covered ? ' covered' : '') + (selectedFolders.has(f.key) ? ' selected' : '')}
             aria-pressed={selecting ? selectedFolders.has(f.key) : undefined}
             onClick={() => (selecting ? onToggle(f.key) : onOpen(f.key))}
           >
-            <div className="folder-icon" aria-hidden="true">📁</div>
+            {covered ? (
+              <div className="cover-wrap">
+                <Cover book={covered} />
+                <span className="folder-badge" aria-hidden="true">📁</span>
+              </div>
+            ) : (
+              <div className="folder-icon" aria-hidden="true">📁</div>
+            )}
             <div className="meta">
               <small className="kind">תיקייה</small>
               <strong>{f.name || 'ללא מחבר'}</strong>
@@ -30,7 +57,8 @@ export function FolderList({ folders, selecting, selectedFolders, onOpen, onTogg
           </button>
           {selecting && <span className="sel-mark" aria-hidden="true">{selectedFolders.has(f.key) ? '☑' : '☐'}</span>}
         </li>
-      ))}
+        )
+      })}
     </ul>
   )
 }
