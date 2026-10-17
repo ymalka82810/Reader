@@ -1,3 +1,5 @@
+import { Select } from '../Select'
+
 export type Filter = 'all' | 'reading' | 'unread' | 'finished'
 export type Sort = 'recent' | 'title' | 'author' | 'added'
 
@@ -34,20 +36,13 @@ export function LibTools({ query, onQuery, filter, onFilter, sort, onSort }: Pro
         value={query}
         onChange={(e) => onQuery(e.target.value)}
       />
-      <select aria-label="סינון" value={filter} onChange={(e) => onFilter(e.target.value as Filter)}>
-        {FILTERS.map(([v, text]) => (
-          <option key={v} value={v}>
-            {v === 'all' ? 'סינון: הכול' : text}
-          </option>
-        ))}
-      </select>
-      <select aria-label="מיון" value={sort} onChange={(e) => onSort(e.target.value as Sort)}>
-        {SORTS.map(([v, text]) => (
-          <option key={v} value={v}>
-            {text}
-          </option>
-        ))}
-      </select>
+      <Select
+        label="סינון"
+        value={filter}
+        onChange={onFilter}
+        options={FILTERS.map(([v, text]): [Filter, string] => [v, v === 'all' ? 'סינון: הכול' : text])}
+      />
+      <Select label="מיון" value={sort} onChange={onSort} options={SORTS} />
     </div>
   )
 }
