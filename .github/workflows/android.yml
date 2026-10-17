@@ -38,17 +38,23 @@ jobs:
           sed -i 's#</paths>#    <external-files-path name="app_update" path="app-update/" />\n</paths>#' android/app/src/main/res/xml/file_paths.xml
           sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"1.0.${{ github.run_number }}\"/" android/app/build.gradle
           grep -q "versionCode ${{ github.run_number }}" android/app/build.gradle
-      # Sign with the fixed key (secrets) so every build can update the previous one.
+      # Release build (smaller, faster, WebView not debuggable), signed with the same fixed key (secrets)
+      # so every build, including the earlier debug ones, can update the previous one.
       - run: |
           echo "$KEYSTORE_BASE64" | base64 -d > android/app/release.p12
           cat >> android/app/build.gradle <<'EOF'
-          android.signingConfigs.debug {
+          android.signingConfigs {
+            release {
               storeFile file('release.p12')
               storeType 'pkcs12'
               storePassword System.getenv('KEYSTORE_PASSWORD')
               keyAlias 'reader'
               keyPassword System.getenv('KEYSTORE_PASSWORD')
+            }
           }
+          android.buildTypes.release.signingConfig android.signingConfigs.release
+          // lint on the generated Capacitor project only slows the build down
+          android.lint.checkReleaseBuilds false
           EOF
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
@@ -63,17 +69,17 @@ jobs:
           key: gradle-${{ runner.os }}-${{ hashFiles('package-lock.json', 'resources/**', '.github/workflows/android.yml') }}
           restore-keys: gradle-${{ runner.os }}-
       - run: printf '\norg.gradle.caching=true\norg.gradle.parallel=true\norg.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8\n' >> android/gradle.properties
-      - run: ./gradlew assembleDebug --build-cache
+      - run: ./gradlew assembleRelease --build-cache
         working-directory: android
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
       - uses: actions/upload-artifact@v7
         with:
-          name: reader-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: reader-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
       - name: Publish release (used by the in-app updater)
         run: |
-          apk=android/app/build/outputs/apk/debug/app-debug.apk
+          apk=android/app/build/outputs/apk/release/app-release.apk
           sha=$(sha256sum "$apk" | cut -d' ' -f1)
           gh release create "v1.0.${{ github.run_number }}" "$apk" --title "v1.0.${{ github.run_number }}" \
             --notes "$(printf 'versionCode: %s\nsha256: %s' '${{ github.run_number }}' "$sha")"
