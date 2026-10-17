@@ -111,3 +111,25 @@ test('the back gesture leaves the book only when repeated', async ({ page }) => 
   await page.goBack()
   await expect(page.locator('.card', { hasText: 'ספר בדיקה' })).toBeVisible()
 })
+
+test('scripts inside an EPUB do not run', async ({ page }) => {
+  const zip = await JSZip.loadAsync(await makeEpub())
+  const ch = await zip.file('OEBPS/c1.xhtml')!.async('string')
+  zip.file(
+    'OEBPS/c1.xhtml',
+    ch.replace('</body>', `<script>window.parent.__epubScriptRan = true</script><img src="x.png" onerror="window.parent.__epubScriptRan = true"/></body>`),
+  )
+  const logs: string[] = []
+  page.on('console', (m) => logs.push(m.text()))
+  await page.goto('/')
+  await page.locator('input[type=file]').first().setInputFiles({
+    name: 'test.epub',
+    mimeType: 'application/epub+zip',
+    buffer: await zip.generateAsync({ type: 'nodebuffer' }),
+  })
+  await openBook(page)
+  await expect(page.getByText(/^עמוד/)).toBeVisible({ timeout: 30_000 })
+  await page.waitForTimeout(500)
+  expect(await page.evaluate('window.__epubScriptRan')).toBeUndefined()
+  expect(logs.some((l) => /Content Security Policy/i.test(l))).toBe(true)
+})
