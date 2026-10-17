@@ -148,7 +148,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
           type="file"
           hidden
           multiple
-          accept=".epub,.pdf,.txt,application/epub+zip,application/pdf,text/plain"
+          accept=".epub,.pdf,.txt,.docx,.mobi,.azw,.azw3,.fb2,.fbz,.cbz,application/epub+zip,application/pdf,text/plain"
           onChange={(e) => {
             if (e.target.files) imp.addFiles(e.target.files)
             e.target.value = ''
@@ -273,7 +273,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
       {books.length === 0 && !busy ? (
         <div className="empty">
           <p>אין עדיין ספרים.</p>
-          <p>לחץ על ״הוסף ספר״ ובחר קובץ EPUB, PDF או TXT מהטלפון או מגוגל דרייב.</p>
+          <p>לחץ על ״הוסף ספר״ ובחר קובץ EPUB, PDF, MOBI, AZW3, FB2, CBZ, DOCX או TXT מהטלפון או מגוגל דרייב.</p>
         </div>
       ) : shown.length === 0 ? (
         <div className="empty">
