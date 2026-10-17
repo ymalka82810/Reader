@@ -50,8 +50,17 @@ export function usePageEstimate(viewRef: RefObject<FoliateView | null>) {
     [viewRef],
   )
 
+  /** the book moved: remember where, and recompute once the new page is laid out */
+  const relocate = useCallback(
+    (d: FoliateRelocateDetail) => {
+      lastDetail.current = d
+      requestAnimationFrame(() => recompute(d))
+    },
+    [recompute],
+  )
+
   /** the layout changed: page size must be re-measured */
   const resetCalibration = useCallback(() => calib.current.clear(), [])
 
-  return { pages, recompute, resetCalibration, lastDetail }
+  return { pages, recompute, relocate, resetCalibration, lastDetail }
 }
