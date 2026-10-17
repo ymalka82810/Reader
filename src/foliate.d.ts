@@ -65,6 +65,9 @@ declare module 'foliate-js/view.js' {
     prev(): Promise<unknown>
     goLeft(): Promise<unknown>
     goRight(): Promise<unknown>
+    resolveNavigation(target: string): { index: number } | Promise<{ index: number }>
+    getSectionFractions(): number[]
+    getTOCItemOf(target: string): Promise<{ label?: string } | undefined>
     getCFI(index: number, range?: Range): string
     addAnnotation(a: { value: string; color?: string }): Promise<unknown>
     deleteAnnotation(a: { value: string }): Promise<unknown>

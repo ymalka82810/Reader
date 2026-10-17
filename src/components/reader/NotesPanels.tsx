@@ -1,5 +1,6 @@
 import { compare as cfiCompare } from 'foliate-js/epubcfi.js'
 import type { Annotation } from '../../lib/db'
+import type { ExportFormat } from '../../lib/notesExport'
 import { COLOR_NAMES, HIGHLIGHT_COLORS } from './colors'
 import { Panel } from './shared'
 import { t } from '../../i18n'
@@ -17,7 +18,7 @@ export function NotesList({
   onGotoBookmark: (dir: 1 | -1) => void
   onEdit: (id: string) => void
   onRemove: (id: string) => void
-  onExport: () => void
+  onExport: (format: ExportFormat) => void
 }) {
   if (notes.length === 0) return <p className="muted">{t('notes.empty')}</p>
   return (
@@ -29,7 +30,9 @@ export function NotesList({
             <button onClick={() => onGotoBookmark(1)} title={t('notes.nextTitle')}>{t('notes.next')}</button>
           </>
         )}
-        <button onClick={onExport}>{t('notes.export')}</button>
+        <button onClick={() => onExport('markdown')}>{t('notes.exportMarkdown')}</button>
+        <button onClick={() => onExport('obsidian')}>{t('notes.exportObsidian')}</button>
+        <button onClick={() => onExport('pdf')}>{t('notes.exportPdf')}</button>
       </div>
       <ul className="notes">
         {[...notes]
