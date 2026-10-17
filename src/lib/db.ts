@@ -1,17 +1,20 @@
 import { createStore, get, set, del, values, entries } from 'idb-keyval'
 import { deleteStats, loadStats, mergeStats } from './stats'
 import { folderKey } from './folders'
+import type { AudioInfo } from './audioBook'
 
 export interface BookRecord {
   id: string
   title: string
   author: string
-  kind: 'epub' | 'pdf' | 'other'
+  kind: 'epub' | 'pdf' | 'audio' | 'other'
   file: Blob
   fileName: string
   cover?: Blob
   /** true when `file` is an EPUB that was converted from a PDF */
   fromPdf?: boolean
+  /** audiobooks: length and chapters; `cfi` and bookmarks then hold times (see lib/audioBook) */
+  audio?: AudioInfo
   /** legacy (imported before PDF→EPUB conversion): extracted reflowable HTML sections */
   pdf?: { rtl: boolean; pageCount: number; sections: string[] }
   addedAt: number
@@ -62,6 +65,9 @@ export const saveBook = (b: BookRecord) =>
     await set(b.id, file, fileStore)
     await set(b.id, meta, store)
   })
+
+/** a book's metadata only (no Blob) */
+export const getBookMeta = (id: string) => get<BookMeta>(id, store)
 
 /** cheap existence check: reads only the small metadata record, never the book's Blob */
 export const hasBook = async (id: string) => (await get<BookMeta>(id, store)) !== undefined
