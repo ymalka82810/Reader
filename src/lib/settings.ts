@@ -30,6 +30,8 @@ export interface Settings {
   pageTransition: boolean
   /** Wiktionary edition used by the dictionary lookup; 'auto' follows the book's language */
   dictLang: string
+  /** language the translate action translates into; 'auto' is the interface language */
+  translateLang: string
   /** daily reading goal in minutes; 0 means no goal */
   dailyGoalMin: number
 }
@@ -70,6 +72,7 @@ const DEFAULTS: Settings = {
   accessible: false,
   pageTransition: true,
   dictLang: 'auto',
+  translateLang: 'auto',
   dailyGoalMin: 0,
 }
 

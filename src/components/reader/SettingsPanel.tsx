@@ -145,6 +145,15 @@ export function SettingsPanel({
           options={[['auto', t('settings.dictAuto')], ...DICT_LANGS.map(([code, name]): [string, string] => [code, name])]}
         />
       </div>
+      <div className="check">
+        {t('settings.translate')}{' '}
+        <Select
+          label={t('settings.translateLang')}
+          value={settings.translateLang}
+          onChange={(v) => set('translateLang', v)}
+          options={[['auto', t('settings.translateAuto')], ...DICT_LANGS.map(([code, name]): [string, string] => [code, name])]}
+        />
+      </div>
       {children}
       <details className="shortcuts">
         <summary>{t('kbd.title')}</summary>
