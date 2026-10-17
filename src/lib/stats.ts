@@ -54,8 +54,7 @@ export function addStats(id: string, secs: number, frac: number): Promise<void> 
 }
 
 /** minutes left at the reader's own pace, or null while there is too little data */
-export async function minutesLeft(id: string, fraction: number): Promise<number | null> {
-  const { secs, frac } = await loadStats(id)
+export function minutesLeft({ secs, frac }: Stats, fraction: number): number | null {
   if (secs < 120 || frac < 0.005) return null
   return Math.max(1, Math.round(((1 - fraction) * (secs / frac)) / 60))
 }

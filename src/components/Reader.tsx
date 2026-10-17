@@ -23,7 +23,7 @@ import { download } from '../lib/download'
 import { alignDocDir, fixBookDir, guardBookEdges } from '../lib/foliateFixes'
 import { bookFromSections } from '../lib/pdfToBook'
 import { linearSizes } from '../lib/pace'
-import { formatMinutes, minutesLeft } from '../lib/stats'
+import { formatMinutes, loadStats, minutesLeft } from '../lib/stats'
 import { bookCSS, loadSettings, saveSettings, themeColors, type Settings } from '../lib/settings'
 
 const TAP_HELP_KEY = 'reader:tapHelpSeen'
@@ -234,6 +234,10 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
         setDir(view.book.dir === 'ltr' ? 'ltr' : 'rtl')
         setToc(flattenToc(view.book.toc))
 
+        // read once per book: the estimate does not need to track the stats written while reading
+        const statsRef = await loadStats(id)
+        if (cancelled) return
+
         const on = <T,>(type: string, fn: (detail: T) => void) =>
           view.addEventListener(type, (e) => fn((e as CustomEvent<T>).detail))
         on<{ doc: Document; index: number }>('load', (d) => {
@@ -261,7 +265,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
           lastDetail.current = d
           const f = d.fraction ?? 0
           tracker.relocate(d)
-          minutesLeft(id, f).then((m) => !cancelled && setLeft(m))
+          setLeft(minutesLeft(statsRef, f))
           setFraction(f)
           setChapter(d.tocItem?.label ?? '')
           setHere(d.cfi ?? '')
