@@ -29,6 +29,8 @@ export interface Settings {
   pageTransition: boolean
   /** Wiktionary edition used by the dictionary lookup; 'auto' follows the book's language */
   dictLang: string
+  /** daily reading goal in minutes; 0 means no goal */
+  dailyGoalMin: number
 }
 
 export const DICT_LANGS: [string, string][] = [
@@ -67,6 +69,7 @@ const DEFAULTS: Settings = {
   accessible: false,
   pageTransition: true,
   dictLang: 'auto',
+  dailyGoalMin: 0,
 }
 
 const KEY = 'reader:settings'

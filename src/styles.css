@@ -223,3 +223,22 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: 4px; border: 1px solid rg
 .settings .colors { justify-content: space-between; }
 .settings .colors label { display: flex; flex-direction: column; align-items: center; gap: .2rem; font-size: .85em; }
 .upload { cursor: pointer; padding: .4rem .8rem; border-radius: 8px; border: 1px solid rgba(127,127,127,.4); }
+
+
+.goals { width: min(92vw, 420px); }
+.goals-today { display: flex; flex-direction: column; gap: .35rem; }
+.goals-today progress { width: 100%; accent-color: var(--accent); }
+.goals-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; text-align: center; }
+.goals-stats div { display: flex; flex-direction: column; gap: .15rem; padding: .5rem .3rem; border-radius: 10px; background: rgba(128,128,128,.12); }
+.goals-stats strong { font-size: 1.1rem; }
+.goals-stats small { opacity: .7; font-size: .72rem; }
+.goals-range { display: flex; gap: .4rem; }
+.goals-range button { flex: 1; padding: .3rem .5rem; font-size: .85rem; }
+.goals-range button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.goals-chart { position: relative; display: flex; align-items: stretch; gap: 2px; height: 7rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(128,128,128,.4); }
+.goals-bar { flex: 1; position: relative; display: flex; align-items: flex-end; justify-content: center; min-width: 0; }
+.goals-bar span { display: block; width: 100%; min-height: 2px; border-radius: 3px 3px 0 0; background: rgba(128,128,128,.55); }
+.goals-bar.met span { background: var(--accent); }
+.goals-bar small { position: absolute; top: 100%; font-size: .7rem; opacity: .7; }
+.goals-line { position: absolute; inset-inline: 0; border-top: 1px dashed var(--accent); pointer-events: none; margin-bottom: 1rem; }
+.goals-note { opacity: .7; }

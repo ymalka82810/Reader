@@ -11,6 +11,7 @@ import { useBackup } from '../hooks/useBackup'
 import { useAutoBackup } from '../hooks/useAutoBackup'
 import { useUpdateCheck } from '../hooks/useUpdateCheck'
 import { useConfirm } from '../hooks/useConfirm'
+import { GoalsDialog } from './library/GoalsDialog'
 import { BackupMenu } from './library/BackupMenu'
 import { LibTools, type Filter, type Sort } from './library/LibTools'
 import { BookGrid } from './library/BookGrid'
@@ -46,6 +47,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
     setStorage(await getStorageStatus())
     showToast(ok ? 'האחסון הוגדר כקבוע' : 'הדפדפן לא אישר אחסון קבוע. גיבוי הוא ההגנה הבטוחה על הספרייה')
   }
+  const [goalsOpen, setGoalsOpen] = useState(false)
   const [confirmDel, setConfirmDel] = useState<BookMeta[]>()
   useEffect(() => {
     getStorageStatus().then(setStorage)
@@ -170,6 +172,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
           onBackup={backup.askExport}
           onRestore={() => restoreInput.current?.click()}
           onCheckUpdate={checkUpdate}
+          onGoals={() => setGoalsOpen(true)}
           auto={{ state: auto.state, last: auto.last, onEnable: auto.enable, onDisable: auto.disable, onRenew: auto.renew }}
         />
         <input
@@ -369,6 +372,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
         />
       )}
       {confirmAsk && <ConfirmDialog ask={confirmAsk} />}
+      {goalsOpen && <GoalsDialog onClose={() => setGoalsOpen(false)} />}
       {editing && (
         <EditBookDialog
           title={editTitle}

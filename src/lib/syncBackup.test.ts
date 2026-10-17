@@ -16,6 +16,8 @@ import { exportLibrary, exportLibraryTo } from './backupExport'
 import { importLibrary } from './backupImport'
 import { loadSettings, saveSettings } from './settings'
 import { addStats, loadStats } from './stats'
+import { addReadingTime, loadReadingLog } from './readingLog'
+import { clear, createStore } from 'idb-keyval'
 
 const book = (id: string, extra: Partial<BookRecord> = {}): BookRecord => ({
   id,
@@ -79,6 +81,15 @@ describe('backup', () => {
     expect((await getBook('b'))!.cover).toBeUndefined()
     expect((await getNotes('a'))[0]!.text).toBe('hello')
     expect(await loadStats('a')).toEqual({ secs: 300, frac: 0.1 })
+  })
+  it('round-trips the daily reading log', async () => {
+    await saveBook(book('a'))
+    await addReadingTime(120, new Date(2020, 5, 1, 12).getTime())
+    const blob = await exportLibrary()
+    await clear(createStore('reader-log-db', 'days'))
+    expect(await loadReadingLog()).toEqual({})
+    await importLibrary(asFile(blob))
+    expect((await loadReadingLog())['2020-06-01']).toBe(120)
   })
   it('streams an encrypted export that imports back', async () => {
     await saveBook(book('a'))
