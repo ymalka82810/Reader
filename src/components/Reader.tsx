@@ -27,6 +27,7 @@ import { MAX_RATE, MIN_RATE, RATE_STEP, readAloudSupported, useReadAloud } from 
 import { useBackGesture } from '../hooks/useBackGesture'
 import { clampFont, useBookEvents, type Selection } from '../hooks/useBookEvents'
 import { firstWord } from '../lib/dictionary'
+import { saveWord } from '../lib/flashcards'
 import { formatMinutes, loadStats, minutesLeft, type Stats } from '../lib/stats'
 import { getLocale, isRtl, t } from '../i18n'
 import { customFontFace, loadCustomFont, type CustomFont } from '../lib/customFont'
@@ -566,7 +567,14 @@ export default function Reader({ id, startCfi, onClose }: { id: string; startCfi
       {panel === 'translate' && translation && (
         <TranslatePanel text={translation.text} source={translation.source} target={translation.target} onClose={() => setPanel(null)} />
       )}
-      {panel === 'dict' && dict && <DictPanel word={dict.word} lang={dict.lang} onClose={() => setPanel(null)} />}
+      {panel === 'dict' && dict && (
+        <DictPanel
+          word={dict.word}
+          lang={dict.lang}
+          onFound={(text) => saveWord(dict.word, dict.lang, text, id).catch(console.error)}
+          onClose={() => setPanel(null)}
+        />
+      )}
 
       {panel === 'edit' && editingNote && (
         <EditNotePanel

@@ -19,11 +19,12 @@ type Props = {
   onRestore: () => void
   onCheckUpdate: () => void
   onGoals: () => void
+  onReview: () => void
   auto: { state: AutoBackupState; last: number; onEnable: () => void; onDisable: () => void; onRenew: () => void }
 }
 
 /** the "⋯" menu in the library header: backup, restore, app update and storage status */
-export function BackupMenu({ view, busy, storage, onPersist, onBackup, onRestore, onCheckUpdate, onGoals, auto }: Props) {
+export function BackupMenu({ view, busy, storage, onPersist, onBackup, onRestore, onCheckUpdate, onGoals, onReview, auto }: Props) {
   const [open, setOpen] = useState(false)
   const close = () => setOpen(false)
   const items: [string, () => void, string][] = [
@@ -49,6 +50,9 @@ export function BackupMenu({ view, busy, storage, onPersist, onBackup, onRestore
           <div className="menu" role="menu">
             <button role="menuitem" onClick={() => { close(); onGoals() }}>
               {t('goals.title')}
+            </button>
+            <button role="menuitem" onClick={() => { close(); onReview() }}>
+              {t('review.title')}
             </button>
             {view && (
               <>

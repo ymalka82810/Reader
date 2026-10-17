@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { lookUpWord, wiktionaryUrl } from '../../lib/dictionary'
+import { useLatest } from '../../hooks/useLatest'
 import { Panel } from './shared'
 import { t } from '../../i18n'
 
 type Outcome = { state: 'found'; text: string } | { state: 'missing' } | { state: 'failed' }
 
-export function DictPanel({ word, lang, onClose }: { word: string; lang: string; onClose: () => void }) {
+/** `onFound` gets the entry once it is on screen, so the app can keep the word for later review */
+export function DictPanel({ word, lang, onFound, onClose }: { word: string; lang: string; onFound: (text: string) => void; onClose: () => void }) {
+  const found = useLatest(onFound)
   const [attempt, setAttempt] = useState(0)
   const request = `${lang}:${word}:${attempt}`
   const [done, setDone] = useState<{ request: string; outcome: Outcome } | null>(null)
@@ -16,13 +19,16 @@ export function DictPanel({ word, lang, onClose }: { word: string; lang: string;
     const ctl = new AbortController()
     const finish = (outcome: Outcome) => setDone({ request, outcome })
     lookUpWord(lang, word, ctl.signal).then(
-      (text) => finish(text ? { state: 'found', text } : { state: 'missing' }),
+      (text) => {
+        finish(text ? { state: 'found', text } : { state: 'missing' })
+        if (text && !ctl.signal.aborted) found.current(text)
+      },
       () => {
         if (!ctl.signal.aborted) finish({ state: 'failed' })
       },
     )
     return () => ctl.abort()
-  }, [word, lang, request])
+  }, [word, lang, request, found])
 
   return (
     <Panel label={t('dict.title', { word })} className="dict">

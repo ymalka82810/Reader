@@ -2,6 +2,7 @@ import { t } from '../i18n'
 import type { Annotation, BookRecord, Progress } from './db'
 import type { Stats } from './stats'
 import type { Settings } from './settings'
+import type { CardState, VocabWord } from './flashcards'
 
 /** Container format: [4-byte LE header length][JSON header][concatenated blob bytes].
  *  Keeps the whole library (files, covers, metadata, reading progress) in one file,
@@ -27,6 +28,9 @@ export interface Manifest {
   stats?: Record<string, Stats>
   /** active reading seconds per day ('YYYY-MM-DD'), for reading goals */
   readingLog?: Record<string, number>
+  /** words looked up in the dictionary, and how well each flashcard is known */
+  vocab?: VocabWord[]
+  cardStates?: Record<string, CardState>
 }
 
 export const CORRUPT = t('backup.corrupt')
@@ -76,5 +80,7 @@ export function parseManifest(text: string, bodySize: number): Manifest {
     settings: isObj(raw.settings) ? (raw.settings as unknown as Settings) : undefined,
     stats: isObj(raw.stats) ? (raw.stats as Manifest['stats']) : undefined,
     readingLog: isObj(raw.readingLog) ? (raw.readingLog as Manifest['readingLog']) : undefined,
+    vocab: Array.isArray(raw.vocab) ? (raw.vocab as VocabWord[]) : undefined,
+    cardStates: isObj(raw.cardStates) ? (raw.cardStates as Manifest['cardStates']) : undefined,
   }
 }

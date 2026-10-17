@@ -15,6 +15,7 @@ import { useConfirm } from '../hooks/useConfirm'
 import { hasTag, listTags, parseTags } from '../lib/tags'
 import { localeTag, t } from '../i18n'
 import { GoalsDialog } from './library/GoalsDialog'
+import { ReviewDialog } from './library/ReviewDialog'
 import { BackupMenu } from './library/BackupMenu'
 import { LibTools, type Sort } from './library/LibTools'
 import { PickBooksDialog } from './library/PickBooksDialog'
@@ -58,6 +59,7 @@ export default function Library({ onOpen }: { onOpen: (id: string, cfi?: string)
     showToast(ok ? t('lib.persistOk') : t('lib.persistDenied'))
   }
   const [goalsOpen, setGoalsOpen] = useState(false)
+  const [reviewOpen, setReviewOpen] = useState(false)
   const [confirmDel, setConfirmDel] = useState<BookMeta[]>()
   useEffect(() => {
     getStorageStatus().then(setStorage)
@@ -220,6 +222,7 @@ export default function Library({ onOpen }: { onOpen: (id: string, cfi?: string)
           onRestore={() => restoreInput.current?.click()}
           onCheckUpdate={checkUpdate}
           onGoals={() => setGoalsOpen(true)}
+          onReview={() => setReviewOpen(true)}
           auto={{ state: auto.state, last: auto.last, onEnable: auto.enable, onDisable: auto.disable, onRenew: auto.renew }}
         />
         <input
@@ -446,6 +449,7 @@ export default function Library({ onOpen }: { onOpen: (id: string, cfi?: string)
       )}
       {confirmAsk &&<ConfirmDialog ask={confirmAsk} />}
       {goalsOpen && <GoalsDialog onClose={() => setGoalsOpen(false)} />}
+      {reviewOpen && <ReviewDialog books={books} onClose={() => setReviewOpen(false)} />}
       {editing && (
         <EditBookDialog
           title={editTitle}
