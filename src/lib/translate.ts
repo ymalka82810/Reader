@@ -24,13 +24,25 @@ export function chunkText(text: string, max = CHUNK_CHARS): string[] {
 
 type Reply = { responseStatus: number | string; responseData?: { translatedText?: string } }
 
+/** the free anonymous daily allowance of MyMemory is used up */
+export class QuotaError extends Error {
+  constructor() {
+    super('MyMemory daily quota reached')
+    this.name = 'QuotaError'
+  }
+}
+
 async function translateChunk(text: string, pair: string, signal?: AbortSignal): Promise<string> {
   const params = new URLSearchParams({ q: text, langpair: pair })
   const res = await fetch(`https://api.mymemory.translated.net/get?${params}`, { signal })
+  if (res.status === 429) throw new QuotaError()
   if (!res.ok) throw new Error(`MyMemory answered ${res.status}`)
   const data = (await res.json()) as Reply
   const out = data.responseData?.translatedText
-  if (Number(data.responseStatus) !== 200 || !out) throw new Error(`MyMemory status ${data.responseStatus}`)
+  const status = Number(data.responseStatus)
+  // MyMemory reports the exhausted quota in the body (status 429, or a 200 carrying a warning text)
+  if (status === 429 || /USED ALL AVAILABLE FREE TRANSLATIONS/i.test(out ?? '')) throw new QuotaError()
+  if (status !== 200 || !out) throw new Error(`MyMemory status ${data.responseStatus}`)
   return out
 }
 

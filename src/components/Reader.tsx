@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { FoliateView } from 'foliate-js/view.js'
+import { ConsentGate } from './reader/ConsentGate'
 import { DictPanel } from './reader/DictPanel'
 import { TranslatePanel } from './reader/TranslatePanel'
 import { NavPanel } from './reader/NavPanel'
@@ -332,7 +333,8 @@ export default function Reader({ id, startCfi, onClose }: { id: string; startCfi
     const word = firstWord(selectionRef.current?.text ?? '')
     if (!word) return
     let lang = settingsRef.current.dictLang
-    if (lang === 'auto') lang = bookLang.current || (/\p{Script=Hebrew}/u.test(word) ? 'he' : 'en')
+    // the language becomes part of a host name, so an odd value from the book's metadata must not get through
+    if (lang === 'auto') lang = /^[a-z]{2,3}$/.test(bookLang.current) ? bookLang.current : /\p{Script=Hebrew}/u.test(word) ? 'he' : 'en'
     openDict(word, lang)
   }
 
@@ -565,15 +567,19 @@ export default function Reader({ id, startCfi, onClose }: { id: string; startCfi
       )}
 
       {panel === 'translate' && translation && (
-        <TranslatePanel text={translation.text} source={translation.source} target={translation.target} onClose={() => setPanel(null)} />
+        <ConsentGate service="translate" onClose={() => setPanel(null)}>
+          <TranslatePanel text={translation.text} source={translation.source} target={translation.target} onClose={() => setPanel(null)} />
+        </ConsentGate>
       )}
       {panel === 'dict' && dict && (
-        <DictPanel
-          word={dict.word}
-          lang={dict.lang}
-          onFound={(text) => saveWord(dict.word, dict.lang, text, id).catch(console.error)}
-          onClose={() => setPanel(null)}
-        />
+        <ConsentGate service="dict" onClose={() => setPanel(null)}>
+          <DictPanel
+            word={dict.word}
+            lang={dict.lang}
+            onFound={(text) => saveWord(dict.word, dict.lang, text, id).catch(console.error)}
+            onClose={() => setPanel(null)}
+          />
+        </ConsentGate>
       )}
 
       {panel === 'edit' && editingNote && (

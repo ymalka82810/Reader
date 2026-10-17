@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { MAX_FONT, MIN_FONT } from '../../hooks/useBookEvents'
 import { CUSTOM_FONT_FAMILY, removeCustomFont, saveCustomFont, type CustomFont } from '../../lib/customFont'
+import { setConsent } from '../../lib/consent'
 import { DICT_LANGS, FONTS, type Flow, type Settings, type Theme } from '../../lib/settings'
 import { Select } from '../Select'
 import { Panel, Seg } from './shared'
@@ -23,6 +24,7 @@ export function SettingsPanel({
   children?: ReactNode
 }) {
   const [fontError, setFontError] = useState('')
+  const [consentReset, setConsentReset] = useState(false)
   const upload = async (file: File | undefined) => {
     if (!file) return
     try {
@@ -153,6 +155,18 @@ export function SettingsPanel({
           onChange={(v) => set('translateLang', v)}
           options={[['auto', t('settings.translateAuto')], ...DICT_LANGS.map(([code, name]): [string, string] => [code, name])]}
         />
+      </div>
+      <div className="check">
+        <button
+          onClick={() => {
+            setConsent('translate', false)
+            setConsent('dict', false)
+            setConsentReset(true)
+          }}
+        >
+          {t('settings.consentReset')}
+        </button>
+        {consentReset && <span role="status"> {t('settings.consentDone')}</span>}
       </div>
       {children}
       <details className="shortcuts">
