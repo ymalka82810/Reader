@@ -1,31 +1,27 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import 'foliate-js/view.js'
-import { Overlayer } from 'foliate-js/overlayer.js'
-import { compare as cfiCompare } from 'foliate-js/epubcfi.js'
-import type { FoliateRelocateDetail, FoliateView } from 'foliate-js/view.js'
+import type { FoliateView } from 'foliate-js/view.js'
 import { NavPanel } from './reader/NavPanel'
 import { EditNotePanel, NotesList } from './reader/NotesPanels'
 import { SearchPanel } from './reader/SearchPanel'
 import { SettingsPanel } from './reader/SettingsPanel'
 import { COLOR_NAMES, HIGHLIGHT_COLORS } from './reader/colors'
 import { Icon } from './reader/shared'
-import { flattenToc, type FlatTocItem } from './reader/toc'
 import { TocList } from './reader/TocPanel'
 import { useBookSearch } from './reader/useBookSearch'
+import { useAnnotations } from '../hooks/useAnnotations'
 import { useBookKeys, type KeyActions } from '../hooks/useBookKeys'
 import { useFlash } from '../hooks/useFlash'
+import { useFoliateView } from '../hooks/useFoliateView'
+import { useLatest } from '../hooks/useLatest'
 import { usePageEstimate } from '../hooks/usePageEstimate'
+import { useReaderPanels } from '../hooks/useReaderPanels'
 import { useReadingTracker } from '../hooks/useReadingTracker'
 import { useAutoRead } from '../hooks/useAutoRead'
 import { MAX_RATE, MIN_RATE, RATE_STEP, readAloudSupported, useReadAloud } from '../hooks/useReadAloud'
 import { useBackGesture } from '../hooks/useBackGesture'
 import { clampFont, useBookEvents, type Selection } from '../hooks/useBookEvents'
-import { getBook, getNotes, newId, saveNotes, type Annotation } from '../lib/db'
-import { download } from '../lib/download'
-import { alignDocDir, fixBookDir, guardBookEdges } from '../lib/foliateFixes'
-import { bookFromSections } from '../lib/pdfToBook'
-import { formatMinutes, loadStats, minutesLeft } from '../lib/stats'
-import { bookCSS, loadSettings, saveSettings, themeColors, type Settings } from '../lib/settings'
+import { formatMinutes, loadStats, minutesLeft, type Stats } from '../lib/stats'
+import { loadSettings, saveSettings, themeColors, type Settings } from '../lib/settings'
 
 const TAP_HELP_KEY = 'reader:tapHelpSeen'
 /** a second back swipe within this time leaves the book */
@@ -35,21 +31,9 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   const host = useRef<HTMLDivElement>(null)
   const viewRef = useRef<FoliateView | null>(null)
   const [settings, setSettings] = useState<Settings>(loadSettings)
-  const settingsRef = useRef(settings)
-
-  const [title, setTitle] = useState('')
-  const [dir, setDir] = useState<'rtl' | 'ltr'>('rtl')
-  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
-  const [error, setError] = useState('')
+  const settingsRef = useLatest(settings)
   const [uiVisible, setUiVisible] = useState(true)
-  const [panel, setPanel] = useState<'toc' | 'settings' | 'search' | 'notes' | 'edit' | null>(null)
-  const panelRef = useRef(panel)
-  useEffect(() => {
-    panelRef.current = panel
-  }, [panel])
-  const [toc, setToc] = useState<FlatTocItem[]>([])
-  /** primary language subtag of the open book ("he", "en", …), '' when unknown */
-  const bookLang = useRef('')
+  const { panel, panelRef, setPanel, closePanel, togglePanel, editingId, editNote } = useReaderPanels()
   const [fraction, setFraction] = useState(0)
   const [dragFraction, setDragFraction] = useState<number | null>(null)
   const [chapter, setChapter] = useState('')
@@ -70,18 +54,13 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     }
   })
 
-  const [notes, setNotes] = useState<Annotation[]>([])
-  const notesRef = useRef<Annotation[]>([])
-  const [editingId, setEditingId] = useState<string | null>(null)
   /** text currently selected in the book, with where to float the colour bar */
   const [selection, setSelection] = useState<Selection | null>(null)
-  const selectionRef = useRef(selection)
-  useLayoutEffect(() => {
-    settingsRef.current = settings
-    selectionRef.current = selection
-  })
+  const selectionRef = useLatest(selection)
   const lastAnnotationClick = useRef(0)
   const [left, setLeft] = useState<number | null>(null)
+  /** read once per book: the estimate does not need to track the stats written while reading */
+  const stats = useRef<Stats>({ secs: 0, frac: 0 })
   const actions = useRef<KeyActions>({
     bookmark: () => {},
     gotoBookmark: () => {},
@@ -104,11 +83,42 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   })
 
   const tracker = useReadingTracker(id)
-  const closePanel = useCallback(() => setPanel(null), [])
   const onKey = useBookKeys({ viewRef, actions, closePanel, markActive: tracker.markActive })
 
   const { message: toast, flash } = useFlash()
-  const { pages, recompute, resetCalibration, lastDetail } = usePageEstimate(viewRef)
+  const estimate = usePageEstimate(viewRef)
+  const { pages, recompute, resetCalibration, lastDetail } = estimate
+  const notes = useAnnotations(id, viewRef, flash)
+
+  const { status, error, title, dir, toc, bookLang } = useFoliateView(id, host, viewRef, settings, {
+    prepare: async () => {
+      const [, s] = await Promise.all([notes.load(), loadStats(id)])
+      stats.current = s
+    },
+    load: (d) => attachDocHandlers(d, onKey),
+    createOverlay: notes.drawAll,
+    showAnnotation: (cfi) => {
+      const n = notes.findByCfi(cfi)
+      if (!n) return
+      lastAnnotationClick.current = Date.now()
+      editNote(n.id)
+    },
+    relocate: (d) => {
+      estimate.relocate(d)
+      const f = d.fraction ?? 0
+      tracker.relocate(d)
+      setLeft(minutesLeft(stats.current, f))
+      setFraction(f)
+      setChapter(d.tocItem?.label ?? '')
+      setHere(d.cfi ?? '')
+      setChapterHref(d.tocItem?.href ?? '')
+    },
+  })
+  useEffect(() => {
+    if (status !== 'ready') return
+    const t = window.setTimeout(() => recompute(), 600)
+    return () => window.clearTimeout(t)
+  }, [status, recompute])
 
   // the phone's back swipe: closes an open panel, else shows the bars and asks for a second swipe
   // (so a stray edge swipe doesn't drop the reader out of the book)
@@ -139,130 +149,10 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     [],
   )
 
-  const commitNotes = useCallback(
-    (next: Annotation[]) => {
-      notesRef.current = next
-      setNotes(next)
-      saveNotes(id, next).catch((e) => {
-        console.error(e)
-        flash(e instanceof Error && e.name === 'QuotaExceededError' ? 'אין מקום באחסון — ההערה לא נשמרה' : 'שמירת ההערה נכשלה')
-      })
-    },
-    [id, flash],
-  )
-
-  // ---- open the book ----
-  useEffect(() => {
-    let cancelled = false
-    const view = document.createElement('foliate-view') as FoliateView
-    view.style.cssText = 'display:block;width:100%;height:100%'
-
-    ;(async () => {
-      try {
-        const rec = await getBook(id)
-        const savedNotes = await getNotes(id)
-        notesRef.current = savedNotes
-        setNotes(savedNotes)
-        if (!rec) throw new Error('הספר לא נמצא בספרייה')
-        if (cancelled) return
-        host.current?.append(view)
-
-        const source =
-          rec.kind === 'pdf' && rec.pdf
-            ? bookFromSections({ title: rec.title, author: rec.author, ...rec.pdf })
-            : rec.file
-        await view.open(source)
-        if (cancelled) return
-        viewRef.current = view
-
-        const s = settingsRef.current
-        const r = view.renderer
-        r.setAttribute?.('flow', s.flow)
-        r.setAttribute?.('gap', '5%')
-        if (s.pageTransition) r.setAttribute?.('animated', '')
-        else r.removeAttribute?.('animated')
-        r.setStyles?.(bookCSS(s))
-
-        setTitle(rec.title)
-        const lang = [view.book.metadata?.language].flat()[0]
-        bookLang.current = typeof lang === 'string' ? (lang.split(/[-_]/)[0] ?? '').toLowerCase() : ''
-        fixBookDir(view, bookLang.current, rec.title)
-        guardBookEdges(view)
-        setDir(view.book.dir === 'ltr' ? 'ltr' : 'rtl')
-        setToc(flattenToc(view.book.toc))
-
-        // read once per book: the estimate does not need to track the stats written while reading
-        const statsRef = await loadStats(id)
-        if (cancelled) return
-
-        const on = <T,>(type: string, fn: (detail: T) => void) =>
-          view.addEventListener(type, (e) => fn((e as CustomEvent<T>).detail))
-        on<{ doc: Document; index: number }>('load', (d) => {
-          alignDocDir(view, d.doc)
-          setDir(view.book.dir === 'ltr' ? 'ltr' : 'rtl')
-          attachDocHandlers(d, onKey)
-        })
-        on<{ draw: (fn: typeof Overlayer.highlight, opts: object) => void; annotation: { color: string } }>(
-          'draw-annotation',
-          ({ draw, annotation }) => draw(Overlayer.highlight, { color: annotation.color }),
-        )
-        on('create-overlay', () => {
-          for (const n of notesRef.current) {
-            if (n.kind === 'highlight') view.addAnnotation({ value: n.cfi, color: n.color }).catch(console.error)
-          }
-        })
-        on<{ value: string }>('show-annotation', (d) => {
-          const n = notesRef.current.find((x) => x.cfi === d.value)
-          if (!n) return
-          lastAnnotationClick.current = Date.now()
-          setEditingId(n.id)
-          setPanel('edit')
-        })
-        on<FoliateRelocateDetail>('relocate', (d) => {
-          lastDetail.current = d
-          const f = d.fraction ?? 0
-          tracker.relocate(d)
-          setLeft(minutesLeft(statsRef, f))
-          setFraction(f)
-          setChapter(d.tocItem?.label ?? '')
-          setHere(d.cfi ?? '')
-          setChapterHref(d.tocItem?.href ?? '')
-          requestAnimationFrame(() => recompute(d))
-        })
-
-        await view.init({ lastLocation: rec.cfi, showTextStart: !rec.cfi })
-        setStatus('ready')
-        window.setTimeout(() => recompute(), 600)
-      } catch (e) {
-        console.error(e)
-        if (!cancelled) {
-          setError(e instanceof Error ? e.message : String(e))
-          setStatus('error')
-        }
-      }
-    })()
-
-    return () => {
-      cancelled = true
-      try {
-        view.close?.()
-      } catch {
-        /* view may already be closed or half-initialised; teardown continues with remove() */
-      }
-      view.remove()
-      viewRef.current = null
-    }
-  }, [id, recompute, lastDetail, attachDocHandlers, onKey, tracker])
-
-  // ---- apply settings changes live ----
+  // ---- settings: save, and re-measure pages once the view has applied them ----
   useEffect(() => {
     saveSettings(settings)
-    const v = viewRef.current
-    if (!v) return
-    v.renderer.setAttribute?.('flow', settings.flow)
-    if (settings.pageTransition) v.renderer.setAttribute?.('animated', '')
-    else v.renderer.removeAttribute?.('animated')
-    v.renderer.setStyles?.(bookCSS(settings))
+    if (!viewRef.current) return
     resetCalibration() // layout changed: page size must be re-measured
     const t = window.setTimeout(() => recompute(), 400)
     const t2 = window.setTimeout(() => recompute(), 1200)
@@ -329,31 +219,22 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     viewRef.current?.goTo(hits[next]!.cfi)
   }
 
+  const clearSelection = () => {
+    viewRef.current?.renderer.getContents?.().forEach((c) => c.doc?.getSelection()?.removeAllRanges())
+    setSelection(null)
+  }
+
   const addHighlight = (color: string) => {
     const sel = selectionRef.current
-    const view = viewRef.current
-    if (!sel || !view) return undefined
-    const note: Annotation = {
-      id: newId(),
-      kind: 'highlight',
-      cfi: sel.cfi,
-      text: sel.text,
-      color,
-      // oxlint-disable-next-line react/purity -- runs in a click handler, not during render
-      createdAt: Date.now(),
-    }
-    commitNotes([...notesRef.current, note])
-    view.addAnnotation({ value: note.cfi, color }).catch(console.error)
-    view.renderer.getContents?.().forEach((c) => c.doc?.getSelection()?.removeAllRanges())
-    setSelection(null)
-    return note.id
+    if (!sel || !viewRef.current) return undefined
+    const noteId = notes.addHighlight(sel.cfi, sel.text, color)
+    clearSelection()
+    return noteId
   }
 
   const addNote = () => {
     const noteId = addHighlight(HIGHLIGHT_COLORS[0] ?? '')
-    if (!noteId) return
-    setEditingId(noteId)
-    setPanel('edit')
+    if (noteId) editNote(noteId)
   }
 
   const copySelection = () => {
@@ -373,76 +254,18 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     setSelection(null)
   }
 
-  const updateNote = (noteId: string, patch: Partial<Annotation>) => {
-    const next = notesRef.current.map((n) => (n.id === noteId ? { ...n, ...patch } : n))
-    commitNotes(next)
-    const n = next.find((x) => x.id === noteId)
-    if (n && patch.color && n.kind === 'highlight') {
-      viewRef.current?.addAnnotation({ value: n.cfi, color: n.color }).catch(console.error)
-    }
-  }
-
-  const removeNote = (noteId: string) => {
-    const n = notesRef.current.find((x) => x.id === noteId)
-    if (!n) return
-    commitNotes(notesRef.current.filter((x) => x.id !== noteId))
-    if (n.kind === 'highlight') viewRef.current?.deleteAnnotation({ value: n.cfi }).catch(console.error)
-  }
-
   const toggleBookmark = () => {
     const d = lastDetail.current
     if (!d?.cfi) return
-    const existing = notesRef.current.find((n) => n.kind === 'bookmark' && n.cfi === d.cfi)
-    if (existing) {
-      removeNote(existing.id)
-      flash('הסימנייה הוסרה')
-      return
-    }
-    const label = [chapter, `${Math.round((d.fraction ?? 0) * 100)}%`].filter(Boolean).join(' · ')
-    commitNotes([
-      ...notesRef.current,
-      { id: newId(), kind: 'bookmark', cfi: d.cfi, text: label, color: HIGHLIGHT_COLORS[0] ?? '', createdAt: Date.now() },
-    ])
-    flash('נוספה סימנייה')
+    notes.toggleBookmark(d.cfi, [chapter, `${Math.round((d.fraction ?? 0) * 100)}%`].filter(Boolean).join(' · '))
   }
 
   /** jump to the next (dir 1) or previous (dir -1) bookmark of this book, in reading order */
   const gotoBookmark = (dir: 1 | -1) => {
-    const marks = notesRef.current
-      .filter((n) => n.kind === 'bookmark')
-      .sort((a, b) => cfiCompare(a.cfi, b.cfi))
-    if (!marks.length) return flash('אין סימניות בספר')
-    const here = lastDetail.current?.cfi
-    const target = here
-      ? dir === 1
-        ? marks.find((n) => cfiCompare(n.cfi, here) > 0)
-        : [...marks].reverse().find((n) => cfiCompare(n.cfi, here) < 0)
-      : marks[0]
-    if (!target) return flash(dir === 1 ? 'אין סימנייה נוספת קדימה' : 'אין סימנייה קודמת')
+    const target = notes.bookmarkFrom(lastDetail.current?.cfi, dir)
+    if (!target) return
     jumpTo(target.cfi)
     flash(target.text)
-  }
-
-  const exportMarkdown = () => {
-    const list = [...notesRef.current].sort((a, b) => a.createdAt - b.createdAt)
-    if (!list.length) return flash('אין מה לייצא')
-    const quote = (s: string) => s.replace(/\s*\n\s*/g, ' ')
-    const lines = [`# ${title}`, '']
-    const marks = list.filter((n) => n.kind === 'bookmark')
-    const hls = list.filter((n) => n.kind === 'highlight')
-    if (hls.length) {
-      lines.push('## הדגשות', '')
-      for (const n of hls) {
-        lines.push(`> ${quote(n.text)}`)
-        if (n.note) lines.push('', n.note)
-        lines.push('')
-      }
-    }
-    if (marks.length) lines.push('## סימניות', '', ...marks.map((n) => `- ${n.text}`), '')
-    download(
-      new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' }),
-      `${title.replace(/[\\/:*?"<>|]/g, '_') || 'הערות'}.md`,
-    )
   }
 
   const lookUp = () => {
@@ -461,7 +284,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
       bookmark: toggleBookmark,
       gotoBookmark,
       bump: (d) => setSettings((s) => ({ ...s, fontSize: clampFont(s.fontSize + d) })),
-      panel: (p) => setPanel((cur) => (cur === p ? null : p)),
+      panel: togglePanel,
       hideBars: () => setUiVisible(false),
       autoRead: toggleAuto,
       pace: auto.adjust,
@@ -469,8 +292,8 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     }
   })
 
-  const editingNote = notes.find((x) => x.id === editingId)
-  const bookmarked = !!here && notes.some((n) => n.kind === 'bookmark' && n.cfi === here)
+  const editingNote = notes.notes.find((x) => x.id === editingId)
+  const bookmarked = !!here && notes.notes.some((n) => n.kind === 'bookmark' && n.cfi === here)
   const navOpen = panel === 'toc' || panel === 'notes'
   const colors = themeColors(settings.theme)
   const shownFraction = dragFraction ?? fraction
@@ -514,10 +337,10 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
         >
           <Icon d="M4 6h16M4 12h16M4 18h16" />
         </button>
-        <button onClick={() => setPanel(panel === 'search' ? null : 'search')} aria-label="חיפוש" title="חיפוש">
+        <button onClick={() => togglePanel('search')} aria-label="חיפוש" title="חיפוש">
           <Icon d="M10.5 18a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15zM16 16l5 5" />
         </button>
-        <button onClick={() => setPanel(panel === 'settings' ? null : 'settings')} aria-label="הגדרות תצוגה" title="הגדרות תצוגה">Aa</button>
+        <button onClick={() => togglePanel('settings')} aria-label="הגדרות תצוגה" title="הגדרות תצוגה">Aa</button>
       </div>
 
       <div className={'bottombar' + (uiVisible ? '' : ' hidden')}>
@@ -648,9 +471,9 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
             />
           ) : (
             <NotesList
-              notes={notes}
-              onExport={exportMarkdown}
-              onRemove={removeNote}
+              notes={notes.notes}
+              onExport={() => notes.exportMarkdown(title)}
+              onRemove={notes.remove}
               onGoTo={(cfi) => {
                 jumpTo(cfi)
                 setPanel(null)
@@ -659,10 +482,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
                 setPanel(null)
                 gotoBookmark(d)
               }}
-              onEdit={(noteId) => {
-                setEditingId(noteId)
-                setPanel('edit')
-              }}
+              onEdit={editNote}
             />
           )}
         </NavPanel>
@@ -671,12 +491,12 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
       {panel === 'edit' && editingNote && (
         <EditNotePanel
           note={editingNote}
-          onUpdate={(patch) => updateNote(editingNote.id, patch)}
+          onUpdate={(patch) => notes.update(editingNote.id, patch)}
           onRemove={() => {
-            removeNote(editingNote.id)
+            notes.remove(editingNote.id)
             setPanel(null)
           }}
-          onClose={() => setPanel(null)}
+          onClose={closePanel}
         />
       )}
 

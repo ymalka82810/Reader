@@ -1,7 +1,7 @@
 import type { FoliateView } from 'foliate-js/view.js'
 import { useCallback, useEffect, useLayoutEffect, useRef, type MutableRefObject } from 'react'
 
-type KeyPanel = 'toc' | 'notes' | 'settings' | 'search'
+export type KeyPanel = 'toc' | 'notes' | 'settings' | 'search'
 
 export interface KeyActions {
   bookmark: () => void
