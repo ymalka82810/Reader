@@ -15,16 +15,19 @@ const FILE_NAME = 'גיבוי-אוטומטי.readerbackup'
 
 export type AutoBackupState = 'unsupported' | 'off' | 'ready' | 'needs-permission'
 
+/** the File System Access API has no default TS typings; only the parts used here */
+type FileSink = Parameters<typeof exportLibraryTo>[0]
 type DirHandle = {
   name: string
   queryPermission(o: object): Promise<PermissionState>
   requestPermission(o: object): Promise<PermissionState>
-  getFileHandle(name: string, o: object): Promise<{ createWritable(): Promise<any> }>
+  getFileHandle(name: string, o: object): Promise<{ createWritable(): Promise<FileSink> }>
 }
+type DirPickerWindow = Window & { showDirectoryPicker?: (o: object) => Promise<DirHandle> }
 
 const MODE = { mode: 'readwrite' }
 
-const autoBackupSupported = () => typeof (window as any).showDirectoryPicker === 'function'
+const autoBackupSupported = () => typeof (window as DirPickerWindow).showDirectoryPicker === 'function'
 
 export function lastAutoBackup(): number {
   try {
@@ -49,7 +52,7 @@ export async function autoBackupState(): Promise<AutoBackupState> {
 /** asks the user for a folder; must be called straight from a click. Resolves false if they cancel. */
 export async function chooseBackupFolder(): Promise<boolean> {
   try {
-    const dir: DirHandle = await (window as any).showDirectoryPicker({ mode: 'readwrite', id: 'reader-backup' })
+    const dir = await (window as DirPickerWindow).showDirectoryPicker!({ mode: 'readwrite', id: 'reader-backup' })
     await set(HANDLE_KEY, dir, store)
     return true
   } catch (e) {
