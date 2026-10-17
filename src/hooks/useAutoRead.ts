@@ -37,6 +37,14 @@ function findScroller(view: FoliateView): HTMLElement | null {
   return null
 }
 
+/** seconds the current screen should stay up at `secsPerKB` */
+function secsFor(view: FoliateView, detail: FoliateRelocateDetail | null, secsPerKB: number) {
+  const r = view.renderer
+  const bytes = linearSizes(view.book.sections)[detail?.section?.current ?? -1] ?? 0
+  const screens = r.scrolled ? r.viewSize / r.size : r.pages - 2
+  return screenSecs(secsPerKB, bytes, screens)
+}
+
 /**
  * Moves the text by itself at the reader's own pace: a steady scroll in scrolled mode, timed page
  * turns in paginated mode. The pace comes from this book's reading stats (or the last pace used
@@ -67,6 +75,16 @@ export function useAutoRead({ id, viewRef, lastDetail, flow, paused, markActive 
     if (pace !== null) savePace(pace)
   }, [pace])
 
+  // the shown time follows faster/slower at once, even while the bars are up and the reading is held
+  useEffect(() => {
+    const view = viewRef.current
+    if (!active || pace === null || !view) return
+    const update = () => setSecsPerScreen(Math.round(secsFor(view, lastDetail.current, pace)))
+    update()
+    view.addEventListener('relocate', update)
+    return () => view.removeEventListener('relocate', update)
+  }, [active, pace, viewRef, lastDetail])
+
   useEffect(() => {
     const view = viewRef.current
     if (!active || paused || pace === null || !view) return
@@ -74,14 +92,7 @@ export function useAutoRead({ id, viewRef, lastDetail, flow, paused, markActive 
     let cancelled = false
     const ping = window.setInterval(markActive, ACTIVE_PING_MS)
 
-    /** seconds the current screen should stay up */
-    const current = () => {
-      const bytes = linearSizes(view.book.sections)[lastDetail.current?.section?.current ?? -1] ?? 0
-      const screens = r.scrolled ? r.viewSize / r.size : r.pages - 2
-      const secs = screenSecs(pace, bytes, screens)
-      setSecsPerScreen(Math.round(secs))
-      return secs
-    }
+    const current = () => secsFor(view, lastDetail.current, pace)
 
     if (!r.scrolled) {
       let timer: number | undefined
