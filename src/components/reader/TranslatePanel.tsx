@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { translateText, MAX_TRANSLATE_CHARS } from '../../lib/translate'
+import { translateText, MAX_TRANSLATE_CHARS, QuotaError } from '../../lib/translate'
 import { Panel } from './shared'
 import { t } from '../../i18n'
 
-type Outcome = { state: 'done'; text: string } | { state: 'failed' }
+type Outcome = { state: 'done'; text: string } | { state: 'failed'; quota: boolean }
 
 export function TranslatePanel({
   text,
@@ -26,8 +26,8 @@ export function TranslatePanel({
     const ctl = new AbortController()
     translateText(text, source, target, ctl.signal).then(
       (out) => setDone({ request, outcome: { state: 'done', text: out } }),
-      () => {
-        if (!ctl.signal.aborted) setDone({ request, outcome: { state: 'failed' } })
+      (e) => {
+        if (!ctl.signal.aborted) setDone({ request, outcome: { state: 'failed', quota: e instanceof QuotaError } })
       },
     )
     return () => ctl.abort()
@@ -44,7 +44,10 @@ export function TranslatePanel({
           {result.text}
         </div>
       )}
-      {result?.state === 'failed' && (
+      {result?.state === 'failed' && result.quota && (
+        <p role="alert">{t('translate.quota')}</p>
+      )}
+      {result?.state === 'failed' && !result.quota && (
         <p className="muted">
           {t('translate.failed')}{' '}
           <button onClick={() => setAttempt((n) => n + 1)}>{t('dict.retry')}</button>

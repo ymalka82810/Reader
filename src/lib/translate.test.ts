@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { chunkText, translateText } from './translate'
+import { chunkText, QuotaError, translateText } from './translate'
 
 const reply = (translatedText: string, responseStatus: number | string = 200) =>
   ({ ok: true, json: async () => ({ responseStatus, responseData: { translatedText } }) }) as Response
@@ -51,5 +51,12 @@ describe('translateText', () => {
     vi.stubGlobal('fetch', fetchMock)
     await expect(translateText('retry', 'en', 'he')).rejects.toThrow()
     expect(await translateText('retry', 'en', 'he')).toBe('ok')
+  })
+
+  it('reports an exhausted daily quota as a QuotaError', async () => {
+    const warning = 'MYMEMORY WARNING: YOU USED ALL AVAILABLE FREE TRANSLATIONS FOR TODAY.'
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(reply(warning)).mockResolvedValueOnce({ ok: false, status: 429 } as Response))
+    await expect(translateText('quota one', 'en', 'he')).rejects.toBeInstanceOf(QuotaError)
+    await expect(translateText('quota two', 'en', 'he')).rejects.toBeInstanceOf(QuotaError)
   })
 })
