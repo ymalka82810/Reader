@@ -11,7 +11,8 @@ import { useBackup } from '../hooks/useBackup'
 import { useAutoBackup } from '../hooks/useAutoBackup'
 import { useUpdateCheck } from '../hooks/useUpdateCheck'
 import { useConfirm } from '../hooks/useConfirm'
-import { BackupMenu, type Filter, type Sort } from './library/BackupMenu'
+import { BackupMenu } from './library/BackupMenu'
+import { LibTools, type Filter, type Sort } from './library/LibTools'
 import { BookGrid } from './library/BookGrid'
 import { Cover } from './library/Cover'
 import { FolderBar, FolderList } from './library/FolderBar'
@@ -157,11 +158,6 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
           view={
             books.length > 0
               ? {
-                  filterSort: books.length > 1,
-                  filter,
-                  onFilter: setFilter,
-                  sort,
-                  onSort: setSort,
                   onNewFolder: inFolderList ? () => fo.setFolderDialog({ name: '' }) : undefined,
                   selecting,
                   onToggleSelect: () => (selecting ? exitSelect() : setSelecting(true)),
@@ -214,15 +210,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
       )}
 
       {books.length > 1 && (
-        <div className="lib-tools">
-          <input
-            type="search"
-            placeholder="חיפוש לפי שם או מחבר…"
-            aria-label="חיפוש בספרייה"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </div>
+        <LibTools query={query} onQuery={setQuery} filter={filter} onFilter={setFilter} sort={sort} onSort={setSort} />
       )}
 
       {selecting && (
