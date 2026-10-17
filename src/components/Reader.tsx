@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { FoliateView } from 'foliate-js/view.js'
 import { DictPanel } from './reader/DictPanel'
+import { TranslatePanel } from './reader/TranslatePanel'
 import { NavPanel } from './reader/NavPanel'
 import { EditNotePanel, NotesList } from './reader/NotesPanels'
 import { QuoteShareDialog } from './reader/QuoteShareDialog'
@@ -27,7 +28,7 @@ import { useBackGesture } from '../hooks/useBackGesture'
 import { clampFont, useBookEvents, type Selection } from '../hooks/useBookEvents'
 import { firstWord } from '../lib/dictionary'
 import { formatMinutes, loadStats, minutesLeft, type Stats } from '../lib/stats'
-import { isRtl, t } from '../i18n'
+import { getLocale, isRtl, t } from '../i18n'
 import { customFontFace, loadCustomFont, type CustomFont } from '../lib/customFont'
 import { loadViewModes, saveViewModes, type ViewModes } from '../lib/viewModes'
 import { loadSettings, saveSettings, themeColors, type Settings } from '../lib/settings'
@@ -45,7 +46,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   const settingsRef = useLatest(settings)
   const [modes, setModes] = useState<ViewModes>(loadViewModes)
   const [uiVisible, setUiVisible] = useState(true)
-  const { panel, panelRef, setPanel, closePanel, togglePanel, editingId, editNote, dict, openDict, quote, openQuote } = useReaderPanels()
+  const { panel, panelRef, setPanel, closePanel, togglePanel, editingId, editNote, dict, openDict, translation, openTranslate, quote, openQuote } = useReaderPanels()
   const [fraction, setFraction] = useState(0)
   const [dragFraction, setDragFraction] = useState<number | null>(null)
   const [chapter, setChapter] = useState('')
@@ -334,6 +335,13 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     openDict(word, lang)
   }
 
+  const translateSelection = () => {
+    const text = selectionRef.current?.text.trim()
+    if (!text) return
+    const chosen = settingsRef.current.translateLang
+    openTranslate(text, bookLang.current, chosen === 'auto' ? getLocale() : chosen)
+  }
+
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) => setSettings((s) => ({ ...s, [k]: v }))
   const bump = (d: number) => set('fontSize', clampFont(settings.fontSize + d))
 
@@ -482,6 +490,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
           <button aria-label={t('reader.copy')} title={t('reader.copy')} onClick={copySelection}>⧉</button>
           <button aria-label={t('reader.shareQuote')} title={t('reader.shareQuoteTitle')} onClick={shareSelection}>⇪</button>
           <button aria-label={t('reader.lookUp')} title={t('reader.dict')} onClick={lookUp}>📖</button>
+          <button aria-label={t('reader.translate')} title={t('reader.translate')} onClick={translateSelection}>🌐</button>
         </div>
       )}
       {(backTo || (hitIdx !== null && hits.length > 0)) && !panel && (
@@ -553,6 +562,9 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
         </NavPanel>
       )}
 
+      {panel === 'translate' && translation && (
+        <TranslatePanel text={translation.text} source={translation.source} target={translation.target} onClose={() => setPanel(null)} />
+      )}
       {panel === 'dict' && dict && <DictPanel word={dict.word} lang={dict.lang} onClose={() => setPanel(null)} />}
 
       {panel === 'edit' && editingNote && (
