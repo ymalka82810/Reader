@@ -45,7 +45,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   const reqPersist = async () => {
     const ok = await requestPersistence()
     setStorage(await getStorageStatus())
-    showToast(ok ? 'האחסון הוגדר כקבוע' : 'הדפדפן לא אישר אחסון קבוע. גיבוי הוא ההגנה הבטוחה על הספרייה')
+    showToast(ok ? 'האחסון הוגדר כקבוע' : 'הדפדפן לא אישר אחסון קבוע. מומלץ לגבות את הספרייה')
   }
   const [goalsOpen, setGoalsOpen] = useState(false)
   const [confirmDel, setConfirmDel] = useState<BookMeta[]>()
