@@ -19,6 +19,7 @@ button:disabled { opacity: .5; }
 /* stays pinned while the books scroll beneath it; its top padding keeps it clear of the status bar / camera cutout */
 .lib-header { position: sticky; top: 0; z-index: 6; display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 0 -1rem 1rem; padding: calc(1rem + var(--safe-top)) 1rem .8rem; background: var(--bg); border-bottom: 1px solid rgba(127,127,127,.2); }
 .lib-header h1 { margin: 0; font-size: 1.5rem; }
+.card .tags { color: #3182ce; overflow-wrap: anywhere; }
 .lib-tools { display: flex; flex-wrap: wrap; gap: .6rem; margin-bottom: 1rem; }
 .select-btn { display: inline-flex; align-items: center; justify-content: space-between; gap: .6rem; padding: .5rem .6rem; border-radius: 10px; border: 1px solid rgba(128,128,128,.4); background: transparent; color: inherit; font: inherit; cursor: pointer; text-align: start; }
 .select-btn:focus-visible, .select-btn[aria-expanded="true"] { outline: 2px solid #3182ce; outline-offset: 1px; }

@@ -68,7 +68,7 @@ export const en: Record<keyof typeof he, Message> = {
   'book.actions': 'Book actions',
   'book.markRead': 'Mark as read',
   'book.markUnread': 'Mark as unread',
-  'book.editMeta': 'Edit title and author',
+  'book.editMeta': 'Edit details and tags',
   'book.moveToFolder': 'Move to folder',
   'book.part': 'Part {n}',
   'books.count': { one: '1 book', other: '{n} books' },
@@ -97,6 +97,11 @@ export const en: Record<keyof typeof he, Message> = {
   'edit.title': 'Edit book details',
   'edit.bookName': 'Title',
   'edit.author': 'Author',
+  'edit.tags': 'Tags',
+  'edit.tagsHint': 'Separate with commas, e.g. fantasy, to read',
+  'tag.filterLabel': 'Tag',
+  'tag.filterAll': 'Tag: any',
+  'tag.option': '{name} ({n})',
 
   // duplicates and deletion
   'dup.batchLabel': 'Duplicate books',

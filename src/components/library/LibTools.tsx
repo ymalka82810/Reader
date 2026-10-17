@@ -1,5 +1,6 @@
 import { Select } from '../Select'
 import { t } from '../../i18n'
+import type { Tag } from '../../lib/tags'
 
 export type Filter = 'all' | 'reading' | 'unread' | 'finished'
 export type Sort = 'recent' | 'title' | 'author' | 'added'
@@ -24,10 +25,15 @@ type Props = {
   onFilter: (f: Filter) => void
   sort: Sort
   onSort: (s: Sort) => void
+  /** tags in use; the picker is hidden when there are none */
+  tags: Tag[]
+  /** key of the tag being filtered by, '' = any */
+  tag: string
+  onTag: (key: string) => void
 }
 
-/** search box with the filter and sort pickers right under it */
-export function LibTools({ query, onQuery, filter, onFilter, sort, onSort }: Props) {
+/** search box with the filter, tag and sort pickers right under it */
+export function LibTools({ query, onQuery, filter, onFilter, sort, onSort, tags, tag, onTag }: Props) {
   return (
     <div className="lib-tools">
       <input
@@ -43,6 +49,14 @@ export function LibTools({ query, onQuery, filter, onFilter, sort, onSort }: Pro
         onChange={onFilter}
         options={FILTERS.map(([v, text]): [Filter, string] => [v, v === 'all' ? t('filter.allLabeled') : text])}
       />
+      {tags.length > 0 && (
+        <Select
+          label={t('tag.filterLabel')}
+          value={tag}
+          onChange={onTag}
+          options={[['', t('tag.filterAll')], ...tags.map((x): [string, string] => [x.key, t('tag.option', { name: x.name, n: x.count })])]}
+        />
+      )}
       <Select label={t('sort.label')} value={sort} onChange={onSort} options={SORTS} />
     </div>
   )

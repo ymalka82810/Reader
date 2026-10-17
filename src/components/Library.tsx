@@ -11,6 +11,7 @@ import { useBackup } from '../hooks/useBackup'
 import { useAutoBackup } from '../hooks/useAutoBackup'
 import { useUpdateCheck } from '../hooks/useUpdateCheck'
 import { useConfirm } from '../hooks/useConfirm'
+import { hasTag, listTags, parseTags } from '../lib/tags'
 import { localeTag, t } from '../i18n'
 import { GoalsDialog } from './library/GoalsDialog'
 import { BackupMenu } from './library/BackupMenu'
@@ -39,6 +40,8 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   const [editing, setEditing] = useState<BookMeta>()
   const [editTitle, setEditTitle] = useState('')
   const [editAuthor, setEditAuthor] = useState('')
+  const [editTags, setEditTags] = useState('')
+  const [tag, setTag] = useState('')
   const input = useRef<HTMLInputElement>(null)
   const restoreInput = useRef<HTMLInputElement>(null)
   const [storage, setStorage] = useState<StorageStatus>()
@@ -68,13 +71,18 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   const unprotected = storage ? !storage.persisted : false
   const remind = useMemo(() => !dismissed && backupDue(unprotected), [dismissed, unprotected])
 
+  const tags = useMemo(() => listTags(books), [books])
+  // a tag that no book carries any more stops filtering
+  const activeTag = tags.some((x) => x.key === tag) ? tag : ''
+
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase()
     const state = (b: BookMeta) => (isFinished(b) ? 'finished' : b.fraction ? 'reading' : 'unread')
     const list = books.filter(
       (b) =>
         (filter === 'all' || state(b) === filter) &&
-        (!q || `${b.title} ${b.author} ${b.fileName}`.toLowerCase().includes(q)),
+        (!activeTag || hasTag(b, activeTag)) &&
+        (!q || `${b.title} ${b.author} ${b.fileName} ${(b.tags ?? []).join(' ')}`.toLowerCase().includes(q)),
     )
     const by = (f: (b: BookMeta) => string) => (a: BookMeta, b: BookMeta) =>
       f(a).localeCompare(f(b), localeTag())
@@ -82,10 +90,10 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
     else if (sort === 'author') list.sort(by((b) => b.author || '￿'))
     else if (sort === 'added') list.sort((a, b) => b.addedAt - a.addedAt)
     return list // 'recent' keeps the order listBooks returns
-  }, [books, query, sort, filter])
+  }, [books, query, sort, filter, activeTag])
 
-  // searching looks through every folder at once
-  const searching = !!query.trim()
+  // searching or filtering by tag looks through every folder at once
+  const searching = !!query.trim() || !!activeTag
   const fo = useFolders({ books, shown, createdNames, searching, refresh, showToast, exitSelect, deleteBooks, confirm })
   const { folders, current } = fo
   const inFolderList = !searching && !current
@@ -93,14 +101,14 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
 
   // the book opened last that is still in progress, offered as a one-tap way back
   const resume = useMemo(() => {
-    if (selecting || query.trim() || filter !== 'all') return undefined
+    if (selecting || query.trim() || filter !== 'all' || activeTag) return undefined
     let best: BookMeta | undefined
     for (const b of books) {
       if (!b.fraction || isFinished(b) || !b.lastOpened) continue
       if (!best || b.lastOpened > best.lastOpened!) best = b
     }
     return best
-  }, [books, selecting, query, filter])
+  }, [books, selecting, query, filter, activeTag])
 
   const doDelete = async () => {
     const list = confirmDel
@@ -114,13 +122,14 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
     setEditing(b)
     setEditTitle(b.title)
     setEditAuthor(b.author || '')
+    setEditTags((b.tags ?? []).join(', '))
   }
 
   const saveEdit = async () => {
     if (!editing) return
     const title = editTitle.trim()
     if (!title) return
-    await updateMeta(editing.id, title, editAuthor.trim())
+    await updateMeta(editing.id, title, editAuthor.trim(), parseTags(editTags))
     setEditing(undefined)
     await refresh()
   }
@@ -212,7 +221,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
       )}
 
       {books.length > 1 && (
-        <LibTools query={query} onQuery={setQuery} filter={filter} onFilter={setFilter} sort={sort} onSort={setSort} />
+        <LibTools query={query} onQuery={setQuery} filter={filter} onFilter={setFilter} sort={sort} onSort={setSort} tags={tags} tag={activeTag} onTag={setTag} />
       )}
 
       {selecting && (
@@ -376,8 +385,11 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
         <EditBookDialog
           title={editTitle}
           author={editAuthor}
+          tags={editTags}
+          knownTags={tags.map((x) => x.name)}
           onTitle={setEditTitle}
           onAuthor={setEditAuthor}
+          onTags={setEditTags}
           onSave={saveEdit}
           onCancel={() => setEditing(undefined)}
         />

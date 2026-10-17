@@ -40,6 +40,7 @@ export function BookCard({ book: b, picked, selecting, onOpen, onToggle, onEdit,
           <strong>{b.title}</strong>
           {b.author && <small>{b.author}</small>}
           <small className="kind">{b.fromPdf ? 'PDF' : b.kind === 'audio' ? t('audio.kind') : b.kind.toUpperCase()}</small>
+          {!!b.tags?.length && <small className="tags">{b.tags.map((n) => `#${n}`).join(' ')}</small>}
         </div>
       </button>
       {selecting ? (
