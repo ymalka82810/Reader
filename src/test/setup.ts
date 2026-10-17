@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto'
 
 // minimal in-memory localStorage (the lib code only needs get/set/remove)
 const data = new Map<string, string>()
-globalThis.localStorage = {
+if (typeof localStorage === 'undefined') globalThis.localStorage = {
   getItem: (k: string) => data.get(k) ?? null,
   setItem: (k: string, v: string) => void data.set(k, String(v)),
   removeItem: (k: string) => void data.delete(k),
