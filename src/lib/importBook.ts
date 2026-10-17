@@ -2,6 +2,7 @@ import { ImportError, explainImportError } from './errors'
 import { contentId, hasBook, listBooks, replaceBook, saveBook, type BookMeta, type BookRecord } from './db'
 import { sameBook } from './sameBook'
 import { t } from '../i18n'
+import { isAudio, readAudioMeta, type AudioInfo } from './audioBook'
 
 const ALREADY_EXISTS = t('import.exists')
 
@@ -61,7 +62,7 @@ export async function importFile(
   onDuplicate?: OnDuplicate,
 ): Promise<BookRecord> {
   if (!file.size) throw new ImportError(t('import.empty'))
-  if (!isEpub(file) && !isPdf(file) && !isTxt(file) && !isDocx(file) && !isNative(file))
+  if (!isEpub(file) && !isPdf(file) && !isTxt(file) && !isDocx(file) && !isNative(file) && !isAudio(file))
     throw new ImportError(t('import.unsupported'))
   try {
     return await readIntoLibrary(file, onProgress, onDuplicate)
@@ -81,10 +82,24 @@ async function readIntoLibrary(
   const id = await contentId(file)
   if (await hasBook(id)) throw new ImportError(ALREADY_EXISTS)
 
-  // Converters pull in pdf.js / JSZip, so they load only when an import actually needs them.
-  const { makeBook } = await import('foliate-js/view.js')
   let epub = file
   let fromPdf = false
+  let audio: AudioInfo | undefined
+  let cover: Blob | undefined
+  let title: string
+  let author: string
+  let book: { destroy?: () => void } = {}
+
+  if (isAudio(file)) {
+    onProgress?.(t('import.readingAudio'))
+    const m = await readAudioMeta(file)
+    audio = m.info
+    cover = m.cover
+    title = m.title || file.name.replace(/\.[^.]+$/, '')
+    author = m.author
+  } else {
+  // Converters pull in pdf.js / JSZip, so they load only when an import actually needs them.
+  const { makeBook } = await import('foliate-js/view.js')
 
   if (isPdf(file)) {
     // Convert the PDF into a real EPUB first, then read it exactly like any other EPUB.
@@ -117,15 +132,16 @@ async function readIntoLibrary(
 
   onProgress?.(t('import.reading'))
   if (isNative(file)) epub = lowerName(file)
-  const book = await makeBook(epub)
-  let cover: Blob | undefined
+  const opened = await makeBook(epub)
+  book = opened
   try {
-    cover = (await book.getCover?.()) ?? undefined
+    cover = (await opened.getCover?.()) ?? undefined
   } catch {
     /* no cover */
   }
-  const title = langMap(book.metadata?.title) || epub.name.replace(/\.[^.]+$/, '')
-  const author = contributor(book.metadata?.author)
+  title = langMap(opened.metadata?.title) || epub.name.replace(/\.[^.]+$/, '')
+  author = contributor(opened.metadata?.author)
+  }
 
   const dup = (await listBooks()).find((b) => sameBook(b, { title, author }))
   let replaceId: string | undefined
@@ -155,8 +171,9 @@ async function readIntoLibrary(
     file: epub,
     fileName: epub.name,
     addedAt: Date.now(),
-    kind: 'epub',
+    kind: audio ? 'audio' : 'epub',
     fromPdf,
+    audio,
     title,
     author,
     cover,

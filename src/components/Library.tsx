@@ -151,7 +151,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
           type="file"
           hidden
           multiple
-          accept=".epub,.pdf,.txt,.docx,.mobi,.azw,.azw3,.fb2,.fbz,.cbz,application/epub+zip,application/pdf,text/plain"
+          accept=".epub,.pdf,.txt,.docx,.mobi,.azw,.azw3,.fb2,.fbz,.cbz,.m4b,.mp3,.m4a,.ogg,.opus,.flac,.wav,application/epub+zip,application/pdf,text/plain,audio/*"
           onChange={(e) => {
             if (e.target.files) imp.addFiles(e.target.files)
             e.target.value = ''
