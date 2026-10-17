@@ -89,7 +89,7 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: 4px; border: 1px solid rg
 .bottombar { bottom: 0; padding-bottom: calc(.4rem + env(safe-area-inset-bottom)); border-top: 1px solid rgba(127,127,127,.25); }
 .topbar.hidden { transform: translateY(-100%); opacity: 0; pointer-events: none; }
 .bottombar.hidden { transform: translateY(100%); opacity: 0; pointer-events: none; }
-.topbar .title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.topbar .title { margin: 0; font-size: inherit; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
 .bottombar .play { flex: none; display: inline-flex; align-items: center; justify-content: center; }
 .bottombar .play[aria-pressed="true"] { background: var(--accent); color: #fff; }
 .auto-pace { display: flex; align-items: center; gap: .3rem; font-size: .8rem; white-space: nowrap; }
@@ -267,3 +267,68 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: 4px; border: 1px solid rg
 .goals-bar small { position: absolute; top: 100%; font-size: .7rem; opacity: .7; }
 .goals-line { position: absolute; inset-inline: 0; border-top: 1px dashed var(--accent); pointer-events: none; margin-bottom: 1rem; }
 .goals-note { opacity: .7; }
+
+/* accessibility */
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.skip-link { position: absolute; inset-inline-start: .5rem; top: -4rem; z-index: 20; padding: .6rem 1rem; border-radius: 10px; background: var(--accent); color: #fff; text-decoration: none; }
+.skip-link:focus { top: .5rem; }
+.topbar.hidden, .bottombar.hidden { visibility: hidden; transition: transform .2s, opacity .2s, visibility 0s .2s; }
+.tap-help:focus, #lib-content:focus { outline: none; }
+
+/* dyslexia-friendly font: OpenDyslexic has no Hebrew glyphs, so Hebrew keeps the regular face but gets the same wider spacing */
+:root.dyslexia { font-family: "OpenDyslexic", "Heebo", system-ui, -apple-system, "Segoe UI", Arial, sans-serif; letter-spacing: .04em; word-spacing: .12em; }
+:root.dyslexia body { line-height: 1.6; }
+:root.dyslexia .meta strong { line-height: 1.5; }
+:root.dyslexia .cover.placeholder span { letter-spacing: 0; }
+
+/* high contrast: black and white, yellow accents, thick borders, no translucent text */
+:root.hc { --bg: #000; --fg: #fff; --accent: #ffe600; color-scheme: dark; }
+.hc button { border: 2px solid var(--fg); background: #000; color: #fff; }
+.hc button.primary, .hc button.on, .hc button[aria-pressed="true"]:not(.card):not(.swatch), .hc .seg button.on, .hc .continue-cta, .hc .fonts button.on { background: var(--accent); color: #000; border-color: var(--accent); }
+.hc .topbar button[aria-pressed="true"] { color: #000; }
+.hc .danger { background: #000; color: #ff8080; border-color: #ff8080; }
+.hc .menu .danger-item, .hc .menu button.danger-item { color: #ff8080; }
+.hc .notice-close, .hc .toc button, .hc .search-results button, .hc .notes .note-main, .hc .notes li > button:not(.note-main), .hc .hit-nav button, .hc .menu button, .hc .card { border-color: transparent; }
+.hc .card { border: 0; }
+.hc .menu button:hover, .hc .toc button:hover, .hc .search-results button:hover, .hc .notes .note-main:hover { border-color: var(--fg); }
+.hc .toc li.current button { background: var(--accent); color: #000; }
+.hc .swatch { border: 3px solid #fff; }
+.hc .swatch.on { border-color: var(--accent); box-shadow: 0 0 0 2px #000, 0 0 0 4px var(--accent); }
+.hc :focus-visible { outline: 4px solid #00e5ff; outline-offset: 3px; }
+.hc .modal, .hc .panel, .hc .menu, .hc .select-list, .hc .dd-list, .hc .sel-bar, .hc .hit-nav, .hc .toast, .hc .lib-toast { background: #000; color: #fff; border: 2px solid #fff; box-shadow: none; }
+.hc .jump-chips > button { border: 2px solid #fff; box-shadow: none; }
+.hc .topbar, .hc .bottombar, .hc .lib-header { background: #000; backdrop-filter: none; border-color: #fff; border-width: 2px; }
+.hc .modal-backdrop { background: rgba(0,0,0,.88); }
+.hc input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]), .hc textarea, .hc .select-btn, .hc .dd-btn, .hc .upload { border: 2px solid #fff; background: #000; color: #fff; }
+.hc .select-btn[aria-expanded="true"] { border-color: var(--accent); }
+.hc .select-list li:hover, .hc .select-list li:focus, .hc .dd-list li.active, .hc .dd-list li:hover { background: #333; }
+.hc .select-list li[aria-selected="true"], .hc .dd-list li.on { background: var(--accent); color: #000; }
+.hc .notice { background: #000; border: 2px solid #fff; }
+.hc .notice.error { border-color: #ff8080; }
+.hc .continue, .hc .folder, .hc .folder-bar, .hc .goals-stats div { background: #000; border: 2px solid #fff; }
+.hc .folder { border-top-width: 6px; }
+.hc .folder-bar { border-inline-start-width: 6px; border-inline-start-color: var(--accent); }
+.hc .card .tags, .hc .folder .kind { color: var(--accent); }
+.hc .card.selected { outline-color: var(--accent); }
+.hc .cover { box-shadow: none; outline: 1px solid #fff; }
+.hc .cover.placeholder { background: #000; color: #fff; }
+.hc .cover-progress, .hc .cover-progress::-webkit-progress-bar { background: #000; }
+.hc .cover-progress::-webkit-progress-value { background: var(--accent); }
+.hc .cover-progress::-moz-progress-bar { background: var(--accent); }
+.hc .done-badge { background: #000; color: var(--accent); border: 2px solid var(--accent); }
+.hc .more-btn { background: #000; }
+.hc .folder-badge { background: #000; border: 1px solid #fff; }
+.hc progress, .hc input[type=range] { accent-color: var(--accent); }
+.hc .goals-bar span { background: #aaa; }
+.hc .goals-bar.met span, .hc .goals-line { background: var(--accent); border-color: var(--accent); }
+.hc .search-results mark, .hc .note-hits mark { background: var(--accent); color: #000; }
+.hc .tap-help { background: #000; border: 2px solid #fff; }
+.hc .lib-header h1, .hc .topbar .title { color: #fff; }
+.hc :is(.meta small, .continue-info small, .muted, .note-text, .note-book, .progress .label, .shortcuts, .empty, .goals-note, .goals-stats small, .goals-bar small, .menu-title, .menu-info, .batch-head, .modal label, .search-results > li > strong, .note-hits .muted) { opacity: 1; }
+
+@media (forced-colors: active) {
+  .swatch, .cover { forced-color-adjust: none; }
+  button, .select-btn, .dd-btn { border: 1px solid ButtonText; }
+  :focus-visible { outline: 3px solid Highlight; }
+  .seg button.on, button[aria-pressed="true"], .toc li.current button { outline: 2px solid Highlight; }
+}

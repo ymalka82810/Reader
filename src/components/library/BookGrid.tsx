@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { isFinished, setFinished, type BookMeta } from '../../lib/db'
 import { Cover } from './Cover'
 import { t } from '../../i18n'
+import { menuKeyDown } from '../menuKeys'
 
 export type BookActions = {
   selecting: boolean
@@ -18,7 +19,11 @@ type CardProps = BookActions & { book: BookMeta; picked: boolean }
 /** one book's card with its "⋯" actions menu */
 export function BookCard({ book: b, picked, selecting, onOpen, onToggle, onEdit, onMove, onDelete, refresh }: CardProps) {
   const [menu, setMenu] = useState(false)
-  const close = () => setMenu(false)
+  const more = useRef<HTMLButtonElement>(null)
+  const close = (refocus = false) => {
+    setMenu(false)
+    if (refocus) more.current?.focus()
+  }
   return (
     <li>
       <button
@@ -48,8 +53,9 @@ export function BookCard({ book: b, picked, selecting, onOpen, onToggle, onEdit,
       ) : (
         <>
           <button
+            ref={more}
             className="more-btn"
-            aria-label={t('book.actions')}
+            aria-label={`${t('book.actions')}: ${b.title}`}
             aria-haspopup="menu"
             aria-expanded={menu}
             onClick={() => setMenu(!menu)}
@@ -58,8 +64,8 @@ export function BookCard({ book: b, picked, selecting, onOpen, onToggle, onEdit,
           </button>
           {menu && (
             <>
-              <div className="menu-backdrop" onClick={close} />
-              <div className="menu card-menu" role="menu" tabIndex={-1} autoFocus onKeyDown={(e) => e.key === 'Escape' && close()}>
+              <div className="menu-backdrop" onClick={() => close()} />
+              <div className="menu card-menu" role="menu" tabIndex={-1} autoFocus onKeyDown={(e) => menuKeyDown(e, () => close(true))}>
                 <button
                   role="menuitem"
                   onClick={async () => {

@@ -189,6 +189,16 @@ export default function Library({ onOpen }: { onOpen: (id: string, cfi?: string)
         imp.addFiles(e.dataTransfer.files)
       }}
     >
+      <a
+        className="skip-link"
+        href="#lib-content"
+        onClick={(e) => {
+          e.preventDefault()
+          document.getElementById('lib-content')?.focus()
+        }}
+      >
+        {t('a11y.skip')}
+      </a>
       <header className="lib-header">
         <h1>{t('lib.title')}</h1>
         <button className="primary" onClick={() => input.current?.click()} disabled={!!busy}>
@@ -237,6 +247,8 @@ export default function Library({ onOpen }: { onOpen: (id: string, cfi?: string)
           }}
         />
       </header>
+
+      <main id="lib-content" tabIndex={-1}>
 
       {remind && books.length > 0 && (
         <div className={'notice closable' + (unprotected ? ' error' : '')}>
@@ -396,6 +408,8 @@ export default function Library({ onOpen }: { onOpen: (id: string, cfi?: string)
           {toast.undo && <button onClick={toast.undo}>{t('common.undo')}</button>}
         </div>
       )}
+
+      </main>
 
       {imp.dupBatch && (
         <DuplicateBatchDialog

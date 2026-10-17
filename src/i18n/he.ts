@@ -439,6 +439,23 @@ export const he = {
   'kbd.search': 'חיפוש',
   'kbd.settings': 'הגדרות',
   'kbd.close': 'סגירה',
+  'kbd.bars': 'הצגה/הסתרה של הסרגלים',
+
+  // accessibility
+  'a11y.title': 'נגישות',
+  'a11y.contrast': 'ניגודיות גבוהה',
+  'a11y.contrastTip': 'שחור ולבן עם הדגשים בצהוב, מסגרות עבות ופוקוס בולט',
+  'a11y.dyslexia': 'גופן לדיסלקציה',
+  'a11y.dyslexiaTip': 'גופן OpenDyslexic וריווח מוגדל. לאותיות עבריות אין גופן ייעודי, והן מוצגות בגופן רגיל עם אותו ריווח',
+  'a11y.skip': 'דלג לרשימת הספרים',
+  'a11y.topbar': 'פעולות הקורא',
+  'a11y.bottombar': 'ניווט והקראה',
+  'a11y.book': 'תוכן הספר: {title}',
+  'a11y.selection': 'פעולות על הטקסט שנבחר',
+  'a11y.position': 'עמוד {current} מתוך {total}, {pct}%',
+  'a11y.positionNoPages': '{pct}%',
+  'a11y.flow': 'סוג תצוגה',
+  'a11y.theme': 'ערכת צבעים',
 
   // view modes
   'modes.title': 'מצבי תצוגה',

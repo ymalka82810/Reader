@@ -69,11 +69,13 @@ export function SettingsPanel({
         />
       </div>
       <Seg<Flow>
+        label={t('a11y.flow')}
         value={settings.flow}
         onChange={(v) => set('flow', v)}
         options={[['scrolled', t('settings.scrolled')], ['paginated', t('settings.paginated')]]}
       />
       <Seg<Theme>
+        label={t('a11y.theme')}
         value={settings.theme}
         onChange={(v) => set('theme', v)}
         options={[['light', t('theme.light')], ['sepia', t('theme.sepia')], ['dark', t('theme.dark')], ['custom', t('theme.custom')]]}
@@ -132,6 +134,17 @@ export function SettingsPanel({
         <input type="checkbox" checked={settings.accessible} onChange={(e) => set('accessible', e.target.checked)} />
         {t('settings.accessible')}
       </label>
+      <fieldset className="a11y-set">
+        <legend>{t('a11y.title')}</legend>
+        <label className="check" title={t('a11y.contrastTip')}>
+          <input type="checkbox" checked={settings.contrast} onChange={(e) => set('contrast', e.target.checked)} />
+          {t('a11y.contrast')}
+        </label>
+        <label className="check" title={t('a11y.dyslexiaTip')}>
+          <input type="checkbox" checked={settings.dyslexia} onChange={(e) => set('dyslexia', e.target.checked)} />
+          {t('a11y.dyslexia')}
+        </label>
+      </fieldset>
       <label className="check">
         <input type="checkbox" checked={settings.pageTransition} onChange={(e) => set('pageTransition', e.target.checked)} />
         {t('settings.pageAnim')}
@@ -163,7 +176,7 @@ export function SettingsPanel({
           <li><kbd>b</kbd> {t('kbd.bookmark')} · <kbd>[</kbd> <kbd>]</kbd> {t('kbd.bookmarkNav')}</li>
           <li><kbd>t</kbd> {t('kbd.toc')} · <kbd>n</kbd> {t('kbd.notes')}</li>
           <li><kbd>a</kbd> {t('kbd.auto')} · <kbd>,</kbd> <kbd>.</kbd> {t('kbd.pace')}</li>
-          <li><kbd>r</kbd> {t('kbd.tts')} · <kbd>f</kbd> {t('kbd.focus')}</li>
+          <li><kbd>r</kbd> {t('kbd.tts')} · <kbd>f</kbd> {t('kbd.focus')} · <kbd>m</kbd> {t('kbd.bars')}</li>
           <li><kbd>/</kbd> {t('kbd.search')} · <kbd>s</kbd> {t('kbd.settings')} · <kbd>Esc</kbd> {t('kbd.close')}</li>
         </ul>
       </details>
