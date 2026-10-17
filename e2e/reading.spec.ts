@@ -133,3 +133,42 @@ test('scripts inside an EPUB do not run', async ({ page }) => {
   expect(await page.evaluate('window.__epubScriptRan')).toBeUndefined()
   expect(logs.some((l) => /Content Security Policy/i.test(l))).toBe(true)
 })
+
+async function importAndOpen(page: Page) {
+  await page.goto('/')
+  await page.locator('input[type=file]').first().setInputFiles({
+    name: 'test.epub',
+    mimeType: 'application/epub+zip',
+    buffer: await makeEpub(),
+  })
+  await openBook(page)
+  await expect(page.getByText(/^עמוד/)).toBeVisible({ timeout: 30_000 })
+}
+
+test('distraction-free mode keeps the bars away and comes back with f', async ({ page }) => {
+  await importAndOpen(page)
+  await page.keyboard.press('f')
+  await expect(page.locator('.reader.focus')).toBeVisible()
+  await expect(page.locator('.topbar.hidden')).toBeAttached()
+  await page.keyboard.press('f')
+  await expect(page.locator('.reader.focus')).toHaveCount(0)
+})
+
+test('two pages per spread on a wide screen, one when forced', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('reader:settings', JSON.stringify({ flow: 'paginated', pageTransition: false }))
+  })
+  await page.setViewportSize({ width: 1400, height: 800 })
+  await importAndOpen(page)
+  // the DOM lib is not part of this tsconfig, so the page is queried with a string
+  const columns = () =>
+    page.evaluate<number>(`(() => {
+      const doc = document.querySelector('foliate-view').renderer.getContents()[0].doc
+      const cs = getComputedStyle(doc.documentElement)
+      return Math.floor(parseFloat(cs.width) / parseFloat(cs.columnWidth))
+    })()`)
+  await expect.poll(columns).toBe(2)
+  await page.getByRole('button', { name: 'הגדרות תצוגה' }).click()
+  await page.getByRole('button', { name: 'עמוד אחד' }).click()
+  await expect.poll(columns).toBe(1)
+})

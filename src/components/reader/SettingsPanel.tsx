@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { MAX_FONT, MIN_FONT } from '../../hooks/useBookEvents'
 import { CUSTOM_FONT_FAMILY, removeCustomFont, saveCustomFont, type CustomFont } from '../../lib/customFont'
 import { DICT_LANGS, FONTS, type Flow, type Settings, type Theme } from '../../lib/settings'
@@ -11,12 +11,15 @@ export function SettingsPanel({
   bump,
   customFont,
   setCustomFont,
+  children,
 }: {
   settings: Settings
   set: <K extends keyof Settings>(k: K, v: Settings[K]) => void
   bump: (delta: number) => void
   customFont: CustomFont | undefined
   setCustomFont: (f: CustomFont | undefined) => void
+  /** extra sections, shown before the shortcuts list */
+  children?: ReactNode
 }) {
   const [fontError, setFontError] = useState('')
   const upload = async (file: File | undefined) => {
@@ -141,6 +144,7 @@ export function SettingsPanel({
           options={[['auto', 'לפי שפת הספר'], ...DICT_LANGS.map(([code, name]): [string, string] => [code, name])]}
         />
       </div>
+      {children}
       <details className="shortcuts">
         <summary>קיצורי מקלדת</summary>
         <ul>
@@ -149,7 +153,7 @@ export function SettingsPanel({
           <li><kbd>b</kbd> סימנייה · <kbd>[</kbd> <kbd>]</kbd> סימנייה קודמת/הבאה</li>
           <li><kbd>t</kbd> תוכן · <kbd>n</kbd> סימניות והדגשות</li>
           <li><kbd>a</kbd> או הקשה באמצע המסך: קריאה אוטומטית · <kbd>,</kbd> <kbd>.</kbd> לאט/מהר יותר</li>
-          <li><kbd>r</kbd> הקראה בקול</li>
+          <li><kbd>r</kbd> הקראה בקול · <kbd>f</kbd> מצב ללא הסחות</li>
           <li><kbd>/</kbd> חיפוש · <kbd>s</kbd> הגדרות · <kbd>Esc</kbd> סגירה</li>
         </ul>
       </details>
