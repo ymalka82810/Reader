@@ -21,6 +21,7 @@ import { MAX_RATE, MIN_RATE, RATE_STEP, readAloudSupported, useReadAloud } from 
 import { useBackGesture } from '../hooks/useBackGesture'
 import { clampFont, useBookEvents, type Selection } from '../hooks/useBookEvents'
 import { formatMinutes, loadStats, minutesLeft, type Stats } from '../lib/stats'
+import { customFontFace, loadCustomFont, type CustomFont } from '../lib/customFont'
 import { loadSettings, saveSettings, themeColors, type Settings } from '../lib/settings'
 
 const TAP_HELP_KEY = 'reader:tapHelpSeen'
@@ -90,7 +91,13 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   const { pages, recompute, resetCalibration, lastDetail } = estimate
   const notes = useAnnotations(id, viewRef, flash)
 
-  const { status, error, title, dir, toc, bookLang } = useFoliateView(id, host, viewRef, settings, {
+  // the uploaded font, loaded once; the view re-applies its styles when it arrives or changes
+  const [customFont, setCustomFont] = useState<CustomFont>()
+  useEffect(() => {
+    void loadCustomFont().then(setCustomFont)
+  }, [])
+
+  const { status, error, title, dir, toc, bookLang } = useFoliateView(id, host, viewRef, settings, customFont ? customFontFace(customFont) : '', {
     prepare: async () => {
       const [, s] = await Promise.all([notes.load(), loadStats(id)])
       stats.current = s
@@ -160,7 +167,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
       window.clearTimeout(t)
       window.clearTimeout(t2)
     }
-  }, [settings, recompute, resetCalibration])
+  }, [settings, customFont, recompute, resetCalibration])
 
   const search = useBookSearch(viewRef, panel === 'search')
   const auto = useAutoRead({
@@ -295,7 +302,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   const editingNote = notes.notes.find((x) => x.id === editingId)
   const bookmarked = !!here && notes.notes.some((n) => n.kind === 'bookmark' && n.cfi === here)
   const navOpen = panel === 'toc' || panel === 'notes'
-  const colors = themeColors(settings.theme)
+  const colors = themeColors(settings)
   const shownFraction = dragFraction ?? fraction
   const commit = () => {
     if (dragFraction !== null) jumpTo(dragFraction, true)
@@ -308,7 +315,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
       dir="rtl"
       style={{ ['--bg' as string]: colors.bg, ['--fg' as string]: colors.fg }}
     >
-      <div className="view-host" ref={host} />
+      <div className="view-host" ref={host} style={settings.brightness < 1 ? { filter: `brightness(${settings.brightness})` } : undefined} />
 
       {status === 'loading' && <div className="overlay-msg">טוען…</div>}
       {status === 'error' && (
@@ -517,7 +524,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
         />
       )}
 
-      {panel === 'settings' && <SettingsPanel settings={settings} set={set} bump={bump} />}
+      {panel === 'settings' && <SettingsPanel settings={settings} set={set} bump={bump} customFont={customFont} setCustomFont={setCustomFont} />}
     </div>
   )
 }
