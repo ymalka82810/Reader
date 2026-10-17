@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { addFolderName, removeFolderName, renameFolder, setFolder, type BookMeta } from '../lib/db'
 import { folderKey, folderToStore, groupFolders, type Folder } from '../lib/folders'
 import type { Confirm } from './useConfirm'
+import { localeTag, t } from '../i18n'
 
 type Deps = {
   books: BookMeta[]
@@ -32,7 +33,7 @@ export function useFolders({ books, shown, createdNames, searching, refresh, sho
     const empty: Folder[] = createdNames
       .map((name) => ({ key: folderKey({ author: name }), name, books: [] }))
       .filter((f) => f.key && !keys.has(f.key))
-    return [...full, ...empty].sort((a, b) => (!a.key ? 1 : !b.key ? -1 : a.name.localeCompare(b.name, 'he')))
+    return [...full, ...empty].sort((a, b) => (!a.key ? 1 : !b.key ? -1 : a.name.localeCompare(b.name, localeTag())))
   }, [books, createdNames])
   const folders = useMemo(() => {
     const withBooks = new Map(groupFolders(shown).map((f) => [f.key, f]))
@@ -68,7 +69,7 @@ export function useFolders({ books, shown, createdNames, searching, refresh, sho
     exitSelect()
     await refresh()
     showToast(
-      name === undefined ? 'הוחזר לתיקיית המחבר' : name ? `הועבר ל״${name}״` : 'הועבר ל״ללא מחבר״',
+      name === undefined ? t('folder.returned') : t('folder.movedTo', { name: name || t('folder.noAuthor') }),
     )
   }
 
@@ -90,11 +91,9 @@ export function useFolders({ books, shown, createdNames, searching, refresh, sho
     const keys = new Set(list.map((f) => f.key))
     const all = allFolders.filter((f) => keys.has(f.key))
     const doomed = all.flatMap((f) => f.books)
-    const what = all.length === 1 ? `את התיקייה ״${all[0]?.name || 'ללא מחבר'}״` : `${all.length} תיקיות`
-    const text = doomed.length
-      ? `${doomed.length === 1 ? 'הספר שבה יימחק' : `${doomed.length} הספרים שבהן יימחקו`} יחד עם מיקום הקריאה וההערות. אפשר יהיה לבטל את מחיקת הספרים תוך כמה שניות.`
-      : all.length === 1 ? 'התיקייה ריקה.' : 'התיקיות ריקות.'
-    if (!(await confirm({ title: `למחוק ${what}?`, text, ok: 'מחק', danger: true }))) return
+    const title = t('folder.deleteTitle', { n: all.length, name: all[0]?.name || t('folder.noAuthor') })
+    const text = doomed.length ? t('folder.deleteBooks', { n: doomed.length }) : t('folder.deleteEmpty', { n: all.length })
+    if (!(await confirm({ title, text, ok: t('common.delete'), danger: true }))) return
     for (const f of all) if (f.key) await removeFolderName(f.name)
     setOpenFolder(undefined)
     exitSelect()

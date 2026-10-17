@@ -5,6 +5,7 @@ import { mergeReadingLog } from './readingLog'
 import { loadSettings, saveSettings } from './settings'
 import { decryptStream, isEncrypted, PasswordRequiredError } from './encrypt'
 import { CORRUPT, parseManifest } from './backupManifest'
+import { t } from '../i18n'
 
 /** where the backup's plaintext comes from: `take` returns bytes [start, end) */
 interface BackupReader {
@@ -114,7 +115,7 @@ export async function importLibrary(
   } catch (e) {
     // books are restored one by one and merging is idempotent, so importing the same file again finishes the job
     const msg = e instanceof Error ? e.message : String(e)
-    throw new Error(`${msg} (שוחזרו ${done} מתוך ${header.books.length} ספרים — אפשר לייבא שוב את אותו הקובץ להשלמה)`)
+    throw new Error(t('backup.partial', { msg, done, total: header.books.length }))
   }
   if (header.readingLog) await mergeReadingLog(header.readingLog)
   if (header.settings) saveSettings({ ...loadSettings(), ...header.settings })

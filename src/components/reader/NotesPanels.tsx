@@ -2,6 +2,7 @@ import { compare as cfiCompare } from 'foliate-js/epubcfi.js'
 import type { Annotation } from '../../lib/db'
 import { COLOR_NAMES, HIGHLIGHT_COLORS } from './colors'
 import { Panel } from './shared'
+import { t } from '../../i18n'
 
 export function NotesList({
   notes,
@@ -18,17 +19,17 @@ export function NotesList({
   onRemove: (id: string) => void
   onExport: () => void
 }) {
-  if (notes.length === 0) return <p className="muted">אין עדיין. סמן טקסט כדי להדגיש אותו, או לחץ על 🔖 כדי לשמור מקום.</p>
+  if (notes.length === 0) return <p className="muted">{t('notes.empty')}</p>
   return (
     <>
       <div className="notes-tools">
         {notes.some((n) => n.kind === 'bookmark') && (
           <>
-            <button onClick={() => onGotoBookmark(-1)} title="סימנייה קודמת ([)">סימנייה קודמת</button>
-            <button onClick={() => onGotoBookmark(1)} title="סימנייה הבאה (])">סימנייה הבאה</button>
+            <button onClick={() => onGotoBookmark(-1)} title={t('notes.prevTitle')}>{t('notes.prev')}</button>
+            <button onClick={() => onGotoBookmark(1)} title={t('notes.nextTitle')}>{t('notes.next')}</button>
           </>
         )}
-        <button onClick={onExport}>ייצוא ל-Markdown</button>
+        <button onClick={onExport}>{t('notes.export')}</button>
       </div>
       <ul className="notes">
         {[...notes]
@@ -45,11 +46,11 @@ export function NotesList({
                 </span>
               </button>
               {n.kind === 'highlight' && (
-                <button aria-label="ערוך" onClick={() => onEdit(n.id)}>
+                <button aria-label={t('common.edit')} onClick={() => onEdit(n.id)}>
                   ✎
                 </button>
               )}
-              <button aria-label="מחק" onClick={() => onRemove(n.id)}>✕</button>
+              <button aria-label={t('common.delete')} onClick={() => onRemove(n.id)}>✕</button>
             </li>
           ))}
       </ul>
@@ -71,10 +72,10 @@ export function EditNotePanel({
   onClose: () => void
 }) {
   return (
-    <Panel label="עריכת הדגשה" className="edit">
+    <Panel label={t('notes.editTitle')} className="edit">
       <blockquote style={{ borderColor: note.color }}>{note.text}</blockquote>
       <textarea
-        placeholder="הוסף הערה…"
+        placeholder={t('notes.placeholder')}
         value={note.note ?? ''}
         onChange={(e) => onUpdate({ note: e.target.value })}
         rows={4}
@@ -86,15 +87,15 @@ export function EditNotePanel({
             key={c}
             className={'swatch' + (c === note.color ? ' on' : '')}
             style={{ background: c }}
-            aria-label={`צבע ${COLOR_NAMES[i]}`}
+            aria-label={t('notes.color', { color: COLOR_NAMES[i] ?? '' })}
             aria-pressed={c === note.color}
             onClick={() => onUpdate({ color: c })}
           />
         ))}
         <span style={{ flex: 1 }} />
-        <button onClick={onShare}>שתף</button>
-        <button onClick={onRemove}>מחק</button>
-        <button className="primary" onClick={onClose}>סיום</button>
+        <button onClick={onShare}>{t('common.share')}</button>
+        <button onClick={onRemove}>{t('common.delete')}</button>
+        <button className="primary" onClick={onClose}>{t('common.done')}</button>
       </div>
     </Panel>
   )

@@ -1,18 +1,19 @@
 import type { FlatTocItem } from './toc'
+import { t } from '../../i18n'
 
 export function TocList({ toc, currentHref, onGoTo }: { toc: FlatTocItem[]; currentHref: string; onGoTo: (href: string) => void }) {
-  if (toc.length === 0) return <p className="muted">אין תוכן עניינים בספר הזה.</p>
-  const current = currentHref ? toc.findIndex((t) => t.href === currentHref) : -1
+  if (toc.length === 0) return <p className="muted">{t('toc.none')}</p>
+  const current = currentHref ? toc.findIndex((item) => item.href === currentHref) : -1
   return (
     <ul className="toc">
-      {toc.map((t, i) => (
+      {toc.map((item, i) => (
         <li
           key={i}
           className={i === current ? 'current' : undefined}
           ref={i === current ? (el) => el?.scrollIntoView({ block: 'center' }) : undefined}
-          style={{ paddingInlineStart: t.depth * 16 }}
+          style={{ paddingInlineStart: item.depth * 16 }}
         >
-          <button onClick={() => onGoTo(t.href)}>{t.label}</button>
+          <button onClick={() => onGoTo(item.href)}>{item.label}</button>
         </li>
       ))}
     </ul>

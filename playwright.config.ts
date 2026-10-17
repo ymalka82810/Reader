@@ -4,6 +4,8 @@ export default defineConfig({
   testDir: 'e2e',
   use: {
     baseURL: 'http://localhost:4173',
+    // the specs read the Hebrew UI; the app picks its language from the browser
+    locale: 'he-IL',
     serviceWorkers: 'block',
     // skip the first-run tap-zone hint, which covers the book until dismissed
     storageState: {

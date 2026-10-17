@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { deleteBook, listBooks, listFolderNames, type BookMeta } from '../lib/db'
+import { t } from '../i18n'
 
-/** how long a deleted book can still be restored with "בטל" */
+/** how long a deleted book can still be restored with "Undo" */
 const UNDO_MS = 7000
 
 type Toasts = {
@@ -23,7 +24,7 @@ export function useLibrary(setError: (msg: string | undefined) => void, { showTo
       setCreatedNames(await listFolderNames())
     } catch (e) {
       console.error(e)
-      setError('לא ניתן לגשת לאחסון של הדפדפן, אז הספרייה לא נטענה. ייתכן שמצב גלישה פרטית חוסם אותו.')
+      setError(t('lib.storageBlocked'))
     }
   }, [setError])
   useEffect(() => {
@@ -39,7 +40,7 @@ export function useLibrary(setError: (msg: string | undefined) => void, { showTo
     try {
       for (const id of p.ids) await deleteBook(id)
     } catch (e) {
-      setError(`מחיקה נכשלה: ${e instanceof Error ? e.message : String(e)}`)
+      setError(t('lib.deleteFailed', { msg: e instanceof Error ? e.message : String(e) }))
     }
     await refresh()
   }
@@ -67,7 +68,7 @@ export function useLibrary(setError: (msg: string | undefined) => void, { showTo
     const ids = list.map((b) => b.id)
     pendingDel.current = { ids, timer: window.setTimeout(commitDelete, UNDO_MS) }
     setBooks((prev) => prev.filter((b) => !ids.includes(b.id)))
-    showToast(list.length === 1 ? `״${list[0]?.title}״ נמחק` : `${list.length} ספרים נמחקו`, undoDelete, UNDO_MS)
+    showToast(t('lib.deleted', { n: list.length, title: list[0]?.title ?? '' }), undoDelete, UNDO_MS)
   }
 
   return { books, createdNames, refresh, deleteBooks }

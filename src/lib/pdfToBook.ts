@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import { ImportError } from './errors'
 
@@ -345,7 +346,7 @@ export interface LegacyPdfBook {
   sections: string[]
 }
 
-const pageRange = (from: number, to: number) => (from === to ? `עמוד ${from}` : `עמודים ${from}–${to}`)
+const pageRange = (from: number, to: number) => (from === to ? t('pdf.page', { n: from }) : t('pdf.pages', { from, to }))
 
 /** Chapter start pages (0-based) taken from the PDF's own bookmarks, if it has any. */
 async function outlineStarts(pdf: PDFDocumentProxy): Promise<Map<number, string>> {
@@ -445,9 +446,9 @@ export async function extractPdf(
         pages = await (await import('./ocr')).ocrPdf(pdf, onOcrProgress)
       } catch (e) {
         console.error(e)
-        throw new ImportError('ה-PDF הוא סריקה, והזיהוי האוטומטי של הטקסט (OCR) נכשל. בדקו את החיבור לאינטרנט ונסו שוב.')
+        throw new ImportError(t('pdf.ocrFailed'))
       }
-      if (!hasText()) throw new ImportError('לא הצלחנו לזהות טקסט ב-PDF הסרוק הזה.')
+      if (!hasText()) throw new ImportError(t('pdf.noText'))
     }
 
     // pages whose text came out badly keep a picture of the original page next to it
@@ -539,7 +540,7 @@ export function bookFromSections(x: LegacyPdfBook) {
   book.dir = x.rtl ? 'rtl' : 'ltr'
   book.sections = sections
   book.toc = sections.map((s, i) => ({
-    label: `עמודים ${i * PAGES_PER_SECTION + 1}–${Math.min(x.pageCount, (i + 1) * PAGES_PER_SECTION)}`,
+    label: t('pdf.pages', { from: i * PAGES_PER_SECTION + 1, to: Math.min(x.pageCount, (i + 1) * PAGES_PER_SECTION) }),
     href: s.id,
   }))
   book.resolveHref = (href: string) => ({ index: sections.findIndex((s) => s.id === href) })

@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import { ImportError } from './errors'
 import type { ExtractedPdf } from './pdfToBook'
 
@@ -42,7 +43,7 @@ export async function buildEpub(x: ExtractedPdf): Promise<Blob> {
       images: (c.pageImages ?? []).map((p) => ({ ...p, file: `img/p${p.page}.jpg`, id: `c${i}img${p.page}` })),
     }))
     .filter((c) => c.paras.length > 0 || c.images.length > 0)
-  if (!chapters.length) throw new ImportError('לא נמצא טקסט להמרה ב-PDF הזה.')
+  if (!chapters.length) throw new ImportError(t('pdf.noConvertible'))
 
   const bookId = `urn:uuid:${uuid()}`
   const modified = new Date().toISOString().replace(/\.\d+Z$/, 'Z')
@@ -68,7 +69,7 @@ export async function buildEpub(x: ExtractedPdf): Promise<Blob> {
     const pics = c.images
       .map(
         (im) =>
-          `<figure><img src="${im.file}" alt="עמוד המקור ${im.page}"/><figcaption>עמוד המקור ${im.page}</figcaption></figure>`,
+          `<figure><img src="${im.file}" alt="${t('pdf.original', { page: im.page })}"/><figcaption>${t('pdf.original', { page: im.page })}</figcaption></figure>`,
       )
       .join('\n')
     const body = [text, pics].filter(Boolean).join('\n')

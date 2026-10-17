@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import type { Annotation, BookRecord, Progress } from './db'
 import type { Stats } from './stats'
 import type { Settings } from './settings'
@@ -28,7 +29,7 @@ export interface Manifest {
   readingLog?: Record<string, number>
 }
 
-export const CORRUPT = 'קובץ הגיבוי פגום'
+export const CORRUPT = t('backup.corrupt')
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 
@@ -49,7 +50,7 @@ export function parseManifest(text: string, bodySize: number): Manifest {
     throw new Error(CORRUPT)
   }
   if (!isObj(raw) || !Array.isArray(raw.books)) throw new Error(CORRUPT)
-  if (raw.version !== 1) throw new Error('קובץ גיבוי לא נתמך')
+  if (raw.version !== 1) throw new Error(t('backup.unsupported'))
   const books = raw.books.map((b: unknown): ManifestBook => {
     if (!isObj(b) || typeof b.id !== 'string' || !b.id || typeof b.title !== 'string') throw new Error(CORRUPT)
     const fileRange = checkRange(b.fileRange, bodySize)

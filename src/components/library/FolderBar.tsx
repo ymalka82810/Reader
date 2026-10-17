@@ -1,8 +1,9 @@
 import type { Folder } from '../../lib/folders'
 import { BookCard, type BookActions } from './BookGrid'
 import { Cover } from './Cover'
+import { isRtl, t } from '../../i18n'
 
-const bookCount = (n: number) => (!n ? 'ריקה' : n === 1 ? 'ספר אחד' : `${n} ספרים`)
+const bookCount = (n: number) => (n ? t('books.count', { n }) : t('folder.empty'))
 
 type ListProps = {
   folders: Folder[]
@@ -50,8 +51,8 @@ export function FolderList({ folders, loose, bookActions, selecting, selectedFol
               <div className="folder-icon" aria-hidden="true">📁</div>
             )}
             <div className="meta">
-              <small className="kind">תיקייה</small>
-              <strong>{f.name || 'ללא מחבר'}</strong>
+              <small className="kind">{t('folder.kind')}</small>
+              <strong>{f.name || t('folder.noAuthor')}</strong>
               <small>{bookCount(f.books.length)}</small>
             </div>
           </button>
@@ -76,13 +77,13 @@ export function FolderBar({ folder, onBack, onRename, onDelete }: BarProps) {
   return (
     <div className="folder-bar">
       <div className="folder-title">
-        <strong>📁 {folder.name || 'ללא מחבר'}</strong>
-        <small>{folder.books.length === 1 ? 'ספר אחד' : `${folder.books.length} ספרים`}</small>
+        <strong>📁 {folder.name || t('folder.noAuthor')}</strong>
+        <small>{t('books.count', { n: folder.books.length })}</small>
       </div>
       <div className="folder-actions">
-        {onBack && <button onClick={onBack}>→ כל התיקיות</button>}
-        {folder.key && <button onClick={onRename}>שינוי שם</button>}
-        <button className="danger" onClick={onDelete}>מחק תיקייה</button>
+        {onBack && <button onClick={onBack}>{isRtl() ? '→' : '←'} {t('folder.all')}</button>}
+        {folder.key && <button onClick={onRename}>{t('folder.renameBtn')}</button>}
+        <button className="danger" onClick={onDelete}>{t('folder.delete')}</button>
       </div>
     </div>
   )

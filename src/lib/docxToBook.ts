@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import { ImportError } from './errors'
 import type { ExtractedPdf } from './pdfToBook'
 
@@ -36,12 +37,12 @@ export async function extractDocx(file: File): Promise<ExtractedPdf> {
   try {
     zip = await JSZip.loadAsync(file)
   } catch {
-    throw new ImportError('קובץ ה-DOCX פגום או לא נקרא.')
+    throw new ImportError(t('docx.corrupt'))
   }
   const body = await zip.file('word/document.xml')?.async('string')
-  if (!body) throw new ImportError('קובץ ה-DOCX פגום או לא נקרא.')
+  if (!body) throw new ImportError(t('docx.corrupt'))
   const doc = xml(body)
-  if (doc.getElementsByTagName('parsererror').length) throw new ImportError('קובץ ה-DOCX פגום או לא נקרא.')
+  if (doc.getElementsByTagName('parsererror').length) throw new ImportError(t('docx.corrupt'))
 
   const core = await zip.file('docProps/core.xml')?.async('string')
   const meta = core ? xml(core) : null
@@ -54,7 +55,7 @@ export async function extractDocx(file: File): Promise<ExtractedPdf> {
   let curTitle = ''
   let size = 0
   const flush = () => {
-    if (cur.length) chapters.push({ title: curTitle || `חלק ${chapters.length + 1}`, paras: cur })
+    if (cur.length) chapters.push({ title: curTitle || t('book.part', { n: chapters.length + 1 }), paras: cur })
     cur = []
     curTitle = ''
     size = 0
@@ -74,7 +75,7 @@ export async function extractDocx(file: File): Promise<ExtractedPdf> {
     if (size >= CHAPTER_CHARS) flush()
   }
   flush()
-  if (!chapters.length) throw new ImportError('הקובץ ריק.')
+  if (!chapters.length) throw new ImportError(t('import.empty'))
   if (chapters.length === 1 && chapters[0]) chapters[0].title = title
 
   const letters = all.match(/\p{L}/gu) ?? []

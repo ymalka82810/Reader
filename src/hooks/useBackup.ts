@@ -4,6 +4,7 @@ import { librarySize, markBackedUp } from '../lib/backupReminder'
 import { exportLibrary, exportLibraryTo } from '../lib/backupExport'
 import { importLibrary } from '../lib/backupImport'
 import { download } from '../lib/download'
+import { t } from '../i18n'
 import type { Confirm } from './useConfirm'
 
 /** above this, building the backup in memory risks crashing a phone */
@@ -33,7 +34,7 @@ export function useBackup({ refresh, setBusy, setError, showToast, onBackedUp, c
 
   const doExport = async (password?: string) => {
     setError(undefined)
-    const name = `גיבוי-ספרייה-${new Date().toISOString().slice(0, 10)}.readerbackup`
+    const name = `${t('backup.fileName')}-${new Date().toISOString().slice(0, 10)}.readerbackup`
     try {
       // must run first: the save dialog needs the click's user activation, which awaits can use up
       const picker = (window as any).showSaveFilePicker as undefined | ((o: object) => Promise<any>)
@@ -49,20 +50,20 @@ export function useBackup({ refresh, setBusy, setError, showToast, onBackedUp, c
       if (!sink) {
         const size = await librarySize()
         const ask = {
-          title: `הספרייה גדולה (${Math.round(size / 1024 / 1024)}MB)`,
-          text: 'הגיבוי נבנה בזיכרון ועלול להיכשל במכשיר חלש. להמשיך?',
-          ok: 'המשך',
+          title: t('backup.bigTitle', { mb: Math.round(size / 1024 / 1024) }),
+          text: t('backup.bigText'),
+          ok: t('common.continue'),
         }
         if (size > BIG_BACKUP && !(await confirm(ask))) return
       }
-      setBusy('מכין גיבוי…')
-      const progress = (d: number, t: number) => setBusy(`מכין גיבוי… ${d}/${t}`)
+      setBusy(t('backup.preparing'))
+      const progress = (done: number, total: number) => setBusy(`${t('backup.preparing')} ${done}/${total}`)
       if (sink) await exportLibraryTo(sink, progress, password)
       else download(await exportLibrary(progress, password), name)
       markBackedUp()
       onBackedUp()
     } catch (e) {
-      setError(`גיבוי נכשל: ${e instanceof Error ? e.message : String(e)}`)
+      setError(t('backup.failed', { msg: e instanceof Error ? e.message : String(e) }))
     }
     setBusy(undefined)
   }
@@ -70,17 +71,17 @@ export function useBackup({ refresh, setBusy, setError, showToast, onBackedUp, c
   const doImport = async (file: File, password?: string) => {
     setError(undefined)
     try {
-      setBusy('משחזר גיבוי…')
-      const { restored, skipped } = await importLibrary(file, (d, t) => setBusy(`משחזר גיבוי… ${d}/${t}`), password)
+      setBusy(t('backup.restoring'))
+      const { restored, skipped } = await importLibrary(file, (done, total) => setBusy(`${t('backup.restoring')} ${done}/${total}`), password)
       setBusy(undefined)
-      showToast(`שוחזרו ${restored} ספרים` + (skipped ? ` (${skipped} כבר קיימים)` : ''), undefined, 6000)
+      showToast(t('backup.restored', { n: restored }) + (skipped ? ` (${t('backup.skipped', { n: skipped })})` : ''), undefined, 6000)
     } catch (e) {
       setBusy(undefined)
       if (e instanceof PasswordRequiredError || e instanceof WrongPasswordError) {
         setPw('')
         setPwAsk({ kind: 'import', file, wrong: e instanceof WrongPasswordError })
       } else {
-        setError(`שחזור נכשל: ${e instanceof SyntaxError ? 'קובץ הגיבוי פגום' : e instanceof Error ? e.message : String(e)}`)
+        setError(t('backup.restoreFailed', { msg: e instanceof SyntaxError ? t('backup.corrupt') : e instanceof Error ? e.message : String(e) }))
       }
     }
     await refresh()

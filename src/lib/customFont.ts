@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import { createStore, del, get, set } from 'idb-keyval'
 
 export const CUSTOM_FONT_FAMILY = 'ReaderCustomFont'
@@ -26,8 +27,8 @@ export const removeCustomFont = () => del(KEY, store)
 
 /** stores an uploaded font file; rejects anything that is not a font or is too big */
 export async function saveCustomFont(file: File): Promise<CustomFont> {
-  if (!/\.(ttf|otf|woff2?)$/i.test(file.name)) throw new Error('יש לבחור קובץ גופן (ttf, otf, woff, woff2)')
-  if (file.size > MAX_FONT_BYTES) throw new Error('קובץ הגופן גדול מדי (עד 8MB)')
+  if (!/\.(ttf|otf|woff2?)$/i.test(file.name)) throw new Error(t('font.badType'))
+  if (file.size > MAX_FONT_BYTES) throw new Error(t('font.tooBig'))
   const font = { name: file.name.replace(/\.[^.]+$/, ''), dataUrl: await readAsDataUrl(file) }
   await set(KEY, font, store)
   return font

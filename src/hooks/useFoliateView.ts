@@ -6,6 +6,7 @@ import { flattenToc, type FlatTocItem } from '../components/reader/toc'
 import { getBook } from '../lib/db'
 import { alignDocDir, fixBookDir, guardBookEdges } from '../lib/foliateFixes'
 import { bookFromSections } from '../lib/pdfToBook'
+import { t } from '../i18n'
 import { applyLayout, bookCSS, type Settings } from '../lib/settings'
 import { useLatest } from './useLatest'
 
@@ -64,7 +65,7 @@ export function useFoliateView(
     ;(async () => {
       try {
         const rec = await getBook(id)
-        if (!rec) throw new Error('הספר לא נמצא בספרייה')
+        if (!rec) throw new Error(t('reader.bookMissing'))
         await h.current.prepare()
         if (cancelled) return
         host.current?.append(view)

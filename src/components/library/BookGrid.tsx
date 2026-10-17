@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { isFinished, setFinished, type BookMeta } from '../../lib/db'
 import { Cover } from './Cover'
+import { t } from '../../i18n'
 
 export type BookActions = {
   selecting: boolean
@@ -28,10 +29,10 @@ export function BookCard({ book: b, picked, selecting, onOpen, onToggle, onEdit,
         <div className="cover-wrap">
           <Cover book={b} />
           {isFinished(b) ? (
-            <span className="done-badge" aria-label="נקרא">✓</span>
+            <span className="done-badge" aria-label={t('book.read')}>✓</span>
           ) : (
             !!b.fraction && (
-              <progress className="cover-progress" value={b.fraction} max={1} aria-label={`${Math.round(b.fraction * 100)}% נקרא`} />
+              <progress className="cover-progress" value={b.fraction} max={1} aria-label={t('book.percentRead', { pct: Math.round(b.fraction * 100) })} />
             )
           )}
         </div>
@@ -47,7 +48,7 @@ export function BookCard({ book: b, picked, selecting, onOpen, onToggle, onEdit,
         <>
           <button
             className="more-btn"
-            aria-label="פעולות לספר"
+            aria-label={t('book.actions')}
             aria-haspopup="menu"
             aria-expanded={menu}
             onClick={() => setMenu(!menu)}
@@ -66,12 +67,12 @@ export function BookCard({ book: b, picked, selecting, onOpen, onToggle, onEdit,
                     refresh()
                   }}
                 >
-                  {isFinished(b) ? 'סמן כלא נקרא' : 'סמן כנקרא'}
+                  {isFinished(b) ? t('book.markUnread') : t('book.markRead')}
                 </button>
-                <button role="menuitem" onClick={() => { close(); onEdit(b) }}>עריכת שם ומחבר</button>
-                <button role="menuitem" onClick={() => { close(); onMove(b) }}>העבר לתיקייה</button>
+                <button role="menuitem" onClick={() => { close(); onEdit(b) }}>{t('book.editMeta')}</button>
+                <button role="menuitem" onClick={() => { close(); onMove(b) }}>{t('book.moveToFolder')}</button>
                 <div className="menu-sep" role="separator" />
-                <button role="menuitem" className="danger-item" onClick={() => { close(); onDelete(b) }}>מחק</button>
+                <button role="menuitem" className="danger-item" onClick={() => { close(); onDelete(b) }}>{t('common.delete')}</button>
               </div>
             </>
           )}

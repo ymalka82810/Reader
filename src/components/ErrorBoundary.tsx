@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { t } from '../i18n'
 
 interface Props {
   /** shown in place of the crashed subtree; the button calls this (e.g. to return to the library) */
@@ -21,8 +22,8 @@ export default class ErrorBoundary extends Component<Props, { error?: Error }> {
   override render() {
     if (!this.state.error) return this.props.children
     return (
-      <div className="overlay-msg error" role="alert" dir="rtl" style={{ position: 'fixed' }}>
-        <p>משהו השתבש בפתיחת הספר.</p>
+      <div className="overlay-msg error" role="alert" style={{ position: 'fixed' }}>
+        <p>{t('error.title')}</p>
         <p style={{ fontSize: '.85rem', opacity: 0.7 }}>{this.state.error.message}</p>
         <button
           onClick={() => {
@@ -30,7 +31,7 @@ export default class ErrorBoundary extends Component<Props, { error?: Error }> {
             this.props.onClose()
           }}
         >
-          חזרה לספרייה
+          {t('reader.backToLibrary')}
         </button>
       </div>
     )

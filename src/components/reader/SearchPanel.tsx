@@ -1,5 +1,6 @@
 import { MAX_SEARCH_RESULTS, type SearchGroup } from './useBookSearch'
 import { Panel } from './shared'
+import { t } from '../../i18n'
 
 export function SearchPanel({
   query,
@@ -21,7 +22,7 @@ export function SearchPanel({
   onGoTo: (cfi: string) => void
 }) {
   return (
-    <Panel label="חיפוש בספר" className="search">
+    <Panel label={t('search.title')} className="search">
       <form
         onSubmit={(e) => {
           e.preventDefault()
@@ -30,24 +31,24 @@ export function SearchPanel({
       >
         <input
           type="search"
-          placeholder="חיפוש בספר…"
+          placeholder={t('search.placeholder')}
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
           autoFocus
         />
         {searching ? (
           <button type="button" onClick={onCancel}>
-            עצור
+            {t('search.stop')}
           </button>
         ) : (
           <button type="submit" disabled={!query.trim()}>
-            חפש
+            {t('search.go')}
           </button>
         )}
       </form>
-      {searching && <p className="muted">מחפש…</p>}
-      {capped && <p className="muted">מוצגות {MAX_SEARCH_RESULTS} התוצאות הראשונות. צמצמו את החיפוש כדי לראות עוד.</p>}
-      {!searching && query.trim() && results.length === 0 && <p className="muted">לא נמצאו תוצאות.</p>}
+      {searching && <p className="muted">{t('search.searching')}</p>}
+      {capped && <p className="muted">{t('search.capped', { n: MAX_SEARCH_RESULTS })}</p>}
+      {!searching && query.trim() && results.length === 0 && <p className="muted">{t('search.none')}</p>}
       <ul className="search-results">
         {results.map((group, gi) => (
           <li key={gi}>

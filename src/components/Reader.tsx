@@ -27,6 +27,7 @@ import { useBackGesture } from '../hooks/useBackGesture'
 import { clampFont, useBookEvents, type Selection } from '../hooks/useBookEvents'
 import { firstWord } from '../lib/dictionary'
 import { formatMinutes, loadStats, minutesLeft, type Stats } from '../lib/stats'
+import { isRtl, t } from '../i18n'
 import { customFontFace, loadCustomFont, type CustomFont } from '../lib/customFont'
 import { loadViewModes, saveViewModes, type ViewModes } from '../lib/viewModes'
 import { loadSettings, saveSettings, themeColors, type Settings } from '../lib/settings'
@@ -153,7 +154,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     }
     lastBack.current = now
     setUiVisible(true)
-    flash('החלקה נוספת תחזיר לספרייה')
+    flash(t('reader.swipeBack'))
     return true
   })
   const close = useCallback(() => {
@@ -203,7 +204,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     if (on) {
       setUiVisible(false)
       setPanel(null)
-      flash('מצב ללא הסחות — הקשה באמצע מציגה תפריט לרגע')
+      flash(t('reader.focusOn'))
     }
   }
   useEffect(() => {
@@ -236,13 +237,13 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   const toggleAuto = () => {
     if (!auto.active) {
       setUiVisible(false)
-      flash('קריאה אוטומטית — הקשה באמצע עוצרת ומציגה תפריטים')
+      flash(t('reader.autoOn'))
       if (speech.active) void speech.toggle()
     }
     void auto.toggle()
   }
   const toggleSpeech = () => {
-    if (!readAloudSupported) return flash('הקראה אינה נתמכת במכשיר זה')
+    if (!readAloudSupported) return flash(t('reader.ttsUnsupported'))
     if (!speech.active) {
       setUiVisible(false)
       if (auto.active) void auto.toggle()
@@ -299,8 +300,8 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     if (!text) return
     navigator.clipboard
       ?.writeText(text)
-      .then(() => flash('הועתק'))
-      .catch(() => flash('ההעתקה נכשלה'))
+      .then(() => flash(t('reader.copied')))
+      .catch(() => flash(t('reader.copyFailed')))
     setSelection(null)
   }
 
@@ -363,74 +364,74 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   return (
     <div
       className={`reader theme-${settings.theme}${modes.focus ? ' focus' : ''}`}
-      dir="rtl"
+      dir={isRtl() ? 'rtl' : 'ltr'}
       style={{ ['--bg' as string]: colors.bg, ['--fg' as string]: colors.fg }}
     >
       <div className="view-host" ref={host} style={settings.brightness < 1 ? { filter: `brightness(${settings.brightness})` } : undefined} />
 
-      {status === 'loading' && <div className="overlay-msg">טוען…</div>}
+      {status === 'loading' && <div className="overlay-msg">{t('common.loading')}</div>}
       {status === 'error' && (
         <div className="overlay-msg error">
           <p>{error}</p>
-          <button onClick={close}>חזרה לספרייה</button>
+          <button onClick={close}>{t('reader.backToLibrary')}</button>
         </div>
       )}
 
       <div className={'topbar' + (uiVisible ? '' : ' hidden')}>
-        <button onClick={close} aria-label="חזרה לספרייה" title="חזרה לספרייה">→</button>
+        <button onClick={close} aria-label={t('reader.backToLibrary')} title={t('reader.backToLibrary')}>{isRtl() ? '→' : '←'}</button>
         <div className="title">{title}</div>
         <button
           onClick={toggleBookmark}
-          aria-label="סימנייה"
+          aria-label={t('reader.bookmark')}
           aria-pressed={bookmarked}
-          title={bookmarked ? 'הסר סימנייה (b)' : 'הוסף סימנייה (b)'}
+          title={bookmarked ? t('reader.bookmarkRemove') : t('reader.bookmarkAdd')}
         >
           <Icon d="M6 3h12v18l-6-4-6 4z" filled={bookmarked} />
         </button>
         <button
           onClick={() => setPanel(navOpen ? null : 'toc')}
-          aria-label="ניווט בספר"
+          aria-label={t('nav.title')}
           aria-expanded={navOpen}
-          title="תוכן עניינים, סימניות והדגשות (t / n)"
+          title={t('reader.navTitle')}
         >
           <Icon d="M4 6h16M4 12h16M4 18h16" />
         </button>
         <button
           onClick={toggleFocus}
-          aria-label="מצב ללא הסחות"
+          aria-label={t('reader.focus')}
           aria-pressed={modes.focus}
-          title="מצב ללא הסחות (f)"
+          title={t('reader.focusTitle')}
         >
           <Icon d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
         </button>
-        <button onClick={() => togglePanel('search')} aria-label="חיפוש" title="חיפוש">
+        <button onClick={() => togglePanel('search')} aria-label={t('reader.search')} title={t('reader.search')}>
           <Icon d="M10.5 18a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15zM16 16l5 5" />
         </button>
-        <button onClick={() => togglePanel('settings')} aria-label="הגדרות תצוגה" title="הגדרות תצוגה">Aa</button>
+        <button onClick={() => togglePanel('settings')} aria-label={t('settings.title')} title={t('settings.title')}>Aa</button>
       </div>
 
       <div className={'bottombar' + (uiVisible ? '' : ' hidden')}>
         <button
           className="play"
           onClick={toggleAuto}
-          aria-label={auto.active ? 'עצור קריאה אוטומטית' : 'קריאה אוטומטית'}
+          aria-label={auto.active ? t('reader.autoStop') : t('reader.autoStart')}
           aria-pressed={auto.active}
-          title="קריאה אוטומטית בקצב שלך (a)"
+          title={t('reader.autoTitle')}
         >
           <Icon d={auto.active ? 'M7 5v14M17 5v14' : 'M7 4v16l13-8z'} />
         </button>
         {auto.active && (
-          <div className="auto-pace" role="group" aria-label="קצב קריאה אוטומטית">
-            <button onClick={() => auto.adjust(false)} aria-label="לאט יותר" title="לאט יותר (,)">−</button>
-            <span title="זמן לכל מסך, לפי קצב הקריאה שלך">{auto.secsPerScreen ? `${auto.secsPerScreen} שנ׳/מסך` : '…'}</span>
-            <button onClick={() => auto.adjust(true)} aria-label="מהר יותר" title="מהר יותר (.)">+</button>
+          <div className="auto-pace" role="group" aria-label={t('reader.autoPace')}>
+            <button onClick={() => auto.adjust(false)} aria-label={t('reader.slower')} title={t('reader.slowerTitle')}>−</button>
+            <span title={t('reader.perScreen')}>{auto.secsPerScreen ? t('reader.secsPerScreen', { n: auto.secsPerScreen }) : '…'}</span>
+            <button onClick={() => auto.adjust(true)} aria-label={t('reader.faster')} title={t('reader.fasterTitle')}>+</button>
           </div>
         )}
         {speech.active && (
-          <div className="auto-pace" role="group" aria-label="מהירות הקראה">
-            <button onClick={() => speech.setRate(speech.rate - RATE_STEP)} disabled={speech.rate <= MIN_RATE} aria-label="הקראה איטית יותר" title="הקראה איטית יותר">−</button>
-            <span>{`הקראה ×${speech.rate.toFixed(1)}`}</span>
-            <button onClick={() => speech.setRate(speech.rate + RATE_STEP)} disabled={speech.rate >= MAX_RATE} aria-label="הקראה מהירה יותר" title="הקראה מהירה יותר">+</button>
+          <div className="auto-pace" role="group" aria-label={t('reader.ttsSpeed')}>
+            <button onClick={() => speech.setRate(speech.rate - RATE_STEP)} disabled={speech.rate <= MIN_RATE} aria-label={t('reader.ttsSlower')} title={t('reader.ttsSlower')}>−</button>
+            <span>{t('reader.ttsRate', { rate: speech.rate.toFixed(1) })}</span>
+            <button onClick={() => speech.setRate(speech.rate + RATE_STEP)} disabled={speech.rate >= MAX_RATE} aria-label={t('reader.ttsFaster')} title={t('reader.ttsFaster')}>+</button>
           </div>
         )}
         <div className="progress">
@@ -441,24 +442,24 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
             step={0.001}
             dir={dir}
             value={shownFraction}
-            aria-label="מיקום בספר"
+            aria-label={t('reader.position')}
             onChange={(e) => setDragFraction(parseFloat(e.target.value))}
             onPointerUp={commit}
             onKeyUp={commit}
           />
           <div className="label" title={chapter || undefined}>
-            {pages ? `עמוד ${pages.current} מתוך ${pages.total} · ` : ''}
+            {pages ? `${t('reader.pageOf', { current: pages.current, total: pages.total })} · ` : ''}
             {Math.round(shownFraction * 100)}%
-            {left ? ` · נותרו ${formatMinutes(left)}` : ''}
+            {left ? ` · ${t('reader.timeLeft', { time: formatMinutes(left) })}` : ''}
           </div>
         </div>
         {readAloudSupported && (
           <button
             className="play"
             onClick={toggleSpeech}
-            aria-label={speech.active ? 'עצור הקראה' : 'הקרא בקול'}
+            aria-label={speech.active ? t('reader.ttsStop') : t('reader.ttsStart')}
             aria-pressed={speech.active}
-            title="הקראת הטקסט בקול (r)"
+            title={t('reader.ttsTitle')}
           >
             <Icon d={speech.active ? 'M6 6h12v12H6z' : 'M4 9v6h4l5 4V5L8 9zM16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12'} />
           </button>
@@ -475,23 +476,23 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
           onPointerDown={(e) => e.preventDefault()}
         >
           {HIGHLIGHT_COLORS.map((c, i) => (
-            <button key={c} className="swatch" style={{ background: c }} aria-label={`הדגש בצבע ${COLOR_NAMES[i]}`} onClick={() => addHighlight(c)} />
+            <button key={c} className="swatch" style={{ background: c }} aria-label={t('reader.highlightColor', { color: COLOR_NAMES[i] ?? '' })} onClick={() => addHighlight(c)} />
           ))}
-          <button aria-label="הוסף הערה" title="הערה" onClick={addNote}>✎</button>
-          <button aria-label="העתק" title="העתק" onClick={copySelection}>⧉</button>
-          <button aria-label="שתף ציטוט" title="שתף ציטוט כתמונה" onClick={shareSelection}>⇪</button>
-          <button aria-label="חפש במילון" title="מילון" onClick={lookUp}>📖</button>
+          <button aria-label={t('reader.addNote')} title={t('reader.note')} onClick={addNote}>✎</button>
+          <button aria-label={t('reader.copy')} title={t('reader.copy')} onClick={copySelection}>⧉</button>
+          <button aria-label={t('reader.shareQuote')} title={t('reader.shareQuoteTitle')} onClick={shareSelection}>⇪</button>
+          <button aria-label={t('reader.lookUp')} title={t('reader.dict')} onClick={lookUp}>📖</button>
         </div>
       )}
       {(backTo || (hitIdx !== null && hits.length > 0)) && !panel && (
         <div className={'jump-chips' + (uiVisible ? '' : ' low')}>
-          {backTo && <button onClick={goBack}>{backTo.page ? `↩ חזרה לעמוד ${backTo.page}` : '↩ חזרה'}</button>}
+          {backTo && <button onClick={goBack}>{backTo.page ? t('reader.backToPage', { page: backTo.page }) : t('reader.back')}</button>}
           {hitIdx !== null && hits.length > 0 && (
-            <div className="hit-nav" role="group" aria-label="תוצאות חיפוש">
-              <button onClick={() => stepHit(-1)} aria-label="התוצאה הקודמת" title="התוצאה הקודמת">›</button>
+            <div className="hit-nav" role="group" aria-label={t('reader.hits')}>
+              <button onClick={() => stepHit(-1)} aria-label={t('reader.prevHit')} title={t('reader.prevHit')}>{isRtl() ? '›' : '‹'}</button>
               <span>{`${Math.max(hitIdx, 0) + 1} / ${hits.length}`}</span>
-              <button onClick={() => stepHit(1)} aria-label="התוצאה הבאה" title="התוצאה הבאה">‹</button>
-              <button onClick={() => setHitIdx(null)} aria-label="סגור ניווט תוצאות" title="סגור">✕</button>
+              <button onClick={() => stepHit(1)} aria-label={t('reader.nextHit')} title={t('reader.nextHit')}>{isRtl() ? '‹' : '›'}</button>
+              <button onClick={() => setHitIdx(null)} aria-label={t('reader.closeHits')} title={t('common.close')}>✕</button>
             </div>
           )}
         </div>
@@ -500,7 +501,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
         <div
           className="tap-help"
           role="dialog"
-          aria-label="הסבר על אזורי הלחיצה"
+          aria-label={t('reader.tapHelp')}
           onClick={() => {
             setTapHelp(false)
             try {
@@ -510,10 +511,10 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
             }
           }}
         >
-          <div>הקשה בצד<br />מעבר עמוד</div>
-          <div>הקשה באמצע<br />תפריטים</div>
-          <div>הקשה בצד<br />מעבר עמוד</div>
-          <p>הקש בכל מקום כדי להמשיך</p>
+          <div>{t('tap.side')}<br />{t('tap.turn')}</div>
+          <div>{t('tap.middle')}<br />{t('tap.menus')}</div>
+          <div>{t('tap.side')}<br />{t('tap.turn')}</div>
+          <p>{t('tap.continue')}</p>
         </div>
       )}
       {toast && (

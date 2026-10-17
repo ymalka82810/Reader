@@ -1,4 +1,5 @@
 import { createStore, del, get, set } from 'idb-keyval'
+import { t } from '../i18n'
 
 /** per-book reading speed: active seconds spent and the fraction of the book read in that time */
 export interface Stats {
@@ -60,10 +61,10 @@ export function minutesLeft({ secs, frac }: Stats, fraction: number): number | n
 }
 
 export function formatMinutes(m: number): string {
-  if (m < 60) return `${m} דק׳`
+  if (m < 60) return t('time.min', { m })
   const h = Math.floor(m / 60)
   const r = m % 60
-  return r ? `${h} שע׳ ${r} דק׳` : `${h} שע׳`
+  return r ? `${t('time.hour', { h })} ${t('time.min', { m: r })}` : t('time.hour', { h })
 }
 
 export function deleteStats(id: string): Promise<void> {

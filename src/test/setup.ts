@@ -1,4 +1,8 @@
 import 'fake-indexeddb/auto'
+import { setLocale } from '../i18n'
+
+// the suite asserts on the Hebrew UI strings, whatever language the machine running it uses
+setLocale('he')
 
 // minimal in-memory localStorage (the lib code only needs get/set/remove)
 const data = new Map<string, string>()

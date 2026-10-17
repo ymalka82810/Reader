@@ -2,15 +2,16 @@ import type { EyeStatus } from '../../hooks/useEyeScroll'
 import type { Flow } from '../../lib/settings'
 import type { OrientationLock, Spread, ViewModes } from '../../lib/viewModes'
 import { Seg } from './shared'
+import { t } from '../../i18n'
 import './viewModes.css'
 
 const EYE_STATUS: Record<EyeStatus, string> = {
   off: '',
-  starting: 'מפעיל מצלמה…',
-  calibrating: 'מכייל: הסתכל באמצע הטקסט כשתי שניות',
-  active: 'פעיל: מבט ממושך לתחתית המסך — קדימה, לראשו — אחורה',
-  denied: 'אין הרשאה למצלמה',
-  error: 'לא ניתן להפעיל את זיהוי המבט במכשיר זה',
+  starting: t('eye.starting'),
+  calibrating: t('eye.calibrating'),
+  active: t('eye.active'),
+  denied: t('eye.denied'),
+  error: t('eye.error'),
 }
 
 export function ViewModesSection({
@@ -28,37 +29,37 @@ export function ViewModesSection({
 }) {
   return (
     <fieldset className="view-modes">
-      <legend>מצבי תצוגה</legend>
+      <legend>{t('modes.title')}</legend>
       <div className="mode-row">
-        <span>עמודים בטאבלט</span>
+        <span>{t('modes.spread')}</span>
         <Seg<Spread>
           value={modes.spread}
           onChange={(v) => setMode('spread', v)}
-          options={[['auto', 'אוטומטי'], ['single', 'עמוד אחד'], ['double', 'שני עמודים']]}
+          options={[['auto', t('modes.auto')], ['single', t('modes.single')], ['double', t('modes.double')]]}
         />
-        {flow === 'scrolled' && <small className="muted">חל במצב עמודים; במצב גלילה אין חלוקה לעמודים</small>}
+        {flow === 'scrolled' && <small className="muted">{t('modes.spreadNote')}</small>}
       </div>
       <div className="mode-row">
-        <span>נעילת כיוון מסך</span>
+        <span>{t('modes.orientation')}</span>
         <Seg<OrientationLock>
           value={modes.orientation}
           onChange={(v) => setMode('orientation', v)}
-          options={[['free', 'חופשי'], ['portrait', 'לאורך'], ['landscape', 'לרוחב']]}
+          options={[['free', t('modes.free')], ['portrait', t('modes.portrait')], ['landscape', t('modes.landscape')]]}
         />
       </div>
       <label className="check">
         <input type="checkbox" checked={modes.focus} onChange={(e) => setMode('focus', e.target.checked)} />
-        מצב ללא הסחות (מסך מלא, תפריטים רק בהקשה באמצע) — קיצור: <kbd>f</kbd>
+        {t('modes.focus')} <kbd>f</kbd>
       </label>
       <label className="check">
         <input type="checkbox" checked={modes.eyeScroll} onChange={(e) => setMode('eyeScroll', e.target.checked)} />
-        גלילה במבט (מצלמה קדמית, ניסיוני) — העיבוד במכשיר בלבד, דבר אינו נשמר או נשלח
+        {t('modes.eye')}
       </label>
       {modes.eyeScroll && (
         <div className="eye-status" role="status">
           {EYE_STATUS[eyeStatus]}
           {eyeStatus === 'active' && (
-            <button onClick={onRecalibrate}>כיול מחדש</button>
+            <button onClick={onRecalibrate}>{t('modes.recalibrate')}</button>
           )}
         </div>
       )}

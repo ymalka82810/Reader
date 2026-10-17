@@ -3,11 +3,13 @@ import { createRoot } from 'react-dom/client'
 import './styles.css'
 import App from './App'
 import { migrate } from './lib/db'
+import { applyDocumentLocale } from './i18n'
 import { requestPersistence } from './lib/storage'
 import { setupServiceWorker } from './lib/serviceWorker'
 import { isNativeApp } from './lib/updater'
 
 document.documentElement.classList.toggle('native-app', isNativeApp)
+applyDocumentLocale()
 
 const reloading = setupServiceWorker().catch((e) => {
   console.error(e)

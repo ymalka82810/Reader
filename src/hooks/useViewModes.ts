@@ -2,6 +2,7 @@ import { useEffect, type MutableRefObject } from 'react'
 import type { FoliateView } from 'foliate-js/view.js'
 import { applyLayout, type Settings } from '../lib/settings'
 import { DOUBLE_COLUMN_WIDTH, maxColumns, type OrientationLock, type Spread } from '../lib/viewModes'
+import { t } from '../i18n'
 
 type LockableOrientation = ScreenOrientation & {
   lock?: (o: 'portrait' | 'landscape') => Promise<void>
@@ -61,7 +62,7 @@ export function useViewModes({
   useEffect(() => {
     const o = orientation()
     if (lock === 'free' || !o?.lock) {
-      if (lock !== 'free') flash('נעילת כיוון אינה נתמכת במכשיר זה')
+      if (lock !== 'free') flash(t('modes.lockUnsupported'))
       return
     }
     let cancelled = false
@@ -72,7 +73,7 @@ export function useViewModes({
       try {
         await apply()
       } catch {
-        if (!cancelled) flash('לא ניתן לנעול כיוון — נסה מצב מסך מלא או התקנה כאפליקציה')
+        if (!cancelled) flash(t('modes.lockFailed'))
       }
     })
     return () => {
