@@ -1,3 +1,5 @@
+import { isNativeApp } from './updater'
+
 export interface StorageStatus {
   /** true when the browser promised not to evict the library under storage pressure */
   persisted: boolean
@@ -7,6 +9,8 @@ export interface StorageStatus {
 
 /** ask the browser not to evict the library (IndexedDB); resolves to whether it was granted */
 export async function requestPersistence(): Promise<boolean> {
+  // the APK keeps the library in app-private storage, which Android never evicts under pressure
+  if (isNativeApp) return true
   try {
     if (await navigator.storage?.persisted?.()) return true
     return (await navigator.storage?.persist?.()) ?? false
