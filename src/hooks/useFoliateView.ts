@@ -43,6 +43,8 @@ export function useFoliateView(
   settings: Settings,
   /** @font-face rule of the uploaded font, '' when there is none */
   customFace: string,
+  /** opens here instead of at the saved reading position */
+  startCfi: string | undefined,
   handlers: FoliateHandlers,
 ) {
   const settingsRef = useLatest(settings)
@@ -103,7 +105,8 @@ export function useFoliateView(
         on<{ value: string }>('show-annotation', (d) => h.current.showAnnotation(d.value))
         on<FoliateRelocateDetail>('relocate', (d) => h.current.relocate(d))
 
-        await view.init({ lastLocation: rec.cfi, showTextStart: !rec.cfi })
+        const cfi = startCfi ?? rec.cfi
+        await view.init({ lastLocation: cfi, showTextStart: !cfi })
         setStatus('ready')
       } catch (e) {
         console.error(e)
@@ -124,7 +127,7 @@ export function useFoliateView(
       view.remove()
       viewRef.current = null
     }
-  }, [id, host, viewRef, h, settingsRef, faceRef])
+  }, [id, startCfi, host, viewRef, h, settingsRef, faceRef])
 
   // apply settings changes live
   useEffect(() => {

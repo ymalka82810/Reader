@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { isFinished, updateMeta, type BookMeta } from '../lib/db'
+import { getAllNotes, isFinished, updateMeta, type Annotation, type BookMeta } from '../lib/db'
+import { searchNotes } from '../lib/noteSearch'
 import { backupDue } from '../lib/backupReminder'
 import { getStorageStatus, requestPersistence, type StorageStatus } from '../lib/storage'
 import { useToast } from '../hooks/useToast'
@@ -20,6 +21,7 @@ import { PickBooksDialog } from './library/PickBooksDialog'
 import { bookType, isFiltering, NO_FILTER, typesOf, type LibraryFilter } from '../lib/libraryFilter'
 import { folderKey, groupFolders } from '../lib/folders'
 import { BookGrid } from './library/BookGrid'
+import { NoteHits } from './library/NoteHits'
 import { Cover } from './library/Cover'
 import { FolderBar, FolderList } from './library/FolderBar'
 import {
@@ -33,7 +35,7 @@ import {
   PasswordDialog,
 } from './library/Dialogs'
 
-export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
+export default function Library({ onOpen }: { onOpen: (id: string, cfi?: string) => void }) {
   const [busy, setBusy] = useState<string>()
   const [error, setError] = useState<string>()
   const [drag, setDrag] = useState(false)
@@ -79,16 +81,23 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   // a tag that no book carries any more stops filtering
   const activeTag = tags.some((x) => x.key === tag) ? tag : ''
 
-  const shown = useMemo(() => {
-    const q = query.trim().toLowerCase()
+  // books passing the filter and tag pickers, before the text query
+  const scoped = useMemo(() => {
     const state = (b: BookMeta) => (isFinished(b) ? 'finished' : b.fraction ? 'reading' : 'unread')
-    const list = books.filter(
+    return books.filter(
       (b) =>
         (filter.state === 'all' || state(b) === filter.state) &&
         (!filter.type || bookType(b) === filter.type) &&
         (filter.folder === undefined || folderKey(b) === filter.folder) &&
         (!filter.ids.size || filter.ids.has(b.id)) &&
-        (!activeTag || hasTag(b, activeTag)) &&
+        (!activeTag || hasTag(b, activeTag)),
+    )
+  }, [books, filter, activeTag])
+
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const list = scoped.filter(
+      (b) =>
         (!q || `${b.title} ${b.author} ${b.fileName} ${(b.tags ?? []).join(' ')}`.toLowerCase().includes(q)),
     )
     const by = (f: (b: BookMeta) => string) => (a: BookMeta, b: BookMeta) =>
@@ -97,7 +106,25 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
     else if (sort === 'author') list.sort(by((b) => b.author || '￿'))
     else if (sort === 'added') list.sort((a, b) => b.addedAt - a.addedAt)
     return list // 'recent' keeps the order listBooks returns
-  }, [books, query, sort, filter, activeTag])
+  }, [scoped, query, sort])
+
+  // highlights and notes of every book are read once a search starts, and searched along with the titles
+  const searchingText = !!query.trim()
+  const [allNotes, setAllNotes] = useState<Map<string, Annotation[]>>()
+  useEffect(() => {
+    if (!searchingText) return
+    let alive = true
+    getAllNotes()
+      .then((m) => alive && setAllNotes(m))
+      .catch(console.error)
+    return () => {
+      alive = false
+    }
+  }, [searchingText])
+  const noteHits = useMemo(
+    () => (searchingText && allNotes ? searchNotes(scoped, allNotes, query) : []),
+    [scoped, allNotes, query, searchingText],
+  )
 
   const types = useMemo(() => typesOf(books), [books])
   const filterFolders = useMemo(() => groupFolders(books), [books])
@@ -310,9 +337,11 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
           <p>{t('lib.emptyHint')}</p>
         </div>
       ) : shown.length === 0 ? (
-        <div className="empty">
-          <p>{query ? t('lib.noMatch', { query }) : t('lib.noMatchFilter')}</p>
-        </div>
+        noteHits.length === 0 && (
+          <div className="empty">
+            <p>{query ? t('lib.noMatch', { query }) : t('lib.noMatchFilter')}</p>
+          </div>
+        )
       ) : inFolderList ? (
         <FolderList
           folders={folders}
@@ -355,6 +384,8 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
           />
         </>
       )}
+
+      {!selecting && <NoteHits hits={noteHits} onOpen={onOpen} />}
 
       {toast && (
         <div className="lib-toast" role="status">

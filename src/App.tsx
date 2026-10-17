@@ -17,6 +17,13 @@ export default function App() {
     else sessionStorage.removeItem('reader:open')
   }, [openId])
 
+  /** where to open the book instead of its saved position: set when a search result is tapped */
+  const [startCfi, setStartCfi] = useState<string>()
+  const open = (id: string, cfi?: string) => {
+    setStartCfi(cfi)
+    setOpenId(id)
+  }
+
   // audiobooks open in the player, everything else in the reader
   const [audioId, setAudioId] = useState<string | null>(null)
   const [checked, setChecked] = useState<string | null>(null)
@@ -32,7 +39,7 @@ export default function App() {
     }
   }, [openId])
 
-  if (!openId) return <Library onOpen={setOpenId} />
+  if (!openId) return <Library onOpen={open} />
   if (checked !== openId) return null
   const close = () => setOpenId(null)
   return (
@@ -42,7 +49,7 @@ export default function App() {
           <AudioPlayer id={openId} onClose={close} />
         </Suspense>
       ) : (
-        <Reader id={openId} onClose={close} />
+        <Reader id={openId} startCfi={startCfi} onClose={close} />
       )}
     </ErrorBoundary>
   )
