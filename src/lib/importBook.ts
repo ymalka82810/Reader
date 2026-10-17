@@ -26,6 +26,14 @@ const contributor = (v: unknown): string => {
 const isTxt = (f: File) => /\.txt$/i.test(f.name) || f.type === 'text/plain'
 const isPdf = (f: File) => /\.pdf$/i.test(f.name) || f.type === 'application/pdf'
 const isEpub = (f: File) => /\.epub$/i.test(f.name) || f.type === 'application/epub+zip'
+const isDocx = (f: File) =>
+  /\.docx$/i.test(f.name) || f.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+/** formats foliate-js reads as they are: MOBI/AZW/AZW3 (KF8), FictionBook and comic-book zips */
+const isNative = (f: File) => /\.(mobi|azw3?|fb2|fbz|fb2\.zip|cbz)$/i.test(f.name)
+
+/** foliate picks CBZ/FB2 by a lowercase file name; give it one whatever case the file arrived in */
+const lowerName = (f: File) =>
+  f.name === f.name.toLowerCase() ? f : new File([f], f.name.toLowerCase(), { type: f.type })
 
 /** what to do when the library already holds a book with the same title and author */
 export type DuplicateChoice = 'replace' | 'add' | 'skip'
@@ -52,8 +60,8 @@ export async function importFile(
   onDuplicate?: OnDuplicate,
 ): Promise<BookRecord> {
   if (!file.size) throw new ImportError('הקובץ ריק.')
-  if (!isEpub(file) && !isPdf(file) && !isTxt(file))
-    throw new ImportError('סוג הקובץ לא נתמך. אפשר להוסיף קובצי EPUB, PDF או TXT.')
+  if (!isEpub(file) && !isPdf(file) && !isTxt(file) && !isDocx(file) && !isNative(file))
+    throw new ImportError('סוג הקובץ לא נתמך. אפשר להוסיף קובצי EPUB, PDF, MOBI, AZW3, FB2, CBZ, DOCX או TXT.')
   try {
     return await readIntoLibrary(file, onProgress, onDuplicate)
   } catch (e) {
@@ -99,7 +107,15 @@ async function readIntoLibrary(
     epub = new File([blob], file.name.replace(/\.txt$/i, '') + '.epub', { type: 'application/epub+zip' })
   }
 
+  if (isDocx(file)) {
+    onProgress?.('ממיר ל-EPUB…')
+    const [{ extractDocx }, { buildEpub }] = await Promise.all([import('./docxToBook'), import('./pdfToEpub')])
+    const blob = await buildEpub(await extractDocx(file))
+    epub = new File([blob], file.name.replace(/\.docx$/i, '') + '.epub', { type: 'application/epub+zip' })
+  }
+
   onProgress?.('קורא את הספר…')
+  if (isNative(file)) epub = lowerName(file)
   const book = await makeBook(epub)
   let cover: Blob | undefined
   try {
