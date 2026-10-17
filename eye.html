@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="he">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Eye scrolling runs here, in its own page inside a hidden iframe, because the face-mesh model's WebAssembly
+         glue needs 'unsafe-eval'. The reader's own policy (index.html) forbids that so scripts in a book can never
+         use it; this page has no access to books and only reports "down" / "up" to the reader. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'; worker-src 'self' blob:; connect-src 'self' blob: data:; media-src 'self' blob: mediastream:; img-src 'self' blob: data:; object-src 'none'; base-uri 'none'"
+    />
+    <title>זיהוי מבט</title>
+  </head>
+  <body>
+    <script type="module" src="/src/eye/main.ts"></script>
+  </body>
+</html>

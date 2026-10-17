@@ -1,15 +1,20 @@
+import type { ReactNode } from 'react'
 import { MAX_FONT, MIN_FONT } from '../../hooks/useBookEvents'
 import { DICT_LANGS, type Flow, type Settings, type Theme } from '../../lib/settings'
+import { Select } from '../Select'
 import { Panel, Seg } from './shared'
 
 export function SettingsPanel({
   settings,
   set,
   bump,
+  children,
 }: {
   settings: Settings
   set: <K extends keyof Settings>(k: K, v: Settings[K]) => void
   bump: (delta: number) => void
+  /** extra sections, shown before the shortcuts list */
+  children?: ReactNode
 }) {
   return (
     <Panel label="הגדרות תצוגה" className="settings">
@@ -64,17 +69,16 @@ export function SettingsPanel({
         <input type="checkbox" checked={settings.pageTransition} onChange={(e) => set('pageTransition', e.target.checked)} />
         אנימציית מעבר בין עמודים
       </label>
-      <label className="check">
+      <div className="check">
         מילון (ויקימילון):{' '}
-        <select value={settings.dictLang} onChange={(e) => set('dictLang', e.target.value)}>
-          <option value="auto">לפי שפת הספר</option>
-          {DICT_LANGS.map(([code, name]) => (
-            <option key={code} value={code}>
-              {name}
-            </option>
-          ))}
-        </select>
-      </label>
+        <Select
+          label="שפת מילון"
+          value={settings.dictLang}
+          onChange={(v) => set('dictLang', v)}
+          options={[['auto', 'לפי שפת הספר'], ...DICT_LANGS.map(([code, name]): [string, string] => [code, name])]}
+        />
+      </div>
+      {children}
       <details className="shortcuts">
         <summary>קיצורי מקלדת</summary>
         <ul>
@@ -83,7 +87,7 @@ export function SettingsPanel({
           <li><kbd>b</kbd> סימנייה · <kbd>[</kbd> <kbd>]</kbd> סימנייה קודמת/הבאה</li>
           <li><kbd>t</kbd> תוכן · <kbd>n</kbd> סימניות והדגשות</li>
           <li><kbd>a</kbd> או הקשה באמצע המסך: קריאה אוטומטית · <kbd>,</kbd> <kbd>.</kbd> לאט/מהר יותר</li>
-          <li><kbd>r</kbd> הקראה בקול</li>
+          <li><kbd>r</kbd> הקראה בקול · <kbd>f</kbd> מצב ללא הסחות</li>
           <li><kbd>/</kbd> חיפוש · <kbd>s</kbd> הגדרות · <kbd>Esc</kbd> סגירה</li>
         </ul>
       </details>
