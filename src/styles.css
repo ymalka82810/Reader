@@ -20,8 +20,14 @@ button:disabled { opacity: .5; }
 .lib-header { position: sticky; top: 0; z-index: 6; display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 0 -1rem 1rem; padding: calc(1rem + var(--safe-top)) 1rem .8rem; background: var(--bg); border-bottom: 1px solid rgba(127,127,127,.2); }
 .lib-header h1 { margin: 0; font-size: 1.5rem; }
 .lib-tools { display: flex; flex-wrap: wrap; gap: .6rem; margin-bottom: 1rem; }
-.lib-tools select { flex: 1; min-width: 0; padding: .5rem .6rem; border-radius: 10px; border: 1px solid rgba(128,128,128,.4); background: transparent; color: inherit; font: inherit; }
-.lib-tools select option { background: var(--bg); color: var(--fg); }
+.select-btn { display: inline-flex; align-items: center; justify-content: space-between; gap: .6rem; padding: .5rem .6rem; border-radius: 10px; border: 1px solid rgba(128,128,128,.4); background: transparent; color: inherit; font: inherit; cursor: pointer; text-align: start; }
+.select-btn:focus-visible, .select-btn[aria-expanded="true"] { outline: 2px solid #3182ce; outline-offset: 1px; }
+.select-btn svg { flex: none; opacity: .7; }
+.lib-tools .select-btn { flex: 1; min-width: 0; }
+.select-list { position: fixed; z-index: 100; margin: 0; padding: .25rem; list-style: none; max-height: 50vh; overflow: auto; border-radius: 12px; background: var(--bg); color: var(--fg); border: 1px solid rgba(127,127,127,.4); box-shadow: 0 8px 30px rgba(0,0,0,.35); }
+.select-list li { padding: .5rem .7rem; border-radius: 8px; cursor: pointer; outline: none; }
+.select-list li:hover, .select-list li:focus { background: rgba(49,130,206,.22); }
+.select-list li[aria-selected="true"] { background: #3182ce; color: #fff; }
 .lib-tools input { flex: 1 1 100%; min-width: 0; padding: .5rem .8rem; border-radius: 10px; border: 1px solid rgba(128,128,128,.4); background: transparent; color: inherit; font: inherit; }
 .dd { position: relative; }
 .dd-btn { display: flex; align-items: center; gap: .5rem; padding: .5rem .7rem; border-radius: 10px; border: 1px solid rgba(128,128,128,.4); background: transparent; color: inherit; font: inherit; white-space: nowrap; cursor: pointer; }
