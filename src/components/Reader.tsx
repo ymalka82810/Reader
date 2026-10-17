@@ -546,7 +546,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
           ) : (
             <NotesList
               notes={notes.notes}
-              onExport={() => notes.exportMarkdown(title)}
+              onExport={(format) => void notes.exportNotes(title, format)}
               onRemove={notes.remove}
               onGoTo={(cfi) => {
                 jumpTo(cfi)

@@ -1,9 +1,10 @@
 import { useCallback, useRef, useState, type MutableRefObject } from 'react'
 import { compare as cfiCompare } from 'foliate-js/epubcfi.js'
 import type { FoliateView } from 'foliate-js/view.js'
-import { HIGHLIGHT_COLORS } from '../components/reader/colors'
+import { COLOR_NAMES, HIGHLIGHT_COLORS } from '../components/reader/colors'
 import { getNotes, newId, saveNotes, type Annotation } from '../lib/db'
 import { download } from '../lib/download'
+import { buildMarkdown, buildObsidian, buildPrintHtml, printHtml, safeFileName, type ExportFormat, type ExportNote } from '../lib/notesExport'
 import { t } from '../i18n'
 
 /**
@@ -97,27 +98,41 @@ export function useAnnotations(id: string, viewRef: MutableRefObject<FoliateView
     return target
   }
 
-  const exportMarkdown = (title: string) => {
-    const list = [...notesRef.current].sort((a, b) => a.createdAt - b.createdAt)
-    if (!list.length) return flash(t('notes.nothingToExport'))
-    const quote = (s: string) => s.replace(/\s*\n\s*/g, ' ')
-    const lines = [`# ${title}`, '']
-    const marks = list.filter((n) => n.kind === 'bookmark')
-    const hls = list.filter((n) => n.kind === 'highlight')
-    if (hls.length) {
-      lines.push(`## ${t('notes.exportHighlights')}`, '')
-      for (const n of hls) {
-        lines.push(`> ${quote(n.text)}`)
-        if (n.note) lines.push('', n.note)
-        lines.push('')
-      }
+  /** where a note sits: its chapter and the reading progress at the start of its section */
+  const locate = async (view: FoliateView | null, cfi: string) => {
+    if (!view) return { chapter: '', percent: 0 }
+    try {
+      const { index } = await view.resolveNavigation(cfi)
+      const percent = Math.round((view.getSectionFractions()[index] ?? 0) * 100)
+      const chapter = (await view.getTOCItemOf(cfi))?.label ?? ''
+      return { chapter: chapter.trim(), percent }
+    } catch (e) {
+      console.error(e)
+      return { chapter: '', percent: 0 }
     }
-    if (marks.length) lines.push(`## ${t('notes.exportBookmarks')}`, '', ...marks.map((n) => `- ${n.text}`), '')
-    download(
-      new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' }),
-      `${title.replace(/[\\/:*?"<>|]/g, '_') || t('notes.fileName')}.md`,
-    )
   }
 
-  return { notes, load, drawAll, findByCfi, addHighlight, update, remove, toggleBookmark, bookmarkFrom, exportMarkdown }
+  const exportNotes = async (title: string, format: ExportFormat) => {
+    const list = [...notesRef.current].sort((a, b) => a.createdAt - b.createdAt)
+    if (!list.length) return flash(t('notes.nothingToExport'))
+    const view = viewRef.current
+    const items: ExportNote[] = []
+    for (const n of list) {
+      items.push({
+        kind: n.kind,
+        text: n.text,
+        note: n.note,
+        color: n.color,
+        createdAt: n.createdAt,
+        colorName: n.kind === 'highlight' ? (COLOR_NAMES[HIGHLIGHT_COLORS.indexOf(n.color)] ?? '') : '',
+        ...(n.kind === 'highlight' ? await locate(view, n.cfi) : { chapter: '', percent: 0 }),
+      })
+    }
+    const labels = { highlights: t('notes.exportHighlights'), bookmarks: t('notes.exportBookmarks'), exportedOn: t('notes.exportedOn') }
+    if (format === 'pdf') return printHtml(buildPrintHtml(title, items, labels, view?.book.dir === 'rtl' ? 'rtl' : 'ltr'))
+    const text = format === 'obsidian' ? buildObsidian(title, items, labels) : buildMarkdown(title, items, labels)
+    download(new Blob([text], { type: 'text/markdown;charset=utf-8' }), `${safeFileName(title, t('notes.fileName'))}.md`)
+  }
+
+  return { notes, load, drawAll, findByCfi, addHighlight, update, remove, toggleBookmark, bookmarkFrom, exportNotes }
 }
