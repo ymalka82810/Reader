@@ -13,6 +13,8 @@ import { flattenToc, type FlatTocItem } from './reader/toc'
 import { TocList } from './reader/TocPanel'
 import { useBookSearch } from './reader/useBookSearch'
 import { useBookKeys, type KeyActions } from '../hooks/useBookKeys'
+import { useFlash } from '../hooks/useFlash'
+import { usePageEstimate } from '../hooks/usePageEstimate'
 import { useReadingTracker } from '../hooks/useReadingTracker'
 import { useAutoRead } from '../hooks/useAutoRead'
 import { MAX_RATE, MIN_RATE, RATE_STEP, readAloudSupported, useReadAloud } from '../hooks/useReadAloud'
@@ -22,7 +24,6 @@ import { getBook, getNotes, newId, saveNotes, type Annotation } from '../lib/db'
 import { download } from '../lib/download'
 import { alignDocDir, fixBookDir, guardBookEdges } from '../lib/foliateFixes'
 import { bookFromSections } from '../lib/pdfToBook'
-import { linearSizes } from '../lib/pace'
 import { formatMinutes, loadStats, minutesLeft } from '../lib/stats'
 import { bookCSS, loadSettings, saveSettings, themeColors, type Settings } from '../lib/settings'
 
@@ -51,7 +52,6 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   const bookLang = useRef('')
   const [fraction, setFraction] = useState(0)
   const [dragFraction, setDragFraction] = useState<number | null>(null)
-  const [pages, setPages] = useState<{ current: number; total: number; approx: boolean } | null>(null)
   const [chapter, setChapter] = useState('')
   /** CFI of the current location, to show whether it is bookmarked */
   const [here, setHere] = useState('')
@@ -81,7 +81,6 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     selectionRef.current = selection
   })
   const lastAnnotationClick = useRef(0)
-  const [toast, setToast] = useState('')
   const [left, setLeft] = useState<number | null>(null)
   const actions = useRef<KeyActions>({
     bookmark: () => {},
@@ -108,12 +107,8 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   const closePanel = useCallback(() => setPanel(null), [])
   const onKey = useBookKeys({ viewRef, actions, closePanel, markActive: tracker.markActive })
 
-  const toastTimer = useRef<number | undefined>(undefined)
-  const flash = useCallback((msg: string) => {
-    setToast(msg)
-    window.clearTimeout(toastTimer.current)
-    toastTimer.current = window.setTimeout(() => setToast(''), 1800)
-  }, [])
+  const { message: toast, flash } = useFlash()
+  const { pages, recompute, resetCalibration, lastDetail } = usePageEstimate(viewRef)
 
   // the phone's back swipe: closes an open panel, else shows the bars and asks for a second swipe
   // (so a stray edge swipe doesn't drop the reader out of the book)
@@ -139,7 +134,6 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   }, [leaveHistory, onClose])
   useEffect(
     () => () => {
-      window.clearTimeout(toastTimer.current)
       window.clearTimeout(backTimer.current)
     },
     [],
@@ -156,43 +150,6 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     },
     [id, flash],
   )
-
-  // page-size calibration: bytes of source per rendered page, per section visited since last re-layout
-  const calib = useRef(new Map<number, { pages: number; size: number }>())
-  const lastDetail = useRef<FoliateRelocateDetail | null>(null)
-
-  const recompute = useCallback((detail?: FoliateRelocateDetail) => {
-    const view = viewRef.current
-    const r = view?.renderer
-    const d = detail ?? lastDetail.current
-    if (!r || !d?.section || typeof r.pages !== 'number') return
-    const sections = view.book.sections
-    const sizes = linearSizes(sections)
-    const idx: number = d.section.current
-    const secSize = sizes[idx] ?? 0
-    const scrolled: boolean = r.scrolled
-    const contentPages = scrolled ? r.pages : r.pages - 2
-    if (contentPages < 1 || !r.size) return
-    const curInSection = scrolled
-      ? Math.min(contentPages, Math.round(r.start / r.size) + 1)
-      : Math.min(contentPages, Math.max(1, r.page))
-
-    if (secSize > 3000) calib.current.set(idx, { pages: contentPages, size: secSize })
-    let sumSize = 0
-    let sumPages = 0
-    calib.current.forEach((c) => {
-      sumSize += c.size
-      sumPages += c.pages
-    })
-    const bytesPerPage = sumPages > 0 ? sumSize / sumPages : secSize / contentPages || 2000
-    const totalSize = sizes.reduce((a, b) => a + b, 0)
-    const before = sizes.slice(0, idx).reduce((a, b) => a + b, 0)
-    const total = Math.max(1, Math.round(totalSize / bytesPerPage))
-    const current = Math.min(total, Math.round(before / bytesPerPage) + curInSection)
-    // the total is an estimate until every section with text has been laid out
-    const approx = sizes.some((sz, i) => sz > 0 && !calib.current.has(i))
-    setPages({ current, total, approx })
-  }, [])
 
   // ---- open the book ----
   useEffect(() => {
@@ -295,7 +252,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
       view.remove()
       viewRef.current = null
     }
-  }, [id, recompute, attachDocHandlers, onKey, tracker])
+  }, [id, recompute, lastDetail, attachDocHandlers, onKey, tracker])
 
   // ---- apply settings changes live ----
   useEffect(() => {
@@ -306,14 +263,14 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     if (settings.pageTransition) v.renderer.setAttribute?.('animated', '')
     else v.renderer.removeAttribute?.('animated')
     v.renderer.setStyles?.(bookCSS(settings))
-    calib.current.clear() // layout changed: page size must be re-measured
+    resetCalibration() // layout changed: page size must be re-measured
     const t = window.setTimeout(() => recompute(), 400)
     const t2 = window.setTimeout(() => recompute(), 1200)
     return () => {
       window.clearTimeout(t)
       window.clearTimeout(t2)
     }
-  }, [settings, recompute])
+  }, [settings, recompute, resetCalibration])
 
   const search = useBookSearch(viewRef, panel === 'search')
   const auto = useAutoRead({
