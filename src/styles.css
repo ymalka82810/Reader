@@ -136,6 +136,11 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: 4px; border: 1px solid rg
 .notes li > button:not(.note-main) { background: transparent; padding: .4rem .5rem; }
 .note-kind { flex: none; width: 1.1rem; min-height: 1.1rem; margin-top: .25rem; border-radius: 4px; text-align: center; font-size: .9rem; line-height: 1; }
 .note-text { display: block; opacity: .7; margin-top: .15rem; }
+.note-hits { margin-top: 1.5rem; }
+.note-hits h2 { font-size: 1.05rem; margin: 0 0 .5rem; }
+.note-hits .muted { opacity: .7; margin: 0 0 .5rem; }
+.note-hits mark { background: color-mix(in srgb, var(--accent) 35%, transparent); color: inherit; border-radius: 3px; }
+.note-book { display: block; opacity: .7; font-weight: 700; margin-bottom: .15rem; }
 .edit { display: flex; flex-direction: column; gap: .8rem; }
 .edit blockquote { margin: 0; padding-inline-start: .7rem; border-inline-start: 4px solid; max-height: 6rem; overflow: auto; line-height: 1.5; }
 .edit textarea { font: inherit; padding: .5rem .7rem; border-radius: 10px; border: 1px solid rgba(127,127,127,.4); background: transparent; color: inherit; resize: vertical; }

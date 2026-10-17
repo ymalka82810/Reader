@@ -233,6 +233,9 @@ export const getNotes = async (bookId: string) => (await get<Annotation[]>(bookI
 export const saveNotes = (bookId: string, notes: Annotation[]) =>
   notes.length ? set(bookId, notes, notesStore) : del(bookId, notesStore)
 
+/** every book's highlights and notes, for searching the whole library at once */
+export const getAllNotes = async () => new Map(await entries<string, Annotation[]>(notesStore))
+
 /* ---- schema migrations ----
  * idb-keyval opens each database at IndexedDB version 1 and never upgrades it, so the stores themselves are
  * fixed. What changes over time is the shape of the records inside them; each step below rewrites old records

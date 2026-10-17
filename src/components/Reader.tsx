@@ -39,7 +39,7 @@ const BACK_AGAIN_MS = 2000
 /** in distraction-free mode the bars shown by a middle tap go away again after this long */
 const FOCUS_BARS_MS = 4000
 
-export default function Reader({ id, onClose }: { id: string; onClose: () => void }) {
+export default function Reader({ id, startCfi, onClose }: { id: string; startCfi?: string; onClose: () => void }) {
   const host = useRef<HTMLDivElement>(null)
   const viewRef = useRef<FoliateView | null>(null)
   const [settings, setSettings] = useState<Settings>(loadSettings)
@@ -110,7 +110,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     void loadCustomFont().then(setCustomFont)
   }, [])
 
-  const { status, error, title, dir, toc, bookLang } = useFoliateView(id, host, viewRef, settings, customFont ? customFontFace(customFont) : '', {
+  const { status, error, title, dir, toc, bookLang } = useFoliateView(id, host, viewRef, settings, customFont ? customFontFace(customFont) : '', startCfi, {
     prepare: async () => {
       const [, s] = await Promise.all([notes.load(), loadStats(id)])
       stats.current = s
