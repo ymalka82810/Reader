@@ -221,6 +221,22 @@ export const he = {
   'time.min': '{m} דק׳',
   'time.hour': '{h} שע׳',
 
+  // flashcards (review of looked-up words and highlights)
+  'review.title': 'חזרה',
+  'review.failed': 'לא ניתן לטעון את כרטיסי החזרה.',
+  'review.empty': 'עדיין אין כרטיסים. מילים שתבדוק במילון והדגשות שתוסיף בקריאה יופיעו כאן.',
+  'review.caughtUp': 'אין כרטיסים לחזרה כרגע. כל הכבוד!',
+  'review.done': 'סיימת: זכרת {known} מתוך {total}.',
+  'review.cards': { one: 'כרטיס אחד בסך הכול', other: '{n} כרטיסים בסך הכול' },
+  'review.progress': 'התקדמות בחזרה',
+  'review.word': 'מילה',
+  'review.highlight': 'הדגשה',
+  'review.show': 'הצג תשובה',
+  'review.again': 'לא זכרתי',
+  'review.good': 'זכרתי',
+  'review.remove': 'הסר מילה',
+  'review.removeTip': 'מסיר את המילה מאוצר המילים',
+
   // importing books
   'import.adding': 'מוסיף את {name}…',
   'import.exists': 'הספר כבר קיים בספרייה.',

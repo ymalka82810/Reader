@@ -224,6 +224,22 @@ export const en: Record<keyof typeof he, Message> = {
   'time.min': '{m} min',
   'time.hour': '{h} h',
 
+  // flashcards (review of looked-up words and highlights)
+  'review.title': 'Review',
+  'review.failed': 'Could not load the flashcards.',
+  'review.empty': 'No cards yet. Words you look up in the dictionary and highlights you add while reading show up here.',
+  'review.caughtUp': 'Nothing to review right now. Well done!',
+  'review.done': 'Done: you remembered {known} of {total}.',
+  'review.cards': { one: '1 card in total', other: '{n} cards in total' },
+  'review.progress': 'Review progress',
+  'review.word': 'Word',
+  'review.highlight': 'Highlight',
+  'review.show': 'Show answer',
+  'review.again': 'Forgot',
+  'review.good': 'Remembered',
+  'review.remove': 'Remove word',
+  'review.removeTip': 'Removes the word from your vocabulary',
+
   // importing books
   'import.adding': 'Adding {name}…',
   'import.exists': 'This book is already in the library.',
