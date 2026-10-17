@@ -5,6 +5,9 @@ import App from './App'
 import { migrate } from './lib/db'
 import { requestPersistence } from './lib/storage'
 import { setupServiceWorker } from './lib/serviceWorker'
+import { isNativeApp } from './lib/updater'
+
+document.documentElement.classList.toggle('native-app', isNativeApp)
 
 const reloading = setupServiceWorker().catch((e) => {
   console.error(e)

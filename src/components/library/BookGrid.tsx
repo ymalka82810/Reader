@@ -58,7 +58,7 @@ export function BookGrid({ books, selecting, selected, onOpen, onToggle, onEdit,
               {menuFor === b.id && (
                 <>
                   <div className="menu-backdrop" onClick={close} />
-                  <div className="menu card-menu" role="menu" onKeyDown={(e) => e.key === 'Escape' && close()}>
+                  <div className="menu card-menu" role="menu" tabIndex={-1} autoFocus onKeyDown={(e) => e.key === 'Escape' && close()}>
                     <button
                       role="menuitem"
                       onClick={async () => {

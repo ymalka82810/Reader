@@ -103,7 +103,7 @@ export function BackupMenu({ view, busy, storage, onBackup, onRestore, onCheckUp
       {open && (
         <>
           <div className="menu-backdrop" onClick={() => close()} />
-          <div className="menu-pop" onKeyDown={(e) => e.key === 'Escape' && close()}>
+          <div className="menu-pop" tabIndex={-1} autoFocus onKeyDown={(e) => e.key === 'Escape' && close()}>
           <div className="menu" role="menu">
             {view && (
               <>
