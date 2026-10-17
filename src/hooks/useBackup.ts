@@ -73,7 +73,7 @@ export function useBackup({ refresh, setBusy, setError, showToast, onBackedUp, c
       setBusy('משחזר גיבוי…')
       const { restored, skipped } = await importLibrary(file, (d, t) => setBusy(`משחזר גיבוי… ${d}/${t}`), password)
       setBusy(undefined)
-      showToast(`שוחזרו ${restored} ספרים` + (skipped ? ` (${skipped} כבר היו בספרייה בשם ובמחבר זהים ולא נוספו)` : ''), undefined, 6000)
+      showToast(`שוחזרו ${restored} ספרים` + (skipped ? ` (${skipped} כבר קיימים)` : ''), undefined, 6000)
     } catch (e) {
       setBusy(undefined)
       if (e instanceof PasswordRequiredError || e instanceof WrongPasswordError) {
