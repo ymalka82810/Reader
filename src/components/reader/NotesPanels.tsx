@@ -61,11 +61,13 @@ export function EditNotePanel({
   note,
   onUpdate,
   onRemove,
+  onShare,
   onClose,
 }: {
   note: Annotation
   onUpdate: (patch: Partial<Annotation>) => void
   onRemove: () => void
+  onShare: () => void
   onClose: () => void
 }) {
   return (
@@ -90,6 +92,7 @@ export function EditNotePanel({
           />
         ))}
         <span style={{ flex: 1 }} />
+        <button onClick={onShare}>שתף</button>
         <button onClick={onRemove}>מחק</button>
         <button className="primary" onClick={onClose}>סיום</button>
       </div>

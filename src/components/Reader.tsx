@@ -3,6 +3,7 @@ import type { FoliateView } from 'foliate-js/view.js'
 import { DictPanel } from './reader/DictPanel'
 import { NavPanel } from './reader/NavPanel'
 import { EditNotePanel, NotesList } from './reader/NotesPanels'
+import { QuoteShareDialog } from './reader/QuoteShareDialog'
 import { SearchPanel } from './reader/SearchPanel'
 import { SettingsPanel } from './reader/SettingsPanel'
 import { COLOR_NAMES, HIGHLIGHT_COLORS } from './reader/colors'
@@ -36,7 +37,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   const [settings, setSettings] = useState<Settings>(loadSettings)
   const settingsRef = useLatest(settings)
   const [uiVisible, setUiVisible] = useState(true)
-  const { panel, panelRef, setPanel, closePanel, togglePanel, editingId, editNote, dict, openDict } = useReaderPanels()
+  const { panel, panelRef, setPanel, closePanel, togglePanel, editingId, editNote, dict, openDict, quote, openQuote } = useReaderPanels()
   const [fraction, setFraction] = useState(0)
   const [dragFraction, setDragFraction] = useState<number | null>(null)
   const [chapter, setChapter] = useState('')
@@ -259,7 +260,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   const shareSelection = () => {
     const text = selectionRef.current?.text
     if (!text) return
-    navigator.share?.({ text, title }).catch(() => {})
+    openQuote(text)
     setSelection(null)
   }
 
@@ -422,9 +423,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
           ))}
           <button aria-label="הוסף הערה" title="הערה" onClick={addNote}>✎</button>
           <button aria-label="העתק" title="העתק" onClick={copySelection}>⧉</button>
-          {typeof navigator.share === 'function' && (
-            <button aria-label="שתף" title="שתף" onClick={shareSelection}>⇪</button>
-          )}
+          <button aria-label="שתף ציטוט" title="שתף ציטוט כתמונה" onClick={shareSelection}>⇪</button>
           <button aria-label="חפש במילון" title="מילון" onClick={lookUp}>📖</button>
         </div>
       )}
@@ -507,7 +506,20 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
             notes.remove(editingNote.id)
             setPanel(null)
           }}
+          onShare={() => openQuote(editingNote.text, editingNote.note)}
           onClose={closePanel}
+        />
+      )}
+
+      {panel === 'quote' && quote && (
+        <QuoteShareDialog
+          text={quote.text}
+          note={quote.note}
+          title={title}
+          colors={colors}
+          fontFamily={settings.fontFamily}
+          onClose={closePanel}
+          flash={flash}
         />
       )}
 

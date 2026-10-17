@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import type { KeyPanel } from './useBookKeys'
 import { useLatest } from './useLatest'
 
-export type Panel = KeyPanel | 'edit' | 'dict'
+export type Panel = KeyPanel | 'edit' | 'dict' | 'quote'
 
 /** which side panel of the reader is open (at most one), and the note being edited */
 export function useReaderPanels() {
@@ -12,6 +12,9 @@ export function useReaderPanels() {
   const [editingId, setEditingId] = useState<string | null>(null)
   /** the word the dictionary panel shows, and which Wiktionary edition it comes from */
   const [dict, setDict] = useState<{ word: string; lang: string } | null>(null)
+
+  /** the passage the share-as-quote panel shows, with the reader's note on it */
+  const [quote, setQuote] = useState<{ text: string; note?: string } | null>(null)
 
   const closePanel = useCallback(() => setPanel(null), [])
   const togglePanel = useCallback((p: Panel) => setPanel((cur) => (cur === p ? null : p)), [])
@@ -25,5 +28,10 @@ export function useReaderPanels() {
     setPanel('dict')
   }, [])
 
-  return { panel, panelRef, setPanel, closePanel, togglePanel, editingId, editNote, dict, openDict }
+  const openQuote = useCallback((text: string, note?: string) => {
+    setQuote({ text, note })
+    setPanel('quote')
+  }, [])
+
+  return { panel, panelRef, setPanel, closePanel, togglePanel, editingId, editNote, dict, openDict, quote, openQuote }
 }

@@ -1,0 +1,4 @@
+.quote-share { display: flex; flex-direction: column; gap: .8rem; }
+.quote-share .quote-preview { width: 100%; max-height: 32vh; object-fit: contain; border-radius: 8px; border: 1px solid rgba(127,127,127,.3); }
+.quote-share input { font: inherit; padding: .5rem .7rem; border-radius: 10px; border: 1px solid rgba(127,127,127,.4); background: transparent; color: inherit; }
+.quote-share .row { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
