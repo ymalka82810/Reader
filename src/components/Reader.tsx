@@ -478,8 +478,9 @@ export default function Reader({ id, startCfi, onClose }: { id: string; startCfi
         <div
           className="sel-bar"
           style={{
-            left: Math.min(Math.max(selection.x, 90), window.innerWidth - 90),
-            top: selection.y > 110 ? selection.y - 48 : selection.y + 40,
+            // always centred on screen; below the selection so the system toolbar (above it) stays clear
+            left: '50%',
+            top: selection.bottom + 64 < window.innerHeight - 90 ? selection.bottom + 64 : Math.max(selection.y - 120, 8),
           }}
           onPointerDown={(e) => e.preventDefault()}
         >

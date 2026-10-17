@@ -18,7 +18,7 @@ const CLICK_WAIT_MS = 120
 const isMoved = (from: { x: number; y: number }, x: number, y: number) =>
   Math.abs(x - from.x) > TAP_SLOP || Math.abs(y - from.y) > TAP_SLOP
 
-export type Selection = { cfi: string; text: string; x: number; y: number }
+export type Selection = { cfi: string; text: string; x: number; y: number; bottom: number }
 
 export type TapZone = 'left' | 'right' | 'middle'
 
@@ -80,6 +80,7 @@ export function useBookEvents(deps: BookEventsDeps) {
           text,
           x: (fr?.left ?? 0) + rect.left + rect.width / 2,
           y: (fr?.top ?? 0) + rect.top,
+          bottom: (fr?.top ?? 0) + rect.bottom,
         })
       } catch (err) {
         console.error(err)
