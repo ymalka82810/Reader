@@ -1,11 +1,11 @@
 import { Select } from '../Select'
 import { t } from '../../i18n'
 import type { Tag } from '../../lib/tags'
+import { isFiltering, NO_FILTER, typeLabel, type LibraryFilter, type ReadState } from '../../lib/libraryFilter'
 
-export type Filter = 'all' | 'reading' | 'unread' | 'finished'
 export type Sort = 'recent' | 'title' | 'author' | 'added'
 
-const FILTERS: [Filter, string][] = [
+const FILTERS: [ReadState, string][] = [
   ['all', t('filter.all')],
   ['reading', t('filter.reading')],
   ['unread', t('filter.unread')],
@@ -18,11 +18,18 @@ const SORTS: [Sort, string][] = [
   ['author', t('sort.author')],
 ]
 
+const ANY = '*'
+
 type Props = {
   query: string
   onQuery: (q: string) => void
-  filter: Filter
-  onFilter: (f: Filter) => void
+  filter: LibraryFilter
+  onFilter: (f: LibraryFilter) => void
+  /** file types present in the library; the type picker is hidden when there is only one */
+  types: string[]
+  /** folders present in the library; the folder picker is hidden when there is only one */
+  folders: { key: string; name: string }[]
+  onPickBooks: () => void
   sort: Sort
   onSort: (s: Sort) => void
   /** tags in use; the picker is hidden when there are none */
@@ -33,7 +40,7 @@ type Props = {
 }
 
 /** search box with the filter, tag and sort pickers right under it */
-export function LibTools({ query, onQuery, filter, onFilter, sort, onSort, tags, tag, onTag }: Props) {
+export function LibTools({ query, onQuery, filter, onFilter, types, folders, onPickBooks, sort, onSort, tags, tag, onTag }: Props) {
   return (
     <div className="lib-tools">
       <input
@@ -45,10 +52,26 @@ export function LibTools({ query, onQuery, filter, onFilter, sort, onSort, tags,
       />
       <Select
         label={t('filter.label')}
-        value={filter}
-        onChange={onFilter}
-        options={FILTERS.map(([v, text]): [Filter, string] => [v, v === 'all' ? t('filter.allLabeled') : text])}
+        value={filter.state}
+        onChange={(state) => onFilter({ ...filter, state })}
+        options={FILTERS.map(([v, text]): [ReadState, string] => [v, v === 'all' ? t('filter.allLabeled') : text])}
       />
+      {types.length > 1 && (
+        <Select
+          label={t('filter.type')}
+          value={filter.type || ANY}
+          onChange={(v) => onFilter({ ...filter, type: v === ANY ? '' : v })}
+          options={[[ANY, t('filter.allTypes')], ...types.map((x): [string, string] => [x, typeLabel(x)])]}
+        />
+      )}
+      {folders.length > 1 && (
+        <Select
+          label={t('filter.folder')}
+          value={filter.folder === undefined ? ANY : `k:${filter.folder}`}
+          onChange={(v) => onFilter({ ...filter, folder: v === ANY ? undefined : v.slice(2) })}
+          options={[[ANY, t('filter.allFolders')], ...folders.map((f): [string, string] => [`k:${f.key}`, f.name || t('filter.noAuthor')])]}
+        />
+      )}
       {tags.length > 0 && (
         <Select
           label={t('tag.filterLabel')}
@@ -56,6 +79,14 @@ export function LibTools({ query, onQuery, filter, onFilter, sort, onSort, tags,
           onChange={onTag}
           options={[['', t('tag.filterAll')], ...tags.map((x): [string, string] => [x.key, t('tag.option', { name: x.name, n: x.count })])]}
         />
+      )}
+      <button type="button" className="select-btn" onClick={onPickBooks}>
+        {filter.ids.size ? t('filter.pickedN', { n: filter.ids.size }) : t('filter.pick')}
+      </button>
+      {isFiltering(filter) && (
+        <button type="button" className="select-btn" onClick={() => onFilter(NO_FILTER)}>
+          {t('filter.clear')}
+        </button>
       )}
       <Select label={t('sort.label')} value={sort} onChange={onSort} options={SORTS} />
     </div>

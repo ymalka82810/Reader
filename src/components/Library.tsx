@@ -15,7 +15,10 @@ import { hasTag, listTags, parseTags } from '../lib/tags'
 import { localeTag, t } from '../i18n'
 import { GoalsDialog } from './library/GoalsDialog'
 import { BackupMenu } from './library/BackupMenu'
-import { LibTools, type Filter, type Sort } from './library/LibTools'
+import { LibTools, type Sort } from './library/LibTools'
+import { PickBooksDialog } from './library/PickBooksDialog'
+import { bookType, isFiltering, NO_FILTER, typesOf, type LibraryFilter } from '../lib/libraryFilter'
+import { folderKey, groupFolders } from '../lib/folders'
 import { BookGrid } from './library/BookGrid'
 import { Cover } from './library/Cover'
 import { FolderBar, FolderList } from './library/FolderBar'
@@ -36,7 +39,8 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   const [drag, setDrag] = useState(false)
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<Sort>('recent')
-  const [filter, setFilter] = useState<Filter>('all')
+  const [filter, setFilter] = useState<LibraryFilter>(NO_FILTER)
+  const [picking, setPicking] = useState(false)
   const [editing, setEditing] = useState<BookMeta>()
   const [editTitle, setEditTitle] = useState('')
   const [editAuthor, setEditAuthor] = useState('')
@@ -80,7 +84,10 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
     const state = (b: BookMeta) => (isFinished(b) ? 'finished' : b.fraction ? 'reading' : 'unread')
     const list = books.filter(
       (b) =>
-        (filter === 'all' || state(b) === filter) &&
+        (filter.state === 'all' || state(b) === filter.state) &&
+        (!filter.type || bookType(b) === filter.type) &&
+        (filter.folder === undefined || folderKey(b) === filter.folder) &&
+        (!filter.ids.size || filter.ids.has(b.id)) &&
         (!activeTag || hasTag(b, activeTag)) &&
         (!q || `${b.title} ${b.author} ${b.fileName} ${(b.tags ?? []).join(' ')}`.toLowerCase().includes(q)),
     )
@@ -92,6 +99,9 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
     return list // 'recent' keeps the order listBooks returns
   }, [books, query, sort, filter, activeTag])
 
+  const types = useMemo(() => typesOf(books), [books])
+  const filterFolders = useMemo(() => groupFolders(books), [books])
+
   // searching or filtering by tag looks through every folder at once
   const searching = !!query.trim() || !!activeTag
   const fo = useFolders({ books, shown, createdNames, searching, refresh, showToast, exitSelect, deleteBooks, confirm })
@@ -101,7 +111,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
 
   // the book opened last that is still in progress, offered as a one-tap way back
   const resume = useMemo(() => {
-    if (selecting || query.trim() || filter !== 'all' || activeTag) return undefined
+    if (selecting || query.trim() || isFiltering(filter) || activeTag) return undefined
     let best: BookMeta | undefined
     for (const b of books) {
       if (!b.fraction || isFinished(b) || !b.lastOpened) continue
@@ -221,7 +231,20 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
       )}
 
       {books.length > 1 && (
-        <LibTools query={query} onQuery={setQuery} filter={filter} onFilter={setFilter} sort={sort} onSort={setSort} tags={tags} tag={activeTag} onTag={setTag} />
+        <LibTools
+          query={query}
+          onQuery={setQuery}
+          filter={filter}
+          onFilter={setFilter}
+          types={types}
+          folders={filterFolders}
+          onPickBooks={() => setPicking(true)}
+          sort={sort}
+          onSort={setSort}
+          tags={tags}
+          tag={activeTag}
+          onTag={setTag}
+        />
       )}
 
       {selecting && (
@@ -379,7 +402,18 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
           onCancel={() => backup.setPwAsk(undefined)}
         />
       )}
-      {confirmAsk && <ConfirmDialog ask={confirmAsk} />}
+      {picking && (
+        <PickBooksDialog
+          books={books}
+          picked={filter.ids}
+          onDone={(ids) => {
+            setFilter({ ...filter, ids })
+            setPicking(false)
+          }}
+          onCancel={() => setPicking(false)}
+        />
+      )}
+      {confirmAsk &&<ConfirmDialog ask={confirmAsk} />}
       {goalsOpen && <GoalsDialog onClose={() => setGoalsOpen(false)} />}
       {editing && (
         <EditBookDialog
