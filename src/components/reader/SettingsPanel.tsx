@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { MAX_FONT, MIN_FONT } from '../../hooks/useBookEvents'
 import { CUSTOM_FONT_FAMILY, removeCustomFont, saveCustomFont, type CustomFont } from '../../lib/customFont'
 import { DICT_LANGS, FONTS, type Flow, type Settings, type Theme } from '../../lib/settings'
+import { Select } from '../Select'
 import { Panel, Seg } from './shared'
 
 export function SettingsPanel({
@@ -134,17 +135,15 @@ export function SettingsPanel({
         <input type="checkbox" checked={settings.pageTransition} onChange={(e) => set('pageTransition', e.target.checked)} />
         אנימציית מעבר בין עמודים
       </label>
-      <label className="check">
+      <div className="check">
         מילון (ויקימילון):{' '}
-        <select value={settings.dictLang} onChange={(e) => set('dictLang', e.target.value)}>
-          <option value="auto">לפי שפת הספר</option>
-          {DICT_LANGS.map(([code, name]) => (
-            <option key={code} value={code}>
-              {name}
-            </option>
-          ))}
-        </select>
-      </label>
+        <Select
+          label="שפת מילון"
+          value={settings.dictLang}
+          onChange={(v) => set('dictLang', v)}
+          options={[['auto', 'לפי שפת הספר'], ...DICT_LANGS.map(([code, name]): [string, string] => [code, name])]}
+        />
+      </div>
       {children}
       <details className="shortcuts">
         <summary>קיצורי מקלדת</summary>
