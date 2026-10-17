@@ -30,7 +30,7 @@ import { firstWord } from '../lib/dictionary'
 import { formatMinutes, loadStats, minutesLeft, type Stats } from '../lib/stats'
 import { getLocale, isRtl, t } from '../i18n'
 import { customFontFace, loadCustomFont, type CustomFont } from '../lib/customFont'
-import { loadViewModes, saveViewModes, type ViewModes } from '../lib/viewModes'
+import { EYE_SCROLL_AVAILABLE, loadViewModes, saveViewModes, type ViewModes } from '../lib/viewModes'
 import { loadSettings, saveSettings, themeColors, type Settings } from '../lib/settings'
 
 const TAP_HELP_KEY = 'reader:tapHelpSeen'
@@ -229,7 +229,7 @@ export default function Reader({ id, startCfi, onClose }: { id: string; startCfi
   }, [panel, hitIdx])
   const speech = useReadAloud({ viewRef, lastDetail, lang: bookLang })
   const eye = useEyeScroll({
-    enabled: modes.eyeScroll && status === 'ready',
+    enabled: EYE_SCROLL_AVAILABLE && modes.eyeScroll && status === 'ready',
     viewRef,
     flow: settings.flow,
     paused: uiVisible || !!panel || !!selection,

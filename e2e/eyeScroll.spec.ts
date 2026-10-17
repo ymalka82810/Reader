@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { EYE_SCROLL_AVAILABLE } from '../src/lib/viewModes.ts'
 
 // a fake camera, so the on-device face model really loads and runs (it sees no face, which is fine here)
 test.use({
@@ -6,6 +7,7 @@ test.use({
   launchOptions: { args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] },
 })
 
+test.skip(!EYE_SCROLL_AVAILABLE, 'eye scrolling is hidden for now')
 test('eye scrolling loads the on-device face model and starts calibrating', async ({ page }) => {
   await page.goto('/')
   await page.locator('input[type=file]').first().setInputFiles({

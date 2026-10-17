@@ -11,6 +11,9 @@ export interface ViewModes {
   eyeScroll: boolean
 }
 
+/** eye scrolling is built but switched off in the UI until the gaze detection works reliably */
+export const EYE_SCROLL_AVAILABLE = false
+
 const DEFAULTS: ViewModes = { spread: 'auto', focus: false, orientation: 'free', eyeScroll: false }
 
 const KEY = 'reader:viewModes'
