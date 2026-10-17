@@ -455,7 +455,7 @@ export const en: Record<keyof typeof he, Message> = {
   'a11y.bottombar': 'Navigation and read-aloud',
   'a11y.book': 'Book content: {title}',
   'a11y.selection': 'Actions for the selected text',
-  'a11y.position': 'Page {current} of {total}, {pct}%',
+  'a11y.position': '{pct}%, page {current} of {total}',
   'a11y.positionNoPages': '{pct}%',
   'a11y.flow': 'Reading mode',
   'a11y.theme': 'Colour theme',

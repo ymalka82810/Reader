@@ -55,7 +55,7 @@ export function BookCard({ book: b, picked, selecting, onOpen, onToggle, onEdit,
           <button
             ref={more}
             className="more-btn"
-            aria-label={`${t('book.actions')}: ${b.title}`}
+            aria-label={t('book.actions')}
             aria-haspopup="menu"
             aria-expanded={menu}
             onClick={() => setMenu(!menu)}

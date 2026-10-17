@@ -452,7 +452,7 @@ export const he = {
   'a11y.bottombar': 'ניווט והקראה',
   'a11y.book': 'תוכן הספר: {title}',
   'a11y.selection': 'פעולות על הטקסט שנבחר',
-  'a11y.position': 'עמוד {current} מתוך {total}, {pct}%',
+  'a11y.position': '{pct}%, עמוד {current} מתוך {total}',
   'a11y.positionNoPages': '{pct}%',
   'a11y.flow': 'סוג תצוגה',
   'a11y.theme': 'ערכת צבעים',
