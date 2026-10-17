@@ -307,15 +307,23 @@ export function PasswordDialog({
 export function EditBookDialog({
   title,
   author,
+  tags,
+  knownTags,
   onTitle,
   onAuthor,
+  onTags,
   onSave,
   onCancel,
 }: {
   title: string
   author: string
+  /** the tags field as typed */
+  tags: string
+  /** tags already used elsewhere, offered as suggestions */
+  knownTags: string[]
   onTitle: (v: string) => void
   onAuthor: (v: string) => void
+  onTags: (v: string) => void
   onSave: () => void
   onCancel: () => void
 }) {
@@ -340,6 +348,15 @@ export function EditBookDialog({
         <label>
           {t('edit.author')}
           <input value={author} onChange={(e) => onAuthor(e.target.value)} />
+        </label>
+        <label>
+          {t('edit.tags')}
+          <input value={tags} onChange={(e) => onTags(e.target.value)} placeholder={t('edit.tagsHint')} list="known-tags" />
+          <datalist id="known-tags">
+            {knownTags.map((n) => (
+              <option key={n} value={n} />
+            ))}
+          </datalist>
         </label>
         <div className="modal-actions">
           <button className="primary" onClick={onSave} disabled={!title.trim()}>

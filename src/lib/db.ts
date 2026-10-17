@@ -25,6 +25,8 @@ export interface BookRecord {
   fraction?: number
   /** folder picked by the user; unset = filed by author, '' = deliberately in no folder */
   folder?: string
+  /** labels the user attached; a book can carry several */
+  tags?: string[]
 }
 
 const store = createStore('reader-db', 'books')
@@ -126,12 +128,15 @@ export async function mergeProgress(id: string, incoming: Progress): Promise<boo
   return true
 }
 
-export const updateMeta = (id: string, title: string, author: string) =>
+export const updateMeta = (id: string, title: string, author: string, tags?: string[]) =>
   serial(async () => {
     const b = await get<BookMeta>(id, store)
     if (!b) return
     b.title = title
     b.author = author
+    // left alone when not given; an empty list removes them
+    if (tags?.length) b.tags = tags
+    else if (tags) delete b.tags
     await set(id, b, store)
   })
 

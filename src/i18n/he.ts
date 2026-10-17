@@ -67,7 +67,7 @@ export const he = {
   'book.actions': 'פעולות לספר',
   'book.markRead': 'סמן כנקרא',
   'book.markUnread': 'סמן כלא נקרא',
-  'book.editMeta': 'עריכת שם ומחבר',
+  'book.editMeta': 'עריכת פרטים ותגיות',
   'book.moveToFolder': 'העבר לתיקייה',
   'book.part': 'חלק {n}',
   'books.count': { one: 'ספר אחד', other: '{n} ספרים' },
@@ -95,6 +95,11 @@ export const he = {
   'edit.title': 'עריכת פרטי ספר',
   'edit.bookName': 'שם הספר',
   'edit.author': 'מחבר',
+  'edit.tags': 'תגיות',
+  'edit.tagsHint': 'מפרידים בפסיק, למשל: פנטזיה, לקריאה',
+  'tag.filterLabel': 'תגית',
+  'tag.filterAll': 'תגית: הכול',
+  'tag.option': '{name} ({n})',
 
   // duplicates and deletion
   'dup.batchLabel': 'ספרים כפולים',
