@@ -6,7 +6,7 @@ import { flattenToc, type FlatTocItem } from '../components/reader/toc'
 import { getBook } from '../lib/db'
 import { alignDocDir, fixBookDir, guardBookEdges } from '../lib/foliateFixes'
 import { bookFromSections } from '../lib/pdfToBook'
-import { bookCSS, type Settings } from '../lib/settings'
+import { applyLayout, bookCSS, type Settings } from '../lib/settings'
 import { useLatest } from './useLatest'
 
 export interface FoliateHandlers {
@@ -21,12 +21,13 @@ export interface FoliateHandlers {
   relocate: (d: FoliateRelocateDetail) => void
 }
 
-function applySettings(view: FoliateView, s: Settings) {
+function applySettings(view: FoliateView, s: Settings, customFace: string) {
   const r = view.renderer
   r.setAttribute?.('flow', s.flow)
   if (s.pageTransition) r.setAttribute?.('animated', '')
   else r.removeAttribute?.('animated')
-  r.setStyles?.(bookCSS(s))
+  applyLayout(r, s)
+  r.setStyles?.(bookCSS(s, customFace))
 }
 
 /**
@@ -39,9 +40,12 @@ export function useFoliateView(
   host: RefObject<HTMLDivElement | null>,
   viewRef: MutableRefObject<FoliateView | null>,
   settings: Settings,
+  /** @font-face rule of the uploaded font, '' when there is none */
+  customFace: string,
   handlers: FoliateHandlers,
 ) {
   const settingsRef = useLatest(settings)
+  const faceRef = useLatest(customFace)
   const h = useLatest(handlers)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [error, setError] = useState('')
@@ -73,8 +77,7 @@ export function useFoliateView(
         if (cancelled) return
         viewRef.current = view
 
-        view.renderer.setAttribute?.('gap', '5%')
-        applySettings(view, settingsRef.current)
+        applySettings(view, settingsRef.current, faceRef.current)
 
         setTitle(rec.title)
         const lang = [view.book.metadata?.language].flat()[0]
@@ -120,12 +123,12 @@ export function useFoliateView(
       view.remove()
       viewRef.current = null
     }
-  }, [id, host, viewRef, h, settingsRef])
+  }, [id, host, viewRef, h, settingsRef, faceRef])
 
   // apply settings changes live
   useEffect(() => {
-    if (viewRef.current) applySettings(viewRef.current, settings)
-  }, [viewRef, settings])
+    if (viewRef.current) applySettings(viewRef.current, settings, customFace)
+  }, [viewRef, settings, customFace])
 
   return { status, error, title, dir, toc, bookLang }
 }
