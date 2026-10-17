@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('pdfjs-dist/legacy/build/pdf.mjs', () => ({ GlobalWorkerOptions: {} }))
 vi.mock('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url', () => ({ default: '' }))
 
-const { detectHeadings, fixVisual, joinPages, looksReversed, readingGroups, stripRunningLines, toParagraphs } =
+const { detectHeadings, fixVisual, isPoorPage, joinPages, looksReversed, readingGroups, stripRunningLines, toParagraphs } =
   await import('./pdfToBook')
 type Line = import('./pdfToBook').Line
 type RawItem = import('./pdfToBook').RawItem
@@ -197,5 +197,28 @@ describe('readingGroups', () => {
     const title = item('Title', 0, 330, 300)
     const groups = readingGroups([...column(200, 'R'), title, ...column(0, 'L')])
     expect(groups.map((g) => g[0]!.str[0])).toEqual(['T', 'L', 'R'])
+  })
+})
+
+describe('isPoorPage', () => {
+  const para = (n: number) =>
+    Array.from({ length: n }, (_, i) => line('הילדים הלכו לבית הספר ביחד עם החברים', 800 - i * 12))
+  it('accepts an ordinary page of prose', () => {
+    expect(isPoorPage(para(20))).toBe(false)
+  })
+  it('ignores empty and near-empty pages', () => {
+    expect(isPoorPage([])).toBe(false)
+    expect(isPoorPage([line('12', 50)])).toBe(false)
+  })
+  it('flags broken glyph mappings', () => {
+    expect(isPoorPage([...para(5), line('��� ��', 100)])).toBe(true)
+  })
+  it('flags number-heavy pages such as tables', () => {
+    const rows = Array.from({ length: 15 }, (_, i) => line('12.5  30.1  44.8  1,200  99.9 ' + i, 800 - i * 12))
+    expect(isPoorPage(rows)).toBe(true)
+  })
+  it('flags text shattered into fragments', () => {
+    const frags = Array.from({ length: 30 }, (_, i) => line('אבג ' + i, 800 - i * 12))
+    expect(isPoorPage(frags)).toBe(true)
   })
 })

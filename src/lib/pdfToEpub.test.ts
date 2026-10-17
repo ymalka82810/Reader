@@ -6,7 +6,7 @@ vi.mock('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url', () => ({ default: '' }
 
 const { buildEpub } = await import('./pdfToEpub')
 
-const base = {
+const base: import('./pdfToBook').ExtractedPdf = {
   title: 'ספר <בדיקה> & "עוד"',
   author: 'מחבר',
   rtl: true,
@@ -61,5 +61,17 @@ describe('buildEpub', () => {
   })
   it('rejects a book with no text', async () => {
     await expect(buildEpub({ ...base, chapters: [{ title: 'x', paras: [] }] })).rejects.toThrow()
+  })
+  it('embeds original page images and lists them in the manifest', async () => {
+    const image = new Blob([new Uint8Array([1, 2, 3])], { type: 'image/jpeg' })
+    const zip = await open({ ...base, chapters: [{ title: 'א', paras: ['טקסט'], pageImages: [{ page: 7, image }] }] })
+    expect(zip.file('OEBPS/img/p7.jpg')).toBeTruthy()
+    expect(await zip.file('OEBPS/c0.xhtml')!.async('string')).toContain('<img src="img/p7.jpg"')
+    expect(await zip.file('OEBPS/content.opf')!.async('string')).toContain('href="img/p7.jpg" media-type="image/jpeg"')
+  })
+  it('keeps a chapter that has only page images', async () => {
+    const image = new Blob([new Uint8Array([1])], { type: 'image/jpeg' })
+    const zip = await open({ ...base, chapters: [{ title: 'א', paras: [], pageImages: [{ page: 1, image }] }] })
+    expect(zip.file('OEBPS/c0.xhtml')).toBeTruthy()
   })
 })
