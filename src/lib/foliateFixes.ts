@@ -1,6 +1,6 @@
 import type { FoliateView } from 'foliate-js/view.js'
 
-const RTL_LANGS = new Set(['he', 'iw', 'yi', 'ar', 'fa', 'ur', 'ps', 'dv', 'ckb', 'sd', 'ug'])
+const RTL_LANGS = new Set(['he', 'iw', 'yi', 'ar', 'fa', 'ur', 'ps', 'dv', 'ckb', 'sd', 'ug', 'heb', 'ara', 'fas', 'per', 'urd'])
 const RTL_SCRIPT = /[\p{Script=Hebrew}\p{Script=Arabic}]/u
 
 /**
@@ -11,6 +11,21 @@ const RTL_SCRIPT = /[\p{Script=Hebrew}\p{Script=Arabic}]/u
 export function fixBookDir(view: FoliateView, lang: string, title: string) {
   if (view.book.dir) return
   if (RTL_LANGS.has(lang) || (!lang && RTL_SCRIPT.test(title))) view.book.dir = 'rtl'
+}
+
+/**
+ * The paginator lays the columns out right-to-left only if the chapter document itself is RTL,
+ * independent of book.dir, while the tap zones follow book.dir. Make the two agree, or the pages
+ * slide the opposite way from the tap: an RTL book gets an RTL document, and an RTL document
+ * makes the book RTL. Runs on foliate's 'load' event, which fires before the paginator reads
+ * the direction.
+ */
+export function alignDocDir(view: FoliateView, doc: Document) {
+  const root = doc.documentElement
+  const docRtl =
+    root.dir === 'rtl' || doc.body?.dir === 'rtl' || doc.defaultView?.getComputedStyle(doc.body).direction === 'rtl'
+  if (docRtl) view.book.dir = 'rtl'
+  else if (view.book.dir === 'rtl') root.dir = 'rtl'
 }
 
 /** is there a linear section before (-1) / after (1) section `index` */

@@ -20,7 +20,7 @@ import { useBackGesture } from '../hooks/useBackGesture'
 import { clampFont, useBookEvents, type Selection } from '../hooks/useBookEvents'
 import { getBook, getNotes, newId, saveNotes, type Annotation } from '../lib/db'
 import { download } from '../lib/download'
-import { fixBookDir, guardBookEdges } from '../lib/foliateFixes'
+import { alignDocDir, fixBookDir, guardBookEdges } from '../lib/foliateFixes'
 import { bookFromSections } from '../lib/pdfToBook'
 import { linearSizes } from '../lib/pace'
 import { formatMinutes, minutesLeft } from '../lib/stats'
@@ -236,7 +236,11 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
 
         const on = <T,>(type: string, fn: (detail: T) => void) =>
           view.addEventListener(type, (e) => fn((e as CustomEvent<T>).detail))
-        on<{ doc: Document; index: number }>('load', (d) => attachDocHandlers(d, onKey))
+        on<{ doc: Document; index: number }>('load', (d) => {
+          alignDocDir(view, d.doc)
+          setDir(view.book.dir === 'ltr' ? 'ltr' : 'rtl')
+          attachDocHandlers(d, onKey)
+        })
         on<{ draw: (fn: typeof Overlayer.highlight, opts: object) => void; annotation: { color: string } }>(
           'draw-annotation',
           ({ draw, annotation }) => draw(Overlayer.highlight, { color: annotation.color }),

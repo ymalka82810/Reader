@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { FoliateView } from 'foliate-js/view.js'
-import { fixBookDir, guardBookEdges } from './foliateFixes'
+import { alignDocDir, fixBookDir, guardBookEdges } from './foliateFixes'
 
 function fakeView(o: { dir?: string; index?: number; sections?: number; scrolled?: boolean; start?: number; end?: number; viewSize?: number }) {
   const prev = vi.fn(() => Promise.resolve('prev'))
@@ -19,6 +19,36 @@ function fakeView(o: { dir?: string; index?: number; sections?: number; scrolled
   } as unknown as FoliateView
   return { view, prev, next }
 }
+
+describe('alignDocDir', () => {
+  const docOf = (dir: string, bodyDirection = '') =>
+    ({
+      documentElement: { dir },
+      body: { dir: '' },
+      defaultView: { getComputedStyle: () => ({ direction: bodyDirection }) },
+    }) as unknown as Document
+
+  it('makes the book RTL when the chapter is RTL', () => {
+    const { view } = fakeView({ dir: 'ltr' })
+    alignDocDir(view, docOf('rtl'))
+    expect(view.book.dir).toBe('rtl')
+  })
+
+  it('makes the chapter RTL when the book is RTL', () => {
+    const { view } = fakeView({ dir: 'rtl' })
+    const doc = docOf('', 'ltr')
+    alignDocDir(view, doc)
+    expect(doc.documentElement.dir).toBe('rtl')
+  })
+
+  it('leaves left-to-right books alone', () => {
+    const { view } = fakeView({})
+    const doc = docOf('', 'ltr')
+    alignDocDir(view, doc)
+    expect(view.book.dir).toBeUndefined()
+    expect(doc.documentElement.dir).toBe('')
+  })
+})
 
 describe('fixBookDir', () => {
   it('marks Hebrew and Arabic books without a page direction as right-to-left', () => {
