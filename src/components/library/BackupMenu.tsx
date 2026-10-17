@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { formatBytes, type StorageStatus } from '../../lib/storage'
 import type { AutoBackupState } from '../../lib/autoBackup'
 import { isNativeApp } from '../../lib/updater'
 import { changeLocale, getLocale, LOCALES, localeTag, t } from '../../i18n'
+import { applyA11yClasses, loadSettings, saveSettings } from '../../lib/settings'
+import { menuKeyDown } from '../menuKeys'
 
 type View = {
   onNewFolder?: () => void
@@ -26,7 +28,18 @@ type Props = {
 /** the "⋯" menu in the library header: backup, restore, app update and storage status */
 export function BackupMenu({ view, busy, storage, onPersist, onBackup, onRestore, onCheckUpdate, onGoals, onReview, auto }: Props) {
   const [open, setOpen] = useState(false)
-  const close = () => setOpen(false)
+  const trigger = useRef<HTMLButtonElement>(null)
+  const close = (refocus = false) => {
+    setOpen(false)
+    if (refocus) trigger.current?.focus()
+  }
+  const [a11y, setA11y] = useState(() => loadSettings())
+  const toggleA11y = (k: 'contrast' | 'dyslexia') => {
+    const next = { ...loadSettings(), [k]: !a11y[k] }
+    saveSettings(next)
+    applyA11yClasses(next)
+    setA11y(next)
+  }
   const items: [string, () => void, string][] = [
     [t('backup.title'), onBackup, t('menu.backupTip')],
     [t('menu.restore'), onRestore, t('menu.restoreTip')],
@@ -40,13 +53,13 @@ export function BackupMenu({ view, busy, storage, onPersist, onBackup, onRestore
 
   return (
     <div className="menu-wrap">
-      <button aria-label={t('menu.more')} aria-haspopup="menu" aria-expanded={open} onClick={() => (open ? close() : setOpen(true))}>
+      <button ref={trigger} aria-label={t('menu.more')} aria-haspopup="menu" aria-expanded={open} onClick={() => (open ? close() : setOpen(true))}>
         ⋯
       </button>
       {open && (
         <>
           <div className="menu-backdrop" onClick={() => close()} />
-          <div className="menu-pop" tabIndex={-1} autoFocus onKeyDown={(e) => e.key === 'Escape' && close()}>
+          <div className="menu-pop" tabIndex={-1} autoFocus onKeyDown={(e) => menuKeyDown(e, () => close(true))}>
           <div className="menu" role="menu">
             <button role="menuitem" onClick={() => { close(); onGoals() }}>
               {t('goals.title')}
@@ -81,6 +94,13 @@ export function BackupMenu({ view, busy, storage, onPersist, onBackup, onRestore
                 {label}
               </button>
             ))}
+            <div className="menu-sep" role="separator" />
+            <button role="menuitemcheckbox" aria-checked={a11y.contrast} title={t('a11y.contrastTip')} onClick={() => toggleA11y('contrast')}>
+              {a11y.contrast ? '✓ ' : ''}{t('a11y.contrast')}
+            </button>
+            <button role="menuitemcheckbox" aria-checked={a11y.dyslexia} title={t('a11y.dyslexiaTip')} onClick={() => toggleA11y('dyslexia')}>
+              {a11y.dyslexia ? '✓ ' : ''}{t('a11y.dyslexia')}
+            </button>
             {LOCALES.filter(([code]) => code !== getLocale()).map(([code, name]) => (
               <button key={code} role="menuitem" title={t('menu.language')} onClick={() => changeLocale(code)}>
                 🌐 {name}

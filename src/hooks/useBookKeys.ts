@@ -16,6 +16,8 @@ export interface KeyActions {
   readAloud: () => void
   /** toggle distraction-free mode */
   focus: () => void
+  /** show the toolbars when hidden, hide them when shown */
+  toggleBars: () => void
 }
 
 interface Deps {
@@ -40,7 +42,14 @@ export function useBookKeys(deps: Deps) {
     const v = viewRef.current
     if (!v) return
     const t = e.target as HTMLElement | null
-    if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return
+    if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) {
+      // a field keeps its own keys, but Escape still closes the panel it sits in
+      if (e.key === 'Escape' && t.tagName !== 'SELECT') closePanel()
+      return
+    }
+    // on a focused button, link or menu entry Space, Enter and the arrows belong to that control, not to page turning
+    const onControl = !!t?.closest('button,a[href],summary,[role="menuitem"],[role="menuitemcheckbox"],[role="option"]')
+    if (onControl && (e.key === ' ' || e.key === 'Enter' || e.key.startsWith('Arrow') || e.key.startsWith('Page'))) return
     markActive()
     if (e.ctrlKey || e.metaKey || e.altKey) return
     const a = actions.current
@@ -70,6 +79,7 @@ export function useBookKeys(deps: Deps) {
     else if (e.code === 'KeyA') a.autoRead()
     else if (e.code === 'KeyR') a.readAloud()
     else if (e.code === 'KeyF') a.focus()
+    else if (e.code === 'KeyM') a.toggleBars()
     else if (e.code === 'Period') a.pace(true)
     else if (e.code === 'Comma') a.pace(false)
     else if (e.key === '/' || e.code === 'Slash') {

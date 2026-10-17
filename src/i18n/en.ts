@@ -450,6 +450,23 @@ export const en: Record<keyof typeof he, Message> = {
   'kbd.search': 'search',
   'kbd.settings': 'settings',
   'kbd.close': 'close',
+  'kbd.bars': 'show/hide the toolbars',
+
+  // accessibility
+  'a11y.title': 'Accessibility',
+  'a11y.contrast': 'High contrast',
+  'a11y.contrastTip': 'Black and white with yellow accents, thick borders and a bold focus ring',
+  'a11y.dyslexia': 'Dyslexia-friendly font',
+  'a11y.dyslexiaTip': 'OpenDyslexic font and wider spacing. There is no dedicated Hebrew dyslexia font, so Hebrew letters use a regular font with the same spacing',
+  'a11y.skip': 'Skip to the book list',
+  'a11y.topbar': 'Reader actions',
+  'a11y.bottombar': 'Navigation and read-aloud',
+  'a11y.book': 'Book content: {title}',
+  'a11y.selection': 'Actions for the selected text',
+  'a11y.position': '{pct}%, page {current} of {total}',
+  'a11y.positionNoPages': '{pct}%',
+  'a11y.flow': 'Reading mode',
+  'a11y.theme': 'Colour theme',
 
   // view modes
   'modes.title': 'View modes',

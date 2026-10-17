@@ -23,13 +23,15 @@ export function Seg<T extends string>({
   value,
   onChange,
   options,
+  label,
 }: {
+  label?: string
   value: T
   onChange: (v: T) => void
   options: [T, string][]
 }) {
   return (
-    <div className="seg">
+    <div className="seg" role="group" aria-label={label}>
       {options.map(([v, label]) => (
         <button key={v} className={v === value ? 'on' : ''} aria-pressed={v === value} onClick={() => onChange(v)}>
           {label}

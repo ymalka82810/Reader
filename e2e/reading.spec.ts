@@ -90,6 +90,8 @@ for (const flow of ['paginated', 'scrolled'] as const) {
 
     // the shortcut stops it again
     await page.keyboard.press('a')
+    // the bars are hidden (and out of the accessibility tree) while reading; m brings them back
+    await page.keyboard.press('m')
     await expect(page.getByRole('button', { name: 'קריאה אוטומטית' })).toBeVisible()
   })
 }

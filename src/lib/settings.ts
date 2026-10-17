@@ -1,4 +1,6 @@
 import { t } from '../i18n'
+import dyslexicFace from '@fontsource/opendyslexic/files/opendyslexic-latin-400-normal.woff2?url'
+import dyslexicBoldFace from '@fontsource/opendyslexic/files/opendyslexic-latin-700-normal.woff2?url'
 import { CUSTOM_FONT_FAMILY } from './customFont'
 
 export type Flow = 'scrolled' | 'paginated'
@@ -26,6 +28,10 @@ export interface Settings {
   justify: boolean
   /** wider letter/word/line spacing, left-aligned sans text: easier for dyslexia and low vision */
   accessible: boolean
+  /** high contrast (app-wide): black and white with yellow accents, in the interface and in the book */
+  contrast: boolean
+  /** dyslexia-friendly font (app-wide): OpenDyslexic with wider spacing, in the interface and in the book */
+  dyslexia: boolean
   /** animate page turns with a smooth slide instead of an instant jump */
   pageTransition: boolean
   /** Wiktionary edition used by the dictionary lookup; 'auto' follows the book's language */
@@ -53,6 +59,7 @@ const defaults = (): Settings => ({
   ...DEFAULTS,
   theme: prefers('(prefers-color-scheme: dark)') ? 'dark' : 'light',
   pageTransition: !prefers('(prefers-reduced-motion: reduce)'),
+  contrast: prefers('(prefers-contrast: more)'),
 })
 
 const DEFAULTS: Settings = {
@@ -70,6 +77,8 @@ const DEFAULTS: Settings = {
   customLink: '#1a5fb4',
   justify: false,
   accessible: false,
+  contrast: false,
+  dyslexia: false,
   pageTransition: true,
   dictLang: 'auto',
   translateLang: 'auto',
@@ -101,8 +110,25 @@ const THEMES: Record<Exclude<Theme, 'custom'>, Colors> = {
   dark: { bg: '#121212', fg: '#e4e4e4', link: '#8ab4f8' },
 }
 
+const CONTRAST: Colors = { bg: '#000000', fg: '#ffffff', link: '#ffff00' }
+
 export const themeColors = (s: Settings): Colors =>
-  s.theme === 'custom' ? { bg: s.customBg, fg: s.customFg, link: s.customLink } : THEMES[s.theme]
+  s.contrast ? CONTRAST : s.theme === 'custom' ? { bg: s.customBg, fg: s.customFg, link: s.customLink } : THEMES[s.theme]
+
+/** mirror the app-wide accessibility settings as classes on <html>, which the stylesheet keys on */
+export function applyA11yClasses(s: Pick<Settings, 'contrast' | 'dyslexia'>) {
+  const cl = document.documentElement.classList
+  cl.toggle('hc', s.contrast)
+  cl.toggle('dyslexia', s.dyslexia)
+}
+
+const DYSLEXIC_FAMILY = '"OpenDyslexic", "Heebo", "Arial", sans-serif'
+// the book is a blob: document, so the font files are addressed absolutely
+const dyslexicCSS = () => {
+  const abs = (u: string) => new URL(u, document.baseURI).href
+  return `@font-face { font-family: "OpenDyslexic"; font-weight: 400; src: url("${abs(dyslexicFace)}") format("woff2"); }
+    @font-face { font-family: "OpenDyslexic"; font-weight: 700; src: url("${abs(dyslexicBoldFace)}") format("woff2"); }`
+}
 
 const stack = (families: string) => `font-family: ${families} !important;`
 
@@ -125,14 +151,15 @@ const fontCSS = (key: string, hasCustom: boolean) =>
  *  so publisher px/em sizes don't block resizing. */
 export function bookCSS(s: Settings, customFace = ''): string {
   const c = themeColors(s)
-  const a = s.accessible
+  const a = s.accessible || s.dyslexia
   return `
     ${customFace}
+    ${s.dyslexia ? dyslexicCSS() : ''}
     html {
       font-size: ${s.fontSize}px !important;
       color: ${c.fg} !important;
       background: ${c.bg} !important;
-      ${a ? stack(FONTS.sans!.family) : fontCSS(s.fontFamily, !!customFace)}
+      ${s.dyslexia ? stack(DYSLEXIC_FAMILY) : a ? stack(FONTS.sans!.family) : fontCSS(s.fontFamily, !!customFace)}
       ${a ? `letter-spacing: ${Math.max(s.letterSpacing, 0.05)}em !important; word-spacing: 0.16em !important;` : s.letterSpacing ? `letter-spacing: ${s.letterSpacing}em !important;` : ''}
     }
     body { font-size: 1em !important; color: ${c.fg} !important; background: transparent !important; }
@@ -144,7 +171,7 @@ export function bookCSS(s: Settings, customFace = ''): string {
       text-align: ${s.justify && !a ? 'justify' : 'start'};
       ${a ? 'margin-block: 0.9em;' : ''}
     }
-    a:link, a:visited { color: ${c.link} !important; }
+    a:link, a:visited { color: ${c.link} !important; ${s.contrast ? 'text-decoration: underline !important;' : ''} }
     img, svg { max-width: 100% !important; height: auto !important; }
     pre { white-space: pre-wrap !important; }
   `

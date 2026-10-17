@@ -11,6 +11,7 @@ import { SettingsPanel } from './reader/SettingsPanel'
 import { ViewModesSection } from './reader/ViewModesSection'
 import { COLOR_NAMES, HIGHLIGHT_COLORS } from './reader/colors'
 import { Icon } from './reader/shared'
+import { Dialog } from './Dialog'
 import { TocList } from './reader/TocPanel'
 import { useBookSearch } from './reader/useBookSearch'
 import { useAnnotations } from '../hooks/useAnnotations'
@@ -33,7 +34,7 @@ import { formatMinutes, loadStats, minutesLeft, type Stats } from '../lib/stats'
 import { getLocale, isRtl, t } from '../i18n'
 import { customFontFace, loadCustomFont, type CustomFont } from '../lib/customFont'
 import { EYE_SCROLL_AVAILABLE, loadViewModes, saveViewModes, type ViewModes } from '../lib/viewModes'
-import { loadSettings, saveSettings, themeColors, type Settings } from '../lib/settings'
+import { applyA11yClasses, loadSettings, saveSettings, themeColors, type Settings } from '../lib/settings'
 
 const TAP_HELP_KEY = 'reader:tapHelpSeen'
 /** a second back swipe within this time leaves the book */
@@ -86,6 +87,7 @@ export default function Reader({ id, startCfi, onClose }: { id: string; startCfi
     pace: () => {},
     readAloud: () => {},
     focus: () => {},
+    toggleBars: () => {},
   })
   const attachDocHandlers = useBookEvents({
     viewRef,
@@ -174,6 +176,7 @@ export default function Reader({ id, startCfi, onClose }: { id: string; startCfi
   // ---- settings: save, and re-measure pages once the view has applied them ----
   useEffect(() => {
     saveSettings(settings)
+    applyA11yClasses(settings)
     if (!viewRef.current) return
     resetCalibration() // layout changed: page size must be re-measured
     const t = window.setTimeout(() => recompute(), 400)
@@ -359,6 +362,7 @@ export default function Reader({ id, startCfi, onClose }: { id: string; startCfi
       pace: auto.adjust,
       readAloud: toggleSpeech,
       focus: toggleFocus,
+      toggleBars: () => setUiVisible((v) => !v),
     }
   })
 
@@ -367,6 +371,16 @@ export default function Reader({ id, startCfi, onClose }: { id: string; startCfi
   const navOpen = panel === 'toc' || panel === 'notes'
   const colors = themeColors(settings)
   const shownFraction = dragFraction ?? fraction
+  const positionText = (f: number) =>
+    pages ? t('a11y.position', { current: pages.current, total: pages.total, pct: Math.round(f * 100) }) : t('a11y.positionNoPages', { pct: Math.round(f * 100) })
+  const dismissTapHelp = () => {
+    setTapHelp(false)
+    try {
+      localStorage.setItem(TAP_HELP_KEY, '1')
+    } catch {
+      /* private mode: the hint shows again next time */
+    }
+  }
   const commit = () => {
     if (dragFraction !== null) jumpTo(dragFraction, true)
     setDragFraction(null)
@@ -378,19 +392,22 @@ export default function Reader({ id, startCfi, onClose }: { id: string; startCfi
       dir={isRtl() ? 'rtl' : 'ltr'}
       style={{ ['--bg' as string]: colors.bg, ['--fg' as string]: colors.fg }}
     >
-      <div className="view-host" ref={host} style={settings.brightness < 1 ? { filter: `brightness(${settings.brightness})` } : undefined} />
+      <div className="view-host" ref={host} role="region" aria-label={t('a11y.book', { title })} style={settings.brightness < 1 ? { filter: `brightness(${settings.brightness})` } : undefined} />
 
-      {status === 'loading' && <div className="overlay-msg">{t('common.loading')}</div>}
+      <div className="sr-only" role="status" aria-live="polite">
+        {status === 'ready' ? [chapter, positionText(fraction)].filter(Boolean).join(', ') : ''}
+      </div>
+      {status === 'loading' && <div className="overlay-msg" role="status">{t('common.loading')}</div>}
       {status === 'error' && (
-        <div className="overlay-msg error">
+        <div className="overlay-msg error" role="alert">
           <p>{error}</p>
           <button onClick={close}>{t('reader.backToLibrary')}</button>
         </div>
       )}
 
-      <div className={'topbar' + (uiVisible ? '' : ' hidden')}>
+      <div className={'topbar' + (uiVisible ? '' : ' hidden')} role="toolbar" aria-label={t('a11y.topbar')} inert={!uiVisible}>
         <button onClick={close} aria-label={t('reader.backToLibrary')} title={t('reader.backToLibrary')}>{isRtl() ? '→' : '←'}</button>
-        <div className="title">{title}</div>
+        <h1 className="title">{title}</h1>
         <button
           onClick={toggleBookmark}
           aria-label={t('reader.bookmark')}
@@ -421,7 +438,7 @@ export default function Reader({ id, startCfi, onClose }: { id: string; startCfi
         <button onClick={() => togglePanel('settings')} aria-label={t('settings.title')} title={t('settings.title')}>Aa</button>
       </div>
 
-      <div className={'bottombar' + (uiVisible ? '' : ' hidden')}>
+      <div className={'bottombar' + (uiVisible ? '' : ' hidden')} role="toolbar" aria-label={t('a11y.bottombar')} inert={!uiVisible}>
         <button
           className="play"
           onClick={toggleAuto}
@@ -454,6 +471,7 @@ export default function Reader({ id, startCfi, onClose }: { id: string; startCfi
             dir={dir}
             value={shownFraction}
             aria-label={t('reader.position')}
+            aria-valuetext={positionText(shownFraction)}
             onChange={(e) => setDragFraction(parseFloat(e.target.value))}
             onPointerUp={commit}
             onKeyUp={commit}
@@ -480,6 +498,8 @@ export default function Reader({ id, startCfi, onClose }: { id: string; startCfi
       {selection && !panel && (
         <div
           className="sel-bar"
+          role="toolbar"
+          aria-label={t('a11y.selection')}
           style={{
             // always centred on screen; below the selection so the system toolbar (above it) stays clear
             left: '50%',
@@ -511,16 +531,17 @@ export default function Reader({ id, startCfi, onClose }: { id: string; startCfi
         </div>
       )}
       {tapHelp && status === 'ready' && (
-        <div
+        <Dialog
           className="tap-help"
           role="dialog"
+          aria-modal="true"
           aria-label={t('reader.tapHelp')}
-          onClick={() => {
-            setTapHelp(false)
-            try {
-              localStorage.setItem(TAP_HELP_KEY, '1')
-            } catch {
-              /* private mode: the hint shows again next time */
+          onClick={dismissTapHelp}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              e.stopPropagation()
+              dismissTapHelp()
             }
           }}
         >
@@ -528,7 +549,7 @@ export default function Reader({ id, startCfi, onClose }: { id: string; startCfi
           <div>{t('tap.middle')}<br />{t('tap.menus')}</div>
           <div>{t('tap.side')}<br />{t('tap.turn')}</div>
           <p>{t('tap.continue')}</p>
-        </div>
+        </Dialog>
       )}
       {toast && (
         <div className="toast" role="status">
