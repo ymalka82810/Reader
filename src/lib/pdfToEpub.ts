@@ -22,6 +22,9 @@ const NS_DC = ns('purl.org', 'dc/elements/1.1/')
 
 const CSS = `body { margin: 0; }
 p { margin: 0 0 0.8em; }
+figure { margin: 1em 0; text-align: center; }
+figure img { max-width: 100%; max-height: 90vh; }
+figcaption { font-size: 0.8em; opacity: 0.7; }
 `
 
 /** Build a real EPUB 3 file (zip) from text extracted out of a PDF. */
@@ -31,8 +34,14 @@ export async function buildEpub(x: ExtractedPdf): Promise<Blob> {
   const title = clean(x.title) || 'Untitled'
 
   const chapters = x.chapters
-    .map((c, i) => ({ id: `c${i}`, file: `c${i}.xhtml`, label: clean(c.title), paras: c.paras }))
-    .filter((c) => c.paras.length > 0)
+    .map((c, i) => ({
+      id: `c${i}`,
+      file: `c${i}.xhtml`,
+      label: clean(c.title),
+      paras: c.paras,
+      images: (c.pageImages ?? []).map((p) => ({ ...p, file: `img/p${p.page}.jpg`, id: `c${i}img${p.page}` })),
+    }))
+    .filter((c) => c.paras.length > 0 || c.images.length > 0)
   if (!chapters.length) throw new ImportError('לא נמצא טקסט להמרה ב-PDF הזה.')
 
   const bookId = `urn:uuid:${uuid()}`
@@ -53,7 +62,16 @@ export async function buildEpub(x: ExtractedPdf): Promise<Blob> {
   if (x.cover) zip.file('OEBPS/cover.jpg', x.cover)
 
   for (const c of chapters) {
-    const body = c.paras.map((p) => `<p>${esc(clean(p))}</p>`).join('\n')
+    for (const im of c.images) zip.file(`OEBPS/${im.file}`, im.image)
+    const text = c.paras.map((p) => `<p>${esc(clean(p))}</p>`).join('\n')
+    // pages the text conversion handled badly: the original page, so nothing is lost
+    const pics = c.images
+      .map(
+        (im) =>
+          `<figure><img src="${im.file}" alt="עמוד המקור ${im.page}"/><figcaption>עמוד המקור ${im.page}</figcaption></figure>`,
+      )
+      .join('\n')
+    const body = [text, pics].filter(Boolean).join('\n')
     zip.file(
       `OEBPS/${c.file}`,
       `<?xml version="1.0" encoding="utf-8"?>
@@ -112,7 +130,7 @@ ${chapters
 <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
 <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
 <item id="css" href="style.css" media-type="text/css"/>${x.cover ? '\n<item id="cover-image" href="cover.jpg" media-type="image/jpeg" properties="cover-image"/>' : ''}
-${chapters.map((c) => `<item id="${c.id}" href="${c.file}" media-type="application/xhtml+xml"/>`).join('\n')}
+${chapters.map((c) => `<item id="${c.id}" href="${c.file}" media-type="application/xhtml+xml"/>`).join('\n')}${chapters.flatMap((c) => c.images.map((im) => `\n<item id="${im.id}" href="${im.file}" media-type="image/jpeg"/>`)).join('')}
 </manifest>
 <spine toc="ncx" page-progression-direction="${dir}">
 ${chapters.map((c) => `<itemref idref="${c.id}"/>`).join('\n')}

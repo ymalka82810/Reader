@@ -274,25 +274,58 @@ export interface ExtractedPdf {
   rtl: boolean
   pageCount: number
   /** one entry per future EPUB chapter: a real heading when found, else a page range */
-  chapters: { title: string; paras: string[] }[]
+  chapters: {
+    title: string
+    paras: string[]
+    /** images of the original pages the text conversion handled badly, shown after the chapter's text */
+    pageImages?: PageImage[]
+  }[]
   /** the first page rendered as a JPEG, used as the book's cover */
   cover?: Blob
 }
 
-const COVER_HEIGHT = 900
+interface PageImage {
+  /** 1-based page number in the PDF */
+  page: number
+  image: Blob
+}
 
-/** Render page 1 as a JPEG cover image; null when rendering isn't possible. */
-async function renderCover(pdf: PDFDocumentProxy): Promise<Blob | null> {
+const COVER_HEIGHT = 900
+const PAGE_IMAGE_HEIGHT = 1100
+/** keeps the EPUB (and the library in IndexedDB) from ballooning on a long, badly converted PDF */
+const MAX_PAGE_IMAGES = 120
+
+/**
+ * True when the text extracted from a page is probably a poor stand-in for it: broken glyph mappings,
+ * mostly non-letters (tables, formulas) or text shattered into tiny fragments. Near-empty pages are not poor.
+ */
+export function isPoorPage(lines: Line[]): boolean {
+  const chars = lines.map((l) => l.text).join('').replace(/\s/g, '')
+  if (chars.length < 20) return false
+  const garbage = (chars.match(/[�-]/g) ?? []).length
+  if (garbage > chars.length * 0.02) return true
+  const letters = (chars.match(/\p{L}/gu) ?? []).length
+  if (letters < chars.length * 0.5) return true
+  return lines.length >= 10 && median(lines.map((l) => l.text.length)) < 12
+}
+
+/** Render one page as a JPEG of the given height; null when rendering isn't possible. */
+async function renderPage(
+  pdf: PDFDocumentProxy,
+  pageNumber: number,
+  height: number,
+  quality: number,
+): Promise<Blob | null> {
   try {
-    const page = await pdf.getPage(1)
+    const page = await pdf.getPage(pageNumber)
     const base = page.getViewport({ scale: 1 })
-    const viewport = page.getViewport({ scale: COVER_HEIGHT / base.height })
+    const viewport = page.getViewport({ scale: height / base.height })
     const canvas = document.createElement('canvas')
     canvas.width = Math.ceil(viewport.width)
     canvas.height = Math.ceil(viewport.height)
     await page.render({ canvas, viewport }).promise
     page.cleanup()
-    const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/jpeg', 0.85))
+    const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/jpeg', quality))
     canvas.width = canvas.height = 0
     return blob
   } catch (e) {
@@ -300,6 +333,8 @@ async function renderCover(pdf: PDFDocumentProxy): Promise<Blob | null> {
     return null
   }
 }
+
+const renderCover = (pdf: PDFDocumentProxy) => renderPage(pdf, 1, COVER_HEIGHT, 0.85)
 
 /** Legacy: books imported before the PDF→EPUB conversion store ready-made HTML sections. */
 export interface LegacyPdfBook {
@@ -391,6 +426,7 @@ export async function extractPdf(
   let info: Record<string, string>
   let bookmarks: Map<number, string>
   let cover: Blob | null = null
+  const pageImages = new Map<number, Blob>()
   try {
     for (let i = 1; i <= total; i++) {
       const p = await pdf.getPage(i)
@@ -413,6 +449,13 @@ export async function extractPdf(
       }
       if (!hasText()) throw new ImportError('לא הצלחנו לזהות טקסט ב-PDF הסרוק הזה.')
     }
+
+    // pages whose text came out badly keep a picture of the original page next to it
+    const poor = pages.flatMap((lines, i) => (isPoorPage(lines) ? [i] : []))
+    for (const i of poor.slice(0, MAX_PAGE_IMAGES)) {
+      const img = await renderPage(pdf, i + 1, PAGE_IMAGE_HEIGHT, 0.7)
+      if (img) pageImages.set(i, img)
+    }
   } finally {
     await task.destroy()
   }
@@ -427,11 +470,19 @@ export async function extractPdf(
   const body = stripRunningLines(pages)
   const chapterParas = (from: number, to: number) =>
     joinPages(body.slice(from, to).map((p) => toParagraphs(p, reversed)))
+  const chapterImages = (from: number, to: number): PageImage[] | undefined => {
+    const out: PageImage[] = []
+    for (let i = from; i < to; i++) {
+      const image = pageImages.get(i)
+      if (image) out.push({ page: i + 1, image })
+    }
+    return out.length ? out : undefined
+  }
 
   let starts = bookmarks
   if (starts.size < 2) starts = detectHeadings(body, reversed)
 
-  const chapters: { title: string; paras: string[] }[] = []
+  const chapters: ExtractedPdf['chapters'] = []
   if (starts.size >= 2) {
     const marks = [...starts.keys()].sort((a, b) => a - b)
     if ((marks[0] ?? 0) > 0) {
@@ -443,6 +494,7 @@ export async function extractPdf(
       chapters.push({
         title: starts.get(from) ?? pageRange(from + 1, to),
         paras: chapterParas(from, to),
+        pageImages: chapterImages(from, to),
       })
     })
   } else {
@@ -451,6 +503,7 @@ export async function extractPdf(
       chapters.push({
         title: pageRange(start + 1, end),
         paras: chapterParas(start, end),
+        pageImages: chapterImages(start, end),
       })
     }
   }
