@@ -1,6 +1,7 @@
 import { getNotes, hasBook, listBooks, mergeProgress, saveBook, saveNotes, type BookRecord } from './db'
 import { sameBook } from './sameBook'
 import { mergeStats } from './stats'
+import { mergeReadingLog } from './readingLog'
 import { loadSettings, saveSettings } from './settings'
 import { decryptStream, isEncrypted, PasswordRequiredError } from './encrypt'
 import { CORRUPT, parseManifest } from './backupManifest'
@@ -115,6 +116,7 @@ export async function importLibrary(
     const msg = e instanceof Error ? e.message : String(e)
     throw new Error(`${msg} (שוחזרו ${done} מתוך ${header.books.length} ספרים — אפשר לייבא שוב את אותו הקובץ להשלמה)`)
   }
+  if (header.readingLog) await mergeReadingLog(header.readingLog)
   if (header.settings) saveSettings({ ...loadSettings(), ...header.settings })
   return { restored: header.books.length - skipped, skipped }
 }

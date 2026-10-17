@@ -17,11 +17,12 @@ type Props = {
   onBackup: () => void
   onRestore: () => void
   onCheckUpdate: () => void
+  onGoals: () => void
   auto: { state: AutoBackupState; last: number; onEnable: () => void; onDisable: () => void; onRenew: () => void }
 }
 
 /** the "⋯" menu in the library header: backup, restore, app update and storage status */
-export function BackupMenu({ view, busy, storage, onPersist, onBackup, onRestore, onCheckUpdate, auto }: Props) {
+export function BackupMenu({ view, busy, storage, onPersist, onBackup, onRestore, onCheckUpdate, onGoals, auto }: Props) {
   const [open, setOpen] = useState(false)
   const close = () => setOpen(false)
   const items: [string, () => void, string][] = [
@@ -45,6 +46,9 @@ export function BackupMenu({ view, busy, storage, onPersist, onBackup, onRestore
           <div className="menu-backdrop" onClick={() => close()} />
           <div className="menu-pop" tabIndex={-1} autoFocus onKeyDown={(e) => e.key === 'Escape' && close()}>
           <div className="menu" role="menu">
+            <button role="menuitem" onClick={() => { close(); onGoals() }}>
+              יעדי קריאה
+            </button>
             {view && (
               <>
                 {view.onNewFolder && (

@@ -24,6 +24,8 @@ export interface Manifest {
   settings?: Settings
   /** reading-speed stats per book id */
   stats?: Record<string, Stats>
+  /** active reading seconds per day ('YYYY-MM-DD'), for reading goals */
+  readingLog?: Record<string, number>
 }
 
 export const CORRUPT = 'קובץ הגיבוי פגום'
@@ -72,5 +74,6 @@ export function parseManifest(text: string, bodySize: number): Manifest {
     progress: isObj(raw.progress) ? (raw.progress as Manifest['progress']) : undefined,
     settings: isObj(raw.settings) ? (raw.settings as unknown as Settings) : undefined,
     stats: isObj(raw.stats) ? (raw.stats as Manifest['stats']) : undefined,
+    readingLog: isObj(raw.readingLog) ? (raw.readingLog as Manifest['readingLog']) : undefined,
   }
 }

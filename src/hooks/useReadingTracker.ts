@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { updateProgress } from '../lib/db'
 import { addStats } from '../lib/stats'
+import { addReadingTime } from '../lib/readingLog'
 import { createReadingTracker, TICK_MS, type RelocateDetail } from './readingTracker'
 
 /**
@@ -18,7 +19,10 @@ export function useReadingTracker(id: string) {
       now: Date.now,
       isHidden: () => document.hidden,
       saveProgress: (cfi, fraction) => updateProgress(id, cfi, fraction),
-      saveStats: (secs, frac) => addStats(id, secs, frac),
+      saveStats: (secs, frac) => {
+        addStats(id, secs, frac)
+        addReadingTime(secs)
+      },
       setTimer: (fn, ms) => window.setTimeout(fn, ms),
       clearTimer: (h) => window.clearTimeout(h),
     })
