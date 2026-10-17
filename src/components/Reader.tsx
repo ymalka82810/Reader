@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { FoliateView } from 'foliate-js/view.js'
+import { DictPanel } from './reader/DictPanel'
 import { NavPanel } from './reader/NavPanel'
 import { EditNotePanel, NotesList } from './reader/NotesPanels'
 import { SearchPanel } from './reader/SearchPanel'
@@ -20,6 +21,7 @@ import { useAutoRead } from '../hooks/useAutoRead'
 import { MAX_RATE, MIN_RATE, RATE_STEP, readAloudSupported, useReadAloud } from '../hooks/useReadAloud'
 import { useBackGesture } from '../hooks/useBackGesture'
 import { clampFont, useBookEvents, type Selection } from '../hooks/useBookEvents'
+import { firstWord } from '../lib/dictionary'
 import { formatMinutes, loadStats, minutesLeft, type Stats } from '../lib/stats'
 import { loadSettings, saveSettings, themeColors, type Settings } from '../lib/settings'
 
@@ -33,7 +35,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   const [settings, setSettings] = useState<Settings>(loadSettings)
   const settingsRef = useLatest(settings)
   const [uiVisible, setUiVisible] = useState(true)
-  const { panel, panelRef, setPanel, closePanel, togglePanel, editingId, editNote } = useReaderPanels()
+  const { panel, panelRef, setPanel, closePanel, togglePanel, editingId, editNote, dict, openDict } = useReaderPanels()
   const [fraction, setFraction] = useState(0)
   const [dragFraction, setDragFraction] = useState<number | null>(null)
   const [chapter, setChapter] = useState('')
@@ -269,11 +271,11 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
   }
 
   const lookUp = () => {
-    const word = selectionRef.current?.text.trim().split(/\s+/)[0]?.replace(/^[^\p{L}\p{M}]+|[^\p{L}\p{M}]+$/gu, '')
+    const word = firstWord(selectionRef.current?.text ?? '')
     if (!word) return
     let lang = settingsRef.current.dictLang
     if (lang === 'auto') lang = bookLang.current || (/\p{Script=Hebrew}/u.test(word) ? 'he' : 'en')
-    window.open(`https://${lang}.wiktionary.org/wiki/${encodeURIComponent(word)}`, '_blank', 'noopener')
+    openDict(word, lang)
   }
 
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) => setSettings((s) => ({ ...s, [k]: v }))
@@ -487,6 +489,8 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
           )}
         </NavPanel>
       )}
+
+      {panel === 'dict' && dict && <DictPanel word={dict.word} lang={dict.lang} onClose={() => setPanel(null)} />}
 
       {panel === 'edit' && editingNote && (
         <EditNotePanel
