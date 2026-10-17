@@ -243,12 +243,14 @@ export function useBookEvents(deps: BookEventsDeps) {
     }
     let pinchStartDist: number | null = null
     let pinchStartFont = 0
+    let pinchFont: number | null = null
     doc.addEventListener(
       'touchstart',
       (ev: TouchEvent) => {
         if (ev.touches.length === 2) {
           pinchStartDist = pinchDist(ev)
           pinchStartFont = d.current.settingsRef.current.fontSize
+          pinchFont = null
         }
       },
       { passive: true },
@@ -258,13 +260,17 @@ export function useBookEvents(deps: BookEventsDeps) {
       (ev: TouchEvent) => {
         if (ev.touches.length !== 2 || !pinchStartDist) return
         ev.preventDefault()
-        const next = clampFont(pinchStartFont * (pinchDist(ev) / pinchStartDist))
-        d.current.setSettings((s) => (s.fontSize === next ? s : { ...s, fontSize: next }))
+        // applied once on release: every settings change re-lays-out the chapter and saves
+        pinchFont = clampFont(pinchStartFont * (pinchDist(ev) / pinchStartDist))
       },
       { passive: false },
     )
     doc.addEventListener('touchend', (ev: TouchEvent) => {
-      if (ev.touches.length < 2) pinchStartDist = null
+      if (ev.touches.length >= 2) return
+      pinchStartDist = null
+      const next = pinchFont
+      pinchFont = null
+      if (next != null) d.current.setSettings((s) => (s.fontSize === next ? s : { ...s, fontSize: next }))
     })
   }, [])
 }
