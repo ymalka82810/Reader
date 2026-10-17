@@ -5,6 +5,7 @@ import { NavPanel } from './reader/NavPanel'
 import { EditNotePanel, NotesList } from './reader/NotesPanels'
 import { SearchPanel } from './reader/SearchPanel'
 import { SettingsPanel } from './reader/SettingsPanel'
+import { ViewModesSection } from './reader/ViewModesSection'
 import { COLOR_NAMES, HIGHLIGHT_COLORS } from './reader/colors'
 import { Icon } from './reader/shared'
 import { TocList } from './reader/TocPanel'
@@ -16,6 +17,8 @@ import { useFoliateView } from '../hooks/useFoliateView'
 import { useLatest } from '../hooks/useLatest'
 import { usePageEstimate } from '../hooks/usePageEstimate'
 import { useReaderPanels } from '../hooks/useReaderPanels'
+import { useEyeScroll } from '../hooks/useEyeScroll'
+import { useViewModes } from '../hooks/useViewModes'
 import { useReadingTracker } from '../hooks/useReadingTracker'
 import { useAutoRead } from '../hooks/useAutoRead'
 import { MAX_RATE, MIN_RATE, RATE_STEP, readAloudSupported, useReadAloud } from '../hooks/useReadAloud'
@@ -24,17 +27,21 @@ import { clampFont, useBookEvents, type Selection } from '../hooks/useBookEvents
 import { firstWord } from '../lib/dictionary'
 import { formatMinutes, loadStats, minutesLeft, type Stats } from '../lib/stats'
 import { customFontFace, loadCustomFont, type CustomFont } from '../lib/customFont'
+import { loadViewModes, saveViewModes, type ViewModes } from '../lib/viewModes'
 import { loadSettings, saveSettings, themeColors, type Settings } from '../lib/settings'
 
 const TAP_HELP_KEY = 'reader:tapHelpSeen'
 /** a second back swipe within this time leaves the book */
 const BACK_AGAIN_MS = 2000
+/** in distraction-free mode the bars shown by a middle tap go away again after this long */
+const FOCUS_BARS_MS = 4000
 
 export default function Reader({ id, onClose }: { id: string; onClose: () => void }) {
   const host = useRef<HTMLDivElement>(null)
   const viewRef = useRef<FoliateView | null>(null)
   const [settings, setSettings] = useState<Settings>(loadSettings)
   const settingsRef = useLatest(settings)
+  const [modes, setModes] = useState<ViewModes>(loadViewModes)
   const [uiVisible, setUiVisible] = useState(true)
   const { panel, panelRef, setPanel, closePanel, togglePanel, editingId, editNote, dict, openDict } = useReaderPanels()
   const [fraction, setFraction] = useState(0)
@@ -73,6 +80,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     autoRead: () => {},
     pace: () => {},
     readAloud: () => {},
+    focus: () => {},
   })
   const attachDocHandlers = useBookEvents({
     viewRef,
@@ -171,6 +179,38 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     }
   }, [settings, customFont, recompute, resetCalibration])
 
+  // ---- view modes: columns, orientation lock, distraction-free, eye scrolling ----
+  useEffect(() => saveViewModes(modes), [modes])
+  const setMode = <K extends keyof ViewModes>(k: K, v: ViewModes[K]) => setModes((m) => ({ ...m, [k]: v }))
+  const relayout = useCallback(() => {
+    resetCalibration()
+    window.setTimeout(() => recompute(), 400)
+  }, [resetCalibration, recompute])
+  useViewModes({
+    viewRef,
+    ready: status === 'ready',
+    settings,
+    spread: modes.spread,
+    focus: modes.focus,
+    lock: modes.orientation,
+    onLayout: relayout,
+    flash,
+  })
+  const toggleFocus = () => {
+    const on = !modes.focus
+    setMode('focus', on)
+    if (on) {
+      setUiVisible(false)
+      setPanel(null)
+      flash('מצב ללא הסחות — הקשה באמצע מציגה תפריט לרגע')
+    }
+  }
+  useEffect(() => {
+    if (!modes.focus || !uiVisible || panel) return
+    const t = window.setTimeout(() => setUiVisible(false), FOCUS_BARS_MS)
+    return () => window.clearTimeout(t)
+  }, [modes.focus, uiVisible, panel])
+
   const search = useBookSearch(viewRef, panel === 'search')
   const auto = useAutoRead({
     id,
@@ -185,6 +225,13 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
     if (panel !== 'search' && hitIdx === null) viewRef.current?.clearSearch()
   }, [panel, hitIdx])
   const speech = useReadAloud({ viewRef, lastDetail, lang: bookLang })
+  const eye = useEyeScroll({
+    enabled: modes.eyeScroll && status === 'ready',
+    viewRef,
+    flow: settings.flow,
+    paused: uiVisible || !!panel || !!selection,
+    markActive: tracker.markActive,
+  })
   const toggleAuto = () => {
     if (!auto.active) {
       setUiVisible(false)
@@ -298,6 +345,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
       autoRead: toggleAuto,
       pace: auto.adjust,
       readAloud: toggleSpeech,
+      focus: toggleFocus,
     }
   })
 
@@ -313,7 +361,7 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
 
   return (
     <div
-      className={`reader theme-${settings.theme}`}
+      className={`reader theme-${settings.theme}${modes.focus ? ' focus' : ''}`}
       dir="rtl"
       style={{ ['--bg' as string]: colors.bg, ['--fg' as string]: colors.fg }}
     >
@@ -345,6 +393,14 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
           title="תוכן עניינים, סימניות והדגשות (t / n)"
         >
           <Icon d="M4 6h16M4 12h16M4 18h16" />
+        </button>
+        <button
+          onClick={toggleFocus}
+          aria-label="מצב ללא הסחות"
+          aria-pressed={modes.focus}
+          title="מצב ללא הסחות (f)"
+        >
+          <Icon d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
         </button>
         <button onClick={() => togglePanel('search')} aria-label="חיפוש" title="חיפוש">
           <Icon d="M10.5 18a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15zM16 16l5 5" />
@@ -528,7 +584,17 @@ export default function Reader({ id, onClose }: { id: string; onClose: () => voi
         />
       )}
 
-      {panel === 'settings' && <SettingsPanel settings={settings} set={set} bump={bump} customFont={customFont} setCustomFont={setCustomFont} />}
+      {panel === 'settings' && (
+        <SettingsPanel settings={settings} set={set} bump={bump} customFont={customFont} setCustomFont={setCustomFont}>
+          <ViewModesSection
+            modes={modes}
+            setMode={setMode}
+            flow={settings.flow}
+            eyeStatus={eye.status}
+            onRecalibrate={eye.recalibrate}
+          />
+        </SettingsPanel>
+      )}
     </div>
   )
 }

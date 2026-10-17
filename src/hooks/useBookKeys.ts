@@ -14,6 +14,8 @@ export interface KeyActions {
   pace: (faster: boolean) => void
   /** start / stop reading the text aloud */
   readAloud: () => void
+  /** toggle distraction-free mode */
+  focus: () => void
 }
 
 interface Deps {
@@ -67,6 +69,7 @@ export function useBookKeys(deps: Deps) {
     else if (e.code === 'KeyS') a.panel('settings')
     else if (e.code === 'KeyA') a.autoRead()
     else if (e.code === 'KeyR') a.readAloud()
+    else if (e.code === 'KeyF') a.focus()
     else if (e.code === 'Period') a.pace(true)
     else if (e.code === 'Comma') a.pace(false)
     else if (e.key === '/' || e.code === 'Slash') {

@@ -5,6 +5,8 @@ import { visualizer } from 'rollup-plugin-visualizer'
 
 export default defineConfig({
   base: './',
+  // eye.html is the hidden page eye scrolling runs in (its own content-security policy, see the file)
+  build: { rollupOptions: { input: { main: 'index.html', eye: 'eye.html' } } },
   plugins: [
     react(),
     // `ANALYZE=1 npm run build` writes dist-stats.html (treemap of the bundle).
@@ -18,14 +20,22 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,mjs,woff2}'],
         // pdf.js (~2 MB with its worker) is only needed when importing a PDF, so keep it out of the
         // install-time precache and cache it on first use instead.
-        globIgnores: ['**/assets/pdf-*', '**/assets/pdf.worker*'],
+        globIgnores: ['**/assets/pdf-*', '**/assets/pdf.worker*', '**/assets/face_mesh*'],
         runtimeCaching: [
           {
             urlPattern: ({ url }) => /\/assets\/pdf(\.worker)?[.-]/.test(url.pathname),
             handler: 'CacheFirst',
             options: { cacheName: 'pdfjs' },
           },
+          {
+            // Face Mesh (eye scrolling, ~17 MB) is only fetched when that mode is switched on
+            urlPattern: ({ url }) => /\/assets\/face_mesh/.test(url.pathname),
+            handler: 'CacheFirst',
+            options: { cacheName: 'face-mesh' },
+          },
         ],
+        // eye.html is a real page (iframe), not an app route to answer with index.html
+        navigateFallbackDenylist: [/eye\.html$/],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         importScripts: ['share-target.js'],
       },
