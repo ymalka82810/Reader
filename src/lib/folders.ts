@@ -1,4 +1,5 @@
 import type { BookMeta } from './db'
+import { localeTag } from '../i18n'
 
 export interface Folder {
   /** identity ignoring case and nikud/accents; '' is the "no author" folder */
@@ -31,7 +32,7 @@ export function groupFolders(books: BookMeta[]): Folder[] {
     } else map.set(key, { key, name, books: [b] })
   }
   return [...map.values()].sort((a, b) =>
-    !a.key ? 1 : !b.key ? -1 : a.name.localeCompare(b.name, 'he'),
+    !a.key ? 1 : !b.key ? -1 : a.name.localeCompare(b.name, localeTag()),
   )
 }
 

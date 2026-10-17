@@ -5,6 +5,8 @@
  *  Chunking keeps memory bounded for large libraries. The nonce is prefix + chunk index, and the
  *  "is last chunk" flag is authenticated, so reordering or truncating chunks fails to decrypt. */
 
+import { t } from '../i18n'
+
 const MAGIC = new TextEncoder().encode('RDRENC01')
 const SALT_LEN = 16
 const PREFIX_LEN = 4
@@ -16,14 +18,14 @@ const DEFAULT_ITERATIONS = 600_000
 /** thrown when a backup is encrypted and no password was given */
 export class PasswordRequiredError extends Error {
   constructor() {
-    super('הגיבוי מוצפן — נדרשת סיסמה')
+    super(t('backup.needsPassword'))
     this.name = 'PasswordRequiredError'
   }
 }
 
 export class WrongPasswordError extends Error {
   constructor() {
-    super('סיסמה שגויה, או שקובץ הגיבוי פגום')
+    super(t('backup.wrongOrCorrupt'))
     this.name = 'WrongPasswordError'
   }
 }
@@ -100,13 +102,13 @@ export async function decryptStream(
   password: string,
 ): Promise<{ size: number; chunks: AsyncGenerator<Uint8Array<ArrayBuffer>> }> {
   const header = new Uint8Array(await enc.slice(0, HEADER_LEN).arrayBuffer())
-  if (header.length < HEADER_LEN || !(await isEncrypted(enc))) throw new Error('קובץ גיבוי לא תקין')
+  if (header.length < HEADER_LEN || !(await isEncrypted(enc))) throw new Error(t('backup.invalid'))
   const salt = header.slice(MAGIC.length, MAGIC.length + SALT_LEN)
   const prefix = header.slice(MAGIC.length + SALT_LEN, HEADER_LEN - 8)
   const view = new DataView(header.buffer)
   const iterations = view.getUint32(HEADER_LEN - 8, true)
   const chunk = view.getUint32(HEADER_LEN - 4, true)
-  if (!iterations || !chunk) throw new Error('קובץ גיבוי לא תקין')
+  if (!iterations || !chunk) throw new Error(t('backup.invalid'))
   const key = await deriveKey(password, salt, iterations)
 
   const body = enc.size - HEADER_LEN

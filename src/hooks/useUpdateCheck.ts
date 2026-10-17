@@ -1,5 +1,6 @@
 import { findUpdate, installUpdate } from '../lib/updater'
 import type { Confirm } from './useConfirm'
+import { t } from '../i18n'
 
 const UPDATE_REPO = 'ymalka82810/Reader'
 
@@ -15,20 +16,20 @@ export function useUpdateCheck({ setBusy, setError, showToast, confirm }: Deps) 
   return async () => {
     setError(undefined)
     try {
-      setBusy('בודק עדכונים…')
+      setBusy(t('update.checking'))
       const update = await findUpdate(UPDATE_REPO, 'v')
       if (!update) {
         setBusy(undefined)
-        showToast('האפליקציה מעודכנת', undefined, 4000)
+        showToast(t('update.upToDate'), undefined, 4000)
         return
       }
       setBusy(undefined)
-      if (!(await confirm({ title: 'יש גרסה חדשה', text: `גרסה ${update.version} זמינה. להוריד ולהתקין אותה?`, ok: 'עדכן' }))) return
-      const label = 'מוריד עדכון…'
+      if (!(await confirm({ title: t('update.newTitle'), text: t('update.newText', { version: update.version }), ok: t('update.install') }))) return
+      const label = t('update.downloading')
       setBusy(label)
       await installUpdate(update.url, update.sha256, (p) => setBusy(p >= 0 ? `${label} ${Math.round(p)}%` : label))
     } catch (e) {
-      setError(`עדכון נכשל: ${e instanceof Error ? e.message : String(e)}`)
+      setError(t('update.failed', { msg: e instanceof Error ? e.message : String(e) }))
     }
     setBusy(undefined)
   }

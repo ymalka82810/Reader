@@ -1,4 +1,5 @@
 import { Dialog } from '../Dialog'
+import { t } from '../../i18n'
 import { Dropdown } from '../Dropdown'
 import type { BookMeta } from '../../lib/db'
 import { folderKey, type Folder } from '../../lib/folders'
@@ -19,26 +20,26 @@ export function DuplicateBatchDialog({
 }) {
   return (
     <div className="modal-backdrop">
-      <Dialog className="modal" role="alertdialog" aria-modal="true" aria-label="ספרים כפולים">
-        <h2>{batch.items.length} ספרים כבר קיימים בספרייה</h2>
-        <p>שאר הספרים נוספו. מה לעשות עם הכפולים? החלפה מוחקת את הגרסה הקיימת יחד עם מיקום הקריאה וההערות שלה.</p>
+      <Dialog className="modal" role="alertdialog" aria-modal="true" aria-label={t('dup.batchLabel')}>
+        <h2>{t('dup.batchTitle', { n: batch.items.length })}</h2>
+        <p>{t('dup.batchText')}</p>
         {detail && (
           <ul className="dup-list">
             {batch.items.map((it, i) => (
               <li key={i}>
                 <span>
-                  ״{it.existing.title}״ ← {it.name}
+                  {t('dup.item', { title: it.existing.title, name: it.name })}
                 </span>
                 <Dropdown
-                  label={`פעולה עבור ${it.existing.title}`}
+                  label={t('dup.actionFor', { title: it.existing.title })}
                   value={it.choice}
                   onChange={(choice) =>
                     onChange({ ...batch, items: batch.items.map((x, j) => (j === i ? { ...x, choice } : x)) })
                   }
                   options={[
-                    { value: 'skip', label: 'דלג' },
-                    { value: 'add', label: 'הוסף בכל זאת' },
-                    { value: 'replace', label: 'החלף' },
+                    { value: 'skip', label: t('dup.skip') },
+                    { value: 'add', label: t('dup.addAnyway') },
+                    { value: 'replace', label: t('dup.replace') },
                   ]}
                 />
               </li>
@@ -48,18 +49,18 @@ export function DuplicateBatchDialog({
         <div className="modal-actions">
           {detail ? (
             <button className="primary" onClick={() => batch.done(batch.items.map((x) => x.choice))}>
-              אישור
+              {t('common.ok')}
             </button>
           ) : (
             <>
               <button className="danger" onClick={() => batch.done(batch.items.map(() => 'replace'))}>
-                החלף הכל
+                {t('dup.replaceAll')}
               </button>
-              <button onClick={() => batch.done(batch.items.map(() => 'add'))}>הוסף הכל</button>
+              <button onClick={() => batch.done(batch.items.map(() => 'add'))}>{t('dup.addAll')}</button>
               <button onClick={() => batch.done(batch.items.map(() => 'skip'))} autoFocus>
-                דלג על הכל
+                {t('dup.skipAll')}
               </button>
-              <button onClick={onDetail}>פירוט</button>
+              <button onClick={onDetail}>{t('dup.details')}</button>
             </>
           )}
         </div>
@@ -75,19 +76,16 @@ export function DuplicateAskDialog({ ask, onDone }: { ask: DupAsk; onDone: () =>
   }
   return (
     <div className="modal-backdrop">
-      <Dialog className="modal" role="alertdialog" aria-modal="true" aria-label="הספר כבר קיים">
-        <h2>הספר כבר קיים בספרייה</h2>
-        <p>
-          ״{ask.existing.title}״ כבר בספרייה. להחליף אותו בקובץ {ask.file}? החלפה תמחק את הגרסה הקיימת יחד עם מיקום
-          הקריאה וההערות שלה.
-        </p>
+      <Dialog className="modal" role="alertdialog" aria-modal="true" aria-label={t('dup.askLabel')}>
+        <h2>{t('dup.askTitle')}</h2>
+        <p>{t('dup.askText', { title: ask.existing.title, file: ask.file })}</p>
         <div className="modal-actions">
           <button className="danger" onClick={() => answer('replace')}>
-            החלף
+            {t('dup.replace')}
           </button>
-          <button onClick={() => answer('add')}>הוסף בכל זאת</button>
+          <button onClick={() => answer('add')}>{t('dup.addAnyway')}</button>
           <button onClick={() => answer('skip')} autoFocus>
-            דלג
+            {t('dup.skip')}
           </button>
         </div>
       </Dialog>
@@ -110,20 +108,17 @@ export function ConfirmDeleteDialog({
         className="modal"
         role="alertdialog"
         aria-modal="true"
-        aria-label="אישור מחיקה"
+        aria-label={t('del.label')}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.key === 'Escape' && onCancel()}
       >
-        <h2>למחוק {books.length === 1 ? 'את הספר' : `${books.length} ספרים`}?</h2>
+        <h2>{t('del.title', { n: books.length })}</h2>
         <p>
-          {books.length === 1
-            ? `״${books[0]?.title}״ יימחק יחד עם מיקום הקריאה וההערות שלו.`
-            : 'הספרים שנבחרו יימחקו יחד עם מיקום הקריאה וההערות שלהם.'}{' '}
-          אפשר יהיה לבטל תוך כמה שניות.
+          {books.length === 1 ? t('del.textOne', { title: books[0]?.title ?? '' }) : t('del.textMany')} {t('del.undoHint')}
         </p>
         <div className="modal-actions">
-          <button className="danger" onClick={onConfirm}>מחק</button>
-          <button onClick={onCancel} autoFocus>ביטול</button>
+          <button className="danger" onClick={onConfirm}>{t('common.delete')}</button>
+          <button onClick={onCancel} autoFocus>{t('common.cancel')}</button>
         </div>
       </Dialog>
     </div>
@@ -149,7 +144,7 @@ export function ConfirmDialog({ ask }: { ask: ConfirmAsk & { answer: (yes: boole
             {ask.ok}
           </button>
           <button onClick={cancel} autoFocus={ask.danger}>
-            ביטול
+            {t('common.cancel')}
           </button>
         </div>
       </Dialog>
@@ -178,48 +173,46 @@ export function MoveDialog({
         className="modal"
         role="dialog"
         aria-modal="true"
-        aria-label="העברה לתיקייה"
+        aria-label={t('move.label')}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.key === 'Escape' && onCancel()}
       >
-        <h2>
-          להעביר {books.length === 1 ? `את ״${books[0]?.title}״` : `${books.length} ספרים`} ל…
-        </h2>
+        <h2>{t('move.title', { n: books.length, title: books[0]?.title ?? '' })}</h2>
         <ul className="move-list">
           {folders
             .filter((f) => !books.every((b) => folderKey(b) === f.key))
             .map((f) => (
               <li key={f.key}>
                 <button onClick={() => onMove(f.name)}>
-                  📁 {f.name || 'ללא מחבר'} <small>({f.books.length} ספרים)</small>
+                  📁 {f.name || t('folder.noAuthor')} <small>({t('books.count', { n: f.books.length })})</small>
                 </button>
               </li>
             ))}
           {!folders.some((f) => !f.key) && (
             <li>
-              <button onClick={() => onMove('')}>📁 ללא מחבר</button>
+              <button onClick={() => onMove('')}>📁 {t('folder.noAuthor')}</button>
             </li>
           )}
           {books.some((b) => b.folder !== undefined) && (
             <li>
-              <button onClick={() => onMove(undefined)}>↺ חזרה לתיקיית המחבר</button>
+              <button onClick={() => onMove(undefined)}>↺ {t('move.backToAuthor')}</button>
             </li>
           )}
         </ul>
         <label>
-          תיקייה חדשה
+          {t('folder.new')}
           <input
             value={newFolder}
             onChange={(e) => onNewFolder(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && newFolder.trim() && onMove(newFolder.trim(), true)}
-            placeholder="שם התיקייה"
+            placeholder={t('folder.name')}
           />
         </label>
         <div className="modal-actions">
           <button className="primary" disabled={!newFolder.trim()} onClick={() => onMove(newFolder.trim(), true)}>
-            צור והעבר
+            {t('move.createAndMove')}
           </button>
-          <button onClick={onCancel}>ביטול</button>
+          <button onClick={onCancel}>{t('common.cancel')}</button>
         </div>
       </Dialog>
     </div>
@@ -237,7 +230,7 @@ export function FolderNameDialog({
   onSave: () => void
   onCancel: () => void
 }) {
-  const title = dialog.rename !== undefined ? 'שינוי שם תיקייה' : 'תיקייה חדשה'
+  const title = dialog.rename !== undefined ? t('folder.rename') : t('folder.new')
   return (
     <div className="modal-backdrop" onClick={onCancel}>
       <Dialog
@@ -253,14 +246,14 @@ export function FolderNameDialog({
       >
         <h2>{title}</h2>
         <label>
-          שם התיקייה
+          {t('folder.name')}
           <input value={dialog.name} onChange={(e) => onChange({ ...dialog, name: e.target.value })} autoFocus />
         </label>
         <div className="modal-actions">
           <button className="primary" disabled={!dialog.name.trim()} onClick={onSave}>
-            שמירה
+            {t('common.save')}
           </button>
-          <button onClick={onCancel}>ביטול</button>
+          <button onClick={onCancel}>{t('common.cancel')}</button>
         </div>
       </Dialog>
     </div>
@@ -286,27 +279,25 @@ export function PasswordDialog({
         className="modal"
         role="dialog"
         aria-modal="true"
-        aria-label={ask.kind === 'export' ? 'גיבוי' : 'גיבוי מוצפן'}
+        aria-label={ask.kind === 'export' ? t('backup.title') : t('backup.encryptedLabel')}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
           if (e.key === 'Escape') onCancel()
           else if (e.key === 'Enter' && (ask.kind === 'export' || pw)) onSubmit()
         }}
       >
-        <h2>{ask.kind === 'export' ? 'גיבוי' : 'הגיבוי מוצפן'}</h2>
+        <h2>{ask.kind === 'export' ? t('backup.title') : t('backup.encryptedTitle')}</h2>
         <label>
-          {ask.kind === 'export' ? 'סיסמה להצפנה (אופציונלי)' : 'סיסמה'}
+          {ask.kind === 'export' ? t('backup.passwordOptional') : t('backup.password')}
           <input type="password" value={pw} onChange={(e) => onPw(e.target.value)} autoFocus autoComplete="off" />
         </label>
-        {ask.kind === 'export' && (
-          <small>השאירו ריק לגיבוי רגיל. עם סיסמה אין דרך לשחזר את הגיבוי אם היא אבדה.</small>
-        )}
-        {ask.kind === 'import' && ask.wrong && <small role="alert">הסיסמה שגויה, נסו שוב.</small>}
+        {ask.kind === 'export' && <small>{t('backup.passwordHint')}</small>}
+        {ask.kind === 'import' && ask.wrong && <small role="alert">{t('backup.wrongPassword')}</small>}
         <div className="modal-actions">
           <button className="primary" onClick={onSubmit} disabled={ask.kind === 'import' && !pw}>
-            {ask.kind === 'export' ? 'צור גיבוי' : 'שחזר'}
+            {ask.kind === 'export' ? t('backup.create') : t('backup.restoreBtn')}
           </button>
-          <button onClick={onCancel}>ביטול</button>
+          <button onClick={onCancel}>{t('common.cancel')}</button>
         </div>
       </Dialog>
     </div>
@@ -334,27 +325,27 @@ export function EditBookDialog({
         className="modal"
         role="dialog"
         aria-modal="true"
-        aria-label="עריכת פרטי ספר"
+        aria-label={t('edit.title')}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
           if (e.key === 'Escape') onCancel()
           else if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') onSave()
         }}
       >
-        <h2>עריכת פרטי ספר</h2>
+        <h2>{t('edit.title')}</h2>
         <label>
-          שם הספר
+          {t('edit.bookName')}
           <input value={title} onChange={(e) => onTitle(e.target.value)} autoFocus />
         </label>
         <label>
-          מחבר
+          {t('edit.author')}
           <input value={author} onChange={(e) => onAuthor(e.target.value)} />
         </label>
         <div className="modal-actions">
           <button className="primary" onClick={onSave} disabled={!title.trim()}>
-            שמירה
+            {t('common.save')}
           </button>
-          <button onClick={onCancel}>ביטול</button>
+          <button onClick={onCancel}>{t('common.cancel')}</button>
         </div>
       </Dialog>
     </div>

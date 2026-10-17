@@ -11,6 +11,7 @@ import { useBackup } from '../hooks/useBackup'
 import { useAutoBackup } from '../hooks/useAutoBackup'
 import { useUpdateCheck } from '../hooks/useUpdateCheck'
 import { useConfirm } from '../hooks/useConfirm'
+import { localeTag, t } from '../i18n'
 import { GoalsDialog } from './library/GoalsDialog'
 import { BackupMenu } from './library/BackupMenu'
 import { LibTools, type Filter, type Sort } from './library/LibTools'
@@ -45,7 +46,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   const reqPersist = async () => {
     const ok = await requestPersistence()
     setStorage(await getStorageStatus())
-    showToast(ok ? 'האחסון הוגדר כקבוע' : 'הדפדפן לא אישר אחסון קבוע. מומלץ לגבות את הספרייה')
+    showToast(ok ? t('lib.persistOk') : t('lib.persistDenied'))
   }
   const [goalsOpen, setGoalsOpen] = useState(false)
   const [confirmDel, setConfirmDel] = useState<BookMeta[]>()
@@ -76,7 +77,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
         (!q || `${b.title} ${b.author} ${b.fileName}`.toLowerCase().includes(q)),
     )
     const by = (f: (b: BookMeta) => string) => (a: BookMeta, b: BookMeta) =>
-      f(a).localeCompare(f(b), 'he')
+      f(a).localeCompare(f(b), localeTag())
     if (sort === 'title') list.sort(by((b) => b.title))
     else if (sort === 'author') list.sort(by((b) => b.author || '￿'))
     else if (sort === 'added') list.sort((a, b) => b.addedAt - a.addedAt)
@@ -141,9 +142,9 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
       }}
     >
       <header className="lib-header">
-        <h1>הספרייה שלי</h1>
+        <h1>{t('lib.title')}</h1>
         <button className="primary" onClick={() => input.current?.click()} disabled={!!busy}>
-          + הוסף ספר
+          {t('lib.addBook')}
         </button>
         <input
           ref={input}
@@ -191,11 +192,9 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
       {remind && books.length > 0 && (
         <div className={'notice closable' + (unprotected ? ' error' : '')}>
           <span>
-            {unprotected
-              ? 'הדפדפן לא אישר אחסון קבוע, והספרייה עלולה להימחק בכל רגע. עברו כמה ימים בלי גיבוי — ב־⋯ בחר ״גיבוי״ לשמירת עותק.'
-              : 'עברו יותר משבועיים בלי גיבוי. הדפדפן עלול למחוק את הספרייה — ב־⋯ בחר ״גיבוי״ לשמירת עותק.'}
+            {unprotected ? t('lib.remindUnprotected') : t('lib.remindOverdue')}
           </span>
-          <button className="notice-close" aria-label="סגור" onClick={() => setDismissed(true)}>✕</button>
+          <button className="notice-close" aria-label={t('common.close')} onClick={() => setDismissed(true)}>✕</button>
         </div>
       )}
 
@@ -203,12 +202,12 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
         <button className="continue" onClick={() => onOpen(resume.id)}>
           <Cover book={resume} />
           <span className="continue-info">
-            <small>המשך לקרוא</small>
+            <small>{t('lib.resume')}</small>
             <strong>{resume.title}</strong>
             {resume.author && <small>{resume.author}</small>}
-            <progress value={resume.fraction} max={1} aria-label={`${Math.round((resume.fraction ?? 0) * 100)}% נקרא`} />
+            <progress value={resume.fraction} max={1} aria-label={t('book.percentRead', { pct: Math.round((resume.fraction ?? 0) * 100) })} />
           </span>
-          <span className="continue-cta">המשך</span>
+          <span className="continue-cta">{t('lib.continue')}</span>
         </button>
       )}
 
@@ -219,30 +218,30 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
       {selecting && (
         <div className="notice select-bar">
           {inFolderList ? (<>
-            <span>{selectedFolders.size} תיקיות נבחרו</span>
-            <button onClick={() => setSelectedFolders(new Set(folders.map((f) => f.key)))}>בחר כל התיקיות</button>
+            <span>{t('lib.foldersSelected', { n: selectedFolders.size })}</span>
+            <button onClick={() => setSelectedFolders(new Set(folders.map((f) => f.key)))}>{t('lib.selectAllFolders')}</button>
             <button
               className="danger"
               disabled={pickedFolders.length === 0}
               onClick={() => fo.deleteFolders(pickedFolders)}
             >
-              מחק תיקיות
+              {t('lib.deleteFolders')}
             </button>
           </>) : (<>
-            <span>{selected.size} ספרים נבחרו</span>
-            <button onClick={() => setSelected(new Set((searching ? shown : current!.books).map((b) => b.id)))}>בחר כל הספרים</button>
+            <span>{t('lib.booksSelected', { n: selected.size })}</span>
+            <button onClick={() => setSelected(new Set((searching ? shown : current!.books).map((b) => b.id)))}>{t('lib.selectAllBooks')}</button>
             <button disabled={selected.size === 0} onClick={() => fo.setMoving(books.filter((b) => selected.has(b.id)))}>
-              העבר ספרים
+              {t('lib.moveBooks')}
             </button>
             <button
               className="danger"
               disabled={selected.size === 0}
               onClick={() => setConfirmDel(books.filter((b) => selected.has(b.id)))}
             >
-              מחק ספרים
+              {t('lib.deleteBooks')}
             </button>
           </>)}
-          <button onClick={exitSelect}>סיום</button>
+          <button onClick={exitSelect}>{t('common.done')}</button>
         </div>
       )}
 
@@ -252,12 +251,12 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
             <div className="batch">
               <div className="batch-head">
                 <span>
-                  {batch.done}/{batch.total} ספרים
+                  {t('lib.batchProgress', { done: batch.done, total: batch.total })}
                 </span>
                 <span>
                   {batch.deadline === undefined
-                    ? 'מחשב זמן…'
-                    : `נותרו כ-${Math.max(0, Math.ceil((batch.deadline - now) / 1000))} שניות`}
+                    ? t('lib.batchEstimating')
+                    : t('lib.batchRemaining', { n: Math.max(0, Math.ceil((batch.deadline - now) / 1000)) })}
                 </span>
               </div>
               <progress value={batch.done} max={batch.total} />
@@ -269,18 +268,18 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
       {error && (
         <div className="notice error closable" role="alert">
           <span>{error}</span>
-          <button className="notice-close" aria-label="סגור" onClick={() => setError(undefined)}>✕</button>
+          <button className="notice-close" aria-label={t('common.close')} onClick={() => setError(undefined)}>✕</button>
         </div>
       )}
 
       {books.length === 0 && !busy ? (
         <div className="empty">
-          <p>אין עדיין ספרים.</p>
-          <p>לחץ על ״הוסף ספר״ ובחר קובץ EPUB, PDF, MOBI, AZW3, FB2, CBZ, DOCX או TXT מהטלפון או מגוגל דרייב.</p>
+          <p>{t('lib.empty')}</p>
+          <p>{t('lib.emptyHint')}</p>
         </div>
       ) : shown.length === 0 ? (
         <div className="empty">
-          <p>{query ? `לא נמצאו ספרים עבור ״${query}״.` : 'אין ספרים בסינון הזה.'}</p>
+          <p>{query ? t('lib.noMatch', { query }) : t('lib.noMatchFilter')}</p>
         </div>
       ) : inFolderList ? (
         <FolderList
@@ -309,7 +308,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
             />
           )}
           {current && !current.books.length && !searching && (
-            <div className="empty"><p>התיקייה ריקה. העבירו אליה ספרים עם 📁.</p></div>
+            <div className="empty"><p>{t('lib.folderEmpty')}</p></div>
           )}
           <BookGrid
             books={searching ? shown : current!.books}
@@ -328,7 +327,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
       {toast && (
         <div className="lib-toast" role="status">
           <span>{toast.msg}</span>
-          {toast.undo && <button onClick={toast.undo}>בטל</button>}
+          {toast.undo && <button onClick={toast.undo}>{t('common.undo')}</button>}
         </div>
       )}
 

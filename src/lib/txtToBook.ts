@@ -1,5 +1,6 @@
 import { ImportError } from './errors'
 import type { ExtractedPdf } from './pdfToBook'
+import { t } from '../i18n'
 
 const CHAPTER_CHARS = 20000
 
@@ -22,7 +23,7 @@ export async function extractTxt(file: File): Promise<ExtractedPdf> {
   const paras = raw
     .map((b) => (blocks.length > 1 ? b.replace(/\s*\n\s*/g, ' ') : b).trim())
     .filter(Boolean)
-  if (!paras.length) throw new ImportError('הקובץ ריק.')
+  if (!paras.length) throw new ImportError(t('import.empty'))
 
   const letters = text.match(/\p{L}/gu) ?? []
   const hebrew = letters.filter((c) => /[֐-׿]/.test(c)).length
@@ -35,12 +36,12 @@ export async function extractTxt(file: File): Promise<ExtractedPdf> {
     cur.push(p)
     size += p.length
     if (size >= CHAPTER_CHARS) {
-      chapters.push({ title: `חלק ${chapters.length + 1}`, paras: cur })
+      chapters.push({ title: t('book.part', { n: chapters.length + 1 }), paras: cur })
       cur = []
       size = 0
     }
   }
-  if (cur.length) chapters.push({ title: `חלק ${chapters.length + 1}`, paras: cur })
+  if (cur.length) chapters.push({ title: t('book.part', { n: chapters.length + 1 }), paras: cur })
   if (chapters.length === 1 && chapters[0]) chapters[0].title = title
 
   return { title, author: '', rtl: hebrew > letters.length / 3, pageCount: 0, chapters }

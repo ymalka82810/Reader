@@ -3,6 +3,7 @@ import type { FoliateView } from 'foliate-js/view.js'
 import { isEyeMessage, type EyeCommand, type EyeStatus } from '../lib/eyeProtocol'
 import type { GazeMove } from '../lib/gaze'
 import type { Flow } from '../lib/settings'
+import { t } from '../i18n'
 import { useLatest } from './useLatest'
 
 export type { EyeStatus }
@@ -36,7 +37,7 @@ export function useEyeScroll(deps: Deps) {
     const iframe = document.createElement('iframe')
     iframe.src = new URL('eye.html', document.baseURI).href
     iframe.allow = 'camera'
-    iframe.title = 'זיהוי מבט'
+    iframe.title = t('eye.frameTitle')
     iframe.setAttribute('aria-hidden', 'true')
     iframe.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;border:0'
     frame.current = iframe

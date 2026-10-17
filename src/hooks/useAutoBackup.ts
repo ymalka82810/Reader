@@ -8,6 +8,7 @@ import {
   runAutoBackup,
   type AutoBackupState,
 } from '../lib/autoBackup'
+import { t } from '../i18n'
 
 type Deps = {
   setError: (msg: string | undefined) => void
@@ -28,10 +29,10 @@ export function useAutoBackup({ setError, showToast }: Deps) {
     async (interactive: boolean) => {
       try {
         if (await runAutoBackup(interactive)) {
-          if (interactive) showToast('הגיבוי נשמר בתיקייה')
+          if (interactive) showToast(t('autoBackup.saved'))
         }
       } catch (e) {
-        setError(`גיבוי אוטומטי נכשל: ${e instanceof Error ? e.message : String(e)}`)
+        setError(t('autoBackup.failed', { msg: e instanceof Error ? e.message : String(e) }))
       }
       await refreshState()
     },
@@ -51,7 +52,7 @@ export function useAutoBackup({ setError, showToast }: Deps) {
     try {
       if (!(await chooseBackupFolder())) return
     } catch (e) {
-      setError(`בחירת התיקייה נכשלה: ${e instanceof Error ? e.message : String(e)}`)
+      setError(t('autoBackup.pickFailed', { msg: e instanceof Error ? e.message : String(e) }))
       return
     }
     await run(true)
@@ -60,7 +61,7 @@ export function useAutoBackup({ setError, showToast }: Deps) {
   const disable = async () => {
     await disableAutoBackup()
     await refreshState()
-    showToast('הגיבוי האוטומטי כובה')
+    showToast(t('autoBackup.off'))
   }
 
   return { state, last, enable, disable, renew: () => run(true) }

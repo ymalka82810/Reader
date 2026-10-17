@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { download } from '../../lib/download'
 import { renderQuoteImage } from '../../lib/quoteImage'
 import { Panel, Seg } from './shared'
+import { t } from '../../i18n'
 import './quoteShare.css'
 
 const PREF_KEY = 'reader:quoteCredit'
@@ -29,7 +30,7 @@ function savePref(p: Pref) {
   }
 }
 
-const fileName = (title: string) => `${title.replace(/[\\/:*?"<>|]/g, '_').trim() || 'ציטוט'}.png`
+const fileName = (title: string) => `${title.replace(/[\\/:*?"<>|]/g, '_').trim() || t('quote.fileName')}.png`
 
 /** share a passage as an image (in quotation marks, credited to the book or to a speaker) or as plain text */
 export function QuoteShareDialog({
@@ -70,7 +71,7 @@ export function QuoteShareDialog({
       })
       .catch((e) => {
         console.error(e)
-        if (!stale) flash('יצירת התמונה נכשלה')
+        if (!stale) flash(t('quote.failed'))
       })
     return () => {
       stale = true
@@ -95,7 +96,7 @@ export function QuoteShareDialog({
       navigator.share({ files: [file] }).then(onClose, () => {})
     } else {
       download(blob, file.name)
-      flash('התמונה נשמרה')
+      flash(t('quote.saved'))
     }
   }
 
@@ -108,30 +109,30 @@ export function QuoteShareDialog({
   }
 
   return (
-    <Panel label="שיתוף ציטוט" className="quote-share">
-      {url && <img className="quote-preview" src={url} alt="תצוגה מקדימה של הציטוט" />}
+    <Panel label={t('quote.title')} className="quote-share">
+      {url && <img className="quote-preview" src={url} alt={t('quote.preview')} />}
       <Seg<Mode>
         value={pref.mode}
         onChange={(mode) => update({ mode })}
         options={[
-          ['book', 'שם הספר'],
-          ['speaker', 'שם הדובר'],
+          ['book', t('quote.bookName')],
+          ['speaker', t('quote.speakerName')],
         ]}
       />
       <input
         type="text"
         value={credit}
         onChange={(e) => edit(e.target.value)}
-        placeholder={pref.mode === 'book' ? 'שם הספר' : 'שם הדובר (ריק = בלי שם)'}
-        aria-label={pref.mode === 'book' ? 'שם הספר' : 'שם הדובר'}
+        placeholder={pref.mode === 'book' ? t('quote.bookName') : t('quote.speakerPlaceholder')}
+        aria-label={pref.mode === 'book' ? t('quote.bookName') : t('quote.speakerName')}
       />
       <div className="row">
         <button className="primary" onClick={shareImage} disabled={!blob}>
-          {typeof navigator.canShare === 'function' ? 'שתף כתמונה' : 'שמור תמונה'}
+          {typeof navigator.canShare === 'function' ? t('quote.shareImage') : t('quote.saveImage')}
         </button>
-        {typeof navigator.share === 'function' && <button onClick={shareText}>שלח כטקסט / להערות</button>}
+        {typeof navigator.share === 'function' && <button onClick={shareText}>{t('quote.shareText')}</button>}
         <span style={{ flex: 1 }} />
-        <button onClick={onClose}>סגור</button>
+        <button onClick={onClose}>{t('common.close')}</button>
       </div>
     </Panel>
   )

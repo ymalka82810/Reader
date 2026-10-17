@@ -7,7 +7,7 @@
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body, #root { height: 100%; margin: 0; }
-body { direction: rtl; background: var(--bg); color: var(--fg); }
+body { background: var(--bg); color: var(--fg); }
 @media (prefers-color-scheme: dark) { :root { --bg: #151515; --fg: #e6e6e6; } }
 button { font: inherit; cursor: pointer; border: 0; border-radius: 10px; padding: 0.55rem 0.9rem; background: rgba(127,127,127,.18); color: inherit; }
 button.primary { background: var(--accent); color: #fff; }

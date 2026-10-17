@@ -4,6 +4,7 @@ import type { FoliateView } from 'foliate-js/view.js'
 import { HIGHLIGHT_COLORS } from '../components/reader/colors'
 import { getNotes, newId, saveNotes, type Annotation } from '../lib/db'
 import { download } from '../lib/download'
+import { t } from '../i18n'
 
 /**
  * Highlights, notes and bookmarks of one book, kept in step with the highlights drawn in the view.
@@ -19,7 +20,7 @@ export function useAnnotations(id: string, viewRef: MutableRefObject<FoliateView
       setNotes(next)
       saveNotes(id, next).catch((e) => {
         console.error(e)
-        flash(e instanceof Error && e.name === 'QuotaExceededError' ? 'אין מקום באחסון — ההערה לא נשמרה' : 'שמירת ההערה נכשלה')
+        flash(e instanceof Error && e.name === 'QuotaExceededError' ? t('notes.quota') : t('notes.saveFailed'))
       })
     },
     [id, flash],
@@ -70,21 +71,21 @@ export function useAnnotations(id: string, viewRef: MutableRefObject<FoliateView
     const existing = notesRef.current.find((n) => n.kind === 'bookmark' && n.cfi === cfi)
     if (existing) {
       remove(existing.id)
-      flash('הסימנייה הוסרה')
+      flash(t('notes.bookmarkRemoved'))
       return
     }
     commit([
       ...notesRef.current,
       { id: newId(), kind: 'bookmark', cfi, text: label, color: HIGHLIGHT_COLORS[0] ?? '', createdAt: Date.now() },
     ])
-    flash('נוספה סימנייה')
+    flash(t('notes.bookmarkAdded'))
   }
 
   /** the next (dir 1) or previous (dir -1) bookmark after `here`, in reading order; flashes why when there is none */
   const bookmarkFrom = (here: string | undefined, dir: 1 | -1) => {
     const marks = notesRef.current.filter((n) => n.kind === 'bookmark').sort((a, b) => cfiCompare(a.cfi, b.cfi))
     if (!marks.length) {
-      flash('אין סימניות בספר')
+      flash(t('notes.noBookmarks'))
       return undefined
     }
     const target = here
@@ -92,29 +93,29 @@ export function useAnnotations(id: string, viewRef: MutableRefObject<FoliateView
         ? marks.find((n) => cfiCompare(n.cfi, here) > 0)
         : [...marks].reverse().find((n) => cfiCompare(n.cfi, here) < 0)
       : marks[0]
-    if (!target) flash(dir === 1 ? 'אין סימנייה נוספת קדימה' : 'אין סימנייה קודמת')
+    if (!target) flash(dir === 1 ? t('notes.noNextBookmark') : t('notes.noPrevBookmark'))
     return target
   }
 
   const exportMarkdown = (title: string) => {
     const list = [...notesRef.current].sort((a, b) => a.createdAt - b.createdAt)
-    if (!list.length) return flash('אין מה לייצא')
+    if (!list.length) return flash(t('notes.nothingToExport'))
     const quote = (s: string) => s.replace(/\s*\n\s*/g, ' ')
     const lines = [`# ${title}`, '']
     const marks = list.filter((n) => n.kind === 'bookmark')
     const hls = list.filter((n) => n.kind === 'highlight')
     if (hls.length) {
-      lines.push('## הדגשות', '')
+      lines.push(`## ${t('notes.exportHighlights')}`, '')
       for (const n of hls) {
         lines.push(`> ${quote(n.text)}`)
         if (n.note) lines.push('', n.note)
         lines.push('')
       }
     }
-    if (marks.length) lines.push('## סימניות', '', ...marks.map((n) => `- ${n.text}`), '')
+    if (marks.length) lines.push(`## ${t('notes.exportBookmarks')}`, '', ...marks.map((n) => `- ${n.text}`), '')
     download(
       new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' }),
-      `${title.replace(/[\\/:*?"<>|]/g, '_') || 'הערות'}.md`,
+      `${title.replace(/[\\/:*?"<>|]/g, '_') || t('notes.fileName')}.md`,
     )
   }
 

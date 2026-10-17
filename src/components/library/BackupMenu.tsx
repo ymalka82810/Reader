@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { formatBytes, type StorageStatus } from '../../lib/storage'
 import type { AutoBackupState } from '../../lib/autoBackup'
 import { isNativeApp } from '../../lib/updater'
+import { changeLocale, getLocale, LOCALES, localeTag, t } from '../../i18n'
 
 type View = {
   onNewFolder?: () => void
@@ -26,19 +27,19 @@ export function BackupMenu({ view, busy, storage, onPersist, onBackup, onRestore
   const [open, setOpen] = useState(false)
   const close = () => setOpen(false)
   const items: [string, () => void, string][] = [
-    ['גיבוי', onBackup, 'ספרים, מיקום קריאה, הערות והגדרות (אפשר להצפין בסיסמה)'],
-    ['שחזור', onRestore, 'מוסיף ספרים חסרים וממזג מיקום והערות'],
+    [t('backup.title'), onBackup, t('menu.backupTip')],
+    [t('menu.restore'), onRestore, t('menu.restoreTip')],
   ]
-  const autoTip = 'שומר גיבוי אחת ליום בתיקייה שתבחר (למשל תיקיית דרייב). הקובץ אינו מוצפן'
-  if (auto.state === 'off') items.push(['גיבוי אוטומטי לתיקייה…', auto.onEnable, autoTip])
-  else if (auto.state === 'needs-permission') items.push(['אשר גישה לגיבוי אוטומטי', auto.onRenew, 'הדפדפן ביקש לאשר מחדש גישה לתיקייה'])
-  else if (auto.state === 'ready') items.push(['כבה גיבוי אוטומטי', auto.onDisable, autoTip])
-  if (storage && !storage.persisted) items.push(['בקש אחסון קבוע', onPersist, 'מבקש מהדפדפן לא למחוק את הספרייה כשחסר מקום. אם הוא מסרב, גיבוי הוא ההגנה הבטוחה'])
-  if (isNativeApp) items.push(['בדוק עדכון', onCheckUpdate, 'מחפש גרסה חדשה של האפליקציה ב-GitHub'])
+  const autoTip = t('menu.autoTip')
+  if (auto.state === 'off') items.push([t('menu.autoOn'), auto.onEnable, autoTip])
+  else if (auto.state === 'needs-permission') items.push([t('menu.autoRenew'), auto.onRenew, t('menu.autoRenewTip')])
+  else if (auto.state === 'ready') items.push([t('menu.autoOff'), auto.onDisable, autoTip])
+  if (storage && !storage.persisted) items.push([t('menu.persist'), onPersist, t('menu.persistTip')])
+  if (isNativeApp) items.push([t('menu.checkUpdate'), onCheckUpdate, t('menu.checkUpdateTip')])
 
   return (
     <div className="menu-wrap">
-      <button aria-label="עוד פעולות" aria-haspopup="menu" aria-expanded={open} onClick={() => (open ? close() : setOpen(true))}>
+      <button aria-label={t('menu.more')} aria-haspopup="menu" aria-expanded={open} onClick={() => (open ? close() : setOpen(true))}>
         ⋯
       </button>
       {open && (
@@ -47,17 +48,17 @@ export function BackupMenu({ view, busy, storage, onPersist, onBackup, onRestore
           <div className="menu-pop" tabIndex={-1} autoFocus onKeyDown={(e) => e.key === 'Escape' && close()}>
           <div className="menu" role="menu">
             <button role="menuitem" onClick={() => { close(); onGoals() }}>
-              יעדי קריאה
+              {t('goals.title')}
             </button>
             {view && (
               <>
                 {view.onNewFolder && (
                   <button role="menuitem" onClick={() => { close(); view.onNewFolder!() }}>
-                    תיקייה חדשה
+                    {t('folder.new')}
                   </button>
                 )}
                 <button role="menuitem" onClick={() => { close(); view.onToggleSelect() }}>
-                  {view.selecting ? 'סיום בחירה' : 'בחירה'}
+                  {view.selecting ? t('menu.endSelect') : t('menu.select')}
                 </button>
                 <div className="menu-sep" role="separator" />
               </>
@@ -76,17 +77,22 @@ export function BackupMenu({ view, busy, storage, onPersist, onBackup, onRestore
                 {label}
               </button>
             ))}
+            {LOCALES.filter(([code]) => code !== getLocale()).map(([code, name]) => (
+              <button key={code} role="menuitem" title={t('menu.language')} onClick={() => changeLocale(code)}>
+                🌐 {name}
+              </button>
+            ))}
             {auto.state === 'ready' && (
               <div className="menu-info" role="status">
-                גיבוי אוטומטי פעיל
-                {auto.last ? ` · אחרון: ${new Date(auto.last).toLocaleString('he-IL')}` : ''}
+                {t('menu.autoActive')}
+                {auto.last ? ` · ${t('menu.autoLast', { date: new Date(auto.last).toLocaleString(localeTag()) })}` : ''}
               </div>
             )}
             {storage && (
               <div className="menu-info" role="status">
-                {storage.persisted ? 'אחסון קבוע ✓' : 'אחסון לא קבוע'}
+                {storage.persisted ? t('menu.storagePersisted') : t('menu.storageNotPersisted')}
                 {storage.usage != null && storage.quota
-                  ? ` · בשימוש ${formatBytes(storage.usage)} מתוך ${formatBytes(storage.quota)}`
+                  ? ` · ${t('menu.storageUsage', { used: formatBytes(storage.usage), total: formatBytes(storage.quota) })}`
                   : ''}
               </div>
             )}

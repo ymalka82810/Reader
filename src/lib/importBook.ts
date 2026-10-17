@@ -1,8 +1,9 @@
 import { ImportError, explainImportError } from './errors'
 import { contentId, hasBook, listBooks, replaceBook, saveBook, type BookMeta, type BookRecord } from './db'
 import { sameBook } from './sameBook'
+import { t } from '../i18n'
 
-const ALREADY_EXISTS = 'הספר כבר קיים בספרייה.'
+const ALREADY_EXISTS = t('import.exists')
 
 const langMap = (v: unknown): string => {
   if (!v) return ''
@@ -59,9 +60,9 @@ export async function importFile(
   onProgress?: (msg: string) => void,
   onDuplicate?: OnDuplicate,
 ): Promise<BookRecord> {
-  if (!file.size) throw new ImportError('הקובץ ריק.')
+  if (!file.size) throw new ImportError(t('import.empty'))
   if (!isEpub(file) && !isPdf(file) && !isTxt(file) && !isDocx(file) && !isNative(file))
-    throw new ImportError('סוג הקובץ לא נתמך. אפשר להוסיף קובצי EPUB, PDF, MOBI, AZW3, FB2, CBZ, DOCX או TXT.')
+    throw new ImportError(t('import.unsupported'))
   try {
     return await readIntoLibrary(file, onProgress, onDuplicate)
   } catch (e) {
@@ -91,30 +92,30 @@ async function readIntoLibrary(
     const x = await extractPdf(
       file,
       file.name,
-      (d, t) => onProgress?.(`מחלץ טקסט מה-PDF… ${d}/${t}`),
-      (d, t) => onProgress?.(`סריקה: מזהה טקסט (OCR)… ${Math.min(d + 1, t)}/${t}`),
+      (done, total) => onProgress?.(`${t('import.extracting')} ${done}/${total}`),
+      (done, total) => onProgress?.(`${t('import.ocr')} ${Math.min(done + 1, total)}/${total}`),
     )
-    onProgress?.('ממיר ל-EPUB…')
+    onProgress?.(t('import.converting'))
     const blob = await buildEpub(x)
     epub = new File([blob], file.name.replace(/\.pdf$/i, '') + '.epub', { type: 'application/epub+zip' })
     fromPdf = true
   }
 
   if (isTxt(file)) {
-    onProgress?.('ממיר ל-EPUB…')
+    onProgress?.(t('import.converting'))
     const [{ extractTxt }, { buildEpub }] = await Promise.all([import('./txtToBook'), import('./pdfToEpub')])
     const blob = await buildEpub(await extractTxt(file))
     epub = new File([blob], file.name.replace(/\.txt$/i, '') + '.epub', { type: 'application/epub+zip' })
   }
 
   if (isDocx(file)) {
-    onProgress?.('ממיר ל-EPUB…')
+    onProgress?.(t('import.converting'))
     const [{ extractDocx }, { buildEpub }] = await Promise.all([import('./docxToBook'), import('./pdfToEpub')])
     const blob = await buildEpub(await extractDocx(file))
     epub = new File([blob], file.name.replace(/\.docx$/i, '') + '.epub', { type: 'application/epub+zip' })
   }
 
-  onProgress?.('קורא את הספר…')
+  onProgress?.(t('import.reading'))
   if (isNative(file)) epub = lowerName(file)
   const book = await makeBook(epub)
   let cover: Blob | undefined

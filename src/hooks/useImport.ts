@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { BookMeta } from '../lib/db'
 import { importFile, DeferredDuplicate, type DuplicateChoice } from '../lib/importBook'
 import { onLaunchFiles, takeSharedFiles } from '../lib/inbox'
+import { t } from '../i18n'
 
 export type DupBatch = {
   items: { name: string; title: string; existing: BookMeta; choice: DuplicateChoice }[]
@@ -63,7 +64,7 @@ export function useImport({ refresh, setBusy, setError }: Deps) {
         void takeWake()
       }
       try {
-        setBusy(`מוסיף את ${f.name}…`)
+        setBusy(t('import.adding', { name: f.name }))
         await importFile(
           f,
           setBusy,
@@ -78,11 +79,11 @@ export function useImport({ refresh, setBusy, setError }: Deps) {
         else errors.push(`${f.name}: ${e instanceof Error ? e.message : String(e)}`)
       }
       const done = i + 1
-      const t = Date.now()
-      setNow(t)
+      const nowMs = Date.now()
+      setNow(nowMs)
       setBatch(
         list.length > 1
-          ? { done, total: list.length, deadline: t + ((t - started) / done) * (list.length - done) }
+          ? { done, total: list.length, deadline: nowMs + ((nowMs - started) / done) * (list.length - done) }
           : undefined,
       )
     }

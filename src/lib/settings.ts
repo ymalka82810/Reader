@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import { CUSTOM_FONT_FAMILY } from './customFont'
 
 export type Flow = 'scrolled' | 'paginated'
@@ -104,14 +105,14 @@ const stack = (families: string) => `font-family: ${families} !important;`
 
 /** fonts offered in the settings table; each row previews its own font */
 export const FONTS: Record<string, { label: string; family: string }> = {
-  default: { label: 'ברירת מחדל', family: '' },
-  serif: { label: 'סריף', family: '"Frank Ruhl Libre", "David", "Times New Roman", serif' },
-  sans: { label: 'סנס', family: '"Heebo", "Arial", "Helvetica", sans-serif' },
-  david: { label: 'דוד', family: '"David", "David Libre", "Times New Roman", serif' },
-  miriam: { label: 'מרים', family: '"Miriam", "Miriam Libre", "Arial", sans-serif' },
+  default: { label: t('font.default'), family: '' },
+  serif: { label: t('font.serif'), family: '"Frank Ruhl Libre", "David", "Times New Roman", serif' },
+  sans: { label: t('font.sans'), family: '"Heebo", "Arial", "Helvetica", sans-serif' },
+  david: { label: t('font.david'), family: '"David", "David Libre", "Times New Roman", serif' },
+  miriam: { label: t('font.miriam'), family: '"Miriam", "Miriam Libre", "Arial", sans-serif' },
   tahoma: { label: 'Tahoma', family: '"Tahoma", "Verdana", sans-serif' },
   georgia: { label: 'Georgia', family: '"Georgia", "Times New Roman", serif' },
-  mono: { label: 'מונו', family: '"Courier New", "Consolas", monospace' },
+  mono: { label: t('font.mono'), family: '"Courier New", "Consolas", monospace' },
 }
 
 const fontCSS = (key: string, hasCustom: boolean) =>

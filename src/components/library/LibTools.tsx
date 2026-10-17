@@ -1,19 +1,20 @@
 import { Select } from '../Select'
+import { t } from '../../i18n'
 
 export type Filter = 'all' | 'reading' | 'unread' | 'finished'
 export type Sort = 'recent' | 'title' | 'author' | 'added'
 
 const FILTERS: [Filter, string][] = [
-  ['all', 'הכול'],
-  ['reading', 'בקריאה'],
-  ['unread', 'לא התחלתי'],
-  ['finished', 'נקראו'],
+  ['all', t('filter.all')],
+  ['reading', t('filter.reading')],
+  ['unread', t('filter.unread')],
+  ['finished', t('filter.finished')],
 ]
 const SORTS: [Sort, string][] = [
-  ['recent', 'נפתח לאחרונה'],
-  ['added', 'נוסף לאחרונה'],
-  ['title', 'שם (א–ת)'],
-  ['author', 'מחבר (א–ת)'],
+  ['recent', t('sort.recent')],
+  ['added', t('sort.added')],
+  ['title', t('sort.title')],
+  ['author', t('sort.author')],
 ]
 
 type Props = {
@@ -31,18 +32,18 @@ export function LibTools({ query, onQuery, filter, onFilter, sort, onSort }: Pro
     <div className="lib-tools">
       <input
         type="search"
-        placeholder="חיפוש לפי שם או מחבר…"
-        aria-label="חיפוש בספרייה"
+        placeholder={t('lib.searchPlaceholder')}
+        aria-label={t('lib.search')}
         value={query}
         onChange={(e) => onQuery(e.target.value)}
       />
       <Select
-        label="סינון"
+        label={t('filter.label')}
         value={filter}
         onChange={onFilter}
-        options={FILTERS.map(([v, text]): [Filter, string] => [v, v === 'all' ? 'סינון: הכול' : text])}
+        options={FILTERS.map(([v, text]): [Filter, string] => [v, v === 'all' ? t('filter.allLabeled') : text])}
       />
-      <Select label="מיון" value={sort} onChange={onSort} options={SORTS} />
+      <Select label={t('sort.label')} value={sort} onChange={onSort} options={SORTS} />
     </div>
   )
 }
