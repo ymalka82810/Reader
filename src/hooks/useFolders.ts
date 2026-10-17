@@ -38,6 +38,11 @@ export function useFolders({ books, shown, createdNames, searching, refresh, sho
     const withBooks = new Map(groupFolders(shown).map((f) => [f.key, f]))
     return allFolders.flatMap((f) => (f.books.length ? (withBooks.get(f.key) ?? []) : f))
   }, [allFolders, shown])
+  // an author with one book is shown as that book; a folder the user made or filled stays a folder
+  const loose = useMemo(() => {
+    const made = new Set(createdNames.map((name) => folderKey({ author: name })))
+    return new Set(allFolders.filter((f) => f.books.length === 1 && f.books[0]!.folder === undefined && !made.has(f.key)).map((f) => f.key))
+  }, [allFolders, createdNames])
   // with a single folder there is nothing to choose: show its books straight away
   const current =
     openFolder === undefined
@@ -98,7 +103,7 @@ export function useFolders({ books, shown, createdNames, searching, refresh, sho
   }
 
   return {
-    allFolders, folders, current, openFolder, setOpenFolder,
+    allFolders, folders, loose, current, openFolder, setOpenFolder,
     moving, setMoving, newFolder, setNewFolder,
     folderDialog, setFolderDialog, moveTo, saveFolderDialog, deleteFolders,
   }

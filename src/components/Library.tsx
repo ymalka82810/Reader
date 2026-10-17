@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { isFinished, updateMeta, type BookMeta } from '../lib/db'
 import { backupDue } from '../lib/backupReminder'
-import { getStorageStatus, type StorageStatus } from '../lib/storage'
+import { getStorageStatus, requestPersistence, type StorageStatus } from '../lib/storage'
 import { useToast } from '../hooks/useToast'
 import { useSelection } from '../hooks/useSelection'
 import { useLibrary } from '../hooks/useLibrary'
@@ -40,6 +40,11 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
   const restoreInput = useRef<HTMLInputElement>(null)
   const [storage, setStorage] = useState<StorageStatus>()
   const [dismissed, setDismissed] = useState(false)
+  const reqPersist = async () => {
+    const ok = await requestPersistence()
+    setStorage(await getStorageStatus())
+    showToast(ok ? 'האחסון הוגדר כקבוע' : 'הדפדפן לא אישר אחסון קבוע. גיבוי הוא ההגנה הבטוחה על הספרייה')
+  }
   const [confirmDel, setConfirmDel] = useState<BookMeta[]>()
   useEffect(() => {
     getStorageStatus().then(setStorage)
@@ -165,6 +170,7 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
           }
           busy={!!busy}
           storage={storage}
+          onPersist={reqPersist}
           onBackup={backup.askExport}
           onRestore={() => restoreInput.current?.click()}
           onCheckUpdate={checkUpdate}
@@ -184,10 +190,13 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
       </header>
 
       {remind && books.length > 0 && (
-        <div className={'notice' + (unprotected ? ' error' : '')} onClick={() => setDismissed(true)}>
-          {unprotected
-            ? 'הדפדפן לא אישר אחסון קבוע, והספרייה עלולה להימחק בכל רגע. עברו כמה ימים בלי גיבוי — ב־⋯ בחר ״גיבוי״ לשמירת עותק.'
-            : 'עברו יותר משבועיים בלי גיבוי. הדפדפן עלול למחוק את הספרייה — ב־⋯ בחר ״גיבוי״ לשמירת עותק.'}
+        <div className={'notice closable' + (unprotected ? ' error' : '')}>
+          <span>
+            {unprotected
+              ? 'הדפדפן לא אישר אחסון קבוע, והספרייה עלולה להימחק בכל רגע. עברו כמה ימים בלי גיבוי — ב־⋯ בחר ״גיבוי״ לשמירת עותק.'
+              : 'עברו יותר משבועיים בלי גיבוי. הדפדפן עלול למחוק את הספרייה — ב־⋯ בחר ״גיבוי״ לשמירת עותק.'}
+          </span>
+          <button className="notice-close" aria-label="סגור" onClick={() => setDismissed(true)}>✕</button>
         </div>
       )}
 
@@ -267,8 +276,9 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
         </div>
       )}
       {error && (
-        <div className="notice error" onClick={() => setError(undefined)}>
-          {error}
+        <div className="notice error closable" role="alert">
+          <span>{error}</span>
+          <button className="notice-close" aria-label="סגור" onClick={() => setError(undefined)}>✕</button>
         </div>
       )}
 
@@ -284,6 +294,14 @@ export default function Library({ onOpen }: { onOpen: (id: string) => void }) {
       ) : inFolderList ? (
         <FolderList
           folders={folders}
+          loose={fo.loose}
+          bookActions={{
+            onOpen,
+            onEdit: openEdit,
+            onMove: (b) => fo.setMoving([b]),
+            onDelete: (b) => setConfirmDel([b]),
+            refresh,
+          }}
           selecting={selecting}
           selectedFolders={selectedFolders}
           onOpen={fo.setOpenFolder}
