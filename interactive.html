@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="he">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Where one chapter of an interactive (scripted) EPUB runs. The reader embeds this page with
+         sandbox="allow-scripts" and without allow-same-origin, so it has an opaque origin: the book's scripts
+         cannot touch the reader's page, storage, IndexedDB (the library) or cookies. This policy also gives them
+         no network (connect-src, frame-src, form-action and so on are closed) and only blob:/data: media. The one
+         way out is postMessage to the reader, which checks every message (src/lib/sandbox.ts).
+         Scripts here are inline on purpose: a sandboxed page cannot load module scripts from its own origin. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob:; style-src 'unsafe-inline' blob:; img-src blob: data:; font-src blob: data:; media-src blob: data:; connect-src 'none'; frame-src 'none'; worker-src 'none'; form-action 'none'; object-src 'none'; base-uri 'none'"
+    />
+    <title>ספר אינטראקטיבי</title>
+  </head>
+  <body>
+    <script>
+      // The bridge that stays in the chapter: reports it is ready and passes on link taps (the book's own
+      // navigation is replaced by the reader's), nothing else.
+      var BRIDGE =
+        "addEventListener('click',function(e){var a=e.target&&e.target.closest&&e.target.closest('a[href]');if(!a)return;" +
+        "var h=a.getAttribute('href');if(!h||h.charAt(0)==='#')return;e.preventDefault();" +
+        "parent.postMessage({source:'reader-sandbox',type:'link',href:h},'*')},true);" +
+        "parent.postMessage({source:'reader-sandbox',type:'ready'},'*');"
+      addEventListener('message', function onMessage(e) {
+        var d = e.data
+        if (e.source !== parent || !d || d.source !== 'reader' || d.type !== 'load' || typeof d.html !== 'string') return
+        removeEventListener('message', onMessage)
+        document.open()
+        document.write(d.html + '<scr' + 'ipt>' + BRIDGE + '</scr' + 'ipt>')
+        document.close()
+      })
+      parent.postMessage({ source: 'reader-sandbox', type: 'shell-ready' }, '*')
+    </script>
+  </body>
+</html>

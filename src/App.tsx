@@ -2,9 +2,19 @@ import { lazy, Suspense, useEffect, useState } from 'react'
 import ErrorBoundary from './components/ErrorBoundary'
 import Library from './components/Library'
 import Reader from './components/Reader'
-import { getBookMeta } from './lib/db'
+import { makeBook } from 'foliate-js/view.js'
+import { getBook, getBookMeta } from './lib/db'
+import { isScriptedBook } from './lib/sandbox'
 
 const AudioPlayer = lazy(() => import('./components/AudioPlayer'))
+const InteractiveReader = lazy(() => import('./components/InteractiveReader'))
+
+/** an EPUB that declares scripts (an interactive book), which only the sandboxed reader can run */
+async function isInteractive(id: string): Promise<boolean> {
+  const rec = await getBook(id)
+  if (rec?.kind !== 'epub' || rec.fromPdf) return false
+  return isScriptedBook(await makeBook(rec.file))
+}
 
 export default function App() {
   const [openId, setOpenId] = useState<string | null>(() =>
@@ -26,13 +36,22 @@ export default function App() {
 
   // audiobooks open in the player, everything else in the reader
   const [audioId, setAudioId] = useState<string | null>(null)
+  const [interactiveId, setInteractiveId] = useState<string | null>(null)
+  /** the reader chose to open the scripted book as a regular one, with its scripts off */
+  const [plainId, setPlainId] = useState<string | null>(null)
   const [checked, setChecked] = useState<string | null>(null)
   useEffect(() => {
     if (!openId) return
     let alive = true
     getBookMeta(openId)
-      .then((m) => alive && setAudioId(m?.kind === 'audio' ? openId : null))
-      .catch(() => alive && setAudioId(null))
+      .then(async (m) => {
+        const audio = m?.kind === 'audio'
+        const interactive = !audio && (await isInteractive(openId).catch(() => false))
+        if (!alive) return
+        setAudioId(audio ? openId : null)
+        setInteractiveId(interactive ? openId : null)
+      })
+      .catch(() => alive && (setAudioId(null), setInteractiveId(null)))
       .finally(() => alive && setChecked(openId))
     return () => {
       alive = false
@@ -47,6 +66,10 @@ export default function App() {
       {audioId === openId ? (
         <Suspense fallback={null}>
           <AudioPlayer id={openId} onClose={close} />
+        </Suspense>
+      ) : interactiveId === openId && plainId !== openId ? (
+        <Suspense fallback={null}>
+          <InteractiveReader id={openId} onClose={close} onOpenPlain={() => setPlainId(openId)} />
         </Suspense>
       ) : (
         <Reader id={openId} startCfi={startCfi} onClose={close} />

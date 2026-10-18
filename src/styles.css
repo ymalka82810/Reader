@@ -339,3 +339,11 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: 4px; border: 1px solid rg
   :focus-visible { outline: 3px solid Highlight; }
   .seg button.on, button[aria-pressed="true"], .toc li.current button { outline: 2px solid Highlight; }
 }
+
+/* interactive (scripted) EPUBs, see InteractiveReader */
+.interactive-reader { display: flex; flex-direction: column; }
+.interactive-reader .topbar { position: static; flex: none; }
+.interactive-reader .topbar select { max-width: 40%; }
+.interactive-note { flex: none; padding: .35rem .75rem; font-size: .85rem; background: color-mix(in srgb, var(--accent) 12%, var(--bg)); display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+.interactive-frame { flex: 1; width: 100%; border: 0; background: #fff; }
+.interactive-error { padding: 1rem; }
