@@ -20,3 +20,23 @@ self.addEventListener('fetch', (event) => {
     })(),
   )
 })
+
+// Pages: ask the network first so a plain refresh gets the latest deploy (the precached copy would show the
+// previous version until the next reload). Offline or slow (> 4 s): the precached copy.
+self.addEventListener('fetch', (event) => {
+  const req = event.request
+  if (req.mode !== 'navigate' || req.method !== 'GET') return
+  event.respondWith(
+    (async () => {
+      const cached = () => caches.match(req, { ignoreSearch: true }).then((r) => r || caches.match(self.registration.scope + 'index.html', { ignoreSearch: true }))
+      try {
+        return await Promise.race([
+          fetch(req),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000)),
+        ])
+      } catch {
+        return (await cached()) || fetch(req)
+      }
+    })(),
+  )
+})
