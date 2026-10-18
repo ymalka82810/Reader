@@ -9,3 +9,7 @@
 # README
 
 - After every change that adds or alters a user-visible feature or capability (not a small fix), update `README.md` in the same PR: the matching section under "יכולות", the data-structure table if storage changed, and "מגבלות ידועות" if a limitation was added or removed.
+
+# UI design
+
+- The UI must be friendly, not sharp: every button, input, menu, selection area, panel and dialog gets rounded corners, soft borders and a gentle shadow. Use the tokens in `:root` of `src/styles.css` (`--radius-*`, `--border*`, `--fill`, `--shadow-*`), never hard-coded values. Only the high-contrast mode (`.hc`) intentionally uses thick, sharp borders. See "עיצוב" in `README.md`.
