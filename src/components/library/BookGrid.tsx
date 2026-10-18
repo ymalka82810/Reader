@@ -89,9 +89,9 @@ export function BookCard({ book: b, picked, selecting, onOpen, onToggle, onEdit,
   )
 }
 
-export function BookGrid({ books, selected, ...actions }: BookActions & { books: BookMeta[]; selected: Set<string> }) {
+export function BookGrid({ books, selected, list, ...actions }: BookActions & { books: BookMeta[]; selected: Set<string>; list?: boolean }) {
   return (
-    <ul className="grid">
+    <ul className={'grid' + (list ? ' list' : '')}>
       {books.map((b) => (
         <BookCard key={b.id} book={b} picked={selected.has(b.id)} {...actions} />
       ))}

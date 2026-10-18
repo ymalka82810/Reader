@@ -38,10 +38,12 @@ type Props = {
   /** key of the tag being filtered by, '' = any */
   tag: string
   onTag: (key: string) => void
+  list: boolean
+  onList: (list: boolean) => void
 }
 
 /** search box with the filter, tag and sort pickers right under it */
-export function LibTools({ query, onQuery, filter, onFilter, types, folders, onPickBooks, sort, onSort, tags, tag, onTag }: Props) {
+export function LibTools({ query, onQuery, filter, onFilter, types, folders, onPickBooks, sort, onSort, tags, tag, onTag, list, onList }: Props) {
   const [showMore, setShowMore] = useState(false)
   const activeMore = (filter.type ? 1 : 0) + (filter.folder !== undefined ? 1 : 0) + (filter.ids.size ? 1 : 0)
   return (
@@ -85,6 +87,16 @@ export function LibTools({ query, onQuery, filter, onFilter, types, folders, onP
         </button>
       )}
       <Select label={t('sort.label')} value={sort} onChange={onSort} options={SORTS} />
+      <button
+        type="button"
+        className="select-btn view-toggle"
+        aria-pressed={list}
+        aria-label={t('view.list')}
+        title={t('view.list')}
+        onClick={() => onList(!list)}
+      >
+        {list ? '☰' : '▦'}
+      </button>
       {showMore && (
         <div className="lib-tools-more">
           {types.length > 1 && (

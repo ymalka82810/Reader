@@ -14,12 +14,13 @@ type ListProps = {
   selectedFolders: Set<string>
   onOpen: (key: string) => void
   onToggle: (key: string) => void
+  list?: boolean
 }
 
 /** the grid of folders shown at the top level of the library */
-export function FolderList({ folders, loose, bookActions, selecting, selectedFolders, onOpen, onToggle }: ListProps) {
+export function FolderList({ folders, loose, bookActions, selecting, selectedFolders, onOpen, onToggle, list }: ListProps) {
   return (
-    <ul className="grid folders">
+    <ul className={'grid folders' + (list ? ' list' : '')}>
       {folders.map((f) => {
         const lone = loose.has(f.key) ? f.books[0] : undefined
         if (lone)
