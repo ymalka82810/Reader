@@ -53,10 +53,35 @@ describe('translateText', () => {
     expect(await translateText('retry', 'en', 'he')).toBe('ok')
   })
 
-  it('reports an exhausted daily quota as a QuotaError', async () => {
-    const warning = 'MYMEMORY WARNING: YOU USED ALL AVAILABLE FREE TRANSLATIONS FOR TODAY.'
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(reply(warning)).mockResolvedValueOnce({ ok: false, status: 429 } as Response))
+  const warning = 'MYMEMORY WARNING: YOU USED ALL AVAILABLE FREE TRANSLATIONS FOR TODAY.'
+  const google = (text: string) => ({ ok: true, json: async () => [[[text, 'src', null, null, 1]], null, 'en'] }) as Response
+  const byHost = (myMemory: Response, other: Response) =>
+    vi.fn((url: string) => Promise.resolve(String(url).includes('mymemory') ? myMemory : other))
+
+  it('reports a QuotaError when MyMemory is out of quota and the fallback fails too', async () => {
+    vi.stubGlobal('fetch', byHost(reply(warning), { ok: false, status: 503 } as Response))
     await expect(translateText('quota one', 'en', 'he')).rejects.toBeInstanceOf(QuotaError)
     await expect(translateText('quota two', 'en', 'he')).rejects.toBeInstanceOf(QuotaError)
+  })
+
+  it('falls back to Google when MyMemory fails, and joins its segments', async () => {
+    const segments = { ok: true, json: async () => [[['שלום ', 'hello '], ['עולם', 'world']], null, 'en'] } as Response
+    const fetchMock = byHost({ ok: false, status: 500 } as Response, segments)
+    vi.stubGlobal('fetch', fetchMock)
+    expect(await translateText('hello world', 'en', 'he')).toBe('שלום עולם')
+    const url = new URL(String(fetchMock.mock.calls[1]![0]))
+    expect(url.host).toBe('translate.googleapis.com')
+    expect(url.searchParams.get('sl')).toBe('en')
+    expect(url.searchParams.get('tl')).toBe('he')
+  })
+
+  it('skips MyMemory for later passages once its quota has been hit', async () => {
+    const fetchMock = byHost(reply(warning), google('תרגום'))
+    vi.stubGlobal('fetch', fetchMock)
+    expect(await translateText('first passage', '', 'he')).toBe('תרגום')
+    expect(new URL(String(fetchMock.mock.calls[1]![0])).searchParams.get('sl')).toBe('auto')
+    fetchMock.mockClear()
+    expect(await translateText('second passage', '', 'he')).toBe('תרגום')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })

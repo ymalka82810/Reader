@@ -3,11 +3,12 @@ export type Service = 'translate' | 'dict'
 
 /** the host that gets the text, shown in the consent notice */
 export const SERVICE_HOST: Record<Service, string> = {
-  translate: 'api.mymemory.translated.net (MyMemory)',
+  translate: 'api.mymemory.translated.net (MyMemory) / translate.googleapis.com (Google Translate)',
   dict: 'wiktionary.org',
 }
 
-const key = (s: Service) => `reader:consent:${s}`
+/** translate is "v2": the earlier yes covered MyMemory only, and Google can now receive the text too */
+const key = (s: Service) => `reader:consent:${s === 'translate' ? 'translate2' : s}`
 
 export function hasConsent(s: Service): boolean {
   try {
