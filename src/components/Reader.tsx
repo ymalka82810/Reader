@@ -34,6 +34,7 @@ import { formatMinutes, loadStats, minutesLeft, type Stats } from '../lib/stats'
 import { getLocale, isRtl, t } from '../i18n'
 import { customFontFace, loadCustomFont, type CustomFont } from '../lib/customFont'
 import { EYE_SCROLL_AVAILABLE, loadViewModes, saveViewModes, type ViewModes } from '../lib/viewModes'
+import { isNativeApp } from '../lib/updater'
 import { applyA11yClasses, loadSettings, saveSettings, themeColors, type Settings } from '../lib/settings'
 
 const TAP_HELP_KEY = 'reader:tapHelpSeen'
@@ -47,7 +48,10 @@ export default function Reader({ id, startCfi, onClose }: { id: string; startCfi
   const viewRef = useRef<FoliateView | null>(null)
   const [settings, setSettings] = useState<Settings>(loadSettings)
   const settingsRef = useLatest(settings)
-  const [modes, setModes] = useState<ViewModes>(loadViewModes)
+  const [modes, setModes] = useState<ViewModes>(() => {
+    const m = loadViewModes()
+    return isNativeApp ? { ...m, focus: false } : m // the app is already full screen: no distraction-free mode there
+  })
   const [uiVisible, setUiVisible] = useState(true)
   const { panel, panelRef, setPanel, closePanel, togglePanel, editingId, editNote, dict, openDict, translation, openTranslate, quote, openQuote } = useReaderPanels()
   const [fraction, setFraction] = useState(0)
@@ -205,6 +209,7 @@ export default function Reader({ id, startCfi, onClose }: { id: string; startCfi
     flash,
   })
   const toggleFocus = () => {
+    if (isNativeApp) return
     const on = !modes.focus
     setMode('focus', on)
     if (on) {
@@ -424,14 +429,16 @@ export default function Reader({ id, startCfi, onClose }: { id: string; startCfi
         >
           <Icon d="M4 6h16M4 12h16M4 18h16" />
         </button>
-        <button
-          onClick={toggleFocus}
-          aria-label={t('reader.focus')}
-          aria-pressed={modes.focus}
-          title={t('reader.focusTitle')}
-        >
-          <Icon d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
-        </button>
+        {!isNativeApp && (
+          <button
+            onClick={toggleFocus}
+            aria-label={t('reader.focus')}
+            aria-pressed={modes.focus}
+            title={t('reader.focusTitle')}
+          >
+            <Icon d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+          </button>
+        )}
         <button onClick={() => togglePanel('search')} aria-label={t('reader.search')} title={t('reader.search')}>
           <Icon d="M10.5 18a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15zM16 16l5 5" />
         </button>
