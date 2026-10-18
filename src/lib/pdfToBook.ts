@@ -2,7 +2,7 @@ import { t } from '../i18n'
 import type { PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import { ImportError } from './errors'
 import { buildLines, looksTabular, rawItems, readingGroups, type Line } from './pdfLayout'
-import { detectHeadings, isPoorPage, joinPages, looksReversed, stripRunningLines, toParagraphs } from './pdfText'
+import { detectHeadings, isBlankPixels, isPoorPage, joinPages, looksReversed, stripRunningLines, toParagraphs } from './pdfText'
 
 const PAGES_PER_SECTION = 8
 /** a page with less text than this is treated as an image (a scan) */
@@ -33,17 +33,31 @@ interface PageImage {
 }
 
 const COVER_HEIGHT = 900
+/** how many opening pages are tried for a cover before giving up on a blank-looking start */
+const COVER_SEARCH_PAGES = 3
 const PAGE_IMAGE_HEIGHT = 1100
 /** keeps the EPUB (and the library in IndexedDB) from ballooning on a long, badly converted PDF */
 const MAX_PAGE_IMAGES = 120
 
 
-/** Render one page as a JPEG of the given height; null when rendering isn't possible. */
+/** Checked on a downscaled copy: cheap, and a line of text still leaves a non-white pixel. */
+function isBlankCanvas(canvas: HTMLCanvasElement): boolean {
+  const small = document.createElement('canvas')
+  small.width = 48
+  small.height = Math.max(1, Math.round((48 * canvas.height) / canvas.width))
+  const ctx = small.getContext('2d')
+  if (!ctx) return false
+  ctx.drawImage(canvas, 0, 0, small.width, small.height)
+  return isBlankPixels(ctx.getImageData(0, 0, small.width, small.height).data)
+}
+
+/** Render one page as a JPEG of the given height; null when rendering isn't possible (or, with skipBlank, the page came out blank). */
 async function renderPage(
   pdf: PDFDocumentProxy,
   pageNumber: number,
   height: number,
   quality: number,
+  skipBlank = false,
 ): Promise<Blob | null> {
   try {
     const page = await pdf.getPage(pageNumber)
@@ -54,6 +68,10 @@ async function renderPage(
     canvas.height = Math.ceil(viewport.height)
     await page.render({ canvas, viewport }).promise
     page.cleanup()
+    if (skipBlank && isBlankCanvas(canvas)) {
+      canvas.width = canvas.height = 0
+      return null
+    }
     const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/jpeg', quality))
     canvas.width = canvas.height = 0
     return blob
@@ -63,7 +81,14 @@ async function renderPage(
   }
 }
 
-const renderCover = (pdf: PDFDocumentProxy) => renderPage(pdf, 1, COVER_HEIGHT, 0.85)
+/** The first of the opening pages that isn't blank; none when they all are, so the library shows the title instead of a white page. */
+async function renderCover(pdf: PDFDocumentProxy): Promise<Blob | null> {
+  for (let i = 1; i <= Math.min(COVER_SEARCH_PAGES, pdf.numPages); i++) {
+    const cover = await renderPage(pdf, i, COVER_HEIGHT, 0.85, true)
+    if (cover) return cover
+  }
+  return null
+}
 
 /** Legacy: books imported before the PDF→EPUB conversion store ready-made HTML sections. */
 export interface LegacyPdfBook {
@@ -117,7 +142,11 @@ export async function extractPdf(
     import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'),
   ])
   pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
-  const task = pdfjs.getDocument({ data: await file.arrayBuffer() })
+  const task = pdfjs.getDocument({
+    data: await file.arrayBuffer(),
+    // JPEG2000 (common in scanned covers) and JBIG2 images are decoded by wasm that pdf.js loads from here
+    wasmUrl: new URL('pdfjs-wasm/', document.baseURI).href,
+  })
   const pdf = await task.promise
   const total = pdf.numPages
   let pages: Line[][] = []

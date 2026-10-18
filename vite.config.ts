@@ -1,7 +1,26 @@
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { readFileSync } from 'node:fs'
+import { defineConfig, type Plugin } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import { visualizer } from 'rollup-plugin-visualizer'
+
+// pdf.js decodes JPEG2000 / JBIG2 / ICC-profiled images with wasm it fetches at run time (getDocument's wasmUrl)
+const PDFJS_WASM = ['openjpeg.wasm', 'jbig2.wasm', 'qcms_bg.wasm']
+const pdfjsWasm = (): Plugin => ({
+  name: 'pdfjs-wasm',
+  configureServer(server) {
+    server.middlewares.use('/pdfjs-wasm', (req, res, next) => {
+      const file = PDFJS_WASM.find((f) => req.url?.split('?')[0] === '/' + f)
+      if (!file) return next()
+      res.setHeader('Content-Type', 'application/wasm')
+      res.end(readFileSync(`node_modules/pdfjs-dist/wasm/${file}`))
+    })
+  },
+  generateBundle() {
+    for (const f of PDFJS_WASM)
+      this.emitFile({ type: 'asset', fileName: `pdfjs-wasm/${f}`, source: readFileSync(`node_modules/pdfjs-dist/wasm/${f}`) })
+  },
+})
 
 export default defineConfig({
   base: './',
@@ -9,6 +28,7 @@ export default defineConfig({
   build: { rollupOptions: { input: { main: 'index.html', eye: 'eye.html', interactive: 'interactive.html' } } },
   plugins: [
     react(),
+    pdfjsWasm(),
     // `ANALYZE=1 npm run build` writes dist-stats.html (treemap of the bundle).
     !!process.env.ANALYZE && visualizer({ filename: 'dist-stats.html', gzipSize: true }),
     VitePWA({

@@ -164,3 +164,11 @@ export function detectHeadings(pages: Line[][], reversed: boolean): Map<number, 
   // too many "headings" means the heuristic is catching ordinary text
   return out.size > Math.max(40, pages.length / 2) ? new Map() : out
 }
+
+/** True when every pixel (RGBA bytes) is white or nearly so: a blank page, or one pdf.js could not draw. */
+export function isBlankPixels(data: ArrayLike<number>): boolean {
+  for (let i = 0; i < data.length; i += 4) {
+    if ((data[i + 3] ?? 0) > 0 && ((data[i] ?? 255) < 248 || (data[i + 1] ?? 255) < 248 || (data[i + 2] ?? 255) < 248)) return false
+  }
+  return true
+}
