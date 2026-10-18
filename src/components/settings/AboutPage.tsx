@@ -2,11 +2,12 @@ import { isNativeApp } from '../../lib/updater'
 import { t } from '../../i18n'
 import { Row, Section } from './parts'
 
-const REPO_URL = 'https://github.com/ymalka82810/Reader'
-
 export function AboutPage({ busy, onCheckUpdate }: { busy: boolean; onCheckUpdate: () => void }) {
   return (
     <>
+      <Section title={t('app.title')}>
+        <p className="prefs-about">{t('prefs.aboutText')}</p>
+      </Section>
       {isNativeApp && (
         <Section title={t('prefs.updates')}>
           <Row label={t('menu.checkUpdate')} hint={t('menu.checkUpdateTip')}>
@@ -25,9 +26,6 @@ export function AboutPage({ busy, onCheckUpdate }: { busy: boolean; onCheckUpdat
           <li><kbd>/</kbd> {t('kbd.search')} · <kbd>s</kbd> {t('kbd.settings')} · <kbd>Esc</kbd> {t('kbd.close')}</li>
         </ul>
       </Section>
-      <p>
-        <a href={REPO_URL} target="_blank" rel="noopener noreferrer">{t('prefs.source')}</a>
-      </p>
     </>
   )
 }

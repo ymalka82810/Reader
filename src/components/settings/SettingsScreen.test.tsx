@@ -10,7 +10,7 @@ beforeAll(() => {
 })
 
 const media = (wide: boolean) =>
-  vi.stubGlobal('matchMedia', () => ({ matches: wide, addEventListener() {}, removeEventListener() {} }))
+  vi.stubGlobal('matchMedia', (q: string) => ({ matches: q.includes('min-width') && wide, addEventListener() {}, removeEventListener() {} }))
 
 const actions = (): BackupActions => ({
   busy: false,
@@ -37,7 +37,7 @@ describe('SettingsScreen', () => {
     media(false)
     renderScreen()
     const nav = screen.getByRole('navigation', { name: 'דפי ההגדרות' })
-    expect(within(nav).getAllByRole('button').map((b) => b.textContent)).toEqual(['שפה ולימוד', 'גיבוי ואחסון', 'אודות'])
+    expect(within(nav).getAllByRole('button').map((b) => b.textContent)).toEqual(['מראה וקריאה', 'נגישות', 'שפה ולימוד', 'גיבוי ואחסון', 'אודות'])
     expect(screen.queryByRole('region')).toBeNull()
 
     fireEvent.click(within(nav).getByText('גיבוי ואחסון'))
@@ -53,7 +53,7 @@ describe('SettingsScreen', () => {
     media(true)
     renderScreen()
     expect(screen.getByRole('navigation')).toBeTruthy()
-    expect(screen.getByRole('region', { name: 'שפה ולימוד' })).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'מראה וקריאה' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'חזרה לרשימת ההגדרות' })).toBeNull()
   })
 
@@ -78,9 +78,29 @@ describe('SettingsScreen', () => {
   it('saves the dictionary language to the display settings', () => {
     media(true)
     renderScreen()
+    fireEvent.click(screen.getByText('שפה ולימוד'))
     fireEvent.click(screen.getByRole('button', { name: 'שפת מילון' }))
     fireEvent.click(screen.getByRole('option', { name: 'English' }))
     expect(JSON.parse(localStorage.getItem('reader:settings') ?? '{}').dictLang).toBe('en')
+  })
+
+  it('turns on high contrast for the whole app from the accessibility page', () => {
+    media(true)
+    renderScreen()
+    fireEvent.click(screen.getByText('נגישות'))
+    fireEvent.click(screen.getByRole('checkbox', { name: /ניגודיות גבוהה/ }))
+    expect(JSON.parse(localStorage.getItem('reader:settings') ?? '{}').contrast).toBe(true)
+    expect(document.documentElement.classList.contains('hc')).toBe(true)
+    document.documentElement.classList.remove('hc')
+  })
+
+  it('edits the layout settings of the reading look', () => {
+    media(true)
+    renderScreen()
+    fireEvent.click(screen.getByRole('checkbox', { name: /יישור לשני הצדדים/ }))
+    fireEvent.change(screen.getByRole('slider', { name: 'שוליים' }), { target: { value: '9' } })
+    const saved = JSON.parse(localStorage.getItem('reader:settings') ?? '{}')
+    expect(saved).toMatchObject({ justify: true, margin: 9 })
   })
 
   it('closes with Escape and the close button', () => {

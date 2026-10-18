@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react'
 import { t } from '../../i18n'
-import { applyA11yClasses, loadSettings, saveSettings } from '../../lib/settings'
 import { menuKeyDown } from '../menuKeys'
 
 type View = {
@@ -19,20 +18,13 @@ type Props = {
   onCatalog: () => void
 }
 
-/** the "⋯" menu in the library header: actions (catalogs, goals, review, folders, selecting, backup, restore) and the accessibility toggles; the rest is in the settings screen */
+/** the "⋯" menu in the library header: actions only (catalogs, goals, review, folders, selecting, backup, restore); settings are in the settings screen */
 export function BackupMenu({ view, busy, onBackup, onRestore, onGoals, onReview, onCatalog }: Props) {
   const [open, setOpen] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
   const close = (refocus = false) => {
     setOpen(false)
     if (refocus) trigger.current?.focus()
-  }
-  const [a11y, setA11y] = useState(() => loadSettings())
-  const toggleA11y = (k: 'contrast' | 'dyslexia') => {
-    const next = { ...loadSettings(), [k]: !a11y[k] }
-    saveSettings(next)
-    applyA11yClasses(next)
-    setA11y(next)
   }
   const items: [string, () => void, string][] = [
     [t('backup.title'), onBackup, t('menu.backupTip')],
@@ -85,13 +77,6 @@ export function BackupMenu({ view, busy, onBackup, onRestore, onGoals, onReview,
                 {label}
               </button>
             ))}
-            <div className="menu-sep" role="separator" />
-            <button role="menuitemcheckbox" aria-checked={a11y.contrast} title={t('a11y.contrastTip')} onClick={() => toggleA11y('contrast')}>
-              {a11y.contrast ? '✓ ' : ''}{t('a11y.contrast')}
-            </button>
-            <button role="menuitemcheckbox" aria-checked={a11y.dyslexia} title={t('a11y.dyslexiaTip')} onClick={() => toggleA11y('dyslexia')}>
-              {a11y.dyslexia ? '✓ ' : ''}{t('a11y.dyslexia')}
-            </button>
           </div>
           </div>
         </>

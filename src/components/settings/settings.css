@@ -17,7 +17,6 @@
 .prefs-label small { opacity: .7; line-height: 1.4; }
 .prefs-control { flex: none; }
 .shortcuts-list { margin: 0; padding-inline-start: 1.2rem; display: flex; flex-direction: column; gap: .4rem; line-height: 1.6; }
-.prefs-page a { color: var(--accent); }
 @media (min-width: 720px) {
   .prefs-nav { width: 15rem; flex: none; border-inline-end: 1px solid rgba(127,127,127,.2); }
   .prefs-page { margin-inline: 0; max-width: none; padding: 1.5rem 2rem; }
@@ -28,3 +27,9 @@
 .hc .prefs-nav button[aria-current="page"] { background: #ffff00; color: #000; }
 .hc .prefs-label small, .hc .prefs-section h3, .hc .prefs-section .muted { opacity: 1; }
 .prefs-open { flex: none; font-size: 1.2rem; line-height: 1; padding: .5rem .7rem; background: transparent; }
+.prefs-control { display: flex; align-items: center; gap: .5rem; }
+.prefs-control input[type=range] { width: 10rem; }
+.prefs-toggle { cursor: pointer; }
+.prefs-toggle input { flex: none; width: 1.3rem; height: 1.3rem; }
+.prefs-control .upload { white-space: nowrap; }
+.prefs-about { margin: 0; line-height: 1.7; }

@@ -5,13 +5,17 @@ import { useBackGesture } from '../../hooks/useBackGesture'
 import { useLatest } from '../../hooks/useLatest'
 import { Dialog } from '../Dialog'
 import { AboutPage } from './AboutPage'
+import { AccessibilityPage } from './AccessibilityPage'
+import { AppearancePage } from './AppearancePage'
 import { BackupPage, type BackupActions } from './BackupPage'
 import { LanguagePage } from './LanguagePage'
 import './settings.css'
 
-export type PageId = 'language' | 'backup' | 'about'
+export type PageId = 'appearance' | 'a11y' | 'language' | 'backup' | 'about'
 
 const PAGES: [PageId, string][] = [
+  ['appearance', t('prefs.page.appearance')],
+  ['a11y', t('prefs.page.a11y')],
   ['language', t('prefs.page.language')],
   ['backup', t('prefs.page.backup')],
   ['about', t('prefs.page.about')],
@@ -95,6 +99,8 @@ export function SettingsScreen({ onClose, backup, onCheckUpdate, startPage }: Pr
         {current && (
           <div className="prefs-page" role="region" aria-label={title}>
             {wide && <h2>{title}</h2>}
+            {current === 'appearance' && <AppearancePage settings={settings} set={set} />}
+            {current === 'a11y' && <AccessibilityPage settings={settings} set={set} />}
             {current === 'language' && <LanguagePage settings={settings} set={set} />}
             {current === 'backup' && <BackupPage actions={backup} leave={close} />}
             {current === 'about' && <AboutPage busy={backup.busy} onCheckUpdate={() => { close(); onCheckUpdate() }} />}
