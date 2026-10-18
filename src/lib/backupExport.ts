@@ -1,6 +1,6 @@
 import { getAllProgress, getFile, getNotes, listBooks, type Annotation } from './db'
 import { loadStats } from './stats'
-import { loadReadingLog } from './readingLog'
+import { loadReadingHours, loadReadingLog } from './readingLog'
 import { listWords, loadCardStates } from './flashcards'
 import { loadSettings } from './settings'
 import { encryptBlob, encryptChunks } from './encrypt'
@@ -89,6 +89,7 @@ async function buildPlain(onProgress?: (done: number, total: number) => void): P
       (await Promise.all(books.map(async (b) => [b.id, await loadStats(b.id)] as const))).filter(([, s]) => s.secs > 0),
     ),
     readingLog: await loadReadingLog(),
+    readingHours: await loadReadingHours(),
     vocab: await listWords(),
     cardStates: Object.fromEntries(await loadCardStates()),
   }

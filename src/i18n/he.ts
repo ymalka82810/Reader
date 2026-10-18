@@ -220,6 +220,13 @@ export const he = {
   'goals.chart': 'זמן קריאה ב־{n} הימים האחרונים',
   'goals.note': 'הנתונים מתחילים להישמר מהקריאה הבאה.',
   'goals.weekdays': 'א׳,ב׳,ג׳,ד׳,ה׳,ו׳,ש׳',
+  'goals.yearly': 'יעד שנתי (בשעות, 0 = ללא יעד)',
+  'goals.yearProgress': '{done} מתוך {goal} שעות השנה',
+  'goals.yearProjected': 'בקצב הנוכחי: כ־{n} שעות עד סוף השנה',
+  'goals.heatmap': 'ימי קריאה בשנה האחרונה',
+  'goals.hours': 'מתי קוראים (יום בשבוע × שעה)',
+  'goals.less': 'פחות',
+  'goals.more': 'יותר',
   'time.min': '{m} דק׳',
   'time.hour': '{h} שע׳',
 

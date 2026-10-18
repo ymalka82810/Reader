@@ -1,7 +1,7 @@
 import { getNotes, hasBook, listBooks, mergeProgress, saveBook, saveNotes, type BookRecord } from './db'
 import { sameBook } from './sameBook'
 import { mergeStats } from './stats'
-import { mergeReadingLog } from './readingLog'
+import { mergeReadingHours, mergeReadingLog } from './readingLog'
 import { mergeReview } from './flashcards'
 import { loadSettings, saveSettings } from './settings'
 import { decryptStream, isEncrypted, PasswordRequiredError } from './encrypt'
@@ -119,6 +119,7 @@ export async function importLibrary(
     throw new Error(t('backup.partial', { msg, done, total: header.books.length }))
   }
   if (header.readingLog) await mergeReadingLog(header.readingLog)
+  if (header.readingHours) await mergeReadingHours(header.readingHours)
   if (header.vocab || header.cardStates) await mergeReview(header.vocab ?? [], header.cardStates ?? {})
   if (header.settings) saveSettings({ ...loadSettings(), ...header.settings })
   return { restored: header.books.length - skipped, skipped }
