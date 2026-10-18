@@ -5,8 +5,8 @@ import { visualizer } from 'rollup-plugin-visualizer'
 
 export default defineConfig({
   base: './',
-  // eye.html is the hidden page eye scrolling runs in (its own content-security policy, see the file)
-  build: { rollupOptions: { input: { main: 'index.html', eye: 'eye.html' } } },
+  // eye.html is the hidden page eye scrolling runs in, interactive.html the sandbox for scripted EPUBs (each has its own content-security policy, see the files)
+  build: { rollupOptions: { input: { main: 'index.html', eye: 'eye.html', interactive: 'interactive.html' } } },
   plugins: [
     react(),
     // `ANALYZE=1 npm run build` writes dist-stats.html (treemap of the bundle).
@@ -34,8 +34,8 @@ export default defineConfig({
             options: { cacheName: 'face-mesh' },
           },
         ],
-        // eye.html is a real page (iframe), not an app route to answer with index.html
-        navigateFallbackDenylist: [/eye\.html$/],
+        // eye.html and interactive.html are real pages (iframes), not an app route to answer with index.html
+        navigateFallbackDenylist: [/(eye|interactive)\.html$/],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         importScripts: ['share-target.js'],
       },
