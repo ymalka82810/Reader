@@ -80,6 +80,8 @@ export const en: Record<keyof typeof he, Message> = {
   'sort.added': 'Recently added',
   'sort.title': 'Title (A–Z)',
   'sort.author': 'Author (A–Z)',
+  'import.counting': 'Counting words…',
+  'lib.countingWords': 'Counting words in existing books…',
   'sort.longest': 'Longest',
   'smart.label': 'Smart collections',
   'smart.none': 'All books',

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { getAllNotes, getFile, isFinished, updateMeta, type Annotation, type BookMeta } from '../lib/db'
+import { getAllNotes, getFile, isFinished, setWords, updateMeta, type Annotation, type BookMeta } from '../lib/db'
 import { searchNotes } from '../lib/noteSearch'
 import { backupDue } from '../lib/backupReminder'
 import { getStorageStatus, requestPersistence, type StorageStatus } from '../lib/storage'
@@ -20,6 +20,7 @@ import { BackupMenu } from './library/BackupMenu'
 import { LibTools, type Sort } from './library/LibTools'
 import { CatalogDialog } from './library/CatalogDialog'
 import { PickBooksDialog } from './library/PickBooksDialog'
+import { wordsOfFile } from '../lib/wordCount'
 import { bookType, byLength, isFiltering, isStale, longestOf, NO_FILTER, typesOf, type LibraryFilter } from '../lib/libraryFilter'
 import { folderKey, groupFolders } from '../lib/folders'
 import { BookGrid } from './library/BookGrid'
@@ -86,24 +87,38 @@ export default function Library({ onOpen }: { onOpen: (id: string, cfi?: string)
   // a tag that no book carries any more stops filtering
   const activeTag = tags.some((x) => x.key === tag) ? tag : ''
 
-  // file sizes stand in for book length; they are read only once "longest" is asked for
-  const needSizes = sort === 'longest' || filter.smart === 'longest'
-  const [sizes, setSizes] = useState<ReadonlyMap<string, number>>(new Map())
+  // books added before words were counted get their count the first time "longest" is asked for
+  const needLengths = sort === 'longest' || filter.smart === 'longest'
+  const lengths = useMemo(() => new Map(books.map((b) => [b.id, b.words ?? 0])), [books])
   useEffect(() => {
-    if (!needSizes) return
+    if (!needLengths) return
+    const missing = books.filter((b) => b.kind !== 'audio' && b.words === undefined)
+    if (!missing.length) return
     let alive = true
-    Promise.all(books.map(async (b) => [b.id, (await getFile(b.id))?.size ?? 0] as const))
-      .then((e) => alive && setSizes(new Map(e)))
-      .catch(console.error)
+    showToast(t('lib.countingWords'))
+    ;(async () => {
+      for (const b of missing) {
+        if (!alive) return
+        try {
+          const f = await getFile(b.id)
+          await setWords(b.id, f ? await wordsOfFile(f) : 0)
+        } catch (e) {
+          console.error(e)
+          await setWords(b.id, 0)
+        }
+      }
+      clearToast()
+      await refresh()
+    })()
     return () => {
       alive = false
     }
-  }, [needSizes, books])
+  }, [needLengths, books, showToast, clearToast, refresh])
 
   // books passing the filter and tag pickers, before the text query
   const scoped = useMemo(() => {
     const now = loadedAt
-    const longest = filter.smart === 'longest' ? longestOf(books, sizes) : undefined
+    const longest = filter.smart === 'longest' ? longestOf(books, lengths) : undefined
     const state = (b: BookMeta) => (isFinished(b) ? 'finished' : b.fraction ? 'reading' : 'unread')
     return books.filter(
       (b) =>
@@ -115,7 +130,7 @@ export default function Library({ onOpen }: { onOpen: (id: string, cfi?: string)
         (filter.smart !== 'stale' || isStale(b, now)) &&
         (!longest || longest.has(b.id)),
     )
-  }, [books, filter, activeTag, sizes, loadedAt])
+  }, [books, filter, activeTag, lengths, loadedAt])
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -128,9 +143,9 @@ export default function Library({ onOpen }: { onOpen: (id: string, cfi?: string)
     if (sort === 'title') list.sort(by((b) => b.title))
     else if (sort === 'author') list.sort(by((b) => b.author || '￿'))
     else if (sort === 'added') list.sort((a, b) => b.addedAt - a.addedAt)
-    else if (sort === 'longest') list.sort(byLength(sizes))
+    else if (sort === 'longest') list.sort(byLength(lengths))
     return list // 'recent' keeps the order listBooks returns
-  }, [scoped, query, sort, sizes])
+  }, [scoped, query, sort, lengths])
 
   // highlights and notes of every book are read once a search starts, and searched along with the titles
   const searchingText = !!query.trim()
