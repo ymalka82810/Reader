@@ -150,6 +150,16 @@ export function lastDays(log: ReadingLog, count: number, today: string): { key: 
   })
 }
 
+/** the calendar week (Sunday to Saturday) containing `today`, including the days still to come */
+export function weekDays(log: ReadingLog, today: string): { key: string; secs: number }[] {
+  const [y, m, d] = today.split('-').map(Number)
+  const first = shiftDay(today, -new Date(y!, m! - 1, d!).getDay())
+  return Array.from({ length: 7 }, (_, i) => {
+    const key = shiftDay(first, i)
+    return { key, secs: log[key] ?? 0 }
+  })
+}
+
 /** every day of the calendar month containing `today`, including the days still to come */
 export function monthDays(log: ReadingLog, today: string): { key: string; secs: number }[] {
   const [y, m] = today.split('-').map(Number)

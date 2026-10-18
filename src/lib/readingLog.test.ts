@@ -13,6 +13,7 @@ import {
   mergeReadingHours,
   mergeReadingLog,
   shiftDay,
+  weekDays,
   weekdayHourMatrix,
   weekSummary,
   yearProgress,
@@ -76,6 +77,14 @@ describe('storage', () => {
 
     await mergeReadingLog({ '2026-03-10': 50, '2026-03-09': 20, bad: 5, '2026-03-08': -1 })
     expect(await loadReadingLog()).toEqual({ '2026-03-10': 75, '2026-03-09': 20 })
+  })
+})
+
+describe('weekDays', () => {
+  it('covers Sunday to Saturday around today', () => {
+    const d = weekDays({ '2026-03-08': 30 }, T) // T is a Tuesday
+    expect(d.map((x) => x.key)).toEqual(['2026-03-08', '2026-03-09', '2026-03-10', '2026-03-11', '2026-03-12', '2026-03-13', '2026-03-14'])
+    expect(d[0]!.secs).toBe(30)
   })
 })
 

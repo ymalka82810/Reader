@@ -8,7 +8,7 @@ import {
   dayKey,
   heatLevel,
   heatmapWeeks,
-  lastDays,
+  weekDays,
   monthDays,
   loadReadingHours,
   loadReadingLog,
@@ -52,7 +52,7 @@ export function GoalsDialog({ onClose }: { onClose: () => void }) {
   const todaySecs = log?.[today] ?? 0
   const week = log && weekSummary(log, goalSecs, today)
   const streak = log ? currentStreak(log, goalSecs, today) : 0
-  const days = log ? (range === 7 ? lastDays(log, 7, today) : monthDays(log, today)) : []
+  const days = log ? (range === 7 ? weekDays(log, today) : monthDays(log, today)) : []
   // headroom so the minutes label above the tallest bar stays inside the chart
   const max = Math.max(goalSecs, ...days.map((d) => d.secs), 1) * 1.2
   const year = log && yearProgress(log, today)

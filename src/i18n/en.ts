@@ -225,7 +225,7 @@ export const en: Record<keyof typeof he, Message> = {
   'goals.daysMet': 'days goal met',
   'goals.daysRead': 'days with reading',
   'goals.range': 'Chart range',
-  'goals.week': 'Week',
+  'goals.week': 'This week',
   'goals.month': 'This month',
   'goals.chart': 'Reading time per day ({n} days)',
   'goals.note': 'Data starts being saved from your next reading session.',
