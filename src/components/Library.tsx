@@ -23,7 +23,7 @@ import { bookType, isFiltering, NO_FILTER, typesOf, type LibraryFilter } from '.
 import { folderKey, groupFolders } from '../lib/folders'
 import { BookGrid } from './library/BookGrid'
 import { NoteHits } from './library/NoteHits'
-import { Cover } from './library/Cover'
+import { ResumeCarousel } from './library/ResumeCarousel'
 import { FolderBar, FolderList } from './library/FolderBar'
 import {
   ConfirmDeleteDialog,
@@ -138,15 +138,12 @@ export default function Library({ onOpen }: { onOpen: (id: string, cfi?: string)
   const inFolderList = !searching && !current
   const pickedFolders = folders.filter((f) => selectedFolders.has(f.key))
 
-  // the book opened last that is still in progress, offered as a one-tap way back
+  // books still in progress, last opened first, offered as a one-tap way back
   const resume = useMemo(() => {
-    if (selecting || query.trim() || isFiltering(filter) || activeTag) return undefined
-    let best: BookMeta | undefined
-    for (const b of books) {
-      if (!b.fraction || isFinished(b) || !b.lastOpened) continue
-      if (!best || b.lastOpened > best.lastOpened!) best = b
-    }
-    return best
+    if (selecting || query.trim() || isFiltering(filter) || activeTag) return []
+    return books
+      .filter((b) => b.fraction && !isFinished(b) && b.lastOpened)
+      .sort((a, b) => b.lastOpened! - a.lastOpened!)
   }, [books, selecting, query, filter, activeTag])
 
   const doDelete = async () => {
@@ -259,18 +256,7 @@ export default function Library({ onOpen }: { onOpen: (id: string, cfi?: string)
         </div>
       )}
 
-      {resume && (
-        <button className="continue" onClick={() => onOpen(resume.id)}>
-          <Cover book={resume} />
-          <span className="continue-info">
-            <small>{t('lib.resume')}</small>
-            <strong>{resume.title}</strong>
-            {resume.author && <small>{resume.author}</small>}
-            <progress value={resume.fraction} max={1} aria-label={t('book.percentRead', { pct: Math.round((resume.fraction ?? 0) * 100) })} />
-          </span>
-          <span className="continue-cta">{t('lib.continue')}</span>
-        </button>
-      )}
+      {resume.length > 0 && <ResumeCarousel books={resume} onOpen={(id) => onOpen(id)} />}
 
       {books.length > 1 && (
         <LibTools
