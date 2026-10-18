@@ -7,6 +7,7 @@ import {
   heatLevel,
   heatmapWeeks,
   lastDays,
+  monthDays,
   loadReadingHours,
   loadReadingLog,
   mergeReadingHours,
@@ -75,6 +76,16 @@ describe('storage', () => {
 
     await mergeReadingLog({ '2026-03-10': 50, '2026-03-09': 20, bad: 5, '2026-03-08': -1 })
     expect(await loadReadingLog()).toEqual({ '2026-03-10': 75, '2026-03-09': 20 })
+  })
+})
+
+describe('monthDays', () => {
+  it('covers the whole calendar month, past and future days alike', () => {
+    const d = monthDays({ '2026-02-03': 90, '2026-01-31': 5 }, '2026-02-10')
+    expect(d).toHaveLength(28)
+    expect(d[0]).toEqual({ key: '2026-02-01', secs: 0 })
+    expect(d[2]).toEqual({ key: '2026-02-03', secs: 90 })
+    expect(d[27]!.key).toBe('2026-02-28')
   })
 })
 

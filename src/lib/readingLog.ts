@@ -150,6 +150,17 @@ export function lastDays(log: ReadingLog, count: number, today: string): { key: 
   })
 }
 
+/** every day of the calendar month containing `today`, including the days still to come */
+export function monthDays(log: ReadingLog, today: string): { key: string; secs: number }[] {
+  const [y, m] = today.split('-').map(Number)
+  const count = new Date(y!, m!, 0).getDate()
+  const first = `${today.slice(0, 8)}01`
+  return Array.from({ length: count }, (_, i) => {
+    const key = shiftDay(first, i)
+    return { key, secs: log[key] ?? 0 }
+  })
+}
+
 export interface WeekSummary {
   totalSecs: number
   /** days among the last seven with any reading */
