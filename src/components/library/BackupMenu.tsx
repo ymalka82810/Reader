@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { t } from '../../i18n'
 import { applyA11yClasses, loadSettings, saveSettings } from '../../lib/settings'
 import { menuKeyDown } from '../menuKeys'
+import { isNativeApp } from '../../lib/updater'
 
 type View = {
   onNewFolder?: () => void
@@ -49,9 +50,12 @@ export function BackupMenu({ view, busy, onBackup, onRestore, onGoals, onReview,
           <div className="menu-backdrop" onClick={() => close()} />
           <div className="menu-pop" tabIndex={-1} autoFocus onKeyDown={(e) => menuKeyDown(e, () => close(true))}>
           <div className="menu" role="menu">
-            <button role="menuitem" title={t('opds.menuTip')} disabled={busy} onClick={() => { close(); onCatalog() }}>
-              {t('opds.menu')}
-            </button>
+            {/* catalogs rarely allow cross-origin reads, so only the app (native HTTP, no CORS) offers them */}
+            {isNativeApp && (
+              <button role="menuitem" title={t('opds.menuTip')} disabled={busy} onClick={() => { close(); onCatalog() }}>
+                {t('opds.menu')}
+              </button>
+            )}
             <button role="menuitem" onClick={() => { close(); onGoals() }}>
               {t('goals.title')}
             </button>
