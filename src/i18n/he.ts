@@ -74,6 +74,7 @@ export const he = {
   'pick.cancel': 'ביטול',
   'pick.show': 'הצג {n}',
   'pick.ok': 'אישור',
+  'view.list': 'תצוגת רשימה',
   'sort.label': 'מיון',
   'sort.recent': 'נפתח לאחרונה',
   'sort.added': 'נוסף לאחרונה',

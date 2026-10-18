@@ -26,6 +26,7 @@ import { wordsOfFile } from '../lib/wordCount'
 import { bookType, byLength, isFiltering, isStale, longestOf, NO_FILTER, typesOf, type LibraryFilter } from '../lib/libraryFilter'
 import { folderKey, groupFolders } from '../lib/folders'
 import { BookGrid } from './library/BookGrid'
+import { readListView, saveListView } from '../lib/listView'
 import { NoteHits } from './library/NoteHits'
 import { ResumeCarousel } from './library/ResumeCarousel'
 import { FolderBar, FolderList } from './library/FolderBar'
@@ -61,6 +62,11 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   const [editAuthor, setEditAuthor] = useState('')
   const [editTags, setEditTags] = useState('')
   const [tag, setTag] = useState('')
+  const [list, setList] = useState(readListView)
+  const changeList = (v: boolean) => {
+    setList(v)
+    saveListView(v)
+  }
   const input = useRef<HTMLInputElement>(null)
   const restoreInput = useRef<HTMLInputElement>(null)
   const [storage, setStorage] = useState<StorageStatus>()
@@ -319,6 +325,8 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
           tags={tags}
           tag={activeTag}
           onTag={setTag}
+          list={list}
+          onList={changeList}
         />
       )}
 
@@ -401,6 +409,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
             onDelete: (b) => setConfirmDel([b]),
             refresh,
           }}
+          list={list}
           selecting={selecting}
           selectedFolders={selectedFolders}
           onOpen={fo.setOpenFolder}
@@ -421,6 +430,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
           )}
           <BookGrid
             books={searching ? shown : current!.books}
+            list={list}
             selecting={selecting}
             selected={selected}
             onOpen={onOpen}

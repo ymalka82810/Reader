@@ -50,6 +50,20 @@ describe('Library', () => {
     expect(await shows('Emma')).toBeTruthy()
   })
 
+
+  it('switches between grid and list view and remembers the choice', async () => {
+    await saveBook(book('b1', 'Dune', 'Herbert'))
+    await saveBook(book('b2', 'Emma', 'Austen'))
+    const { container, unmount } = render(<Library onOpen={() => {}} />)
+    await shows('Dune')
+    expect(container.querySelector('ul.grid.list')).toBeNull()
+    fireEvent.click(screen.getByLabelText('תצוגת רשימה'))
+    expect(container.querySelector('ul.grid.list')).toBeTruthy()
+    unmount()
+    const again = render(<Library onOpen={() => {}} />)
+    await shows('Dune')
+    expect(again.container.querySelector('ul.grid.list')).toBeTruthy()
+  })
   it('search narrows the list by title and author and says when nothing matches', async () => {
     await saveBook(book('b1', 'Dune', 'Herbert'))
     await saveBook(book('b2', 'Emma', 'Austen'))

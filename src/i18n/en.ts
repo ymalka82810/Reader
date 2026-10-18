@@ -75,6 +75,7 @@ export const en: Record<keyof typeof he, Message> = {
   'pick.cancel': 'Cancel',
   'pick.show': 'Show {n}',
   'pick.ok': 'OK',
+  'view.list': 'List view',
   'sort.label': 'Sort',
   'sort.recent': 'Recently opened',
   'sort.added': 'Recently added',

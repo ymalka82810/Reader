@@ -370,3 +370,18 @@ i.lv4 { background: var(--accent) !important; }
 .catalog-list img { width: 36px; height: 54px; object-fit: cover; border-radius: 3px; }
 .catalog-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .catalog-info .link { text-align: start; background: none; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer; }
+
+/* list view: one row per book or folder, small cover at the start */
+.grid.list { grid-template-columns: 1fr; gap: .6rem; }
+.grid.list li { contain-intrinsic-size: auto 96px; }
+.grid.list .card { flex-direction: row; align-items: center; gap: .8rem; padding: .3rem; padding-inline-end: 3rem; }
+.grid.list .cover-wrap { width: 56px; flex: none; }
+.grid.list .meta { flex: 1; min-width: 0; text-align: start; align-items: flex-start; }
+.grid.list .folder { padding: .4rem; padding-inline-end: .8rem; text-align: start; }
+.grid.list .folder .folder-icon { width: 56px; text-align: center; font-size: 2rem; }
+.grid.list .folder .cover-wrap { width: 56px; }
+.grid.list .more-btn { top: 50%; transform: translateY(-50%); }
+.grid.list .card-menu { top: calc(50% + 20px); }
+.grid.list .sel-mark { top: 50%; transform: translateY(-50%); inset-inline-start: auto; inset-inline-end: 10px; }
+.lib-tools .select-btn.view-toggle { flex: none; }
+.select-btn[aria-pressed="true"] { background: rgba(49,130,206,.18); }
