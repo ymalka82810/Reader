@@ -1,6 +1,10 @@
 import { t } from '../i18n'
 import dyslexicFace from '@fontsource/opendyslexic/files/opendyslexic-latin-400-normal.woff2?url'
 import dyslexicBoldFace from '@fontsource/opendyslexic/files/opendyslexic-latin-700-normal.woff2?url'
+import heeboHebrew400 from '@fontsource/heebo/files/heebo-hebrew-400-normal.woff2?url'
+import heeboHebrew700 from '@fontsource/heebo/files/heebo-hebrew-700-normal.woff2?url'
+import heeboLatin400 from '@fontsource/heebo/files/heebo-latin-400-normal.woff2?url'
+import heeboLatin700 from '@fontsource/heebo/files/heebo-latin-700-normal.woff2?url'
 import { CUSTOM_FONT_FAMILY } from './customFont'
 
 export type Flow = 'scrolled' | 'paginated'
@@ -138,6 +142,17 @@ const dyslexicCSS = () => {
     @font-face { font-family: "OpenDyslexic"; font-weight: 700; src: url("${abs(dyslexicBoldFace)}") format("woff2"); }`
 }
 
+const HEEBO_RANGE = {
+  hebrew: 'U+0307-0308,U+0590-05FF,U+200C-2010,U+20AA,U+25CC,U+FB1D-FB4F',
+  latin: 'U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD',
+}
+const heeboCSS = () => {
+  const abs = (u: string) => new URL(u, document.baseURI).href
+  const face = (sub: keyof typeof HEEBO_RANGE, w: number, url: string) =>
+    `@font-face { font-family: "Heebo"; font-weight: ${w}; font-display: swap; unicode-range: ${HEEBO_RANGE[sub]}; src: url("${abs(url)}") format("woff2"); }`
+  return [face('hebrew', 400, heeboHebrew400), face('hebrew', 700, heeboHebrew700), face('latin', 400, heeboLatin400), face('latin', 700, heeboLatin700)].join('\n    ')
+}
+
 const stack = (families: string) => `font-family: ${families} !important;`
 
 /** fonts offered in the settings table; each row previews its own font */
@@ -162,6 +177,7 @@ export function bookCSS(s: Settings, customFace = ''): string {
   const a = s.accessible || s.dyslexia
   return `
     ${customFace}
+    ${heeboCSS()}
     ${s.dyslexia ? dyslexicCSS() : ''}
     html {
       font-size: ${s.fontSize}px !important;
