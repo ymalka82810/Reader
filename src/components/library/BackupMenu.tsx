@@ -34,7 +34,7 @@ export function BackupMenu({ view, busy, onBackup, onRestore, onGoals, onReview,
 
   return (
     <div className="menu-wrap">
-      <button ref={trigger} aria-label={t('menu.more')} aria-haspopup="menu" aria-expanded={open} onClick={() => (open ? close() : setOpen(true))}>
+      <button ref={trigger} className="quiet" aria-label={t('menu.more')} aria-haspopup="menu" aria-expanded={open} onClick={() => (open ? close() : setOpen(true))}>
         ⋯
       </button>
       {open && (
