@@ -214,7 +214,13 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: 4px; border: 1px solid rg
 .more-btn { position: absolute; top: 6px; inset-inline-end: 6px; padding: .1rem .55rem; background: rgba(0,0,0,.55); color: #fff; border-radius: 999px; font-size: 1.1rem; line-height: 1.4; }
 .card-menu { top: 40px; inset-inline-end: 6px; min-width: 11rem; }
 .menu .danger-item { color: #e53e3e; }
-.continue { display: flex; gap: 1rem; align-items: center; width: 100%; padding: .7rem; margin-bottom: 1rem; text-align: start; border-radius: 12px; background: rgba(49,130,206,.12); }
+.resume { margin-bottom: 1rem; }
+.resume-track { display: flex; gap: .5rem; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
+.resume-track::-webkit-scrollbar { display: none; }
+.resume-dots { display: flex; justify-content: center; gap: .5rem; margin-top: .5rem; }
+.resume-dots button { width: 8px; height: 8px; padding: 0; min-width: 0; min-height: 0; border: 0; border-radius: 50%; background: currentColor; opacity: .3; }
+.resume-dots button.on { opacity: .9; background: #3182ce; }
+.continue { display: flex; gap: 1rem; align-items: center; flex: 0 0 100%; scroll-snap-align: center; box-sizing: border-box; padding: .7rem; text-align: start; border-radius: 12px; background: rgba(49,130,206,.12); }
 .continue .cover { width: 64px; flex: none; }
 .continue-info { display: flex; flex-direction: column; gap: .25rem; flex: 1; min-width: 0; }
 .continue-info small { opacity: .7; }
