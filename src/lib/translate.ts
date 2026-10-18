@@ -58,10 +58,30 @@ async function googleChunk(text: string, source: string, target: string, signal?
   return out
 }
 
-/** set once MyMemory's daily quota is hit and Google answered instead, so later passages skip the doomed request */
+/** public Lingva Translate instances (an open front end to Google Translate); instances come and go, so each is tried in turn */
+const LINGVA_HOSTS = ['https://lingva.ml', 'https://lingva.thedaviddelta.com']
+
+async function lingvaChunk(text: string, source: string, target: string, signal?: AbortSignal): Promise<string> {
+  let last: unknown
+  for (const host of LINGVA_HOSTS) {
+    try {
+      const res = await fetch(`${host}/api/v1/${source || 'auto'}/${target}/${encodeURIComponent(text)}`, { signal })
+      if (!res.ok) throw new Error(`Lingva answered ${res.status}`)
+      const out = ((await res.json()) as { translation?: unknown }).translation
+      if (typeof out !== 'string' || !out) throw new Error('Lingva returned no translation')
+      return out
+    } catch (e) {
+      if (signal?.aborted) throw e
+      last = e
+    }
+  }
+  throw last
+}
+
+/** set once MyMemory's daily quota is hit and another service answered instead, so later passages skip the doomed request */
 let myMemoryExhausted = false
 
-/** MyMemory first; if it fails or is out of quota, Google. When both fail, the MyMemory error is the one reported. */
+/** MyMemory first; if it fails or is out of quota, Google, then Lingva. When all fail, the MyMemory error is the one reported. */
 async function translateChunkWithFallback(
   text: string,
   pair: string,
@@ -78,19 +98,24 @@ async function translateChunkWithFallback(
       first = e
     }
   }
-  try {
-    const out = await googleChunk(text, source, target, signal)
-    if (first instanceof QuotaError) myMemoryExhausted = true
-    return out
-  } catch (e) {
-    if (signal?.aborted) throw e
-    throw first ?? e
+  let out: string | undefined
+  for (const engine of [googleChunk, lingvaChunk]) {
+    try {
+      out = await engine(text, source, target, signal)
+      break
+    } catch (e) {
+      if (signal?.aborted) throw e
+      first ??= e
+    }
   }
+  if (out === undefined) throw first
+  if (first instanceof QuotaError) myMemoryExhausted = true
+  return out
 }
 
 /**
  * `text` translated into `target` (a language code such as 'he'). `source` is the language of the text,
- * or empty to have it detected. Rejects when the network or both services fail.
+ * or empty to have it detected. Rejects when the network or all the services fail.
  */
 export async function translateText(text: string, source: string, target: string, signal?: AbortSignal): Promise<string> {
   const from = source && source !== target ? source : 'Autodetect'

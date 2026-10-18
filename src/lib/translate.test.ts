@@ -84,4 +84,15 @@ describe('translateText', () => {
     expect(await translateText('second passage', '', 'he')).toBe('תרגום')
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
+
+  it('falls back to Lingva, trying the next instance, when MyMemory and Google both fail', async () => {
+    const fetchMock = vi.fn((url: string) => {
+      const u = String(url)
+      if (u.includes('thedaviddelta')) return Promise.resolve({ ok: true, json: async () => ({ translation: 'שלום' }) } as Response)
+      return Promise.resolve({ ok: false, status: 503 } as Response)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    expect(await translateText('lingva only', 'en', 'he')).toBe('שלום')
+    expect(String(fetchMock.mock.calls.at(-1)![0])).toContain('/api/v1/en/he/lingva%20only')
+  })
 })
