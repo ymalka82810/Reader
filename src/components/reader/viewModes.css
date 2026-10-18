@@ -2,5 +2,5 @@
 .view-modes legend { padding-inline: .3rem; font-weight: 700; }
 .view-modes .mode-row { display: flex; flex-direction: column; gap: .35rem; }
 .view-modes .muted { font-size: .8rem; }
-.view-modes .eye-status { display: flex; align-items: center; justify-content: space-between; gap: .6rem; font-size: .85rem; opacity: .85; }
+.view-modes .eye-status { display: flex; align-items: center; justify-content: space-between; gap: .6rem; font-size: .85rem; color: var(--fg-muted); }
 .reader.focus .jump-chips, .reader.focus .tap-help { display: none; }
