@@ -8,17 +8,21 @@ import { AboutPage } from './AboutPage'
 import { AccessibilityPage } from './AccessibilityPage'
 import { AppearancePage } from './AppearancePage'
 import { BackupPage, type BackupActions } from './BackupPage'
+import { DisplayPage } from './DisplayPage'
+import { GoalsPage } from './GoalsPage'
 import { LanguagePage } from './LanguagePage'
 import { rememberedSettings, rememberSettings } from './remember'
 import './settings.css'
 
-export type PageId = 'appearance' | 'a11y' | 'language' | 'backup' | 'about'
+export type PageId = 'appearance' | 'a11y' | 'display' | 'language' | 'backup' | 'goals' | 'about'
 
 const PAGES: [PageId, string][] = [
   ['appearance', t('prefs.page.appearance')],
   ['a11y', t('prefs.page.a11y')],
+  ['display', t('prefs.page.display')],
   ['language', t('prefs.page.language')],
   ['backup', t('prefs.page.backup')],
+  ['goals', t('prefs.page.goals')],
   ['about', t('prefs.page.about')],
 ]
 
@@ -103,6 +107,8 @@ export function SettingsScreen({ onClose, backup, onCheckUpdate, startPage }: Pr
             {wide && <h2>{title}</h2>}
             {current === 'appearance' && <AppearancePage settings={settings} set={set} />}
             {current === 'a11y' && <AccessibilityPage settings={settings} set={set} />}
+            {current === 'display' && <DisplayPage />}
+            {current === 'goals' && <GoalsPage settings={settings} set={set} />}
             {current === 'language' && <LanguagePage settings={settings} set={set} />}
             {current === 'backup' && <BackupPage actions={backup} leave={close} />}
             {current === 'about' && <AboutPage busy={backup.busy} onCheckUpdate={() => { close(); onCheckUpdate() }} />}

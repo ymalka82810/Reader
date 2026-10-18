@@ -139,3 +139,17 @@ test('settings screen: a reload keeps the open page', async ({ page }) => {
   await page.reload()
   await expect(page.getByRole('dialog', { name: 'הגדרות', exact: true })).toHaveCount(0)
 })
+
+test('reading goals dialog sends you to the goals in the settings', async ({ page }) => {
+  await page.getByRole('button', { name: 'עוד פעולות' }).click()
+  await page.getByRole('menuitem', { name: 'יעדי קריאה' }).click()
+  await page.getByRole('button', { name: 'שינוי יעדים' }).click()
+  const screen = page.getByRole('dialog', { name: 'הגדרות', exact: true })
+  await expect(screen.getByRole('region', { name: 'יעדי קריאה' })).toBeVisible()
+  await screen.getByRole('spinbutton', { name: /יעד יומי/ }).fill('25')
+  await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: 'עוד פעולות' }).click()
+  await page.getByRole('menuitem', { name: 'יעדי קריאה' }).click()
+  await expect(page.getByRole('dialog', { name: 'יעדי קריאה' })).toBeVisible()
+  await expect(page.getByText('עדיין לא הוגדר יעד')).toHaveCount(0)
+})

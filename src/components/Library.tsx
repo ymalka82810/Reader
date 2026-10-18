@@ -80,6 +80,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   const [reviewOpen, setReviewOpen] = useState(false)
   const [catalogOpen, setCatalogOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(() => !!startSettings || rememberedSettings() !== null)
+  const [settingsPage, setSettingsPage] = useState(startSettings)
   const [confirmDel, setConfirmDel] = useState<BookMeta[]>()
   useEffect(() => {
     getStorageStatus().then(setStorage)
@@ -507,9 +508,10 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
       {confirmAsk &&<ConfirmDialog ask={confirmAsk} />}
       {settingsOpen && (
         <SettingsScreen
-          startPage={startSettings}
+          startPage={settingsPage}
           onClose={() => {
             forgetSettings()
+            setSettingsPage(undefined)
             setSettingsOpen(false)
             onSettingsClosed?.()
           }}
@@ -524,7 +526,14 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
           }}
         />
       )}
-      {goalsOpen && <GoalsDialog onClose={() => setGoalsOpen(false)} />}
+      {goalsOpen && <GoalsDialog
+          onClose={() => setGoalsOpen(false)}
+          onSettings={() => {
+            setGoalsOpen(false)
+            setSettingsPage('goals')
+            setSettingsOpen(true)
+          }}
+        />}
       {catalogOpen && <CatalogDialog onClose={() => setCatalogOpen(false)} onAdd={(f) => imp.addFiles([f])} />}
       {reviewOpen && <ReviewDialog books={books} onClose={() => setReviewOpen(false)} />}
       {editing && (

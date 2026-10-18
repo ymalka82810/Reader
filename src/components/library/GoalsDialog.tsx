@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Dialog } from '../Dialog'
 import { localeTag, t } from '../../i18n'
 import { formatMinutes } from '../../lib/stats'
-import { loadSettings, saveSettings } from '../../lib/settings'
+import { loadSettings } from '../../lib/settings'
 import {
   currentStreak,
   dayKey,
@@ -23,29 +23,16 @@ const minutes = (secs: number) => Math.round(secs / 60)
 const WEEKDAYS = t('goals.weekdays').split(',')
 
 /** daily goal, streak, weekly summary and a per-day chart, fed by the reading log */
-export function GoalsDialog({ onClose }: { onClose: () => void }) {
+export function GoalsDialog({ onClose, onSettings }: { onClose: () => void; onSettings: () => void }) {
   const [log, setLog] = useState<ReadingLog>()
-  const [goal, setGoal] = useState(() => loadSettings().dailyGoalMin)
+  const [{ dailyGoalMin: goal, yearlyGoalHours: yearGoal }] = useState(loadSettings)
   const [hours, setHours] = useState<ReadingHours>()
-  const [yearGoal, setYearGoal] = useState(() => loadSettings().yearlyGoalHours)
   const [range, setRange] = useState<7 | 'month'>(7)
 
   useEffect(() => {
     loadReadingLog().then(setLog)
     loadReadingHours().then(setHours)
   }, [])
-
-  const changeYearGoal = (v: number) => {
-    const n = Math.min(8760, Math.max(0, Math.round(v) || 0))
-    setYearGoal(n)
-    saveSettings({ ...loadSettings(), yearlyGoalHours: n })
-  }
-
-  const changeGoal = (v: number) => {
-    const n = Math.min(1440, Math.max(0, Math.round(v) || 0))
-    setGoal(n)
-    saveSettings({ ...loadSettings(), dailyGoalMin: n })
-  }
 
   const [today] = useState(() => dayKey(Date.now()))
   const goalSecs = goal * 60
@@ -72,10 +59,7 @@ export function GoalsDialog({ onClose }: { onClose: () => void }) {
         onKeyDown={(e) => e.key === 'Escape' && onClose()}
       >
         <h2>{t('goals.title')}</h2>
-        <label>
-          {t('goals.daily')}
-          <input type="number" min={0} max={1440} step={5} value={goal} onChange={(e) => changeGoal(e.target.valueAsNumber)} />
-        </label>
+        {goal === 0 && yearGoal === 0 && <small className="goals-note">{t('prefs.goalsNone')}</small>}
 
         {!log ? (
           <p>{t('common.loading')}</p>
@@ -134,10 +118,6 @@ export function GoalsDialog({ onClose }: { onClose: () => void }) {
                 )
               })}
             </div>
-            <label>
-              {t('goals.yearly')}
-              <input type="number" min={0} max={8760} step={10} value={yearGoal} onChange={(e) => changeYearGoal(e.target.valueAsNumber)} />
-            </label>
             {yearGoal > 0 && (
               <div className="goals-today">
                 <span>{t('goals.yearProgress', { done: Math.round((year!.secs / 3600) * 10) / 10, goal: yearGoal })}</span>
@@ -186,6 +166,7 @@ export function GoalsDialog({ onClose }: { onClose: () => void }) {
           </>
         )}
         <div className="modal-actions">
+          <button onClick={onSettings}>{t('prefs.goalsEdit')}</button>
           <button className="primary" onClick={onClose} autoFocus>
             {t('common.close')}
           </button>

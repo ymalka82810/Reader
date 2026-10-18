@@ -40,7 +40,15 @@ describe('SettingsScreen', () => {
     media(false)
     renderScreen()
     const nav = screen.getByRole('navigation', { name: 'דפי ההגדרות' })
-    expect(within(nav).getAllByRole('button').map((b) => b.textContent)).toEqual(['מראה וקריאה', 'נגישות', 'שפה ולימוד', 'גיבוי ואחסון', 'אודות'])
+    expect(within(nav).getAllByRole('button').map((b) => b.textContent)).toEqual([
+      'מראה וקריאה',
+      'נגישות',
+      'תצוגה ומכשיר',
+      'שפה ולימוד',
+      'גיבוי ואחסון',
+      'יעדי קריאה',
+      'אודות',
+    ])
     expect(screen.queryByRole('region')).toBeNull()
 
     fireEvent.click(within(nav).getByText('גיבוי ואחסון'))
@@ -113,6 +121,23 @@ describe('SettingsScreen', () => {
     cleanup() // the page is reloaded: nothing closed the screen
     renderScreen()
     expect(screen.getByRole('region', { name: 'אודות' })).toBeTruthy()
+  })
+
+  it('sets the daily and yearly reading goals, within their limits', () => {
+    media(true)
+    renderScreen()
+    fireEvent.click(screen.getByText('יעדי קריאה'))
+    fireEvent.change(screen.getByRole('spinbutton', { name: /יעד יומי/ }), { target: { value: '30' } })
+    fireEvent.change(screen.getByRole('spinbutton', { name: /יעד שנתי/ }), { target: { value: '99999' } })
+    expect(JSON.parse(localStorage.getItem('reader:settings') ?? '{}')).toMatchObject({ dailyGoalMin: 30, yearlyGoalHours: 8760 })
+  })
+
+  it('saves the distraction-free mode where the reader reads it', () => {
+    media(true)
+    renderScreen()
+    fireEvent.click(screen.getByText('תצוגה ומכשיר'))
+    fireEvent.click(screen.getByRole('checkbox', { name: /מצב ללא הסחות/ }))
+    expect(JSON.parse(localStorage.getItem('reader:viewModes') ?? '{}').focus).toBe(true)
   })
 
   it('closes with Escape and the close button', () => {
