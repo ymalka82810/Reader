@@ -18,6 +18,7 @@ import { GoalsDialog } from './library/GoalsDialog'
 import { ReviewDialog } from './library/ReviewDialog'
 import { BackupMenu } from './library/BackupMenu'
 import { LibTools, type Sort } from './library/LibTools'
+import { CatalogDialog } from './library/CatalogDialog'
 import { PickBooksDialog } from './library/PickBooksDialog'
 import { bookType, isFiltering, NO_FILTER, typesOf, type LibraryFilter } from '../lib/libraryFilter'
 import { folderKey, groupFolders } from '../lib/folders'
@@ -60,6 +61,7 @@ export default function Library({ onOpen }: { onOpen: (id: string, cfi?: string)
   }
   const [goalsOpen, setGoalsOpen] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
+  const [catalogOpen, setCatalogOpen] = useState(false)
   const [confirmDel, setConfirmDel] = useState<BookMeta[]>()
   useEffect(() => {
     getStorageStatus().then(setStorage)
@@ -230,6 +232,7 @@ export default function Library({ onOpen }: { onOpen: (id: string, cfi?: string)
           onCheckUpdate={checkUpdate}
           onGoals={() => setGoalsOpen(true)}
           onReview={() => setReviewOpen(true)}
+          onCatalog={() => setCatalogOpen(true)}
           auto={{ state: auto.state, last: auto.last, onEnable: auto.enable, onDisable: auto.disable, onRenew: auto.renew }}
         />
         <input
@@ -449,6 +452,7 @@ export default function Library({ onOpen }: { onOpen: (id: string, cfi?: string)
       )}
       {confirmAsk &&<ConfirmDialog ask={confirmAsk} />}
       {goalsOpen && <GoalsDialog onClose={() => setGoalsOpen(false)} />}
+      {catalogOpen && <CatalogDialog onClose={() => setCatalogOpen(false)} onAdd={(f) => imp.addFiles([f])} />}
       {reviewOpen && <ReviewDialog books={books} onClose={() => setReviewOpen(false)} />}
       {editing && (
         <EditBookDialog

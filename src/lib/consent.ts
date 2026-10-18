@@ -1,10 +1,11 @@
 /** external services that receive text the user selected; each needs an explicit yes before the first request */
-export type Service = 'translate' | 'dict'
+export type Service = 'translate' | 'dict' | 'opds'
 
 /** the host that gets the text, shown in the consent notice */
 export const SERVICE_HOST: Record<Service, string> = {
   translate: 'api.mymemory.translated.net (MyMemory) / translate.googleapis.com (Google Translate) / lingva.ml (Lingva)',
   dict: 'wiktionary.org',
+  opds: 'the catalog addresses you add',
 }
 
 /** translate is "v3": earlier yeses did not cover Lingva, which can now receive the text too */

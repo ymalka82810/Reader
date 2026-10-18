@@ -249,6 +249,28 @@ export const en: Record<keyof typeof he, Message> = {
   'review.remove': 'Remove word',
   'review.removeTip': 'Removes the word from your vocabulary',
 
+  // online catalogs (OPDS)
+  'opds.title': 'Online catalogs',
+  'opds.menu': 'Add from an online catalog',
+  'opds.menuTip': 'Browse OPDS catalogs (Project Gutenberg, Calibre-web and more) and add books',
+  'opds.consent': 'Browsing a catalog contacts its server directly ({host}), and the address and your search queries are sent to it. The app keeps no copy on a server. Continue?',
+  'opds.catalog': 'Catalog',
+  'opds.add': 'Add catalog',
+  'opds.remove': 'Remove the catalog {name}',
+  'opds.name': 'Catalog name',
+  'opds.save': 'Save',
+  'opds.hint': 'An OPDS address in Atom format (OPDS 1.x). In the browser the catalog must allow access from other sites (CORS); the Android app has no such limit.',
+  'opds.badUrl': 'Enter a name and a valid http or https address.',
+  'opds.search': 'Search the catalog',
+  'opds.searchGo': 'Search',
+  'opds.back': '‹ Back',
+  'opds.more': 'More results',
+  'opds.empty': 'No books here.',
+  'opds.addShort': 'Add',
+  'opds.addBook': 'Add to library: {title}',
+  'opds.failed': 'Could not load the catalog. The address may be wrong, you may be offline, or the catalog does not allow access from the browser.',
+  'opds.downloadFailed': 'Downloading "{title}" failed.',
+
   // importing books
   'import.adding': 'Adding {name}…',
   'import.exists': 'This book is already in the library.',
