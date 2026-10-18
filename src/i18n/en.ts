@@ -299,6 +299,7 @@ export const en: Record<keyof typeof he, Message> = {
   'err.pdfInvalid': 'The PDF file is corrupt or not a valid PDF.',
   'err.quota': 'Not enough storage space in the browser. Delete books or free up space and try again.',
   'err.aborted': 'The operation was cancelled.',
+  'err.drm': 'This book is protected by DRM, so it cannot be opened here. The reader only supports DRM-free books. Get a DRM-free copy from the seller, or read it in the app where you bought it.',
   'err.generic': 'We could not read the file. It may be corrupt or in an unsupported format.',
   'error.title': 'Something went wrong opening the book.',
 
