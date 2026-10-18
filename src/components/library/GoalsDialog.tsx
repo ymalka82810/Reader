@@ -30,7 +30,8 @@ export function GoalsDialog({ onClose }: { onClose: () => void }) {
   const week = log && weekSummary(log, goalSecs, today)
   const streak = log ? currentStreak(log, goalSecs, today) : 0
   const days = log ? lastDays(log, range, today) : []
-  const max = Math.max(goalSecs, ...days.map((d) => d.secs), 1)
+  // headroom so the minutes label above the tallest bar stays inside the chart
+  const max = Math.max(goalSecs, ...days.map((d) => d.secs), 1) * 1.2
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -94,6 +95,11 @@ export function GoalsDialog({ onClose }: { onClose: () => void }) {
                     className={'goals-bar' + (goal > 0 && d.secs >= goalSecs ? ' met' : '')}
                     title={`${date.toLocaleDateString(localeTag())}: ${formatMinutes(minutes(d.secs))}`}
                   >
+                    {d.secs > 0 && (
+                      <em style={{ bottom: `${(d.secs / max) * 100}%` }}>
+                        {range === 7 ? formatMinutes(minutes(d.secs)) : minutes(d.secs)}
+                      </em>
+                    )}
                     <span style={{ height: `${(d.secs / max) * 100}%` }} />
                     {range === 7 && <small>{WEEKDAYS[date.getDay()]}</small>}
                   </div>
