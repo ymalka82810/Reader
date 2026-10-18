@@ -140,6 +140,39 @@ describe('SettingsScreen', () => {
     expect(JSON.parse(localStorage.getItem('reader:viewModes') ?? '{}').focus).toBe(true)
   })
 
+  it('searches the settings and opens the page of the one picked', () => {
+    media(true)
+    renderScreen()
+    fireEvent.change(screen.getByRole('searchbox', { name: 'חיפוש בהגדרות' }), { target: { value: 'יעד שנתי' } })
+    fireEvent.click(screen.getByRole('button', { name: /יעד שנתי/ }))
+    expect(screen.getByRole('region', { name: 'יעדי קריאה' })).toBeTruthy()
+    expect((screen.getByRole('searchbox') as HTMLInputElement).value).toBe('')
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'qqqq' } })
+    expect(screen.getByText('לא נמצאו הגדרות מתאימות')).toBeTruthy()
+  })
+
+  it('withdraws the permission for one external service at a time', () => {
+    media(true)
+    localStorage.setItem('reader:consent:translate3', '1')
+    localStorage.setItem('reader:consent:dict', '1')
+    renderScreen()
+    fireEvent.click(screen.getByText('שפה ולימוד'))
+    fireEvent.click(screen.getByRole('button', { name: 'בטל אישור: תרגום' }))
+    expect(localStorage.getItem('reader:consent:translate3')).toBeNull()
+    expect(localStorage.getItem('reader:consent:dict')).toBe('1')
+    expect(screen.queryByRole('button', { name: 'בטל אישור: תרגום' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'בטל אישור: מילון' })).toBeTruthy()
+  })
+
+  it('chooses how often to be reminded to back up', () => {
+    media(true)
+    renderScreen()
+    fireEvent.click(screen.getByText('גיבוי ואחסון'))
+    fireEvent.click(screen.getByRole('button', { name: 'להזכיר לגבות' }))
+    fireEvent.click(screen.getByRole('option', { name: 'לא להזכיר' }))
+    expect(JSON.parse(localStorage.getItem('reader:settings') ?? '{}').backupRemind).toBe('off')
+  })
+
   it('closes with Escape and the close button', () => {
     media(true)
     const { onClose } = renderScreen()

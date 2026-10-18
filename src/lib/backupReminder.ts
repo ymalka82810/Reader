@@ -1,9 +1,11 @@
 import { getFile, listBooks } from './db'
+import { loadSettings, type BackupRemind } from './settings'
 
 const BACKUP_KEY = 'reader:lastBackup'
 const SINCE_KEY = 'reader:backupSince'
-const REMIND_AFTER_MS = 14 * 24 * 3600 * 1000
-const URGENT_REMIND_AFTER_MS = 3 * 24 * 3600 * 1000
+const DAY_MS = 24 * 3600 * 1000
+const REMIND_AFTER_MS: Record<Exclude<BackupRemind, 'off'>, number> = { default: 14 * DAY_MS, week: 7 * DAY_MS, month: 30 * DAY_MS }
+const URGENT_REMIND_AFTER_MS = 3 * DAY_MS
 
 export function markBackedUp() {
   try {
@@ -13,9 +15,12 @@ export function markBackedUp() {
   }
 }
 
-/** true when the library has gone more than two weeks without a backup (counted from first use if never backed up) */
+/** true when the library has gone longer than the chosen interval (two weeks by default) without a backup, counted from first use if never
+ *  backed up; storage the browser may clear shortens it to three days, and the choice "never" silences it */
 export function backupDue(urgent = false): boolean {
-  const limit = urgent ? URGENT_REMIND_AFTER_MS : REMIND_AFTER_MS
+  const choice = loadSettings().backupRemind
+  if (choice === 'off') return false
+  const limit = urgent ? Math.min(URGENT_REMIND_AFTER_MS, REMIND_AFTER_MS[choice]) : REMIND_AFTER_MS[choice]
   try {
     const last = Number(localStorage.getItem(BACKUP_KEY)) || 0
     if (last) return Date.now() - last > limit

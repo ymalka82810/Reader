@@ -1,14 +1,25 @@
 import { useState } from 'react'
 import { changeLocale, getLocale, LOCALES, t } from '../../i18n'
-import { setConsent } from '../../lib/consent'
+import { hasConsent, setConsent, SERVICE_HOST, type Service } from '../../lib/consent'
 import { DICT_LANGS, type Settings } from '../../lib/settings'
+import { isNativeApp } from '../../lib/updater'
 import type { SetSetting } from '../../hooks/useAppSettings'
 import { Select } from '../Select'
 import { Seg } from '../reader/shared'
 import { Row, Section } from './parts'
 
+/** the services that receive what the user selects; the online catalogs exist only in the Android app */
+const SERVICES: Service[] = isNativeApp ? ['translate', 'dict', 'opds'] : ['translate', 'dict']
+
+const SERVICE_NAME: Record<Service, string> = {
+  translate: t('prefs.svc.translate'),
+  dict: t('prefs.svc.dict'),
+  opds: t('prefs.svc.opds'),
+}
+
 export function LanguagePage({ settings, set }: { settings: Settings; set: SetSetting }) {
-  const [consentReset, setConsentReset] = useState(false)
+  // the permissions live in localStorage, outside React state: this only makes a withdrawal re-render
+  const [, rerender] = useState(0)
   const langs = DICT_LANGS.map(([code, name]): [string, string] => [code, name])
   return (
     <>
@@ -36,18 +47,28 @@ export function LanguagePage({ settings, set }: { settings: Settings; set: SetSe
       </Section>
       <Section title={t('prefs.privacy')}>
         <small className="muted">{t('prefs.privacyNote')}</small>
-        <div>
-          <button
-            onClick={() => {
-              setConsent('translate', false)
-              setConsent('dict', false)
-              setConsentReset(true)
-            }}
-          >
-            {t('settings.consentReset')}
-          </button>
-          {consentReset && <span role="status"> {t('settings.consentDone')}</span>}
-        </div>
+        {SERVICES.map((s) => {
+          const on = hasConsent(s)
+          return (
+            <Row
+              key={s}
+              label={SERVICE_NAME[s]}
+              hint={`${on ? t('prefs.consentOn') : t('prefs.consentOff')} · ${s === 'opds' ? t('prefs.svc.opdsHost') : SERVICE_HOST[s]}`}
+            >
+              {on && (
+                <button
+                  aria-label={`${t('prefs.consentRevoke')}: ${SERVICE_NAME[s]}`}
+                  onClick={() => {
+                    setConsent(s, false)
+                    rerender((n) => n + 1)
+                  }}
+                >
+                  {t('prefs.consentRevoke')}
+                </button>
+              )}
+            </Row>
+          )
+        })}
       </Section>
     </>
   )

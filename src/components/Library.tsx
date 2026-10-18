@@ -98,7 +98,8 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
 
   // without persistent storage the browser may evict the library, so remind sooner
   const unprotected = storage ? !storage.persisted : false
-  const remind = useMemo(() => !dismissed && backupDue(unprotected), [dismissed, unprotected])
+  // read on every render: it is two localStorage reads, and the interval can change in the settings
+  const remind = !dismissed && backupDue(unprotected)
 
   const tags = useMemo(() => listTags(books), [books])
   // a tag that no book carries any more stops filtering
