@@ -9,6 +9,7 @@ import {
   heatLevel,
   heatmapWeeks,
   lastDays,
+  monthDays,
   loadReadingHours,
   loadReadingLog,
   weekdayHourMatrix,
@@ -27,7 +28,7 @@ export function GoalsDialog({ onClose }: { onClose: () => void }) {
   const [goal, setGoal] = useState(() => loadSettings().dailyGoalMin)
   const [hours, setHours] = useState<ReadingHours>()
   const [yearGoal, setYearGoal] = useState(() => loadSettings().yearlyGoalHours)
-  const [range, setRange] = useState<7 | 30>(7)
+  const [range, setRange] = useState<7 | 'month'>(7)
 
   useEffect(() => {
     loadReadingLog().then(setLog)
@@ -51,7 +52,7 @@ export function GoalsDialog({ onClose }: { onClose: () => void }) {
   const todaySecs = log?.[today] ?? 0
   const week = log && weekSummary(log, goalSecs, today)
   const streak = log ? currentStreak(log, goalSecs, today) : 0
-  const days = log ? lastDays(log, range, today) : []
+  const days = log ? (range === 7 ? lastDays(log, 7, today) : monthDays(log, today)) : []
   // headroom so the minutes label above the tallest bar stays inside the chart
   const max = Math.max(goalSecs, ...days.map((d) => d.secs), 1) * 1.2
   const year = log && yearProgress(log, today)
@@ -107,11 +108,11 @@ export function GoalsDialog({ onClose }: { onClose: () => void }) {
               <button aria-pressed={range === 7} onClick={() => setRange(7)}>
                 {t('goals.week')}
               </button>
-              <button aria-pressed={range === 30} onClick={() => setRange(30)}>
-                {t('goals.days30')}
+              <button aria-pressed={range === 'month'} onClick={() => setRange('month')}>
+                {t('goals.month')}
               </button>
             </div>
-            <div className="goals-chart" role="img" aria-label={t('goals.chart', { n: range })}>
+            <div className="goals-chart" role="img" aria-label={t('goals.chart', { n: days.length })}>
               {goal > 0 && <div className="goals-line" style={{ bottom: `${(goalSecs / max) * 100}%` }} />}
               {days.map((d) => {
                 const [y, m, dd] = d.key.split('-').map(Number)
