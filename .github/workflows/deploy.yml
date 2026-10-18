@@ -6,6 +6,10 @@ permissions:
   contents: read
   pages: write
   id-token: write
+# merges that land together queue up instead of failing on an in-progress Pages deployment
+concurrency:
+  group: pages
+  cancel-in-progress: false
 jobs:
   build:
     uses: ./.github/workflows/build.yml
