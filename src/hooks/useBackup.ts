@@ -10,6 +10,13 @@ import type { Confirm } from './useConfirm'
 /** above this, building the backup in memory risks crashing a phone */
 const BIG_BACKUP = 500 * 1024 * 1024
 
+type BackupSink = Parameters<typeof exportLibraryTo>[0]
+
+/** the File System Access API's save dialog, which not every browser has (and isn't in the DOM typings) */
+type SaveFilePickerWindow = Window & {
+  showSaveFilePicker?: (o: { suggestedName: string }) => Promise<{ createWritable(): Promise<BackupSink> }>
+}
+
 export type PwAsk = { kind: 'export' } | { kind: 'import'; file: File; wrong?: boolean }
 
 type Deps = {
@@ -37,8 +44,8 @@ export function useBackup({ refresh, setBusy, setError, showToast, onBackedUp, c
     const name = `${t('backup.fileName')}-${new Date().toISOString().slice(0, 10)}.readerbackup`
     try {
       // must run first: the save dialog needs the click's user activation, which awaits can use up
-      const picker = (window as any).showSaveFilePicker as undefined | ((o: object) => Promise<any>)
-      let sink: any
+      const picker = (window as SaveFilePickerWindow).showSaveFilePicker
+      let sink: BackupSink | undefined
       if (picker) {
         try {
           sink = await (await picker({ suggestedName: name })).createWritable()
