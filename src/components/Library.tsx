@@ -17,7 +17,8 @@ import { localeTag, t } from '../i18n'
 import { GoalsDialog } from './library/GoalsDialog'
 import { ReviewDialog } from './library/ReviewDialog'
 import { BackupMenu } from './library/BackupMenu'
-import { SettingsScreen } from './settings/SettingsScreen'
+import { SettingsScreen, type PageId } from './settings/SettingsScreen'
+import { forgetSettings, rememberedSettings } from './settings/remember'
 import { LibTools, type Sort } from './library/LibTools'
 import { CatalogDialog } from './library/CatalogDialog'
 import { PickBooksDialog } from './library/PickBooksDialog'
@@ -39,7 +40,14 @@ import {
   PasswordDialog,
 } from './library/Dialogs'
 
-export default function Library({ onOpen }: { onOpen: (id: string, cfi?: string) => void }) {
+type Props = {
+  onOpen: (id: string, cfi?: string) => void
+  /** open the settings screen on this page right away (the reader's link to the full settings) */
+  startSettings?: PageId
+  onSettingsClosed?: () => void
+}
+
+export default function Library({ onOpen, startSettings, onSettingsClosed }: Props) {
   const [busy, setBusy] = useState<string>()
   const [error, setError] = useState<string>()
   const [drag, setDrag] = useState(false)
@@ -65,7 +73,7 @@ export default function Library({ onOpen }: { onOpen: (id: string, cfi?: string)
   const [goalsOpen, setGoalsOpen] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
   const [catalogOpen, setCatalogOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(() => !!startSettings || rememberedSettings() !== null)
   const [confirmDel, setConfirmDel] = useState<BookMeta[]>()
   useEffect(() => {
     getStorageStatus().then(setStorage)
@@ -489,7 +497,12 @@ export default function Library({ onOpen }: { onOpen: (id: string, cfi?: string)
       {confirmAsk &&<ConfirmDialog ask={confirmAsk} />}
       {settingsOpen && (
         <SettingsScreen
-          onClose={() => setSettingsOpen(false)}
+          startPage={startSettings}
+          onClose={() => {
+            forgetSettings()
+            setSettingsOpen(false)
+            onSettingsClosed?.()
+          }}
           onCheckUpdate={checkUpdate}
           backup={{
             busy: !!busy,

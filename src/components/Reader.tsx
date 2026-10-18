@@ -43,7 +43,7 @@ const BACK_AGAIN_MS = 2000
 /** in distraction-free mode the bars shown by a middle tap go away again after this long */
 const FOCUS_BARS_MS = 4000
 
-export default function Reader({ id, startCfi, onClose }: { id: string; startCfi?: string; onClose: () => void }) {
+export default function Reader({ id, startCfi, onClose, onSettings }: { id: string; startCfi?: string; onClose: () => void; onSettings: () => void }) {
   const host = useRef<HTMLDivElement>(null)
   const viewRef = useRef<FoliateView | null>(null)
   const [settings, setSettings] = useState<Settings>(loadSettings)
@@ -653,7 +653,7 @@ export default function Reader({ id, startCfi, onClose }: { id: string; startCfi
       )}
 
       {panel === 'settings' && (
-        <SettingsPanel settings={settings} set={set} bump={bump} customFont={customFont} setCustomFont={setCustomFont}>
+        <SettingsPanel settings={settings} set={set} bump={bump} customFont={customFont} onAllSettings={onSettings}>
           <ViewModesSection
             modes={modes}
             setMode={setMode}

@@ -5,6 +5,7 @@ import Reader from './components/Reader'
 import { makeBook } from 'foliate-js/view.js'
 import { getBook, getBookMeta } from './lib/db'
 import { isScriptedBook } from './lib/sandbox'
+import type { PageId } from './components/settings/SettingsScreen'
 
 const AudioPlayer = lazy(() => import('./components/AudioPlayer'))
 const InteractiveReader = lazy(() => import('./components/InteractiveReader'))
@@ -40,6 +41,8 @@ export default function App() {
   /** the reader chose to open the scripted book as a regular one, with its scripts off */
   const [plainId, setPlainId] = useState<string | null>(null)
   const [checked, setChecked] = useState<string | null>(null)
+  /** the settings page to open in the library, when the reader sent the user to the settings */
+  const [settingsPage, setSettingsPage] = useState<PageId>()
   useEffect(() => {
     if (!openId) return
     let alive = true
@@ -58,7 +61,7 @@ export default function App() {
     }
   }, [openId])
 
-  if (!openId) return <Library onOpen={open} />
+  if (!openId) return <Library onOpen={open} startSettings={settingsPage} onSettingsClosed={() => setSettingsPage(undefined)} />
   if (checked !== openId) return null
   const close = () => setOpenId(null)
   return (
@@ -72,7 +75,15 @@ export default function App() {
           <InteractiveReader id={openId} onClose={close} onOpenPlain={() => setPlainId(openId)} />
         </Suspense>
       ) : (
-        <Reader id={openId} startCfi={startCfi} onClose={close} />
+        <Reader
+          id={openId}
+          startCfi={startCfi}
+          onClose={close}
+          onSettings={() => {
+            setSettingsPage('appearance')
+            close()
+          }}
+        />
       )}
     </ErrorBoundary>
   )

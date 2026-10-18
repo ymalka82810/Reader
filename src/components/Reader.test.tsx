@@ -50,9 +50,10 @@ const relocate = (d: Partial<FoliateRelocateDetail>) =>
 
 const open = async (props: Partial<React.ComponentProps<typeof Reader>> = {}) => {
   const onClose = vi.fn()
-  render(<Reader id="b1" onClose={onClose} {...props} />)
+  const onSettings = vi.fn()
+  render(<Reader id="b1" onClose={onClose} onSettings={onSettings} {...props} />)
   await waitFor(() => expect(stub.handlers).toBeTruthy())
-  return { onClose }
+  return { onClose, onSettings }
 }
 
 beforeEach(() => {
@@ -153,6 +154,16 @@ describe('Reader', () => {
     await open()
     fireEvent.click(screen.getByLabelText('הגדרות תצוגה'))
     expect(await screen.findByRole('dialog', { name: 'הגדרות תצוגה' })).toBeTruthy()
+  })
+
+  it('keeps only what changes while reading in the panel, with a link to all the settings', async () => {
+    const { onSettings } = await open()
+    fireEvent.click(screen.getByLabelText('הגדרות תצוגה'))
+    const panel = await screen.findByRole('dialog', { name: 'הגדרות תצוגה' })
+    expect(panel.querySelector('#bright')).toBeTruthy()
+    for (const gone of ['#ls', '#cw', '#mg', '.upload', '.a11y-set']) expect(panel.querySelector(gone)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'כל ההגדרות…' }))
+    expect(onSettings).toHaveBeenCalled()
   })
 
   it('distraction-free mode hides the bars and says how to bring them back', async () => {

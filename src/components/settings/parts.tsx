@@ -11,15 +11,31 @@ export function Section({ title, children }: { title: string; children: ReactNod
   )
 }
 
+function Label({ label, hint }: { label: string; hint?: string }) {
+  return (
+    <div className="prefs-label">
+      <span>{label}</span>
+      {hint && <small>{hint}</small>}
+    </div>
+  )
+}
+
 /** one setting: its name and an optional explanation on the start side, the control on the other */
 export function Row({ label, hint, children }: { label: string; hint?: string; children?: ReactNode }) {
   return (
     <div className="prefs-row">
-      <div className="prefs-label">
-        <span>{label}</span>
-        {hint && <small>{hint}</small>}
-      </div>
+      <Label label={label} hint={hint} />
       {children && <div className="prefs-control">{children}</div>}
     </div>
+  )
+}
+
+/** an on/off setting: the whole row is the checkbox's label */
+export function Toggle({ label, hint, checked, onChange }: { label: string; hint?: string; checked: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <label className="prefs-row prefs-toggle">
+      <Label label={label} hint={hint} />
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+    </label>
   )
 }

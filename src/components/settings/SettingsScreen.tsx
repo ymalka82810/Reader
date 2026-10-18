@@ -5,13 +5,18 @@ import { useBackGesture } from '../../hooks/useBackGesture'
 import { useLatest } from '../../hooks/useLatest'
 import { Dialog } from '../Dialog'
 import { AboutPage } from './AboutPage'
+import { AccessibilityPage } from './AccessibilityPage'
+import { AppearancePage } from './AppearancePage'
 import { BackupPage, type BackupActions } from './BackupPage'
 import { LanguagePage } from './LanguagePage'
+import { rememberedSettings, rememberSettings } from './remember'
 import './settings.css'
 
-export type PageId = 'language' | 'backup' | 'about'
+export type PageId = 'appearance' | 'a11y' | 'language' | 'backup' | 'about'
 
 const PAGES: [PageId, string][] = [
+  ['appearance', t('prefs.page.appearance')],
+  ['a11y', t('prefs.page.a11y')],
   ['language', t('prefs.page.language')],
   ['backup', t('prefs.page.backup')],
   ['about', t('prefs.page.about')],
@@ -43,7 +48,8 @@ type Props = {
 export function SettingsScreen({ onClose, backup, onCheckUpdate, startPage }: Props) {
   const wide = useWide()
   const [settings, set] = useAppSettings()
-  const [page, setPage] = useState<PageId | null>(startPage ?? null)
+  const [page, setPage] = useState<PageId | null>(() => startPage ?? PAGES.find(([id]) => id === rememberedSettings())?.[0] ?? null)
+  useEffect(() => rememberSettings(page ?? ''), [page])
   const current = page ?? (wide ? PAGES[0]![0] : null)
 
   // the phone's back swipe goes from a page back to the list first, and closes the settings from the list
@@ -95,6 +101,8 @@ export function SettingsScreen({ onClose, backup, onCheckUpdate, startPage }: Pr
         {current && (
           <div className="prefs-page" role="region" aria-label={title}>
             {wide && <h2>{title}</h2>}
+            {current === 'appearance' && <AppearancePage settings={settings} set={set} />}
+            {current === 'a11y' && <AccessibilityPage settings={settings} set={set} />}
             {current === 'language' && <LanguagePage settings={settings} set={set} />}
             {current === 'backup' && <BackupPage actions={backup} leave={close} />}
             {current === 'about' && <AboutPage busy={backup.busy} onCheckUpdate={() => { close(); onCheckUpdate() }} />}
