@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('pdfjs-dist/legacy/build/pdf.mjs', () => ({ GlobalWorkerOptions: {} }))
 vi.mock('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url', () => ({ default: '' }))
 
-const { detectHeadings, fixVisual, isPoorPage, joinPages, looksReversed, readingGroups, stripRunningLines, toParagraphs } =
+const { detectHeadings, fixVisual, isPoorPage, joinPages, looksReversed, looksTabular, readingGroups, stripRunningLines, toParagraphs } =
   await import('./pdfToBook')
 type Line = import('./pdfToBook').Line
 type RawItem = import('./pdfToBook').RawItem
@@ -220,5 +220,32 @@ describe('isPoorPage', () => {
   it('flags text shattered into fragments', () => {
     const frags = Array.from({ length: 30 }, (_, i) => line('אבג ' + i, 800 - i * 12))
     expect(isPoorPage(frags)).toBe(true)
+  })
+})
+
+describe('looksTabular', () => {
+  const run = (str: string, x: number, y: number, w = 30): RawItem => ({ str, x, y, w, h: 10, eol: false })
+  const table = (rows: number) =>
+    Array.from({ length: rows }, (_, r) => [run('name', 50, 700 - r * 14), run('qty', 200, 700 - r * 14), run('price', 350, 700 - r * 14)]).flat()
+
+  it('detects aligned rows of separate cells', () => {
+    expect(looksTabular(table(6))).toBe(true)
+  })
+  it('detects a table whose cells are right-aligned', () => {
+    const items = Array.from({ length: 6 }, (_, r) => [
+      run('a', 50, 700 - r * 14, 20 + r),
+      run('b', 250 - r, 700 - r * 14, 20 + r),
+      run('c', 400 - r * 2, 700 - r * 14, 20 + r),
+    ]).flat()
+    expect(looksTabular(items)).toBe(true)
+  })
+  it('ignores ordinary paragraphs and two-column text', () => {
+    const text = Array.from({ length: 20 }, (_, r) => run('a full line of running text', 50, 700 - r * 14, 400))
+    expect(looksTabular(text)).toBe(false)
+    const cols = Array.from({ length: 12 }, (_, r) => [run('left column line', 50, 700 - r * 14, 200), run('right column line', 300, 700 - r * 14, 200)]).flat()
+    expect(looksTabular(cols)).toBe(false)
+  })
+  it('needs several rows', () => {
+    expect(looksTabular(table(3))).toBe(false)
   })
 })
