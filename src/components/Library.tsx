@@ -18,6 +18,7 @@ import { GoalsDialog } from './library/GoalsDialog'
 import { ReviewDialog } from './library/ReviewDialog'
 import { BackupMenu } from './library/BackupMenu'
 import { SettingsScreen, type PageId } from './settings/SettingsScreen'
+import { forgetSettings, rememberedSettings } from './settings/remember'
 import { LibTools, type Sort } from './library/LibTools'
 import { CatalogDialog } from './library/CatalogDialog'
 import { PickBooksDialog } from './library/PickBooksDialog'
@@ -72,7 +73,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   const [goalsOpen, setGoalsOpen] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
   const [catalogOpen, setCatalogOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(!!startSettings)
+  const [settingsOpen, setSettingsOpen] = useState(() => !!startSettings || rememberedSettings() !== null)
   const [confirmDel, setConfirmDel] = useState<BookMeta[]>()
   useEffect(() => {
     getStorageStatus().then(setStorage)
@@ -498,6 +499,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
         <SettingsScreen
           startPage={startSettings}
           onClose={() => {
+            forgetSettings()
             setSettingsOpen(false)
             onSettingsClosed?.()
           }}

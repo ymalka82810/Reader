@@ -128,3 +128,14 @@ test('settings screen: open from the ☰ button, switch pages and close', async 
   await page.keyboard.press('Escape')
   await expect(screen).toHaveCount(0)
 })
+
+test('settings screen: a reload keeps the open page', async ({ page }) => {
+  await page.getByRole('button', { name: 'הגדרות', exact: true }).click()
+  const screen = page.getByRole('dialog', { name: 'הגדרות', exact: true })
+  await screen.getByRole('button', { name: 'גיבוי ואחסון' }).click()
+  await page.reload()
+  await expect(page.getByRole('dialog', { name: 'הגדרות', exact: true }).getByRole('region', { name: 'גיבוי ואחסון' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await page.reload()
+  await expect(page.getByRole('dialog', { name: 'הגדרות', exact: true })).toHaveCount(0)
+})

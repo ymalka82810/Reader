@@ -26,7 +26,10 @@ const renderScreen = (backup = actions(), onClose = vi.fn()) => {
   return { backup, onClose }
 }
 
-beforeEach(() => localStorage.clear())
+beforeEach(() => {
+  localStorage.clear()
+  sessionStorage.clear()
+})
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
@@ -101,6 +104,15 @@ describe('SettingsScreen', () => {
     fireEvent.change(screen.getByRole('slider', { name: 'שוליים' }), { target: { value: '9' } })
     const saved = JSON.parse(localStorage.getItem('reader:settings') ?? '{}')
     expect(saved).toMatchObject({ justify: true, margin: 9 })
+  })
+
+  it('reopens on the page it was left on after a reload', () => {
+    media(false)
+    renderScreen()
+    fireEvent.click(screen.getByText('אודות'))
+    cleanup() // the page is reloaded: nothing closed the screen
+    renderScreen()
+    expect(screen.getByRole('region', { name: 'אודות' })).toBeTruthy()
   })
 
   it('closes with Escape and the close button', () => {
