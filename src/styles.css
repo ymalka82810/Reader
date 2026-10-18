@@ -24,7 +24,10 @@ html, body, #root { height: 100%; margin: 0; }
 body { background: var(--bg); color: var(--fg); }
 /* --bg/--fg are overridden inline on the reader, so the muted tone is recomputed there */
 .reader { --fg-muted: color-mix(in srgb, var(--fg) 72%, var(--bg)); }
-@media (prefers-color-scheme: dark) { :root { --bg: #151515; --fg: #e6e6e6; --accent: #63b3ed; --on-accent: #0b1a2a; } }
+/* dark follows the system unless the user picked a scheme (data-theme on <html>, see lib/appTheme) */
+@media (prefers-color-scheme: dark) { :root:not([data-theme]) { --bg: #151515; --fg: #e6e6e6; --accent: #63b3ed; --on-accent: #0b1a2a; } }
+:root[data-theme="dark"] { --bg: #151515; --fg: #e6e6e6; --accent: #63b3ed; --on-accent: #0b1a2a; color-scheme: dark; }
+:root[data-theme="light"] { color-scheme: light; }
 button { font: inherit; cursor: pointer; border: 0; border-radius: var(--radius-lg); padding: 0.55rem 0.9rem; background: var(--fill); color: inherit; }
 button.primary { background: var(--accent); color: var(--on-accent); }
 /* hierarchy: primary (filled accent) > secondary (outlined) > quiet (no chrome, for utility icons) > danger (filled red) */
@@ -231,7 +234,8 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: var(--radius-sm); border:
 .more-btn { position: absolute; top: 6px; inset-inline-end: 6px; min-width: 44px; min-height: 44px; padding: 0 .55rem; background: rgba(0,0,0,.55); color: #fff; border-radius: var(--radius-pill); font-size: 1.1rem; line-height: 1.4; }
 .card-menu { top: 50px; inset-inline-end: 6px; min-width: 11rem; }
 .menu .danger-item { color: #c53030; }
-@media (prefers-color-scheme: dark) { .menu .danger-item { color: #ff8080; } }
+@media (prefers-color-scheme: dark) { :root:not([data-theme]) .menu .danger-item { color: #ff8080; } }
+:root[data-theme="dark"] .menu .danger-item { color: #ff8080; }
 .resume { margin-bottom: 1rem; min-width: 0; max-width: 100%; }
 .resume-track { display: flex; gap: 0; min-width: 0; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
 .resume-track::-webkit-scrollbar { display: none; }
