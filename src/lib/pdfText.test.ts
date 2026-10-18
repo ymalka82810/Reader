@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { looksTabular, readingGroups, type Line, type RawItem } from './pdfLayout'
-import { detectHeadings, fixVisual, isPoorPage, joinPages, looksReversed, stripRunningLines, toParagraphs } from './pdfText'
+import { detectHeadings, fixVisual, isBlankPixels, isPoorPage, joinPages, looksReversed, stripRunningLines, toParagraphs } from './pdfText'
 
 const MIRROR: Record<string, string> = { '(': ')', ')': '(' }
 /** how a logical-order string is stored in a visual-order PDF: reversed, with brackets mirrored */
@@ -240,5 +240,18 @@ describe('looksTabular', () => {
   })
   it('needs several rows', () => {
     expect(looksTabular(table(3))).toBe(false)
+  })
+})
+
+describe('isBlankPixels', () => {
+  const px = (...rgba: number[]) => Uint8ClampedArray.from(rgba)
+  it('is true for white and near-white pixels', () => {
+    expect(isBlankPixels(px(255, 255, 255, 255, 250, 252, 249, 255))).toBe(true)
+  })
+  it('is true when nothing is drawn (transparent)', () => {
+    expect(isBlankPixels(px(0, 0, 0, 0))).toBe(true)
+  })
+  it('is false once any pixel has ink', () => {
+    expect(isBlankPixels(px(255, 255, 255, 255, 200, 255, 255, 255))).toBe(false)
   })
 })
