@@ -387,16 +387,6 @@ i.lv4 { background: var(--accent) !important; }
 .interactive-frame { flex: 1; width: 100%; border: 0; background: #fff; }
 .interactive-error { padding: 1rem; }
 
-.catalog { width: min(94vw, 480px); max-height: 90vh; overflow-y: auto; }
-.catalog-bar { display: flex; gap: .4rem; }
-.catalog-bar select, .catalog-bar input { flex: 1; min-width: 0; }
-.catalog-add { display: flex; flex-direction: column; gap: .4rem; }
-.catalog h3 { margin: .4rem 0; font-size: 1rem; }
-.catalog-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .5rem; }
-.catalog-list li { display: flex; align-items: center; gap: .6rem; }
-.catalog-list img { width: 36px; height: 54px; object-fit: cover; border-radius: var(--radius-sm); }
-.catalog-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.catalog-info .link { text-align: start; background: none; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer; }
 
 /* list view: one row per book or folder, small cover at the start */
 .grid.list { grid-template-columns: 1fr; gap: .6rem; }

@@ -2,19 +2,17 @@ import { useState } from 'react'
 import { changeLocale, getLocale, LOCALES, t } from '../../i18n'
 import { hasConsent, setConsent, SERVICE_HOST, type Service } from '../../lib/consent'
 import { DICT_LANGS, type Settings } from '../../lib/settings'
-import { isNativeApp } from '../../lib/updater'
 import type { SetSetting } from '../../hooks/useAppSettings'
 import { Select } from '../Select'
 import { Seg } from '../reader/shared'
 import { Row, Section } from './parts'
 
-/** the services that receive what the user selects; the online catalogs exist only in the Android app */
-const SERVICES: Service[] = isNativeApp ? ['translate', 'dict', 'opds'] : ['translate', 'dict']
+/** the services that receive what the user selects */
+const SERVICES: Service[] = ['translate', 'dict']
 
 const SERVICE_NAME: Record<Service, string> = {
   translate: t('prefs.svc.translate'),
   dict: t('prefs.svc.dict'),
-  opds: t('prefs.svc.opds'),
 }
 
 export function LanguagePage({ settings, set }: { settings: Settings; set: SetSetting }) {
@@ -53,7 +51,7 @@ export function LanguagePage({ settings, set }: { settings: Settings; set: SetSe
             <Row
               key={s}
               label={SERVICE_NAME[s]}
-              hint={`${on ? t('prefs.consentOn') : t('prefs.consentOff')} · ${s === 'opds' ? t('prefs.svc.opdsHost') : SERVICE_HOST[s]}`}
+              hint={`${on ? t('prefs.consentOn') : t('prefs.consentOff')} · ${SERVICE_HOST[s]}`}
             >
               {on && (
                 <button

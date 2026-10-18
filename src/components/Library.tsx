@@ -20,7 +20,6 @@ import { BackupMenu } from './library/BackupMenu'
 import { SettingsScreen, type PageId } from './settings/SettingsScreen'
 import { forgetSettings, rememberedSettings } from './settings/remember'
 import { LibTools, type Sort } from './library/LibTools'
-import { CatalogDialog } from './library/CatalogDialog'
 import { PickBooksDialog } from './library/PickBooksDialog'
 import { wordsOfFile } from '../lib/wordCount'
 import { bookType, byLength, isFiltering, isStale, longestOf, NO_FILTER, typesOf, type LibraryFilter } from '../lib/libraryFilter'
@@ -78,7 +77,6 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   }
   const [goalsOpen, setGoalsOpen] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
-  const [catalogOpen, setCatalogOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(() => !!startSettings || rememberedSettings() !== null)
   const [settingsPage, setSettingsPage] = useState(startSettings)
   const [confirmDel, setConfirmDel] = useState<BookMeta[]>()
@@ -285,7 +283,6 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
           onRestore={() => restoreInput.current?.click()}
           onGoals={() => setGoalsOpen(true)}
           onReview={() => setReviewOpen(true)}
-          onCatalog={() => setCatalogOpen(true)}
         />
         <input
           ref={restoreInput}
@@ -535,7 +532,6 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
             setSettingsOpen(true)
           }}
         />}
-      {catalogOpen && <CatalogDialog onClose={() => setCatalogOpen(false)} onAdd={(f) => imp.addFiles([f])} />}
       {reviewOpen && <ReviewDialog books={books} onClose={() => setReviewOpen(false)} />}
       {editing && (
         <EditBookDialog

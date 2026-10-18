@@ -23,14 +23,6 @@ jobs:
       - run: npm install --no-save @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7 @capacitor/app@7
       - run: npm pkg set version=1.0.${{ github.run_number }}
       - run: npx cap init "קורא ספרים" com.yanivm.reader --web-dir dist
-      # OPDS catalogs: CapacitorHttp routes fetch() through the native stack, so catalogs without CORS headers work in the app.
-      - run: |
-          if [ -f capacitor.config.json ]; then
-            node -e "const f='capacitor.config.json',c=JSON.parse(require('fs').readFileSync(f,'utf8'));c.plugins={...c.plugins,CapacitorHttp:{enabled:true}};require('fs').writeFileSync(f,JSON.stringify(c,null,2))"
-          else
-            sed -i 's/^const config: CapacitorConfig = {$/const config: CapacitorConfig = {\n  plugins: { CapacitorHttp: { enabled: true } },/' capacitor.config.ts
-          fi
-          grep -q CapacitorHttp capacitor.config.*
       - run: npx cap add android
       # Launcher icons: Capacitor generates android/ fresh each run, so copy ours in.
       - run: |
