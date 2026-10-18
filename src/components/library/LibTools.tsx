@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Select } from '../Select'
 import { t } from '../../i18n'
 import type { Tag } from '../../lib/tags'
@@ -41,6 +42,8 @@ type Props = {
 
 /** search box with the filter, tag and sort pickers right under it */
 export function LibTools({ query, onQuery, filter, onFilter, types, folders, onPickBooks, sort, onSort, tags, tag, onTag }: Props) {
+  const [showMore, setShowMore] = useState(false)
+  const activeMore = (filter.type ? 1 : 0) + (filter.folder !== undefined ? 1 : 0) + (filter.ids.size ? 1 : 0)
   return (
     <div className="lib-tools">
       <input
@@ -56,22 +59,12 @@ export function LibTools({ query, onQuery, filter, onFilter, types, folders, onP
         onChange={(state) => onFilter({ ...filter, state })}
         options={FILTERS.map(([v, text]): [ReadState, string] => [v, v === 'all' ? t('filter.allLabeled') : text])}
       />
-      {types.length > 1 && (
-        <Select
-          label={t('filter.type')}
-          value={filter.type || ANY}
-          onChange={(v) => onFilter({ ...filter, type: v === ANY ? '' : v })}
-          options={[[ANY, t('filter.allTypes')], ...types.map((x): [string, string] => [x, typeLabel(x)])]}
-        />
-      )}
-      {folders.length > 1 && (
-        <Select
-          label={t('filter.folder')}
-          value={filter.folder === undefined ? ANY : `k:${filter.folder}`}
-          onChange={(v) => onFilter({ ...filter, folder: v === ANY ? undefined : v.slice(2) })}
-          options={[[ANY, t('filter.allFolders')], ...folders.map((f): [string, string] => [`k:${f.key}`, f.name || t('filter.noAuthor')])]}
-        />
-      )}
+      <button type="button" className="select-btn" aria-expanded={showMore} onClick={() => setShowMore((v) => !v)}>
+        <span>{activeMore ? t('filter.moreN', { n: activeMore }) : t('filter.more')}</span>
+        <svg viewBox="0 0 12 8" width="12" height="8" aria-hidden="true">
+          <path d={showMore ? 'M1 6.5l5-5 5 5' : 'M1 1.5l5 5 5-5'} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
       {tags.length > 0 && (
         <Select
           label={t('tag.filterLabel')}
@@ -80,15 +73,35 @@ export function LibTools({ query, onQuery, filter, onFilter, types, folders, onP
           options={[['', t('tag.filterAll')], ...tags.map((x): [string, string] => [x.key, t('tag.option', { name: x.name, n: x.count })])]}
         />
       )}
-      <button type="button" className="select-btn" onClick={onPickBooks}>
-        {filter.ids.size ? t('filter.pickedN', { n: filter.ids.size }) : t('filter.pick')}
-      </button>
       {isFiltering(filter) && (
         <button type="button" className="select-btn" onClick={() => onFilter(NO_FILTER)}>
           {t('filter.clear')}
         </button>
       )}
       <Select label={t('sort.label')} value={sort} onChange={onSort} options={SORTS} />
+      {showMore && (
+        <div className="lib-tools-more">
+          {types.length > 1 && (
+            <Select
+              label={t('filter.type')}
+              value={filter.type || ANY}
+              onChange={(v) => onFilter({ ...filter, type: v === ANY ? '' : v })}
+              options={[[ANY, t('filter.allTypes')], ...types.map((x): [string, string] => [x, typeLabel(x)])]}
+            />
+          )}
+          {folders.length > 1 && (
+            <Select
+              label={t('filter.folder')}
+              value={filter.folder === undefined ? ANY : `k:${filter.folder}`}
+              onChange={(v) => onFilter({ ...filter, folder: v === ANY ? undefined : v.slice(2) })}
+              options={[[ANY, t('filter.allFolders')], ...folders.map((f): [string, string] => [`k:${f.key}`, f.name || t('filter.noAuthor')])]}
+            />
+          )}
+          <button type="button" className="select-btn" onClick={onPickBooks}>
+            {filter.ids.size ? t('filter.pickedN', { n: filter.ids.size }) : t('filter.pick')}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

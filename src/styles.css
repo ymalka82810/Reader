@@ -25,6 +25,7 @@ button:disabled { opacity: .5; }
 .select-btn:focus-visible, .select-btn[aria-expanded="true"] { outline: 2px solid #3182ce; outline-offset: 1px; }
 .select-btn svg { flex: none; opacity: .7; }
 .lib-tools .select-btn { flex: 1; min-width: 0; }
+.lib-tools-more { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: .6rem; }
 .select-list { position: fixed; z-index: 100; margin: 0; padding: .25rem; list-style: none; max-height: 50vh; overflow: auto; border-radius: 12px; background: var(--bg); color: var(--fg); border: 1px solid rgba(127,127,127,.4); box-shadow: 0 8px 30px rgba(0,0,0,.35); }
 .select-list li { padding: .5rem .7rem; border-radius: 8px; cursor: pointer; outline: none; }
 .select-list li:hover, .select-list li:focus { background: rgba(49,130,206,.22); }
