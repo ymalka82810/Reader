@@ -12,6 +12,19 @@ interface OcrLine {
   bbox: { x0: number; y0: number; x1: number; y1: number }
 }
 
+/** Short lines the engine is only moderately sure about are mostly specks and page edges read as letters. */
+const SHORT_LINE = 3
+const SHORT_LINE_CONFIDENCE = 70
+
+/** True for OCR output that is clearly not text: symbols only, mostly symbols, or a stray short fragment. */
+export function isOcrNoise(text: string, confidence: number): boolean {
+  const chars = text.replace(/\s/g, '')
+  const letters = (chars.match(/[\p{L}\p{N}]/gu) ?? []).length
+  if (!letters) return true
+  if (chars.length >= 4 && letters < chars.length * 0.5) return true
+  return chars.length <= SHORT_LINE && confidence < SHORT_LINE_CONFIDENCE
+}
+
 /**
  * Convert OCR output (pixel boxes, origin top-left) into the same `Line` shape pdf.js text gives,
  * where y grows upwards, so everything downstream treats scanned and digital pages alike.
@@ -19,6 +32,7 @@ interface OcrLine {
 export function ocrLinesToLines(lines: OcrLine[], pageHeight: number): Line[] {
   return lines
     .filter((l) => l.confidence >= MIN_CONFIDENCE)
+    .filter((l) => !isOcrNoise(l.text, l.confidence))
     .map((l) => ({
       text: l.text.replace(/\s+/g, ' ').trim(),
       y: pageHeight - l.bbox.y1,
@@ -30,11 +44,14 @@ export function ocrLinesToLines(lines: OcrLine[], pageHeight: number): Line[] {
 }
 
 /**
- * Run OCR over every page of a PDF that has no text layer. Tesseract.js (and its Hebrew + English
- * models, fetched once and then cached by the library) is loaded only when this is called.
+ * Run OCR over the given pages (1-based) of a PDF, e.g. the ones with no text layer. Resolves to
+ * the lines of each page, in the order given; progress counts only these pages. Tesseract.js (and
+ * its Hebrew + English models, fetched once and then cached by the library) is loaded only when
+ * this is called.
  */
 export async function ocrPdf(
   pdf: PDFDocumentProxy,
+  pageNumbers: number[],
   onProgress?: (done: number, total: number) => void,
 ): Promise<Line[][]> {
   const { createWorker } = await import('tesseract.js')
@@ -42,8 +59,8 @@ export async function ocrPdf(
   const canvas = document.createElement('canvas')
   const pages: Line[][] = []
   try {
-    for (let i = 1; i <= pdf.numPages; i++) {
-      onProgress?.(i - 1, pdf.numPages)
+    for (const [n, i] of pageNumbers.entries()) {
+      onProgress?.(n, pageNumbers.length)
       const page = await pdf.getPage(i)
       const base = page.getViewport({ scale: 1 })
       const viewport = page.getViewport({ scale: TARGET_HEIGHT / base.height })
@@ -55,7 +72,7 @@ export async function ocrPdf(
       const found = (data.blocks ?? []).flatMap((b) => b.paragraphs.flatMap((p) => p.lines))
       pages.push(ocrLinesToLines(found, canvas.height))
     }
-    onProgress?.(pdf.numPages, pdf.numPages)
+    onProgress?.(pageNumbers.length, pageNumbers.length)
   } finally {
     canvas.width = canvas.height = 0
     await worker.terminate()

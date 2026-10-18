@@ -14,6 +14,8 @@ export interface Line {
 const HEB = /[\u0590-\u05FF]/
 const FINALS = /[ךםןףץ]/
 const PAGES_PER_SECTION = 8
+/** a page with less text than this is treated as an image (a scan) */
+const MIN_PAGE_CHARS = 20
 
 /** One positioned text run as reported by pdf.js. */
 export interface RawItem {
@@ -498,16 +500,18 @@ export async function extractPdf(
       }
     }
 
-    const hasText = () => pages.flat().map((l) => l.text).join('').replace(/\s/g, '').length >= total * 20
-    // a scan has no text layer: read the page images instead (the pdf must stay open for this)
-    if (!hasText()) {
+    const charCount = (lines: Line[]) => lines.map((l) => l.text).join('').replace(/\s/g, '').length
+    // a scan has no text layer: read the images of the empty pages (the pdf must stay open for this)
+    const empty = pages.flatMap((lines, i) => (charCount(lines) < MIN_PAGE_CHARS ? [i] : []))
+    if (empty.length >= total / 2) {
       try {
-        pages = await (await import('./ocr')).ocrPdf(pdf, onOcrProgress)
+        const read = await (await import('./ocr')).ocrPdf(pdf, empty.map((i) => i + 1), onOcrProgress)
+        empty.forEach((i, k) => (pages[i] = read[k] ?? []))
       } catch (e) {
         console.error(e)
         throw new ImportError(t('pdf.ocrFailed'))
       }
-      if (!hasText()) throw new ImportError(t('pdf.noText'))
+      if (!pages.some((lines) => charCount(lines) >= MIN_PAGE_CHARS)) throw new ImportError(t('pdf.noText'))
     }
 
     // pages whose text came out badly keep a picture of the original page next to it
