@@ -30,5 +30,15 @@ Promise.all([migrate().catch(console.error), reloading]).then(([, reload]) => {
   )
 })
 
+// A tab opened before a deploy still runs the old main-*.js, whose lazy chunks (pdf, docx…) no longer exist on
+// the server. Reload once to pick up the new version instead of failing every import.
+window.addEventListener('vite:preloadError', (e) => {
+  const last = Number(sessionStorage.getItem('reader:chunk-reload') ?? 0)
+  if (Date.now() - last < 60_000) return // already tried a moment ago: let the error surface
+  sessionStorage.setItem('reader:chunk-reload', String(Date.now()))
+  e.preventDefault()
+  location.reload()
+})
+
 // ask the browser not to evict the library (IndexedDB) under storage pressure
 requestPersistence()
