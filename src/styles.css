@@ -6,6 +6,18 @@
   --fg-muted: color-mix(in srgb, var(--fg) 72%, var(--bg));
   font-family: "Heebo", system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
   color-scheme: light dark;
+  /* friendly, rounded look: every control, panel and menu takes its corners and shadow from these */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+  --fill: rgba(128,128,128,.14);
+  --border: rgba(128,128,128,.32);
+  --border-strong: rgba(128,128,128,.55);
+  --border-subtle: rgba(128,128,128,.2);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.14);
+  --shadow-md: 0 4px 14px rgba(0,0,0,.16);
+  --shadow-lg: 0 10px 30px rgba(0,0,0,.24);
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body, #root { height: 100%; margin: 0; }
@@ -20,6 +32,11 @@ button.secondary { background: transparent; border: 1px solid var(--border-stron
 button.quiet { background: transparent; }
 button.quiet:hover:not(:disabled), button.secondary:hover:not(:disabled) { background: var(--fill, rgba(128,128,128,.18)); }
 button:disabled { opacity: .5; }
+button, .select-btn, .dd-btn { transition: background-color .15s, box-shadow .15s; }
+/* native controls follow the theme and the rounded look */
+input[type=checkbox], input[type=radio], input[type=range], progress { accent-color: var(--accent); }
+input[type=color] { padding: 2px; border: 1px solid var(--border); border-radius: var(--radius-md); background: transparent; cursor: pointer; }
+select { font: inherit; padding: .4rem .6rem; border-radius: var(--radius-lg); border: 1px solid var(--border); background: var(--bg); color: inherit; }
 
 /* library */
 .library { min-height: 100%; padding: 0 1rem 1rem; max-width: 960px; margin: 0 auto; }
