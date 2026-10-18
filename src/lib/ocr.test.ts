@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ocrLinesToLines } from './ocr'
+import { isOcrNoise, ocrLinesToLines } from './ocr'
 
 const box = (y0: number, y1: number) => ({ x0: 10, y0, x1: 300, y1 })
 
@@ -26,5 +26,19 @@ describe('ocrLinesToLines', () => {
       500,
     )
     expect(out.map((l) => l.text)).toEqual(['טוב'])
+  })
+})
+
+describe('isOcrNoise', () => {
+  it('rejects symbol-only and mostly-symbol lines', () => {
+    expect(isOcrNoise('— | ~ .', 90)).toBe(true)
+    expect(isOcrNoise('a|~|~|', 90)).toBe(true)
+  })
+  it('rejects short fragments unless the engine is sure', () => {
+    expect(isOcrNoise('וא', 50)).toBe(true)
+    expect(isOcrNoise('12', 95)).toBe(false)
+  })
+  it('keeps ordinary text', () => {
+    expect(isOcrNoise('זה משפט רגיל, עם פסיק.', 60)).toBe(false)
   })
 })
