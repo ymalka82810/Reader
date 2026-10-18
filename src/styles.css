@@ -12,6 +12,10 @@ body { background: var(--bg); color: var(--fg); }
 @media (prefers-color-scheme: dark) { :root { --bg: #151515; --fg: #e6e6e6; --accent: #63b3ed; --on-accent: #0b1a2a; } }
 button { font: inherit; cursor: pointer; border: 0; border-radius: var(--radius-lg); padding: 0.55rem 0.9rem; background: var(--fill); color: inherit; }
 button.primary { background: var(--accent); color: var(--on-accent); }
+/* hierarchy: primary (filled accent) > secondary (outlined) > quiet (no chrome, for utility icons) > danger (filled red) */
+button.secondary { background: transparent; border: 1px solid var(--border-strong, rgba(128,128,128,.55)); }
+button.quiet { background: transparent; }
+button.quiet:hover:not(:disabled), button.secondary:hover:not(:disabled) { background: var(--fill, rgba(128,128,128,.18)); }
 button:disabled { opacity: .5; }
 
 /* library */

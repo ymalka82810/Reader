@@ -252,7 +252,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
         {t('a11y.skip')}
       </a>
       <header className="lib-header">
-        <button className="prefs-open" aria-label={t('prefs.open')} title={t('prefs.open')} onClick={() => setSettingsOpen(true)}>
+        <button className="prefs-open quiet" aria-label={t('prefs.open')} title={t('prefs.open')} onClick={() => setSettingsOpen(true)}>
           ☰
         </button>
         <h1>{t('lib.title')}</h1>
@@ -336,7 +336,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
         <div className="notice select-bar">
           {inFolderList ? (<>
             <span>{t('lib.foldersSelected', { n: selectedFolders.size })}</span>
-            <button onClick={() => setSelectedFolders(new Set(folders.map((f) => f.key)))}>{t('lib.selectAllFolders')}</button>
+            <button className="secondary" onClick={() => setSelectedFolders(new Set(folders.map((f) => f.key)))}>{t('lib.selectAllFolders')}</button>
             <button
               className="danger"
               disabled={pickedFolders.length === 0}
@@ -346,8 +346,8 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
             </button>
           </>) : (<>
             <span>{t('lib.booksSelected', { n: selected.size })}</span>
-            <button onClick={() => setSelected(new Set((searching ? shown : current!.books).map((b) => b.id)))}>{t('lib.selectAllBooks')}</button>
-            <button disabled={selected.size === 0} onClick={() => fo.setMoving(books.filter((b) => selected.has(b.id)))}>
+            <button className="secondary" onClick={() => setSelected(new Set((searching ? shown : current!.books).map((b) => b.id)))}>{t('lib.selectAllBooks')}</button>
+            <button className="secondary" disabled={selected.size === 0} onClick={() => fo.setMoving(books.filter((b) => selected.has(b.id)))}>
               {t('lib.moveBooks')}
             </button>
             <button
@@ -358,7 +358,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
               {t('lib.deleteBooks')}
             </button>
           </>)}
-          <button onClick={exitSelect}>{t('common.done')}</button>
+          <button className="primary" onClick={exitSelect}>{t('common.done')}</button>
         </div>
       )}
 
