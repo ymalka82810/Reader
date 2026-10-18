@@ -254,6 +254,8 @@ export const he = {
   'import.extracting': 'מחלץ טקסט מה-PDF…',
   'import.ocr': 'סריקה: מזהה טקסט (OCR)…',
   'import.converting': 'ממיר ל-EPUB…',
+  'import.pdfConverting': 'ה-PDF מומר ל-EPUB ומאבד פריסה, עמודות, טבלאות ותמונות. מתאים לטקסט פשוט בלבד. ממיר…',
+  'import.pdfTables': 'זוהו טבלאות: ה-PDF נשמר כמו שהוא, בלי המרה.',
   'import.reading': 'קורא את הספר…',
   'import.readingAudio': 'קורא את הספר הקולי…',
   'pdf.page': 'עמוד {n}',

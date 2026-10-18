@@ -257,6 +257,8 @@ export const en: Record<keyof typeof he, Message> = {
   'import.extracting': 'Extracting text from the PDF…',
   'import.ocr': 'Scan: recognizing text (OCR)…',
   'import.converting': 'Converting to EPUB…',
+  'import.pdfConverting': 'The PDF is converted to EPUB, losing layout, columns, tables and images. Suitable for plain text only. Converting…',
+  'import.pdfTables': 'Tables detected: the PDF is kept as is, without conversion.',
   'import.reading': 'Reading the book…',
   'import.readingAudio': 'Reading the audiobook…',
   'pdf.page': 'Page {n}',
