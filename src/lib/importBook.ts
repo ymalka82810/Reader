@@ -2,6 +2,7 @@ import { ImportError, explainImportError } from './errors'
 import { contentId, hasBook, listBooks, replaceBook, saveBook, type BookMeta, type BookRecord } from './db'
 import { sameBook } from './sameBook'
 import { t } from '../i18n'
+import { wordsOfBook } from './wordCount'
 import { isAudio, readAudioMeta, type AudioInfo } from './audioBook'
 
 const ALREADY_EXISTS = t('import.exists')
@@ -88,6 +89,7 @@ async function readIntoLibrary(
   let cover: Blob | undefined
   let title: string
   let author: string
+  let words: number | undefined
   let book: { destroy?: () => void } = {}
 
   if (isAudio(file)) {
@@ -147,6 +149,8 @@ async function readIntoLibrary(
   }
   title = langMap(opened.metadata?.title) || epub.name.replace(/\.[^.]+$/, '')
   author = contributor(opened.metadata?.author)
+  onProgress?.(t('import.counting'))
+  words = await wordsOfBook(opened)
   }
 
   const dup = (await listBooks()).find((b) => sameBook(b, { title, author }))
@@ -180,6 +184,7 @@ async function readIntoLibrary(
     kind: audio ? 'audio' : 'epub',
     fromPdf,
     audio,
+    words,
     title,
     author,
     cover,

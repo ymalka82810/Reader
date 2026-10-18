@@ -79,6 +79,8 @@ export const he = {
   'sort.added': 'נוסף לאחרונה',
   'sort.title': 'שם (א–ת)',
   'sort.author': 'מחבר (א–ת)',
+  'import.counting': 'סופר מילים…',
+  'lib.countingWords': 'סופר מילים בספרים קיימים…',
   'sort.longest': 'ארוך ביותר',
   'smart.label': 'אוספים חכמים',
   'smart.none': 'כל הספרים',

@@ -51,18 +51,18 @@ export function isStale(b: Pick<BookMeta, 'lastOpened' | 'addedAt' | 'finished' 
 
 type Sized = Pick<BookMeta, 'id' | 'kind' | 'audio'>
 
-/** compares by length, longest first: books by file size (the text length is not stored), audiobooks after them by duration */
-export function byLength(sizes: ReadonlyMap<string, number>) {
+/** compares by length, longest first: books by word count, audiobooks after them by duration */
+export function byLength(lengths: ReadonlyMap<string, number>) {
   return (a: Sized, b: Sized) => {
     const audio = Number(a.kind === 'audio') - Number(b.kind === 'audio')
     if (audio) return audio
     if (a.kind === 'audio') return (b.audio?.duration ?? 0) - (a.audio?.duration ?? 0)
-    return (sizes.get(b.id) ?? 0) - (sizes.get(a.id) ?? 0)
+    return (lengths.get(b.id) ?? 0) - (lengths.get(a.id) ?? 0)
   }
 }
 
-/** ids of the LONGEST_COUNT longest books, audiobooks left out (their length is time, not size) */
-export function longestOf(books: Sized[], sizes: ReadonlyMap<string, number>): Set<string> {
-  const top = books.filter((b) => b.kind !== 'audio').sort(byLength(sizes)).slice(0, LONGEST_COUNT)
+/** ids of the LONGEST_COUNT longest books, audiobooks left out (their length is time, not words) */
+export function longestOf(books: Sized[], lengths: ReadonlyMap<string, number>): Set<string> {
+  const top = books.filter((b) => b.kind !== 'audio').sort(byLength(lengths)).slice(0, LONGEST_COUNT)
   return new Set(top.map((b) => b.id))
 }

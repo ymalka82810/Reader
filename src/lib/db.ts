@@ -25,6 +25,8 @@ export interface BookRecord {
   fraction?: number
   /** folder picked by the user; unset = filed by author, '' = deliberately in no folder */
   folder?: string
+  /** words in the text, counted when the book is added; unset = not counted yet (books from before) */
+  words?: number
   /** labels the user attached; a book can carry several */
   tags?: string[]
 }
@@ -138,6 +140,13 @@ export const updateMeta = (id: string, title: string, author: string, tags?: str
     if (tags?.length) b.tags = tags
     else if (tags) delete b.tags
     await set(id, b, store)
+  })
+
+/** stores the word count of a book */
+export const setWords = (id: string, words: number) =>
+  serial(async () => {
+    const b = await get<BookMeta>(id, store)
+    if (b) await set(id, { ...b, words }, store)
   })
 
 /** moves books to a folder; `undefined` puts them back under their author */
