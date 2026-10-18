@@ -127,8 +127,50 @@ export function readingGroups(items: RawItem[]): RawItem[][] {
   return out
 }
 
-/** Extract lines of text from one PDF page, in reading order. */
-async function extractLines(page: PDFPageProxy): Promise<Line[]> {
+/**
+ * True when the page holds a table: several rows in a row, each split into 3+ cells by wide gaps,
+ * with the cells lining up in the same columns. Plain text, even in two columns, has no such rows.
+ */
+export function looksTabular(items: RawItem[]): boolean {
+  const texts = items.filter((i) => i.str.trim())
+  if (texts.length < 12) return false
+  const rows: RawItem[][] = []
+  for (const it of [...texts].sort((a, b) => b.y - a.y)) {
+    const row = rows[rows.length - 1]
+    if (row && Math.abs(row[0]!.y - it.y) <= it.h * 0.5) row.push(it)
+    else rows.push([it])
+  }
+  const h = median(texts.map((i) => i.h)) || 10
+  const tol = h * 1.5
+  type Cell = { x0: number; x1: number }
+  // a row's cells: runs separated by a gap far wider than a word space
+  const cellsOf = (row: RawItem[]) => {
+    const cells: Cell[] = []
+    for (const it of [...row].sort((a, b) => a.x - b.x)) {
+      const last = cells[cells.length - 1]
+      if (last && it.x - last.x1 <= h * 1.5) last.x1 = Math.max(last.x1, it.x + it.w)
+      else cells.push({ x0: it.x, x1: it.x + it.w })
+    }
+    return cells
+  }
+  const tabular = rows.map(cellsOf).filter((c) => c.length >= 3)
+  if (tabular.length < 4) return false
+  // columns: left edges (or right edges, for right-aligned numbers) shared by at least 4 rows
+  const columns = (edge: (c: Cell) => number) => {
+    const anchors: number[][] = []
+    for (const cells of tabular)
+      for (const c of cells) {
+        const a = anchors.find((g) => Math.abs(g[0]! - edge(c)) <= tol)
+        if (a) a.push(edge(c))
+        else anchors.push([edge(c)])
+      }
+    return anchors.filter((g) => g.length >= 4).length >= 3
+  }
+  return columns((c) => c.x0) || columns((c) => c.x1)
+}
+
+/** Text runs of one PDF page, as pdf.js reports them. */
+async function rawItems(page: PDFPageProxy): Promise<RawItem[]> {
   const content = await page.getTextContent()
   const items: RawItem[] = []
   for (const it of content.items) {
@@ -142,7 +184,7 @@ async function extractLines(page: PDFPageProxy): Promise<Line[]> {
       eol: !!it.hasEOL,
     })
   }
-  return readingGroups(items).flatMap(buildLines)
+  return items
 }
 
 /** Digits vary page to page ("עמוד 7"), so compare repeated lines with numbers masked. */
@@ -283,6 +325,8 @@ export interface ExtractedPdf {
   }[]
   /** the first page rendered as a JPEG, used as the book's cover */
   cover?: Blob
+  /** the PDF has tables, which a text conversion would wreck: the original file is kept instead */
+  hasTables?: boolean
 }
 
 interface PageImage {
@@ -427,17 +471,32 @@ export async function extractPdf(
   let info: Record<string, string>
   let bookmarks: Map<number, string>
   let cover: Blob | null = null
+  let hasTables = false
   const pageImages = new Map<number, Blob>()
   try {
     for (let i = 1; i <= total; i++) {
       const p = await pdf.getPage(i)
-      pages.push(await extractLines(p))
+      const items = await rawItems(p)
+      if (looksTabular(items)) hasTables = true
+      pages.push(readingGroups(items).flatMap(buildLines))
       p.cleanup()
       onProgress?.(i, total)
     }
     info = ((await pdf.getMetadata().catch(() => null))?.info ?? {}) as Record<string, string>
     bookmarks = await outlineStarts(pdf)
     cover = await renderCover(pdf)
+    // tables are shown from the original PDF: no text to convert, OCR or render page images for
+    if (hasTables) {
+      return {
+        title: info.Title || fileName.replace(/\.pdf$/i, ''),
+        author: info.Author || '',
+        rtl: false,
+        pageCount: total,
+        chapters: [],
+        cover: cover ?? undefined,
+        hasTables,
+      }
+    }
 
     const hasText = () => pages.flat().map((l) => l.text).join('').replace(/\s/g, '').length >= total * 20
     // a scan has no text layer: read the page images instead (the pdf must stay open for this)
@@ -515,6 +574,7 @@ export async function extractPdf(
     pageCount: total,
     chapters,
     cover: cover ?? undefined,
+    hasTables: false,
   }
 }
 
