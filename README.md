@@ -14,7 +14,7 @@
 | `interactive.html` | דף ה-sandbox של ספרים אינטראקטיביים (מדיניות CSP משלו; ראו ״יכולות״) |
 | `public/` | אייקונים של ה-PWA וסקריפט ה-share-target |
 | `resources/` | קבצים לאנדרואיד שנוספים לפרויקט בזמן הבנייה: אייקוני אפליקציה ו-`android-updater/` |
-| `e2e/` | בדיקות Playwright (`npm run e2e`, רצות ידנית ולא ב-CI) |
+| `e2e/` | בדיקות Playwright (`npm run e2e`, רצות ב-CI אחרי בדיקות היחידה) |
 | `.github/workflows/` | CI, פריסה ובניית APK |
 
 ## יכולות
@@ -86,7 +86,7 @@ TypeScript רץ במצב `strict` מלא, בתוספת `noUncheckedIndexedAccess
 - ההתקנה כ-PWA דורשת HTTPS (למשל GitHub Pages).
 
 ## פריסה
-- **CI** ([ci.yml](.github/workflows/ci.yml)): על כל pull request ועל כל push ל-`main` רצים `lint`, `npm run build` (‏`tsc -b` + בניית Vite/PWA, כך ששבירת בנייה נתפסת לפני המיזוג), `knip` ו-`test`.
+- **CI** ([ci.yml](.github/workflows/ci.yml)): על כל pull request ועל כל push ל-`main` רצים `lint`, `npm run build` (‏`tsc -b` + בניית Vite/PWA, כך ששבירת בנייה נתפסת לפני המיזוג), `knip` ו-`test`, ואחריהם בדיקות ה-e2e של Playwright (`npm run e2e`) בדפדפן Chromium. כשהן נכשלות, התוצאות (`test-results/`) נשמרות כ-artifact לשבעה ימים.
 - **פריסה** ([deploy.yml](.github/workflows/deploy.yml)): כל push ל-`main` בונה (`npm run build`) ומפרסם את `dist/` ל-GitHub Pages.
   להפעלה חד-פעמית: Settings ← Pages ← Source: **GitHub Actions**.
 - האתר משתמש ב-`base: './'`, ולכן עובד מכל תת-נתיב (`https://<user>.github.io/<repo>/`) בלי הגדרה נוספת. התקנה כ-PWA דורשת HTTPS, ו-Pages מספק אותו.

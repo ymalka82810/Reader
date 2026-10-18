@@ -103,7 +103,7 @@ export default function AudioPlayer({ id, onClose }: { id: string; onClose: () =
   }, [id])
   const saveRef = useLatest(save)
 
-  // keep the position when leaving: on close, when the tab is hidden, and every few seconds while playing
+  // keep the position when leaving: on close (below), when the tab is hidden, and every few seconds while playing
   useEffect(() => {
     const flush = () => saveRef.current()
     const onVis = () => document.visibilityState === 'hidden' && flush()
@@ -112,9 +112,13 @@ export default function AudioPlayer({ id, onClose }: { id: string; onClose: () =
     return () => {
       window.removeEventListener('pagehide', flush)
       document.removeEventListener('visibilitychange', onVis)
-      flush()
     }
   }, [saveRef])
+  // saved here, not on unmount: by then React has already detached the <audio> element
+  const close = () => {
+    save()
+    onClose()
+  }
 
   useEffect(() => {
     if (audio.current) audio.current.playbackRate = speed
@@ -215,7 +219,7 @@ export default function AudioPlayer({ id, onClose }: { id: string; onClose: () =
     else if (e.key === 'b') addMark()
     else if (e.key === 'Escape') {
       if (panel) setPanel(null)
-      else onClose()
+      else close()
     } else return
     e.preventDefault()
   }
@@ -231,7 +235,7 @@ export default function AudioPlayer({ id, onClose }: { id: string; onClose: () =
   return (
     <div className="reader audio" dir={isRtl() ? 'rtl' : 'ltr'} style={{ ['--bg' as string]: colors.bg, ['--fg' as string]: colors.fg }} onKeyDown={onKey}>
       <div className="topbar">
-        <button onClick={onClose} aria-label={t('reader.backToLibrary')}><Icon d={isRtl() ? 'M15 6l-6 6 6 6' : 'M9 6l6 6-6 6'} /></button>
+        <button onClick={close} aria-label={t('reader.backToLibrary')}><Icon d={isRtl() ? 'M15 6l-6 6 6 6' : 'M9 6l6 6-6 6'} /></button>
         <span className="title">{title}</span>
         <button onClick={() => togglePanel('marks')} aria-label={t('audio.marks')} aria-pressed={panel === 'marks'}>🔖</button>
       </div>
@@ -239,7 +243,7 @@ export default function AudioPlayer({ id, onClose }: { id: string; onClose: () =
       {failed && (
         <div className="overlay-msg error" role="alert">
           <p>{t('audio.openFailed')}</p>
-          <button onClick={onClose}>{t('reader.backToLibrary')}</button>
+          <button onClick={close}>{t('reader.backToLibrary')}</button>
         </div>
       )}
       {!book && !failed && <div className="overlay-msg">{t('common.loading')}</div>}
