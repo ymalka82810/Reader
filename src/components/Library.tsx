@@ -17,6 +17,7 @@ import { localeTag, t } from '../i18n'
 import { GoalsDialog } from './library/GoalsDialog'
 import { ReviewDialog } from './library/ReviewDialog'
 import { BackupMenu } from './library/BackupMenu'
+import { SettingsScreen } from './settings/SettingsScreen'
 import { LibTools, type Sort } from './library/LibTools'
 import { CatalogDialog } from './library/CatalogDialog'
 import { PickBooksDialog } from './library/PickBooksDialog'
@@ -63,6 +64,7 @@ export default function Library({ onOpen }: { onOpen: (id: string, cfi?: string)
   const [goalsOpen, setGoalsOpen] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
   const [catalogOpen, setCatalogOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [confirmDel, setConfirmDel] = useState<BookMeta[]>()
   useEffect(() => {
     getStorageStatus().then(setStorage)
@@ -219,6 +221,9 @@ export default function Library({ onOpen }: { onOpen: (id: string, cfi?: string)
         {t('a11y.skip')}
       </a>
       <header className="lib-header">
+        <button className="prefs-open" aria-label={t('prefs.open')} title={t('prefs.open')} onClick={() => setSettingsOpen(true)}>
+          ☰
+        </button>
         <h1>{t('lib.title')}</h1>
         <button className="primary" onClick={() => input.current?.click()} disabled={!!busy}>
           {t('lib.addBook')}
@@ -245,15 +250,11 @@ export default function Library({ onOpen }: { onOpen: (id: string, cfi?: string)
               : undefined
           }
           busy={!!busy}
-          storage={storage}
-          onPersist={reqPersist}
           onBackup={backup.askExport}
           onRestore={() => restoreInput.current?.click()}
-          onCheckUpdate={checkUpdate}
           onGoals={() => setGoalsOpen(true)}
           onReview={() => setReviewOpen(true)}
           onCatalog={() => setCatalogOpen(true)}
-          auto={{ state: auto.state, last: auto.last, onEnable: auto.enable, onDisable: auto.disable, onRenew: auto.renew }}
         />
         <input
           ref={restoreInput}
@@ -471,6 +472,20 @@ export default function Library({ onOpen }: { onOpen: (id: string, cfi?: string)
         />
       )}
       {confirmAsk &&<ConfirmDialog ask={confirmAsk} />}
+      {settingsOpen && (
+        <SettingsScreen
+          onClose={() => setSettingsOpen(false)}
+          onCheckUpdate={checkUpdate}
+          backup={{
+            busy: !!busy,
+            storage,
+            onPersist: reqPersist,
+            onBackup: backup.askExport,
+            onRestore: () => restoreInput.current?.click(),
+            auto: { state: auto.state, last: auto.last, onEnable: auto.enable, onDisable: auto.disable, onRenew: auto.renew },
+          }}
+        />
+      )}
       {goalsOpen && <GoalsDialog onClose={() => setGoalsOpen(false)} />}
       {catalogOpen && <CatalogDialog onClose={() => setCatalogOpen(false)} onAdd={(f) => imp.addFiles([f])} />}
       {reviewOpen && <ReviewDialog books={books} onClose={() => setReviewOpen(false)} />}

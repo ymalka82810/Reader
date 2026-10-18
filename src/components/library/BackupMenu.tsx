@@ -1,8 +1,5 @@
 import { useRef, useState } from 'react'
-import { formatBytes, type StorageStatus } from '../../lib/storage'
-import type { AutoBackupState } from '../../lib/autoBackup'
-import { isNativeApp } from '../../lib/updater'
-import { changeLocale, getLocale, LOCALES, localeTag, t } from '../../i18n'
+import { t } from '../../i18n'
 import { applyA11yClasses, loadSettings, saveSettings } from '../../lib/settings'
 import { menuKeyDown } from '../menuKeys'
 
@@ -15,19 +12,15 @@ type View = {
 type Props = {
   view?: View
   busy: boolean
-  storage?: StorageStatus
-  onPersist: () => void
   onBackup: () => void
   onRestore: () => void
-  onCheckUpdate: () => void
   onGoals: () => void
   onReview: () => void
   onCatalog: () => void
-  auto: { state: AutoBackupState; last: number; onEnable: () => void; onDisable: () => void; onRenew: () => void }
 }
 
-/** the "⋯" menu in the library header: backup, restore, app update and storage status */
-export function BackupMenu({ view, busy, storage, onPersist, onBackup, onRestore, onCheckUpdate, onGoals, onReview, onCatalog, auto }: Props) {
+/** the "⋯" menu in the library header: actions (catalogs, goals, review, folders, selecting, backup, restore) and the accessibility toggles; the rest is in the settings screen */
+export function BackupMenu({ view, busy, onBackup, onRestore, onGoals, onReview, onCatalog }: Props) {
   const [open, setOpen] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
   const close = (refocus = false) => {
@@ -45,12 +38,6 @@ export function BackupMenu({ view, busy, storage, onPersist, onBackup, onRestore
     [t('backup.title'), onBackup, t('menu.backupTip')],
     [t('menu.restore'), onRestore, t('menu.restoreTip')],
   ]
-  const autoTip = t('menu.autoTip')
-  if (auto.state === 'off') items.push([t('menu.autoOn'), auto.onEnable, autoTip])
-  else if (auto.state === 'needs-permission') items.push([t('menu.autoRenew'), auto.onRenew, t('menu.autoRenewTip')])
-  else if (auto.state === 'ready') items.push([t('menu.autoOff'), auto.onDisable, autoTip])
-  if (storage && !storage.persisted) items.push([t('menu.persist'), onPersist, t('menu.persistTip')])
-  if (isNativeApp) items.push([t('menu.checkUpdate'), onCheckUpdate, t('menu.checkUpdateTip')])
 
   return (
     <div className="menu-wrap">
@@ -105,25 +92,6 @@ export function BackupMenu({ view, busy, storage, onPersist, onBackup, onRestore
             <button role="menuitemcheckbox" aria-checked={a11y.dyslexia} title={t('a11y.dyslexiaTip')} onClick={() => toggleA11y('dyslexia')}>
               {a11y.dyslexia ? '✓ ' : ''}{t('a11y.dyslexia')}
             </button>
-            {LOCALES.filter(([code]) => code !== getLocale()).map(([code, name]) => (
-              <button key={code} role="menuitem" title={t('menu.language')} onClick={() => changeLocale(code)}>
-                🌐 {name}
-              </button>
-            ))}
-            {auto.state === 'ready' && (
-              <div className="menu-info" role="status">
-                {t('menu.autoActive')}
-                {auto.last ? ` · ${t('menu.autoLast', { date: new Date(auto.last).toLocaleString(localeTag()) })}` : ''}
-              </div>
-            )}
-            {storage && (
-              <div className="menu-info" role="status">
-                {storage.persisted ? t('menu.storagePersisted') : t('menu.storageNotPersisted')}
-                {storage.usage != null && storage.quota
-                  ? ` · ${t('menu.storageUsage', { used: formatBytes(storage.usage), total: formatBytes(storage.quota) })}`
-                  : ''}
-              </div>
-            )}
           </div>
           </div>
         </>

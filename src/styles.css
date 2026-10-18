@@ -64,9 +64,6 @@ button:disabled { opacity: .5; }
 .meta small { opacity: .7; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .panel:focus { outline: none; }
-.shortcuts { font-size: .85rem; opacity: .75; line-height: 1.7; }
-.shortcuts summary { cursor: pointer; }
-.shortcuts ul { margin: .3rem 0 0; padding-inline-start: 1.1rem; }
 kbd { font: inherit; padding: 0 .35rem; border-radius: 4px; border: 1px solid rgba(127,127,127,.5); }
 
 .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: grid; place-items: center; z-index: 10; }
@@ -156,7 +153,6 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: 4px; border: 1px solid rg
 .menu { max-height: 80vh; overflow-y: auto; }
 .menu-title { padding: .4rem .6rem .1rem; font-size: .75rem; opacity: .65; }
 .menu-sep { border-top: 1px solid rgba(128,128,128,.3); margin: .2rem 0; }
-.menu-info { padding: .5rem .6rem; font-size: .8rem; opacity: .75; border-top: 1px solid rgba(128,128,128,.3); margin-top: .2rem; }
 .lib-toast { bottom: calc(1.2rem + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: .9rem; }
 .lib-toast button { flex: none; padding: .3rem .75rem; border-radius: 8px; background: rgba(140,196,255,.16); color: #8cc4ff; font-weight: 600; }
 .icon { display: block; }
@@ -347,7 +343,7 @@ i.lv4 { background: var(--accent) !important; }
 .hc .search-results mark, .hc .note-hits mark { background: var(--accent); color: #000; }
 .hc .tap-help { background: #000; border: 2px solid #fff; }
 .hc .lib-header h1, .hc .topbar .title { color: #fff; }
-.hc :is(.meta small, .continue-info small, .muted, .note-text, .note-book, .progress .label, .shortcuts, .empty, .goals-note, .goals-stats small, .goals-bar small, .menu-title, .menu-info, .batch-head, .modal label, .search-results > li > strong, .note-hits .muted) { opacity: 1; }
+.hc :is(.meta small, .continue-info small, .muted, .note-text, .note-book, .progress .label, .empty, .goals-note, .goals-stats small, .goals-bar small, .menu-title, .batch-head, .modal label, .search-results > li > strong, .note-hits .muted) { opacity: 1; }
 
 @media (forced-colors: active) {
   .swatch, .cover { forced-color-adjust: none; }

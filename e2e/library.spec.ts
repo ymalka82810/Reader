@@ -116,3 +116,15 @@ test('dialog keeps focus inside and returns it on close', async ({ page }) => {
   await page.keyboard.press('Escape')
   await expect(dialog).toHaveCount(0)
 })
+
+test('settings screen: open from the ☰ button, switch pages and close', async ({ page }) => {
+  await page.getByRole('button', { name: 'הגדרות', exact: true }).click()
+  const screen = page.getByRole('dialog', { name: 'הגדרות', exact: true })
+  await expect(screen).toBeVisible()
+  await screen.getByRole('button', { name: 'גיבוי ואחסון' }).click()
+  await expect(screen.getByRole('region', { name: 'גיבוי ואחסון' })).toBeVisible()
+  await screen.getByRole('button', { name: 'אודות' }).click()
+  await expect(screen.getByRole('region', { name: 'אודות' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(screen).toHaveCount(0)
+})

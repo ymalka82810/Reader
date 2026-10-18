@@ -1,9 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { MAX_FONT, MIN_FONT } from '../../hooks/useBookEvents'
 import { CUSTOM_FONT_FAMILY, removeCustomFont, saveCustomFont, type CustomFont } from '../../lib/customFont'
-import { setConsent } from '../../lib/consent'
-import { DICT_LANGS, FONTS, type Flow, type Settings, type Theme } from '../../lib/settings'
-import { Select } from '../Select'
+import { FONTS, type Flow, type Settings, type Theme } from '../../lib/settings'
 import { Panel, Seg } from './shared'
 import { t } from '../../i18n'
 
@@ -24,7 +22,6 @@ export function SettingsPanel({
   children?: ReactNode
 }) {
   const [fontError, setFontError] = useState('')
-  const [consentReset, setConsentReset] = useState(false)
   const upload = async (file: File | undefined) => {
     if (!file) return
     try {
@@ -151,49 +148,7 @@ export function SettingsPanel({
         <input type="checkbox" checked={settings.pageTransition} onChange={(e) => set('pageTransition', e.target.checked)} />
         {t('settings.pageAnim')}
       </label>
-      <div className="check">
-        {t('settings.dict')}{' '}
-        <Select
-          label={t('settings.dictLang')}
-          value={settings.dictLang}
-          onChange={(v) => set('dictLang', v)}
-          options={[['auto', t('settings.dictAuto')], ...DICT_LANGS.map(([code, name]): [string, string] => [code, name])]}
-        />
-      </div>
-      <div className="check">
-        {t('settings.translate')}{' '}
-        <Select
-          label={t('settings.translateLang')}
-          value={settings.translateLang}
-          onChange={(v) => set('translateLang', v)}
-          options={[['auto', t('settings.translateAuto')], ...DICT_LANGS.map(([code, name]): [string, string] => [code, name])]}
-        />
-      </div>
-      <div className="check">
-        <button
-          onClick={() => {
-            setConsent('translate', false)
-            setConsent('dict', false)
-            setConsentReset(true)
-          }}
-        >
-          {t('settings.consentReset')}
-        </button>
-        {consentReset && <span role="status"> {t('settings.consentDone')}</span>}
-      </div>
       {children}
-      <details className="shortcuts">
-        <summary>{t('kbd.title')}</summary>
-        <ul>
-          <li><kbd>←</kbd> <kbd>→</kbd> <kbd>{t('kbd.space')}</kbd> {t('kbd.turnPage')}</li>
-          <li><kbd>+</kbd> <kbd>-</kbd> {t('kbd.fontSize')}</li>
-          <li><kbd>b</kbd> {t('kbd.bookmark')} · <kbd>[</kbd> <kbd>]</kbd> {t('kbd.bookmarkNav')}</li>
-          <li><kbd>t</kbd> {t('kbd.toc')} · <kbd>n</kbd> {t('kbd.notes')}</li>
-          <li><kbd>a</kbd> {t('kbd.auto')} · <kbd>,</kbd> <kbd>.</kbd> {t('kbd.pace')}</li>
-          <li><kbd>r</kbd> {t('kbd.tts')} · <kbd>f</kbd> {t('kbd.focus')} · <kbd>m</kbd> {t('kbd.bars')}</li>
-          <li><kbd>/</kbd> {t('kbd.search')} · <kbd>s</kbd> {t('kbd.settings')} · <kbd>Esc</kbd> {t('kbd.close')}</li>
-        </ul>
-      </details>
     </Panel>
   )
 }
