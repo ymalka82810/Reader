@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react'
 import { t } from '../../i18n'
 import { menuKeyDown } from '../menuKeys'
-import { isNativeApp } from '../../lib/updater'
 
 type View = {
   onNewFolder?: () => void
@@ -16,11 +15,10 @@ type Props = {
   onRestore: () => void
   onGoals: () => void
   onReview: () => void
-  onCatalog: () => void
 }
 
-/** the "⋯" menu in the library header: actions only (catalogs, goals, review, folders, selecting, backup, restore); settings are in the settings screen */
-export function BackupMenu({ view, busy, onBackup, onRestore, onGoals, onReview, onCatalog }: Props) {
+/** the "⋯" menu in the library header: actions only (goals, review, folders, selecting, backup, restore); settings are in the settings screen */
+export function BackupMenu({ view, busy, onBackup, onRestore, onGoals, onReview }: Props) {
   const [open, setOpen] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
   const close = (refocus = false) => {
@@ -42,12 +40,6 @@ export function BackupMenu({ view, busy, onBackup, onRestore, onGoals, onReview,
           <div className="menu-backdrop" onClick={() => close()} />
           <div className="menu-pop" tabIndex={-1} autoFocus onKeyDown={(e) => menuKeyDown(e, () => close(true))}>
           <div className="menu" role="menu">
-            {/* catalogs rarely allow cross-origin reads, so only the app (native HTTP, no CORS) offers them */}
-            {isNativeApp && (
-              <button role="menuitem" title={t('opds.menuTip')} disabled={busy} onClick={() => { close(); onCatalog() }}>
-                {t('opds.menu')}
-              </button>
-            )}
             <button role="menuitem" onClick={() => { close(); onGoals() }}>
               {t('goals.title')}
             </button>
