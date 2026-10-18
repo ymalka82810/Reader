@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { getAllNotes, isFinished, updateMeta, type Annotation, type BookMeta } from '../lib/db'
+import { getAllNotes, getFile, isFinished, updateMeta, type Annotation, type BookMeta } from '../lib/db'
 import { searchNotes } from '../lib/noteSearch'
 import { backupDue } from '../lib/backupReminder'
 import { getStorageStatus, requestPersistence, type StorageStatus } from '../lib/storage'
@@ -19,7 +19,7 @@ import { ReviewDialog } from './library/ReviewDialog'
 import { BackupMenu } from './library/BackupMenu'
 import { LibTools, type Sort } from './library/LibTools'
 import { PickBooksDialog } from './library/PickBooksDialog'
-import { bookType, isFiltering, NO_FILTER, typesOf, type LibraryFilter } from '../lib/libraryFilter'
+import { bookType, byLength, isFiltering, isStale, longestOf, NO_FILTER, typesOf, type LibraryFilter } from '../lib/libraryFilter'
 import { folderKey, groupFolders } from '../lib/folders'
 import { BookGrid } from './library/BookGrid'
 import { NoteHits } from './library/NoteHits'
@@ -42,6 +42,7 @@ export default function Library({ onOpen }: { onOpen: (id: string, cfi?: string)
   const [drag, setDrag] = useState(false)
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<Sort>('recent')
+  const [loadedAt] = useState(Date.now)
   const [filter, setFilter] = useState<LibraryFilter>(NO_FILTER)
   const [picking, setPicking] = useState(false)
   const [editing, setEditing] = useState<BookMeta>()
@@ -83,8 +84,24 @@ export default function Library({ onOpen }: { onOpen: (id: string, cfi?: string)
   // a tag that no book carries any more stops filtering
   const activeTag = tags.some((x) => x.key === tag) ? tag : ''
 
+  // file sizes stand in for book length; they are read only once "longest" is asked for
+  const needSizes = sort === 'longest' || filter.smart === 'longest'
+  const [sizes, setSizes] = useState<ReadonlyMap<string, number>>(new Map())
+  useEffect(() => {
+    if (!needSizes) return
+    let alive = true
+    Promise.all(books.map(async (b) => [b.id, (await getFile(b.id))?.size ?? 0] as const))
+      .then((e) => alive && setSizes(new Map(e)))
+      .catch(console.error)
+    return () => {
+      alive = false
+    }
+  }, [needSizes, books])
+
   // books passing the filter and tag pickers, before the text query
   const scoped = useMemo(() => {
+    const now = loadedAt
+    const longest = filter.smart === 'longest' ? longestOf(books, sizes) : undefined
     const state = (b: BookMeta) => (isFinished(b) ? 'finished' : b.fraction ? 'reading' : 'unread')
     return books.filter(
       (b) =>
@@ -92,9 +109,11 @@ export default function Library({ onOpen }: { onOpen: (id: string, cfi?: string)
         (!filter.type || bookType(b) === filter.type) &&
         (filter.folder === undefined || folderKey(b) === filter.folder) &&
         (!filter.ids.size || filter.ids.has(b.id)) &&
-        (!activeTag || hasTag(b, activeTag)),
+        (!activeTag || hasTag(b, activeTag)) &&
+        (filter.smart !== 'stale' || isStale(b, now)) &&
+        (!longest || longest.has(b.id)),
     )
-  }, [books, filter, activeTag])
+  }, [books, filter, activeTag, sizes, loadedAt])
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -107,8 +126,9 @@ export default function Library({ onOpen }: { onOpen: (id: string, cfi?: string)
     if (sort === 'title') list.sort(by((b) => b.title))
     else if (sort === 'author') list.sort(by((b) => b.author || '￿'))
     else if (sort === 'added') list.sort((a, b) => b.addedAt - a.addedAt)
+    else if (sort === 'longest') list.sort(byLength(sizes))
     return list // 'recent' keeps the order listBooks returns
-  }, [scoped, query, sort])
+  }, [scoped, query, sort, sizes])
 
   // highlights and notes of every book are read once a search starts, and searched along with the titles
   const searchingText = !!query.trim()

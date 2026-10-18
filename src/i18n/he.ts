@@ -79,6 +79,11 @@ export const he = {
   'sort.added': 'נוסף לאחרונה',
   'sort.title': 'שם (א–ת)',
   'sort.author': 'מחבר (א–ת)',
+  'sort.longest': 'ארוך ביותר',
+  'smart.label': 'אוספים חכמים',
+  'smart.none': 'כל הספרים',
+  'smart.stale': 'לא נפתחו חודש',
+  'smart.longest': 'הכי ארוכים',
 
   // book cards and folders
   'book.read': 'נקרא',
