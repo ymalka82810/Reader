@@ -220,7 +220,7 @@ export const he = {
   'goals.daysMet': 'ימים שעמדו ביעד',
   'goals.daysRead': 'ימים עם קריאה',
   'goals.range': 'טווח הגרף',
-  'goals.week': 'שבוע',
+  'goals.week': 'השבוע',
   'goals.month': 'החודש',
   'goals.chart': 'זמן קריאה לפי יום ({n} ימים)',
   'goals.note': 'הנתונים מתחילים להישמר מהקריאה הבאה.',
