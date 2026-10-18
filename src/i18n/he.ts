@@ -559,6 +559,9 @@ export const he = {
   'eye.error': 'לא ניתן להפעיל את זיהוי המבט במכשיר זה',
 
   // settings screen
+  'prefs.appTheme': 'מראה האפליקציה',
+  'prefs.themeAuto': 'לפי המערכת',
+  'prefs.appThemeNote': 'חל על הספרייה ועל ההגדרות. הקורא עצמו משתמש בערכת הנושא שנבחרה בלוח Aa.',
   'prefs.title': 'הגדרות',
   'prefs.open': 'הגדרות',
   'prefs.close': 'סגור הגדרות',

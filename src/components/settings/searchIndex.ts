@@ -17,6 +17,7 @@ const ENTRIES: [PageId, MessageKey, boolean?][] = [
   ['a11y', 'a11y.contrast'],
   ['a11y', 'a11y.dyslexia'],
   ['a11y', 'settings.accessible'],
+  ['display', 'prefs.appTheme'],
   ['display', 'prefs.focus', !isNativeApp],
   ['display', 'prefs.eye', EYE_SCROLL_AVAILABLE],
   ['language', 'prefs.ifaceLang'],

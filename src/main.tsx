@@ -11,12 +11,14 @@ import { migrate } from './lib/db'
 import { applyDocumentLocale } from './i18n'
 import { requestPersistence } from './lib/storage'
 import { setupServiceWorker } from './lib/serviceWorker'
+import { applyAppTheme, loadAppTheme } from './lib/appTheme'
 import { applyA11yClasses, loadSettings } from './lib/settings'
 import { isNativeApp } from './lib/updater'
 
 document.documentElement.classList.toggle('native-app', isNativeApp)
 applyDocumentLocale()
 applyA11yClasses(loadSettings())
+applyAppTheme(loadAppTheme())
 
 const reloading = setupServiceWorker().catch((e) => {
   console.error(e)

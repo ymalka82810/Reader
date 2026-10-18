@@ -562,6 +562,9 @@ export const en: Record<keyof typeof he, Message> = {
   'eye.error': 'Eye tracking cannot be started on this device',
 
   // settings screen
+  'prefs.appTheme': 'App appearance',
+  'prefs.themeAuto': 'Follow system',
+  'prefs.appThemeNote': 'Applies to the library and settings. The reader itself uses the theme picked in the Aa panel.',
   'prefs.title': 'Settings',
   'prefs.open': 'Settings',
   'prefs.close': 'Close settings',
