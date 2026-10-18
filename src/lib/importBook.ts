@@ -114,8 +114,9 @@ async function readIntoLibrary(
     if (x.hasTables) {
       // a text conversion would wreck the tables: keep the PDF itself, which foliate-js shows page by page
       cover = x.cover
+      onProgress?.(t('import.pdfTables'))
     } else {
-      onProgress?.(t('import.converting'))
+      onProgress?.(t('import.pdfConverting'))
       const blob = await buildEpub(x)
       epub = new File([blob], file.name.replace(/\.pdf$/i, '') + '.epub', { type: 'application/epub+zip' })
     }
