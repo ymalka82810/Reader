@@ -1,3 +1,4 @@
+import { isNativeApp } from '../../lib/updater'
 import type { EyeStatus } from '../../hooks/useEyeScroll'
 import type { Flow } from '../../lib/settings'
 import { EYE_SCROLL_AVAILABLE, type OrientationLock, type Spread, type ViewModes } from '../../lib/viewModes'
@@ -47,10 +48,12 @@ export function ViewModesSection({
           options={[['free', t('modes.free')], ['portrait', t('modes.portrait')], ['landscape', t('modes.landscape')]]}
         />
       </div>
-      <label className="check">
-        <input type="checkbox" checked={modes.focus} onChange={(e) => setMode('focus', e.target.checked)} />
-        {t('modes.focus')} <kbd>f</kbd>
-      </label>
+      {!isNativeApp && (
+        <label className="check">
+          <input type="checkbox" checked={modes.focus} onChange={(e) => setMode('focus', e.target.checked)} />
+          {t('modes.focus')} <kbd>f</kbd>
+        </label>
+      )}
       {EYE_SCROLL_AVAILABLE && (
         <label className="check">
           <input type="checkbox" checked={modes.eyeScroll} onChange={(e) => setMode('eyeScroll', e.target.checked)} />
