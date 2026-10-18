@@ -1,4 +1,7 @@
 import { formatBytes, type StorageStatus } from '../../lib/storage'
+import type { BackupRemind, Settings } from '../../lib/settings'
+import type { SetSetting } from '../../hooks/useAppSettings'
+import { Select } from '../Select'
 import type { AutoBackupState } from '../../lib/autoBackup'
 import { isNativeApp } from '../../lib/updater'
 import { localeTag, t } from '../../i18n'
@@ -14,6 +17,13 @@ export type BackupActions = {
   auto: { state: AutoBackupState; last: number; onEnable: () => void; onDisable: () => void; onRenew: () => void }
 }
 
+const REMINDERS: [BackupRemind, string][] = [
+  ['default', t('prefs.reminder.default')],
+  ['week', t('prefs.reminder.week')],
+  ['month', t('prefs.reminder.month')],
+  ['off', t('prefs.reminder.off')],
+]
+
 const AUTO_STATE: Record<AutoBackupState, string> = {
   unsupported: '',
   off: t('prefs.autoStateOff'),
@@ -23,7 +33,7 @@ const AUTO_STATE: Record<AutoBackupState, string> = {
 
 /** backup, restore, the daily automatic backup and storage status; `leave` closes the settings, so a long
  *  backup shows its progress in the library instead of behind this screen */
-export function BackupPage({ actions, leave }: { actions: BackupActions; leave: () => void }) {
+export function BackupPage({ actions, leave, settings, set }: { actions: BackupActions; leave: () => void; settings: Settings; set: SetSetting }) {
   const { busy, storage, auto } = actions
   const run = (fn: () => void) => () => {
     leave()
@@ -54,6 +64,16 @@ export function BackupPage({ actions, leave }: { actions: BackupActions; leave: 
             </small>
           </>
         )}
+      </Section>
+      <Section title={t('prefs.reminderSection')}>
+        <Row label={t('prefs.reminder')} hint={t('prefs.reminderNote')}>
+          <Select<BackupRemind>
+            label={t('prefs.reminder')}
+            value={settings.backupRemind}
+            onChange={(v) => set('backupRemind', v)}
+            options={REMINDERS}
+          />
+        </Row>
       </Section>
       <Section title={t('prefs.storageSection')}>
         {isNativeApp ? (

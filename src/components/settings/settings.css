@@ -33,3 +33,8 @@
 .prefs-toggle input { flex: none; width: 1.3rem; height: 1.3rem; }
 .prefs-control .upload { white-space: nowrap; }
 .prefs-about { margin: 0; line-height: 1.7; }
+.prefs-search { font: inherit; padding: .7rem .8rem; border-radius: 10px; border: 1px solid rgba(127,127,127,.4); background: transparent; color: inherit; margin-bottom: .3rem; }
+.prefs-nav button small { display: block; opacity: .7; font-size: .8rem; }
+.prefs-nav .muted { opacity: .7; margin: .5rem 0; }
+.hc .prefs-search { border: 2px solid #fff; }
+.hc .prefs-nav button small, .hc .prefs-nav .muted { opacity: 1; }

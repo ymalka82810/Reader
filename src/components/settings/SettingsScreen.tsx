@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { isRtl, t } from '../../i18n'
 import { useAppSettings } from '../../hooks/useAppSettings'
 import { useBackGesture } from '../../hooks/useBackGesture'
@@ -11,20 +11,12 @@ import { BackupPage, type BackupActions } from './BackupPage'
 import { DisplayPage } from './DisplayPage'
 import { GoalsPage } from './GoalsPage'
 import { LanguagePage } from './LanguagePage'
+import { PAGES, type PageId } from './pages'
+import { searchSettings, settingsIndex } from './searchIndex'
 import { rememberedSettings, rememberSettings } from './remember'
 import './settings.css'
 
-export type PageId = 'appearance' | 'a11y' | 'display' | 'language' | 'backup' | 'goals' | 'about'
-
-const PAGES: [PageId, string][] = [
-  ['appearance', t('prefs.page.appearance')],
-  ['a11y', t('prefs.page.a11y')],
-  ['display', t('prefs.page.display')],
-  ['language', t('prefs.page.language')],
-  ['backup', t('prefs.page.backup')],
-  ['goals', t('prefs.page.goals')],
-  ['about', t('prefs.page.about')],
-]
+export type { PageId }
 
 /** the navigation is a side list from this width up, and a list that opens each page on narrower screens */
 const WIDE = '(min-width: 720px)'
@@ -55,6 +47,8 @@ export function SettingsScreen({ onClose, backup, onCheckUpdate, startPage }: Pr
   const [page, setPage] = useState<PageId | null>(() => startPage ?? PAGES.find(([id]) => id === rememberedSettings())?.[0] ?? null)
   useEffect(() => rememberSettings(page ?? ''), [page])
   const current = page ?? (wide ? PAGES[0]![0] : null)
+  const [query, setQuery] = useState('')
+  const results = useMemo(() => searchSettings(settingsIndex(), query), [query])
 
   // the phone's back swipe goes from a page back to the list first, and closes the settings from the list
   const state = useLatest({ page, wide })
@@ -95,11 +89,44 @@ export function SettingsScreen({ onClose, backup, onCheckUpdate, startPage }: Pr
       <div className="prefs-body">
         {showList && (
           <nav className="prefs-nav" aria-label={t('prefs.nav')}>
-            {PAGES.map(([id, label]) => (
-              <button key={id} aria-current={id === current ? 'page' : undefined} onClick={() => setPage(id)}>
-                {label}
-              </button>
-            ))}
+            <input
+              type="search"
+              className="prefs-search"
+              placeholder={t('prefs.search')}
+              aria-label={t('prefs.search')}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape' && query) {
+                  e.stopPropagation()
+                  setQuery('')
+                }
+              }}
+            />
+            {query.trim() ? (
+              results.length ? (
+                results.map((r) => (
+                  <button
+                    key={`${r.page}-${r.label}`}
+                    onClick={() => {
+                      setQuery('')
+                      setPage(r.page)
+                    }}
+                  >
+                    <span>{r.label}</span>
+                    <small>{r.where}</small>
+                  </button>
+                ))
+              ) : (
+                <p className="muted">{t('prefs.noResults')}</p>
+              )
+            ) : (
+              PAGES.map(([id, label]) => (
+                <button key={id} aria-current={id === current ? 'page' : undefined} onClick={() => setPage(id)}>
+                  {label}
+                </button>
+              ))
+            )}
           </nav>
         )}
         {current && (
@@ -110,7 +137,7 @@ export function SettingsScreen({ onClose, backup, onCheckUpdate, startPage }: Pr
             {current === 'display' && <DisplayPage />}
             {current === 'goals' && <GoalsPage settings={settings} set={set} />}
             {current === 'language' && <LanguagePage settings={settings} set={set} />}
-            {current === 'backup' && <BackupPage actions={backup} leave={close} />}
+            {current === 'backup' && <BackupPage actions={backup} leave={close} settings={settings} set={set} />}
             {current === 'about' && <AboutPage busy={backup.busy} onCheckUpdate={() => { close(); onCheckUpdate() }} />}
           </div>
         )}

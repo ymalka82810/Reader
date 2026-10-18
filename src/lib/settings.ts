@@ -42,7 +42,11 @@ export interface Settings {
   dailyGoalMin: number
   /** yearly reading goal in hours; 0 means no goal */
   yearlyGoalHours: number
+  /** how long without a backup before the library asks for one */
+  backupRemind: BackupRemind
 }
+
+export type BackupRemind = 'default' | 'week' | 'month' | 'off'
 
 export const DICT_LANGS: [string, string][] = [
   ['he', 'עברית'],
@@ -86,6 +90,7 @@ const DEFAULTS: Settings = {
   translateLang: 'auto',
   dailyGoalMin: 0,
   yearlyGoalHours: 0,
+  backupRemind: 'default',
 }
 
 const KEY = 'reader:settings'
