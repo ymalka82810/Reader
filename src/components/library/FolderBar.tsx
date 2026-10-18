@@ -1,6 +1,7 @@
 import type { Folder } from '../../lib/folders'
 import { BookCard, type BookActions } from './BookGrid'
 import { Cover } from './Cover'
+import { FolderIcon } from './FolderIcon'
 import { isRtl, t } from '../../i18n'
 
 const bookCount = (n: number) => (n ? t('books.count', { n }) : t('folder.empty'))
@@ -46,10 +47,10 @@ export function FolderList({ folders, loose, bookActions, selecting, selectedFol
             {covered ? (
               <div className="cover-wrap">
                 <Cover book={covered} />
-                <span className="folder-badge" aria-hidden="true">📁</span>
+                <span className="folder-badge"><FolderIcon /></span>
               </div>
             ) : (
-              <div className="folder-icon" aria-hidden="true">📁</div>
+              <div className="folder-icon"><FolderIcon /></div>
             )}
             <div className="meta">
               <small className="kind">{t('folder.kind')}</small>
@@ -78,7 +79,7 @@ export function FolderBar({ folder, onBack, onRename, onDelete }: BarProps) {
   return (
     <div className="folder-bar">
       <div className="folder-title">
-        <strong>📁 {folder.name || t('folder.noAuthor')}</strong>
+        <strong><FolderIcon /> {folder.name || t('folder.noAuthor')}</strong>
         <small>{t('books.count', { n: folder.books.length })}</small>
       </div>
       <div className="folder-actions">

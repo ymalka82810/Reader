@@ -6,6 +6,7 @@ import { folderKey, type Folder } from '../../lib/folders'
 import type { DupAsk, DupBatch } from '../../hooks/useImport'
 import type { PwAsk } from '../../hooks/useBackup'
 import type { ConfirmAsk } from '../../hooks/useConfirm'
+import { FolderIcon } from './FolderIcon'
 
 export function DuplicateBatchDialog({
   batch,
@@ -184,13 +185,13 @@ export function MoveDialog({
             .map((f) => (
               <li key={f.key}>
                 <button onClick={() => onMove(f.name)}>
-                  📁 {f.name || t('folder.noAuthor')} <small>({t('books.count', { n: f.books.length })})</small>
+                  <FolderIcon /> {f.name || t('folder.noAuthor')} <small>({t('books.count', { n: f.books.length })})</small>
                 </button>
               </li>
             ))}
           {!folders.some((f) => !f.key) && (
             <li>
-              <button onClick={() => onMove('')}>📁 {t('folder.noAuthor')}</button>
+              <button onClick={() => onMove('')}><FolderIcon /> {t('folder.noAuthor')}</button>
             </li>
           )}
           {books.some((b) => b.folder !== undefined) && (
