@@ -22,11 +22,12 @@ type Props = {
   onCheckUpdate: () => void
   onGoals: () => void
   onReview: () => void
+  onCatalog: () => void
   auto: { state: AutoBackupState; last: number; onEnable: () => void; onDisable: () => void; onRenew: () => void }
 }
 
 /** the "⋯" menu in the library header: backup, restore, app update and storage status */
-export function BackupMenu({ view, busy, storage, onPersist, onBackup, onRestore, onCheckUpdate, onGoals, onReview, auto }: Props) {
+export function BackupMenu({ view, busy, storage, onPersist, onBackup, onRestore, onCheckUpdate, onGoals, onReview, onCatalog, auto }: Props) {
   const [open, setOpen] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
   const close = (refocus = false) => {
@@ -61,6 +62,9 @@ export function BackupMenu({ view, busy, storage, onPersist, onBackup, onRestore
           <div className="menu-backdrop" onClick={() => close()} />
           <div className="menu-pop" tabIndex={-1} autoFocus onKeyDown={(e) => menuKeyDown(e, () => close(true))}>
           <div className="menu" role="menu">
+            <button role="menuitem" title={t('opds.menuTip')} disabled={busy} onClick={() => { close(); onCatalog() }}>
+              {t('opds.menu')}
+            </button>
             <button role="menuitem" onClick={() => { close(); onGoals() }}>
               {t('goals.title')}
             </button>

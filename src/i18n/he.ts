@@ -251,6 +251,28 @@ export const he = {
   'review.remove': 'הסר מילה',
   'review.removeTip': 'מסיר את המילה מאוצר המילים',
 
+  // online catalogs (OPDS)
+  'opds.title': 'קטלוגים מקוונים',
+  'opds.menu': 'הוספה מקטלוג מקוון',
+  'opds.menuTip': 'גלישה בקטלוגי OPDS (Project Gutenberg, Calibre-web ועוד) והוספת ספרים',
+  'opds.consent': 'הגלישה בקטלוג פונה ישירות לשרת שלו ({host}), והכתובת ושאילתות החיפוש שלך נשלחות אליו. האפליקציה עצמה לא שומרת עליהן עותק בשרת. להמשיך?',
+  'opds.catalog': 'קטלוג',
+  'opds.add': 'הוסף קטלוג',
+  'opds.remove': 'הסר את הקטלוג {name}',
+  'opds.name': 'שם הקטלוג',
+  'opds.save': 'שמור',
+  'opds.hint': 'כתובת OPDS בפורמט Atom (OPDS 1.x). בדפדפן הקטלוג חייב להתיר גישה מאתרים אחרים (CORS); באפליקציית אנדרואיד אין הגבלה כזו.',
+  'opds.badUrl': 'יש להזין שם וכתובת http או https תקינה.',
+  'opds.search': 'חיפוש בקטלוג',
+  'opds.searchGo': 'חפש',
+  'opds.back': '‹ חזרה',
+  'opds.more': 'עוד תוצאות',
+  'opds.empty': 'אין כאן ספרים.',
+  'opds.addShort': 'הוסף',
+  'opds.addBook': 'הוסף לספרייה: {title}',
+  'opds.failed': 'לא ניתן לטעון את הקטלוג. ייתכן שהכתובת שגויה, שאין חיבור לרשת, או שהקטלוג אינו מתיר גישה מהדפדפן.',
+  'opds.downloadFailed': 'הורדת "{title}" נכשלה.',
+
   // importing books
   'import.adding': 'מוסיף את {name}…',
   'import.exists': 'הספר כבר קיים בספרייה.',
