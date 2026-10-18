@@ -1,13 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
-
-// the worker URL import and pdf.js itself aren't needed for the pure text logic
-vi.mock('pdfjs-dist/legacy/build/pdf.mjs', () => ({ GlobalWorkerOptions: {} }))
-vi.mock('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url', () => ({ default: '' }))
-
-const { detectHeadings, fixVisual, isPoorPage, joinPages, looksReversed, looksTabular, readingGroups, stripRunningLines, toParagraphs } =
-  await import('./pdfToBook')
-type Line = import('./pdfToBook').Line
-type RawItem = import('./pdfToBook').RawItem
+import { describe, expect, it } from 'vitest'
+import { looksTabular, readingGroups, type Line, type RawItem } from './pdfLayout'
+import { detectHeadings, fixVisual, isPoorPage, joinPages, looksReversed, stripRunningLines, toParagraphs } from './pdfText'
 
 const MIRROR: Record<string, string> = { '(': ')', ')': '(' }
 /** how a logical-order string is stored in a visual-order PDF: reversed, with brackets mirrored */

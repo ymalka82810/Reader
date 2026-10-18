@@ -1,5 +1,5 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs'
-import type { Line } from './pdfToBook'
+import type { Line } from './pdfLayout'
 
 /** Rendered page height handed to the OCR engine, in px (roughly 300 dpi for an A4 page). */
 const TARGET_HEIGHT = 2400
