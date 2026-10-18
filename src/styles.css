@@ -226,7 +226,9 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: 4px; border: 1px solid rg
 .continue-info { display: flex; flex-direction: column; gap: .25rem; flex: 1; min-width: 0; }
 .continue-info small { opacity: .7; }
 .continue-info strong { font-size: 1.05rem; }
-.continue-info progress { width: 100%; height: 6px; }
+.continue-progress { display: flex; align-items: center; gap: .5rem; }
+.continue-progress small { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.continue-info progress { flex: 1; min-width: 0; height: 6px; }
 .continue-cta { flex: none; padding: .4rem .9rem; border-radius: 999px; background: #3182ce; color: #fff; font-weight: 600; }
 
 .toc li.current button { font-weight: 700; color: var(--accent); background: rgba(127,127,127,.15); }

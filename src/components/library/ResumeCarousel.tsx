@@ -32,7 +32,10 @@ export function ResumeCarousel({ books, onOpen }: { books: BookMeta[]; onOpen: (
               <small>{t('lib.resume')}</small>
               <strong>{b.title}</strong>
               {b.author && <small>{b.author}</small>}
-              <progress value={b.fraction} max={1} aria-label={t('book.percentRead', { pct: Math.round((b.fraction ?? 0) * 100) })} />
+              <span className="continue-progress">
+                <progress value={b.fraction} max={1} aria-label={t('book.percentRead', { pct: Math.round((b.fraction ?? 0) * 100) })} />
+                <small aria-hidden="true">{Math.round((b.fraction ?? 0) * 100)}%</small>
+              </span>
             </span>
             <span className="continue-cta">{t('lib.continue')}</span>
           </button>
