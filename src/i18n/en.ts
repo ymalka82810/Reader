@@ -223,6 +223,13 @@ export const en: Record<keyof typeof he, Message> = {
   'goals.chart': 'Reading time in the last {n} days',
   'goals.note': 'Data starts being saved from your next reading session.',
   'goals.weekdays': 'Sun,Mon,Tue,Wed,Thu,Fri,Sat',
+  'goals.yearly': 'Yearly goal (hours, 0 = no goal)',
+  'goals.yearProgress': '{done} of {goal} hours this year',
+  'goals.yearProjected': 'At this pace: about {n} hours by year end',
+  'goals.heatmap': 'Reading days over the past year',
+  'goals.hours': 'When you read (weekday × hour)',
+  'goals.less': 'Less',
+  'goals.more': 'More',
   'time.min': '{m} min',
   'time.hour': '{h} h',
 

@@ -28,6 +28,8 @@ export interface Manifest {
   stats?: Record<string, Stats>
   /** active reading seconds per day ('YYYY-MM-DD'), for reading goals */
   readingLog?: Record<string, number>
+  /** active reading seconds per hour ('YYYY-MM-DDTHH'), for the time-of-day heatmap */
+  readingHours?: Record<string, number>
   /** words looked up in the dictionary, and how well each flashcard is known */
   vocab?: VocabWord[]
   cardStates?: Record<string, CardState>
@@ -80,6 +82,7 @@ export function parseManifest(text: string, bodySize: number): Manifest {
     settings: isObj(raw.settings) ? (raw.settings as unknown as Settings) : undefined,
     stats: isObj(raw.stats) ? (raw.stats as Manifest['stats']) : undefined,
     readingLog: isObj(raw.readingLog) ? (raw.readingLog as Manifest['readingLog']) : undefined,
+    readingHours: isObj(raw.readingHours) ? (raw.readingHours as Manifest['readingHours']) : undefined,
     vocab: Array.isArray(raw.vocab) ? (raw.vocab as VocabWord[]) : undefined,
     cardStates: isObj(raw.cardStates) ? (raw.cardStates as Manifest['cardStates']) : undefined,
   }

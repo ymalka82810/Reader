@@ -4,11 +4,17 @@ import {
   addReadingTime,
   currentStreak,
   dayKey,
+  heatLevel,
+  heatmapWeeks,
   lastDays,
+  loadReadingHours,
   loadReadingLog,
+  mergeReadingHours,
   mergeReadingLog,
   shiftDay,
+  weekdayHourMatrix,
   weekSummary,
+  yearProgress,
 } from './readingLog'
 
 const T = '2026-03-10'
@@ -69,5 +75,46 @@ describe('storage', () => {
 
     await mergeReadingLog({ '2026-03-10': 50, '2026-03-09': 20, bad: 5, '2026-03-08': -1 })
     expect(await loadReadingLog()).toEqual({ '2026-03-10': 75, '2026-03-09': 20 })
+  })
+})
+
+describe('hours', () => {
+  it('accumulates per hour, merges by the larger side and builds a weekday x hour matrix', async () => {
+    await clear(createStore('reader-hours-db', 'hours'))
+    const at = (h: number) => new Date(2026, 2, 10, h).getTime() // a Tuesday
+    await addReadingTime(30, at(21))
+    await addReadingTime(45, at(21))
+    await addReadingTime(10, at(7))
+    expect(await loadReadingHours()).toEqual({ '2026-03-10T21': 75, '2026-03-10T07': 10 })
+
+    await mergeReadingHours({ '2026-03-10T21': 50, '2026-03-10T08': 5, bad: 9, '2026-03-10T09': -1 })
+    const hours = await loadReadingHours()
+    expect(hours).toEqual({ '2026-03-10T21': 75, '2026-03-10T07': 10, '2026-03-10T08': 5 })
+    const m = weekdayHourMatrix(hours)
+    expect(m[2]![21]).toBe(75)
+    expect(m.flat().reduce((a, b) => a + b, 0)).toBe(90)
+  })
+})
+
+describe('heatmap', () => {
+  it('maps seconds to five shades', () => {
+    expect(heatLevel(0, 100)).toBe(0)
+    expect(heatLevel(1, 100)).toBe(1)
+    expect(heatLevel(50, 100)).toBe(2)
+    expect(heatLevel(100, 100)).toBe(4)
+    expect(heatLevel(5, 0)).toBe(0)
+  })
+  it('lays out whole weeks ending with the current one, blanking future days', () => {
+    const weeks = heatmapWeeks({ [T]: 60 }, T, 3) // T is a Tuesday
+    expect(weeks).toHaveLength(3)
+    expect(weeks.every((w) => w.length === 7)).toBe(true)
+    expect(weeks[0]![0]!.key).toBe('2026-02-22')
+    expect(weeks[2]![2]).toEqual({ key: T, secs: 60 })
+    expect(weeks[2]![3]).toBeNull()
+  })
+  it('projects the year total from the pace so far', () => {
+    const p = yearProgress({ '2026-01-01': 3600, '2026-01-10': 3600, '2025-12-31': 99999 }, '2026-01-10')
+    expect(p.secs).toBe(7200)
+    expect(p.projectedSecs).toBe(Math.round((7200 / 10) * 365))
   })
 })

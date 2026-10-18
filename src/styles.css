@@ -252,7 +252,20 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: 4px; border: 1px solid rg
 .upload { cursor: pointer; padding: .4rem .8rem; border-radius: 8px; border: 1px solid rgba(127,127,127,.4); }
 
 
-.goals { width: min(92vw, 420px); }
+.goals { width: min(92vw, 420px); max-height: 90vh; overflow-y: auto; }
+.goals h3 { margin: .4rem 0 0; font-size: .9rem; }
+.heat-year, .heat-hours, .heat-legend { direction: ltr; }
+.heat-year { display: grid; grid-template-rows: repeat(7, 1fr); grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; }
+.heat-hours { display: grid; grid-template-columns: repeat(24, 1fr); gap: 2px; }
+.heat-year i, .heat-hours i, .heat-legend i { display: block; aspect-ratio: 1; border-radius: 2px; background: rgba(128,128,128,.18); }
+.heat-year i.none { background: transparent; }
+.heat-legend { display: flex; align-items: center; gap: 3px; justify-content: flex-end; }
+.heat-legend i { width: .8rem; }
+.heat-legend small { opacity: .7; font-size: .7rem; }
+i.lv1 { background: color-mix(in srgb, var(--accent) 30%, transparent) !important; }
+i.lv2 { background: color-mix(in srgb, var(--accent) 50%, transparent) !important; }
+i.lv3 { background: color-mix(in srgb, var(--accent) 75%, transparent) !important; }
+i.lv4 { background: var(--accent) !important; }
 .review { width: min(92vw, 420px); }
 .review progress { width: 100%; accent-color: var(--accent); }
 .review .muted { opacity: .7; margin: 0; }

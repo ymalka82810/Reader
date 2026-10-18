@@ -40,6 +40,8 @@ export interface Settings {
   translateLang: string
   /** daily reading goal in minutes; 0 means no goal */
   dailyGoalMin: number
+  /** yearly reading goal in hours; 0 means no goal */
+  yearlyGoalHours: number
 }
 
 export const DICT_LANGS: [string, string][] = [
@@ -83,6 +85,7 @@ const DEFAULTS: Settings = {
   dictLang: 'auto',
   translateLang: 'auto',
   dailyGoalMin: 0,
+  yearlyGoalHours: 0,
 }
 
 const KEY = 'reader:settings'

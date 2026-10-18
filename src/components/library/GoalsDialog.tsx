@@ -3,7 +3,20 @@ import { Dialog } from '../Dialog'
 import { localeTag, t } from '../../i18n'
 import { formatMinutes } from '../../lib/stats'
 import { loadSettings, saveSettings } from '../../lib/settings'
-import { currentStreak, dayKey, lastDays, loadReadingLog, weekSummary, type ReadingLog } from '../../lib/readingLog'
+import {
+  currentStreak,
+  dayKey,
+  heatLevel,
+  heatmapWeeks,
+  lastDays,
+  loadReadingHours,
+  loadReadingLog,
+  weekdayHourMatrix,
+  weekSummary,
+  yearProgress,
+  type ReadingHours,
+  type ReadingLog,
+} from '../../lib/readingLog'
 
 const minutes = (secs: number) => Math.round(secs / 60)
 const WEEKDAYS = t('goals.weekdays').split(',')
@@ -12,11 +25,20 @@ const WEEKDAYS = t('goals.weekdays').split(',')
 export function GoalsDialog({ onClose }: { onClose: () => void }) {
   const [log, setLog] = useState<ReadingLog>()
   const [goal, setGoal] = useState(() => loadSettings().dailyGoalMin)
+  const [hours, setHours] = useState<ReadingHours>()
+  const [yearGoal, setYearGoal] = useState(() => loadSettings().yearlyGoalHours)
   const [range, setRange] = useState<7 | 30>(7)
 
   useEffect(() => {
     loadReadingLog().then(setLog)
+    loadReadingHours().then(setHours)
   }, [])
+
+  const changeYearGoal = (v: number) => {
+    const n = Math.min(8760, Math.max(0, Math.round(v) || 0))
+    setYearGoal(n)
+    saveSettings({ ...loadSettings(), yearlyGoalHours: n })
+  }
 
   const changeGoal = (v: number) => {
     const n = Math.min(1440, Math.max(0, Math.round(v) || 0))
@@ -32,6 +54,11 @@ export function GoalsDialog({ onClose }: { onClose: () => void }) {
   const days = log ? lastDays(log, range, today) : []
   // headroom so the minutes label above the tallest bar stays inside the chart
   const max = Math.max(goalSecs, ...days.map((d) => d.secs), 1) * 1.2
+  const year = log && yearProgress(log, today)
+  const weeks = log ? heatmapWeeks(log, today) : []
+  const heatMax = Math.max(...weeks.flat().map((c) => c?.secs ?? 0), 0)
+  const matrix = hours && weekdayHourMatrix(hours)
+  const matrixMax = matrix ? Math.max(...matrix.flat(), 0) : 0
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -106,6 +133,52 @@ export function GoalsDialog({ onClose }: { onClose: () => void }) {
                 )
               })}
             </div>
+            <label>
+              {t('goals.yearly')}
+              <input type="number" min={0} max={8760} step={10} value={yearGoal} onChange={(e) => changeYearGoal(e.target.valueAsNumber)} />
+            </label>
+            {yearGoal > 0 && (
+              <div className="goals-today">
+                <span>{t('goals.yearProgress', { done: Math.round((year!.secs / 3600) * 10) / 10, goal: yearGoal })}</span>
+                <progress value={Math.min(year!.secs, yearGoal * 3600)} max={yearGoal * 3600} aria-label={t('goals.progress')} />
+                <small className="goals-note">{t('goals.yearProjected', { n: Math.round(year!.projectedSecs / 3600) })}</small>
+              </div>
+            )}
+
+            <h3>{t('goals.heatmap')}</h3>
+            <div className="heat-year" role="img" aria-label={t('goals.heatmap')}>
+              {weeks.flat().map((c, i) => (
+                <i
+                  key={i}
+                  className={c ? `lv${heatLevel(c.secs, heatMax)}` : 'none'}
+                  title={c ? `${c.key}: ${formatMinutes(minutes(c.secs))}` : undefined}
+                />
+              ))}
+            </div>
+            <div className="heat-legend" aria-hidden="true">
+              <small>{t('goals.less')}</small>
+              {[0, 1, 2, 3, 4].map((l) => (
+                <i key={l} className={`lv${l}`} />
+              ))}
+              <small>{t('goals.more')}</small>
+            </div>
+
+            {matrix && matrixMax > 0 && (
+              <>
+                <h3>{t('goals.hours')}</h3>
+                <div className="heat-hours" role="img" aria-label={t('goals.hours')}>
+                  {matrix.map((row, wd) =>
+                    row.map((secs, h) => (
+                      <i
+                        key={`${wd}-${h}`}
+                        className={`lv${heatLevel(secs, matrixMax)}`}
+                        title={`${WEEKDAYS[wd]} ${String(h).padStart(2, '0')}:00 · ${formatMinutes(minutes(secs))}`}
+                      />
+                    )),
+                  )}
+                </div>
+              </>
+            )}
             {log && Object.keys(log).length === 0 && (
               <small className="goals-note">{t('goals.note')}</small>
             )}
