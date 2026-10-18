@@ -4,6 +4,7 @@ import { sameBook } from './sameBook'
 import { t } from '../i18n'
 import { wordsOfBook } from './wordCount'
 import { isAudio, readAudioMeta, type AudioInfo } from './audioBook'
+import { isDrmEpub, isDrmMobi } from './drm'
 
 const ALREADY_EXISTS = t('import.exists')
 
@@ -66,12 +67,24 @@ export async function importFile(
   if (!isEpub(file) && !isPdf(file) && !isTxt(file) && !isDocx(file) && !isNative(file) && !isAudio(file))
     throw new ImportError(t('import.unsupported'))
   try {
+    if (await hasDrm(file)) throw new ImportError(t('err.drm'))
     return await readIntoLibrary(file, onProgress, onDuplicate)
   } catch (e) {
     if (e instanceof DeferredDuplicate) throw e
     console.error(e)
     throw new ImportError(explainImportError(e))
   }
+}
+
+/** only DRM-free books are supported; a protected one would otherwise open as gibberish or fail with a vague error */
+async function hasDrm(file: File): Promise<boolean> {
+  try {
+    if (isEpub(file)) return await isDrmEpub(file)
+    if (/.(mobi|azw3?)$/i.test(file.name)) return await isDrmMobi(file)
+  } catch {
+    /* unreadable: let the real import report what is wrong with the file */
+  }
+  return false
 }
 
 async function readIntoLibrary(
