@@ -1,9 +1,41 @@
-import type { ReactNode } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import { MAX_FONT, MIN_FONT } from '../../hooks/useBookEvents'
 import { CUSTOM_FONT_FAMILY, type CustomFont } from '../../lib/customFont'
-import { FONTS, type Flow, type Settings, type Theme } from '../../lib/settings'
+import { FONTS, themeColors, type Flow, type Settings, type Theme } from '../../lib/settings'
 import { Panel, Seg } from './shared'
 import { t } from '../../i18n'
+
+/** live sample of the reading settings, so several can be tuned together without closing the panel */
+function Preview({ s, customFont }: { s: Settings; customFont: CustomFont | undefined }) {
+  const c = themeColors(s)
+  const a = s.accessible || s.dyslexia
+  const family = s.dyslexia
+    ? '"OpenDyslexic", "Heebo", "Arial", sans-serif'
+    : a
+      ? FONTS.sans!.family
+      : s.fontFamily === 'custom' && customFont
+        ? `"${CUSTOM_FONT_FAMILY}", sans-serif`
+        : FONTS[s.fontFamily]?.family
+  const style: CSSProperties = {
+    background: c.bg,
+    color: c.fg,
+    fontSize: s.fontSize,
+    lineHeight: a ? Math.max(s.lineHeight, 1.9) : s.lineHeight,
+    letterSpacing: a ? `${Math.max(s.letterSpacing, 0.05)}em` : s.letterSpacing ? `${s.letterSpacing}em` : undefined,
+    wordSpacing: a ? '0.16em' : undefined,
+    textAlign: s.justify && !a ? 'justify' : 'start',
+    fontFamily: family || undefined,
+    maxInlineSize: s.columnWidth > 0 ? s.columnWidth : undefined,
+    paddingInline: `${s.margin}%`,
+    filter: s.brightness < 1 ? `brightness(${s.brightness})` : undefined,
+  }
+  return (
+    <div className="preview" style={style} role="group" aria-label={t('settings.preview')}>
+      {t('settings.previewText')}{' '}
+      <a href="#preview" style={{ color: c.link }} onClick={(e) => e.preventDefault()}>{t('settings.previewLink')}</a>
+    </div>
+  )
+}
 
 export function SettingsPanel({
   settings,
@@ -22,12 +54,22 @@ export function SettingsPanel({
   /** extra sections, shown before the link to the full settings */
   children?: ReactNode
 }) {
+  const [initial] = useState(settings)
+  const keys = Object.keys(initial) as (keyof Settings)[]
+  const changed = keys.some((k) => initial[k] !== settings[k])
+  const revert = () => {
+    for (const k of keys) if (initial[k] !== settings[k]) set(k, initial[k])
+  }
   const fontRows: [string, string, string][] = [
     ...Object.entries(FONTS).map(([k, f]): [string, string, string] => [k, f.label, f.family]),
     ...(customFont ? [['custom', customFont.name, `"${CUSTOM_FONT_FAMILY}"`] as [string, string, string]] : []),
   ]
   return (
     <Panel label={t('settings.title')} className="settings">
+      <div className="preview-wrap">
+        <Preview s={settings} customFont={customFont} />
+        <button onClick={revert} disabled={!changed}>{t('settings.revert')}</button>
+      </div>
       <div className="row">
         <button onClick={() => bump(-2)} aria-label={t('settings.smaller')}>{t('settings.smallerGlyph')}</button>
         <input
