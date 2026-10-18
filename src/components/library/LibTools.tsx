@@ -2,9 +2,9 @@ import { useState } from 'react'
 import { Select } from '../Select'
 import { t } from '../../i18n'
 import type { Tag } from '../../lib/tags'
-import { isFiltering, NO_FILTER, typeLabel, type LibraryFilter, type ReadState } from '../../lib/libraryFilter'
+import { isFiltering, NO_FILTER, SMARTS, typeLabel, type LibraryFilter, type ReadState, type Smart } from '../../lib/libraryFilter'
 
-export type Sort = 'recent' | 'title' | 'author' | 'added'
+export type Sort = 'recent' | 'title' | 'author' | 'added' | 'longest'
 
 const FILTERS: [ReadState, string][] = [
   ['all', t('filter.all')],
@@ -65,6 +65,12 @@ export function LibTools({ query, onQuery, filter, onFilter, types, folders, onP
           <path d={showMore ? 'M1 6.5l5-5 5 5' : 'M1 1.5l5 5 5-5'} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
+      <Select
+        label={t('smart.label')}
+        value={filter.smart || ANY}
+        onChange={(v) => onFilter({ ...filter, smart: v === ANY ? '' : (v as Smart) })}
+        options={[[ANY, t('smart.none')], ...SMARTS.map((x): [string, string] => [x, x === 'stale' ? t('smart.stale') : t('smart.longest')])]}
+      />
       {tags.length > 0 && (
         <Select
           label={t('tag.filterLabel')}

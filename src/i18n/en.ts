@@ -80,6 +80,11 @@ export const en: Record<keyof typeof he, Message> = {
   'sort.added': 'Recently added',
   'sort.title': 'Title (A–Z)',
   'sort.author': 'Author (A–Z)',
+  'sort.longest': 'Longest',
+  'smart.label': 'Smart collections',
+  'smart.none': 'All books',
+  'smart.stale': 'Not opened in a month',
+  'smart.longest': 'Longest books',
 
   // book cards and folders
   'book.read': 'Read',
