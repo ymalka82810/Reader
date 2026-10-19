@@ -65,7 +65,7 @@ import org.json.JSONObject;
  *     scan({folders, extensions}) -> {files: [{path, name, size, modified}]}; folders are relative to the shared
  *       storage root ("Documents", "Download", "Books/Hebrew"); rejects with "permission" without access
  *     refreshIndex({paths}) -> {}: tells the system's media index about these files (their current names) and asks it to drop
- *       entries of files that are gone, so the names a file manager shows are the real ones; never rejects
+ *       entries of files that are gone (in the folders of these files), so the names a file manager shows are the real ones; never rejects
  *     rename({path, name}) -> {path, name}: renames a file in the shared storage (a name already taken gets " (2)");
  *       rejects with "permission", "missing" (no such file), "outside" or "rename"
  *     save({name, data}) -> {path, name, size, modified}: starts a new file in the Download folder from base64 `data`
@@ -297,21 +297,35 @@ public class DeviceBooksPlugin extends Plugin {
     public void refreshIndex(PluginCall call) {
         try {
             JSArray list = call.getArray("paths");
-            java.util.List<String> paths = new java.util.ArrayList<>();
+            java.util.Set<String> paths = new java.util.LinkedHashSet<>();
+            java.util.Set<String> dirs = new java.util.LinkedHashSet<>();
             if (list != null) {
                 for (int i = 0; i < list.length(); i++) {
                     String p = list.optString(i, "");
-                    if (!p.isEmpty() && new File(p).isFile()) paths.add(p);
+                    File f = new File(p);
+                    if (!p.isEmpty() && f.isFile()) {
+                        paths.add(p);
+                        if (f.getParent() != null) dirs.add(f.getParent());
+                    }
                 }
             }
-            if (!paths.isEmpty()) MediaScannerConnection.scanFile(getContext(), paths.toArray(new String[0]), null, null);
-            // names a file used to have are not known: the volume scan drops the entries of files that are no longer there
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                try {
-                    android.provider.MediaStore.scanVolume(getContext().getContentResolver(), android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY);
+            // names a file used to have are not known, but the index still lists them: in these folders, entries whose file is
+            // gone are scanned too, which makes the system drop them
+            for (String dir : dirs) {
+                try (android.database.Cursor c = getContext().getContentResolver().query(
+                        android.provider.MediaStore.Files.getContentUri("external"),
+                        new String[] { android.provider.MediaStore.Files.FileColumns.DATA },
+                        android.provider.MediaStore.Files.FileColumns.DATA + " LIKE ?",
+                        new String[] { dir + "/%" },
+                        null)) {
+                    while (c != null && c.moveToNext()) {
+                        String p = c.getString(0);
+                        if (p != null && !new File(p).exists()) paths.add(p);
+                    }
                 } catch (Exception ignored) {
                 }
             }
+            if (!paths.isEmpty()) MediaScannerConnection.scanFile(getContext(), paths.toArray(new String[0]), null, null);
         } catch (Exception ignored) {
         }
         call.resolve();
