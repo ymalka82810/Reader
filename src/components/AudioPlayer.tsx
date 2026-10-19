@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Icon, Panel, Seg } from './reader/shared'
 import { HIGHLIGHT_COLORS } from './reader/colors'
+import { useBackGesture } from '../hooks/useBackGesture'
 import { useFlash } from '../hooks/useFlash'
 import { useLatest } from '../hooks/useLatest'
 import { getBook, getNotes, newId, saveNotes, updateProgress, type Annotation, type BookRecord } from '../lib/db'
@@ -119,6 +120,11 @@ export default function AudioPlayer({ id, onClose }: { id: string; onClose: () =
     save()
     onClose()
   }
+  // the phone's back swipe: closes an open panel, else goes back to the library
+  useBackGesture(() => {
+    if (panel) setPanel(null)
+    else close()
+  }, 1)
 
   useEffect(() => {
     if (audio.current) audio.current.playbackRate = speed

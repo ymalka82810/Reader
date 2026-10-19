@@ -40,7 +40,6 @@ import { applyA11yClasses, loadSettings, saveSettings, themeColors, type Setting
 
 const TAP_HELP_KEY = 'reader:tapHelpSeen'
 /** a second back swipe within this time leaves the book */
-const BACK_AGAIN_MS = 2000
 /** in distraction-free mode the bars shown by a middle tap go away again after this long */
 const FOCUS_BARS_MS = 4000
 
@@ -163,28 +162,12 @@ export default function Reader({ id, startCfi, onClose, onSettings }: { id: stri
     return () => window.clearTimeout(t)
   }, [status, recompute])
 
-  // the phone's back swipe: closes an open panel, else shows the bars and asks for a second swipe
-  // (so a stray edge swipe doesn't drop the reader out of the book)
-  const lastBack = useRef(0)
-  const leaveHistory = useBackGesture(() => {
-    if (panelRef.current) {
-      setPanel(null)
-      return true
-    }
-    const now = Date.now()
-    if (now - lastBack.current < BACK_AGAIN_MS) {
-      onClose()
-      return false
-    }
-    lastBack.current = now
-    setUiVisible(true)
-    flash(t('reader.swipeBack'))
-    return true
-  })
-  const close = useCallback(() => {
-    leaveHistory()
-    onClose()
-  }, [leaveHistory, onClose])
+  // the phone's back swipe: closes an open panel, else goes back to the library
+  useBackGesture(() => {
+    if (panelRef.current) setPanel(null)
+    else onClose()
+  }, 1)
+  const close = onClose
   useEffect(
     () => () => {
       window.clearTimeout(backTimer.current)

@@ -7,6 +7,9 @@ export const en: Record<keyof typeof he, Message> = {
 
   // shared words
   'common.cancel': 'Cancel',
+  'exit.title': 'Leave the app?',
+  'exit.text': 'Your library and books stay saved.',
+  'exit.ok': 'Leave',
   'common.close': 'Close',
   'common.continue': 'Continue',
   'common.delete': 'Delete',
@@ -334,7 +337,6 @@ export const en: Record<keyof typeof he, Message> = {
   // reader chrome
   'reader.backToLibrary': 'Back to library',
   'reader.bookMissing': 'The book was not found in the library',
-  'reader.swipeBack': 'Swipe again to return to the library',
   'reader.bookmark': 'Bookmark',
   'reader.bookmarkAdd': 'Add bookmark (b)',
   'reader.bookmarkRemove': 'Remove bookmark (b)',

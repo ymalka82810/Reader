@@ -20,6 +20,7 @@ import { openingLines } from '../lib/bookText'
 import { hasConsent, setConsent, SERVICE_HOST } from '../lib/consent'
 import { IdentifyDialog, type NameChange } from './library/IdentifyDialog'
 import { loadSettings } from '../lib/settings'
+import { exitApp, useBackGesture } from '../hooks/useBackGesture'
 import { useConfirm } from '../hooks/useConfirm'
 import { hasTag, listTags, parseTags } from '../lib/tags'
 import { localeTag, t } from '../i18n'
@@ -124,6 +125,14 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   const { selecting, setSelecting, selected, setSelected, selectedFolders, setSelectedFolders, exitSelect } = selection
   const { books, createdNames, refresh, deleteBooks } = useLibrary(setError, { showToast, clearToast })
   const { pending: confirmAsk, confirm } = useConfirm()
+  // the phone's back swipe in the library: dismisses an open question, else asks before leaving the app
+  useBackGesture(() => {
+    if (confirmAsk) {
+      confirmAsk.answer(false)
+      return
+    }
+    void confirm({ title: t('exit.title'), text: t('exit.text'), ok: t('exit.ok') }).then((yes) => yes && exitApp())
+  })
   const imp = useImport({ refresh, setError, showToast })
   const backup = useBackup({ refresh, setBusy, setError, showToast, onBackedUp: () => setDismissed(true), confirm })
   const checkUpdate = useUpdateCheck({ setBusy, setError, showToast, confirm })

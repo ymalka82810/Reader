@@ -7,6 +7,9 @@ export const he = {
 
   // shared words
   'common.cancel': 'ביטול',
+  'exit.title': 'לצאת מהאפליקציה?',
+  'exit.text': 'הספרייה והספרים שלך נשמרים.',
+  'exit.ok': 'יציאה',
   'common.close': 'סגור',
   'common.continue': 'המשך',
   'common.delete': 'מחק',
@@ -331,7 +334,6 @@ export const he = {
   // reader chrome
   'reader.backToLibrary': 'חזרה לספרייה',
   'reader.bookMissing': 'הספר לא נמצא בספרייה',
-  'reader.swipeBack': 'החלקה נוספת תחזיר לספרייה',
   'reader.bookmark': 'סימנייה',
   'reader.bookmarkAdd': 'הוסף סימנייה (b)',
   'reader.bookmarkRemove': 'הסר סימנייה (b)',

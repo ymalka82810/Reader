@@ -56,18 +56,11 @@ export function SettingsScreen({ onClose, backup, onCheckUpdate, onScanDevice, s
 
   // the phone's back swipe goes from a page back to the list first, and closes the settings from the list
   const state = useLatest({ page, wide })
-  const leave = useBackGesture(() => {
-    if (state.current.page && !state.current.wide) {
-      setPage(null)
-      return true
-    }
-    onClose()
-    return false
-  })
-  const close = () => {
-    leave()
-    onClose()
-  }
+  useBackGesture(() => {
+    if (state.current.page && !state.current.wide) setPage(null)
+    else onClose()
+  }, 1)
+  const close = onClose
 
   const title = PAGES.find(([id]) => id === current)?.[1]
   const showList = wide || !current
