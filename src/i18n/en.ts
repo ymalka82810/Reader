@@ -50,7 +50,7 @@ export const en: Record<keyof typeof he, Message> = {
   'lib.moveBooks': 'Move books',
   'lib.batchProgress': '{done}/{total} books',
   'lib.batchEstimating': 'Estimating time…',
-  'lib.batchRemaining': 'About {n}s left',
+  'lib.batchRemaining': 'About {time} left',
 
   'filter.label': 'Filter',
   'filter.all': 'All',
@@ -248,6 +248,11 @@ export const en: Record<keyof typeof he, Message> = {
   'goals.more': 'More',
   'time.min': '{m} min',
   'time.hour': '{h} h',
+  'dur.hour': { one: '1 hour', other: '{n} hours' },
+  'dur.min': { one: '1 minute', other: '{n} minutes' },
+  'dur.sec': { one: '1 second', other: '{n} seconds' },
+  'dur.and': 'and {b}',
+  'dur.andNum': 'and {b}',
 
   // flashcards (review of looked-up words and highlights)
   'review.title': 'Review',

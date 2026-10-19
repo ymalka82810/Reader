@@ -28,6 +28,7 @@ import { PickBooksDialog } from './library/PickBooksDialog'
 import { wordsOfFile } from '../lib/wordCount'
 import { bookType, byLength, isFiltering, isStale, longestOf, NO_FILTER, typesOf, type LibraryFilter } from '../lib/libraryFilter'
 import { folderKey, groupFolders } from '../lib/folders'
+import { formatDuration } from '../lib/formatDuration'
 import { BookGrid } from './library/BookGrid'
 import { readFoldersFirst, readListView, saveFoldersFirst, saveListView } from '../lib/listView'
 import { NoteHits } from './library/NoteHits'
@@ -404,7 +405,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
                 <span>
                   {batch.deadline === undefined
                     ? t('lib.batchEstimating')
-                    : t('lib.batchRemaining', { n: Math.max(0, Math.ceil((batch.deadline - now) / 1000)) })}
+                    : t('lib.batchRemaining', { time: formatDuration(Math.max(0, Math.ceil((batch.deadline - now) / 1000))) })}
                 </span>
               </div>
               <progress value={batch.done} max={batch.total} />
