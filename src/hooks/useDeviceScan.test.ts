@@ -44,15 +44,14 @@ beforeEach(() => {
 })
 
 describe('useDeviceScan', () => {
-  it('scans the default folders when the app opens and adds the new books without asking', async () => {
+  it('scans the default folders when the app opens and adds the new books only after asking', async () => {
     vi.setSystemTime(Date.now() + 120_000) // past the once-a-minute limit of an earlier test
     localStorage.setItem('reader:deviceOffered', '1')
     lib.scanDevice.mockResolvedValue([found('a.epub'), found('b.pdf')])
-    const { addFiles, confirm, showToast } = setup()
+    const { addFiles, confirm } = setup()
     await vi.waitFor(() => expect(addFiles).toHaveBeenCalled())
     expect(lib.scanDevice).toHaveBeenCalledWith(['Documents', 'Download'])
-    expect(confirm).not.toHaveBeenCalled()
-    expect(showToast).toHaveBeenCalled()
+    expect(confirm).toHaveBeenCalledTimes(1)
     expect(addFiles.mock.calls[0]![1]).toMatchObject({ skipDuplicates: true })
     await vi.waitFor(() => expect(lib.markSeen).toHaveBeenCalledTimes(2))
     vi.useRealTimers()
@@ -116,5 +115,22 @@ describe('useDeviceScan', () => {
     lib.requestDeviceAccess.mockResolvedValueOnce(false)
     await act(() => result.current())
     expect(setError).toHaveBeenLastCalledWith(expect.stringContaining('אין גישה'))
+  })
+
+  it('when the automatic offer is declined, adds nothing and does not ask again about the same books until the next launch', async () => {
+    vi.setSystemTime(Date.now() + 600_000)
+    localStorage.setItem('reader:deviceOffered', '1')
+    lib.scanDevice.mockResolvedValue([found('declined.epub')])
+    const first = setup(false)
+    await vi.waitFor(() => expect(first.confirm).toHaveBeenCalledTimes(1))
+    expect(first.addFiles).not.toHaveBeenCalled()
+    first.unmount()
+    vi.setSystemTime(Date.now() + 120_000)
+    const second = setup(false)
+    await vi.waitFor(() => expect(lib.scanDevice).toHaveBeenCalledTimes(2))
+    await new Promise((r) => setTimeout(r, 10))
+    expect(second.confirm).not.toHaveBeenCalled()
+    expect(second.addFiles).not.toHaveBeenCalled()
+    vi.useRealTimers()
   })
 })
