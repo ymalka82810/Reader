@@ -6,6 +6,7 @@ import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
@@ -312,9 +313,14 @@ public class DeviceBooksPlugin extends Plugin {
                 return;
             }
             File to = freeFile(from.getParentFile(), name, from);
-            if (!to.equals(from) && !from.renameTo(to)) {
-                call.reject("rename");
-                return;
+            if (!to.equals(from)) {
+                if (!from.renameTo(to)) {
+                    call.reject("rename");
+                    return;
+                }
+                // the system's media index still holds the old name: drop it and add the new one, so the file manager
+                // and other readers show the new name at once
+                MediaScannerConnection.scanFile(getContext(), new String[] { from.getAbsolutePath(), to.getAbsolutePath() }, null, null);
             }
             JSObject ret = new JSObject();
             ret.put("path", to.getAbsolutePath());
