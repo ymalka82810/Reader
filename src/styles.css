@@ -79,14 +79,15 @@ select { font: inherit; padding: .4rem .6rem; border-radius: var(--radius-lg); b
 .dd-list li.active,
 .dd-list li:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .dd-list li.on { color: var(--accent); font-weight: 600; }
-.notice { padding: .7rem 1rem; border-radius: var(--radius-lg); background: rgba(43,108,176,.15); margin-bottom: 1rem; }
+/* a long file name without spaces (the import message, the queue, an error) must wrap or ellipsize, never widen the page */
+.notice { padding: .7rem 1rem; border-radius: var(--radius-lg); background: rgba(43,108,176,.15); margin-bottom: 1rem; overflow-wrap: anywhere; }
 .batch { margin-bottom: .5rem; }
 .batch-head { display: flex; justify-content: space-between; font-size: .85rem; margin-bottom: .3rem; }
 .batch progress { width: 100%; height: .6rem; }
 .notice.error { background: rgba(200,50,50,.18); white-space: pre-line; }
 .import-actions { display: flex; align-items: center; justify-content: space-between; gap: .6rem; flex-wrap: wrap; margin-top: .5rem; }
 .import-actions small { opacity: .8; }
-.import-queue { list-style: none; margin: .5rem 0 0; padding: 0; max-height: 9rem; overflow-y: auto; display: grid; gap: .25rem; }
+.import-queue { list-style: none; margin: .5rem 0 0; padding: 0; max-height: 9rem; overflow-y: auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: .25rem; }
 .import-queue li { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .2rem .3rem .2rem .6rem; border-radius: var(--radius-md); background: var(--fill); font-size: .85rem; }
 .import-queue li.active { font-weight: 600; }
 .import-queue li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -96,14 +97,14 @@ select { font: inherit; padding: .4rem .6rem; border-radius: var(--radius-lg); b
 .notice-close { flex: none; padding: 0 .5rem; background: transparent; font-size: 1.1rem; line-height: 1.5; }
 .empty { text-align: center; color: var(--fg-muted); margin-top: 20vh; line-height: 1.8; }
 .grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 1rem; }
-.grid li { position: relative; content-visibility: auto; contain-intrinsic-size: auto 280px; }
+.grid li { min-width: 0; position: relative; content-visibility: auto; contain-intrinsic-size: auto 280px; }
 /* content-visibility clips whatever sticks out of the card, so while a book's ⋯ menu is open it must not apply (else the bottom items are cut off and cannot be tapped) */
 .grid li:has(.card-menu) { content-visibility: visible; z-index: 3; }
-.card { width: 100%; padding: 0; text-align: start; background: transparent; display: flex; flex-direction: column; gap: .5rem; }
+.card { width: 100%; min-width: 0; padding: 0; text-align: start; background: transparent; display: flex; flex-direction: column; gap: .5rem; }
 .cover { width: 100%; aspect-ratio: 2/3; object-fit: cover; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); background: #ddd; }
 .cover.placeholder { display: grid; place-items: center; padding: .5rem; text-align: center; font-weight: 700; background: linear-gradient(135deg, #3b6ea5, #1f3b5c); color: #fff; overflow: hidden; container-type: inline-size; }
 .cover.placeholder span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; line-clamp: 6; overflow: hidden; overflow-wrap: break-word; font-size: clamp(.55rem, 15cqw, .95rem); line-height: 1.25; max-width: 100%; }
-.meta { display: flex; flex-direction: column; gap: .15rem; }
+.meta { min-width: 0; overflow-wrap: anywhere; display: flex; flex-direction: column; gap: .15rem; }
 .meta strong { font-size: .95rem; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .meta small { color: var(--fg-muted); }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
@@ -136,13 +137,19 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: var(--radius-sm); border:
 .bottombar .play[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
 .auto-pace { display: flex; align-items: center; gap: .3rem; font-size: .8rem; white-space: nowrap; }
 .auto-pace button { min-width: 44px; min-height: 44px; padding: .2rem .5rem; }
-.progress { flex: 1; display: flex; flex-direction: column; gap: .15rem; }
+.progress { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .15rem; }
+/* with the auto-read / read-aloud speed control a phone has no room for the slider beside the buttons: it gets its own row above them */
+@media (max-width: 480px) {
+  .bottombar:has(.auto-pace) { flex-wrap: wrap; }
+  .bottombar:has(.auto-pace) .progress { order: -1; flex: 1 0 100%; }
+  .bottombar:has(.auto-pace) .auto-pace { flex: 1; justify-content: center; }
+}
 .progress input { width: 100%; }
 .progress .label { font-size: .78rem; color: var(--fg-muted); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .overlay-msg { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 1rem; z-index: 4; }
 .overlay-msg.error { background: var(--bg); padding: 2rem; }
 
-.panel { position: absolute; z-index: 6; top: calc(3.4rem + var(--safe-top)); inset-inline: .6rem; max-width: 420px; margin-inline: auto; max-height: 60vh; overflow: auto; padding: 1rem; border-radius: var(--radius-lg); background: var(--bg); color: var(--fg); box-shadow: var(--shadow-lg); border: 1px solid var(--border); }
+.panel { position: absolute; z-index: 6; top: calc(3.4rem + var(--safe-top)); inset-inline: .6rem; max-width: 420px; margin-inline: auto; max-height: 60vh; overflow: auto; padding: 1rem; border-radius: var(--radius-lg); background: var(--bg); color: var(--fg); box-shadow: var(--shadow-lg); border: 1px solid var(--border); overflow-wrap: break-word; }
 .panel h3 { margin: 0 0 .6rem; }
 .panel .muted { color: var(--fg-muted); }
 .dict-text { white-space: pre-wrap; line-height: 1.6; max-height: 38vh; overflow: auto; margin-bottom: .8rem; }
@@ -205,8 +212,10 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: var(--radius-sm); border:
 .topbar button:has(.icon) { flex: none; display: inline-flex; align-items: center; justify-content: center; }
 .topbar button[aria-pressed="true"] { color: var(--accent); }
 
+/* on a phone the buttons wrap to a second row rather than squeezing the count into a column of single letters */
 .select-bar { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
 .select-bar span { flex: 1 0 auto; }
+.select-bar button { white-space: nowrap; }
 .danger { background: #c53030; color: #fff; }
 .danger:disabled { opacity: .5; }
 .card.selected { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-md); }
@@ -275,6 +284,7 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: var(--radius-sm); border:
 .continue .cover { width: 64px; flex: none; }
 @media (max-width: 480px) { .continue .cover { width: 52px; } .continue-cta { padding: .4rem .7rem; font-size: .9rem; } }
 .continue-info { display: flex; flex-direction: column; gap: .25rem; flex: 1; min-width: 0; }
+.continue-info { overflow-wrap: anywhere; }
 .continue-info small { color: var(--fg-muted); }
 .continue-info strong { font-size: 1.05rem; }
 .continue-progress { display: flex; align-items: center; gap: .5rem; }
