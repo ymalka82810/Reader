@@ -23,7 +23,7 @@ import { ReviewDialog } from './library/ReviewDialog'
 import { BackupMenu } from './library/BackupMenu'
 import { SettingsScreen, type PageId } from './settings/SettingsScreen'
 import { forgetSettings, rememberedSettings } from './settings/remember'
-import { LibTools, type Sort } from './library/LibTools'
+import { LibSearch, LibTools, type Sort } from './library/LibTools'
 import { PickBooksDialog } from './library/PickBooksDialog'
 import { wordsOfFile } from '../lib/wordCount'
 import { bookType, byLength, isFiltering, isStale, longestOf, NO_FILTER, typesOf, type LibraryFilter } from '../lib/libraryFilter'
@@ -328,6 +328,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
             e.target.value = ''
           }}
         />
+        {books.length > 1 && <LibSearch query={query} onQuery={setQuery} />}
       </header>
 
       <main id="lib-content" tabIndex={-1}>
@@ -345,8 +346,6 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
 
       {books.length > 1 && (
         <LibTools
-          query={query}
-          onQuery={setQuery}
           filter={filter}
           onFilter={setFilter}
           types={types}
