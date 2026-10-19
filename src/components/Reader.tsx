@@ -32,7 +32,7 @@ import { firstWord } from '../lib/dictionary'
 import { saveWord } from '../lib/flashcards'
 import { formatMinutes, loadStats, minutesLeft, type Stats } from '../lib/stats'
 import { getLocale, isRtl, t } from '../i18n'
-import { customFontFace, loadCustomFont, type CustomFont } from '../lib/customFont'
+import { customFontFace, customFontUrl, loadCustomFont, releaseCustomFontUrl, type CustomFont } from '../lib/customFont'
 import { EYE_SCROLL_AVAILABLE, loadViewModes, saveViewModes, type ViewModes } from '../lib/viewModes'
 import { isNativeApp } from '../lib/updater'
 import { applyA11yClasses, loadSettings, saveSettings, themeColors, type Settings } from '../lib/settings'
@@ -112,13 +112,27 @@ export default function Reader({ id, startCfi, onClose, onSettings }: { id: stri
   const { pages, recompute, resetCalibration, lastDetail } = estimate
   const notes = useAnnotations(id, viewRef, flash)
 
-  // the uploaded font, loaded once; the view re-applies its styles when it arrives or changes
+  // the uploaded font, loaded once as a blob: URL shared by all chapters; the view re-applies its styles when it arrives
   const [customFont, setCustomFont] = useState<CustomFont>()
+  const [fontUrl, setFontUrl] = useState('')
   useEffect(() => {
-    void loadCustomFont().then(setCustomFont)
+    let alive = true
+    let url = ''
+    void loadCustomFont().then(async (f) => {
+      if (!f) return
+      const u = await customFontUrl(f)
+      if (!alive) return releaseCustomFontUrl(u)
+      url = u
+      setCustomFont(f)
+      setFontUrl(u)
+    })
+    return () => {
+      alive = false
+      releaseCustomFontUrl(url)
+    }
   }, [])
 
-  const { status, error, title, dir, toc, bookLang } = useFoliateView(id, host, viewRef, settings, customFont ? customFontFace(customFont) : '', startCfi, {
+  const { status, error, title, dir, toc, bookLang } = useFoliateView(id, host, viewRef, settings, fontUrl ? customFontFace(fontUrl) : '', startCfi, {
     prepare: async () => {
       const [, s] = await Promise.all([notes.load(), loadStats(id)])
       stats.current = s
