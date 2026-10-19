@@ -3,10 +3,15 @@ import type { BookMeta } from '../../lib/db'
 import { t } from '../../i18n'
 import { Cover } from './Cover'
 
-// books in progress, most recently opened first; swipe sideways between them, one dot per book
+const AUTO_MS = 10_000
+
+// books in progress, most recently opened first; swipe sideways between them (it also moves on by itself every 10 seconds), one dot per book
 export function ResumeCarousel({ books, onOpen }: { books: BookMeta[]; onOpen: (id: string) => void }) {
   const track = useRef<HTMLDivElement>(null)
   const settle = useRef<number | undefined>(undefined)
+  // last time anything moved the carousel (user or auto), and whether a mouse is resting on it
+  const lastMove = useRef(Date.now())
+  const hovered = useRef(false)
   const [index, setIndex] = useState(0)
 
   const n = books.length
@@ -45,12 +50,29 @@ export function ResumeCarousel({ books, onOpen }: { books: BookMeta[]; onOpen: (
 
   useEffect(() => () => window.clearTimeout(settle.current), [])
 
+  // auto-advance to the next book every 10 seconds; waits while the user is touching, hovering or has
+  // just swiped, and does nothing when the tab is hidden or the user prefers reduced motion
+  useEffect(() => {
+    if (!loop || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+    const id = window.setInterval(() => {
+      const el = track.current
+      const w = step()
+      if (!el || !w || document.hidden || hovered.current) return
+      if (Date.now() - lastMove.current < AUTO_MS) return
+      lastMove.current = Date.now()
+      el.scrollTo({ left: dirOf(el) * (slideAt(el, w) + 1) * w, behavior: 'smooth' })
+    }, 1000)
+    return () => window.clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loop])
+
   const onScroll = () => {
     const el = track.current
     const w = step()
     if (!el || !w) return
     const g = slideAt(el, w)
     setIndex(Math.min(g, items.length - 1) % n)
+    lastMove.current = Date.now()
     if (!loop) return
     // once the swipe has come to rest, move back to the equivalent card on the middle copy
     window.clearTimeout(settle.current)
@@ -68,11 +90,18 @@ export function ResumeCarousel({ books, onOpen }: { books: BookMeta[]; onOpen: (
     // pick the copy of book i closest to where we are, so the dot always takes the shortest way round
     let target = i
     for (let c = 0; c < copies; c++) if (Math.abs(c * n + i - g) < Math.abs(target - g)) target = c * n + i
+    lastMove.current = Date.now()
     el.scrollTo({ left: dirOf(el) * target * w, behavior: 'smooth' })
   }
 
   return (
-    <div className="resume">
+    <div
+      className="resume"
+      onMouseEnter={() => { hovered.current = true }}
+      onMouseLeave={() => { hovered.current = false; lastMove.current = Date.now() }}
+      onPointerDown={() => { lastMove.current = Date.now() }}
+      onTouchStart={() => { lastMove.current = Date.now() }}
+    >
       <div className="resume-track" ref={track} onScroll={onScroll}>
         {items.map(({ b, c }) => (
           <button
