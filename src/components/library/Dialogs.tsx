@@ -310,6 +310,7 @@ export function EditBookDialog({
   author,
   tags,
   knownTags,
+  phoneFile,
   onTitle,
   onAuthor,
   onTags,
@@ -322,6 +323,8 @@ export function EditBookDialog({
   tags: string
   /** tags already used elsewhere, offered as suggestions */
   knownTags: string[]
+  /** the book's file on the phone, when it has one: whether it is renamed along with the book */
+  phoneFile?: { sync: boolean; onSync: (v: boolean) => void }
   onTitle: (v: string) => void
   onAuthor: (v: string) => void
   onTags: (v: string) => void
@@ -359,6 +362,12 @@ export function EditBookDialog({
             ))}
           </datalist>
         </label>
+        {phoneFile && (
+          <label className="check-row">
+            <input type="checkbox" checked={phoneFile.sync} onChange={(e) => phoneFile.onSync(e.target.checked)} />
+            {t('edit.syncPhone')}
+          </label>
+        )}
         <div className="modal-actions">
           <button className="primary" onClick={onSave} disabled={!title.trim()}>
             {t('common.save')}

@@ -53,6 +53,12 @@ export function DevicePage({ settings, set, busy, onScan }: { settings: Settings
           checked={settings.deviceAutoScan}
           onChange={(v) => set('deviceAutoScan', v)}
         />
+        <Toggle
+          label={t('device.renameSync')}
+          hint={t('device.renameSyncHint')}
+          checked={settings.phoneRenameSync}
+          onChange={(v) => set('phoneRenameSync', v)}
+        />
         <Row label={t('device.scanNow')} hint={t('device.scanNowHint')}>
           <button disabled={busy || !folders.length} onClick={onScan}>{t('device.scanNow')}</button>
         </Row>

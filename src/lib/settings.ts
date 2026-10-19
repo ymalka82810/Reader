@@ -52,6 +52,8 @@ export interface Settings {
   deviceAutoScan: boolean
   /** Android app: the folders looked through, relative to the phone's storage root ('' is all of it) */
   deviceFolders: string[]
+  /** Android app: when a book's title or author changes, its file on the phone is renamed to match */
+  phoneRenameSync: boolean
 }
 
 export type BackupRemind = 'default' | 'week' | 'month' | 'off'
@@ -101,6 +103,7 @@ const DEFAULTS: Settings = {
   backupRemind: 'default',
   deviceAutoScan: true,
   deviceFolders: ['Documents', 'Download'],
+  phoneRenameSync: true,
 }
 
 const KEY = 'reader:settings'

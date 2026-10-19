@@ -12,6 +12,9 @@ import { useBackup } from '../hooks/useBackup'
 import { useAutoBackup } from '../hooks/useAutoBackup'
 import { useUpdateCheck } from '../hooks/useUpdateCheck'
 import { useDeviceScan } from '../hooks/useDeviceScan'
+import { deviceBooksSupported } from '../lib/deviceBooks'
+import { phoneFileOf, saveBookToPhone, syncPhoneNames } from '../lib/phoneFiles'
+import { loadSettings } from '../lib/settings'
 import { useConfirm } from '../hooks/useConfirm'
 import { hasTag, listTags, parseTags } from '../lib/tags'
 import { localeTag, t } from '../i18n'
@@ -61,6 +64,9 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   const [editTitle, setEditTitle] = useState('')
   const [editAuthor, setEditAuthor] = useState('')
   const [editTags, setEditTags] = useState('')
+  /** the book has a file on the phone that can be renamed along with it; undefined = not known (or not an Android app) */
+  const [editPhone, setEditPhone] = useState(false)
+  const [editSync, setEditSync] = useState(true)
   const [tag, setTag] = useState('')
   const [list, setList] = useState(readListView)
   const changeList = (v: boolean) => {
@@ -219,6 +225,18 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
     setEditTitle(b.title)
     setEditAuthor(b.author || '')
     setEditTags((b.tags ?? []).join(', '))
+    setEditPhone(false)
+    setEditSync(loadSettings().phoneRenameSync)
+    if (deviceBooksSupported()) void phoneFileOf(b.id).then((p) => setEditPhone(!!p)).catch(() => {})
+  }
+
+  const downloadBook = async (b: BookMeta) => {
+    try {
+      const name = await saveBookToPhone(b.id)
+      if (name) showToast(t(deviceBooksSupported() ? 'book.savedToPhone' : 'book.downloaded', { name }), undefined, 5000)
+    } catch (e) {
+      setError(t('book.saveFailed', { msg: e instanceof Error ? e.message : String(e) }))
+    }
   }
 
   const saveEdit = async () => {
@@ -226,8 +244,15 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
     const title = editTitle.trim()
     if (!title) return
     await updateMeta(editing.id, title, editAuthor.trim(), parseTags(editTags))
+    const syncPhone = editPhone && editSync
+    const id = editing.id
     setEditing(undefined)
     await refresh()
+    if (syncPhone) {
+      const { renamed, failed } = await syncPhoneNames([id]).catch(() => ({ renamed: 0, failed: 1 }))
+      if (failed) setError(t('edit.phoneFailed'))
+      else if (renamed) showToast(t('edit.phoneRenamed'), undefined, 4000)
+    }
   }
 
   const { batch, now } = imp
@@ -439,6 +464,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
             onOpen,
             onEdit: openEdit,
             onMove: (b) => fo.setMoving([b]),
+            onDownload: downloadBook,
             onDelete: (b) => setConfirmDel([b]),
             refresh,
           }}
@@ -470,6 +496,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
             onToggle={selection.toggleSelect}
             onEdit={openEdit}
             onMove={(b) => fo.setMoving([b])}
+            onDownload={downloadBook}
             onDelete={(b) => setConfirmDel([b])}
             refresh={refresh}
           />
@@ -574,6 +601,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
           author={editAuthor}
           tags={editTags}
           knownTags={tags.map((x) => x.name)}
+          phoneFile={editPhone ? { sync: editSync, onSync: setEditSync } : undefined}
           onTitle={setEditTitle}
           onAuthor={setEditAuthor}
           onTags={setEditTags}
