@@ -355,7 +355,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
 
       {resume.length > 0 && <ResumeCarousel books={resume} onOpen={(id) => onOpen(id)} />}
 
-      {books.length > 1 && <LibSearch query={query} onQuery={setQuery} />}
+      {books.length > 1 && <LibSearch query={query} onQuery={setQuery} list={list} onList={changeList} />}
 
       {books.length > 1 && (
         <LibTools
@@ -369,8 +369,6 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
           tags={tags}
           tag={activeTag}
           onTag={setTag}
-          list={list}
-          onList={changeList}
           foldersFirst={foldersFirst}
           onFoldersFirst={changeFoldersFirst}
         />

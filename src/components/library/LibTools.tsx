@@ -37,29 +37,39 @@ type Props = {
   /** key of the tag being filtered by, '' = any */
   tag: string
   onTag: (key: string) => void
-  list: boolean
-  onList: (list: boolean) => void
   /** folders listed above the single books (true) or below them */
   foldersFirst: boolean
   onFoldersFirst: (first: boolean) => void
 }
 
 /** search box, pinned in the library header under the main row */
-export function LibSearch({ query, onQuery }: { query: string; onQuery: (q: string) => void }) {
+export function LibSearch({ query, onQuery, list, onList }: { query: string; onQuery: (q: string) => void; list: boolean; onList: (list: boolean) => void }) {
   return (
-    <input
-      type="search"
-      className="lib-search"
-      placeholder={t('lib.searchPlaceholder')}
-      aria-label={t('lib.search')}
-      value={query}
-      onChange={(e) => onQuery(e.target.value)}
-    />
+    <div className="lib-searchbar">
+      <input
+        type="search"
+        className="lib-search"
+        placeholder={t('lib.searchPlaceholder')}
+        aria-label={t('lib.search')}
+        value={query}
+        onChange={(e) => onQuery(e.target.value)}
+      />
+        <button
+          type="button"
+          className="select-btn view-toggle"
+          aria-pressed={list}
+          aria-label={t('view.list')}
+          title={t('view.list')}
+          onClick={() => onList(!list)}
+        >
+          {list ? '☰' : '▦'}
+        </button>
+    </div>
   )
 }
 
 /** filter row (read state, more filters, folder placement, view) that scrolls away beneath the pinned search */
-export function LibTools({ filter, onFilter, types, folders, onPickBooks, sort, onSort, tags, tag, onTag, list, onList, foldersFirst, onFoldersFirst }: Props) {
+export function LibTools({ filter, onFilter, types, folders, onPickBooks, sort, onSort, tags, tag, onTag, foldersFirst, onFoldersFirst }: Props) {
   const [showMore, setShowMore] = useState(false)
   const activeMore = (filter.type ? 1 : 0) + (filter.folder !== undefined ? 1 : 0) + (filter.ids.size ? 1 : 0) + (filter.smart ? 1 : 0)
   return (
@@ -89,16 +99,6 @@ export function LibTools({ filter, onFilter, types, folders, onPickBooks, sort, 
       >
         <FolderIcon />
         <span aria-hidden="true">{foldersFirst ? '↑' : '↓'}</span>
-      </button>
-      <button
-        type="button"
-        className="select-btn view-toggle"
-        aria-pressed={list}
-        aria-label={t('view.list')}
-        title={t('view.list')}
-        onClick={() => onList(!list)}
-      >
-        {list ? '☰' : '▦'}
       </button>
       {tags.length > 0 && (
         <Select
