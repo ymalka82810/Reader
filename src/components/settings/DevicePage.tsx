@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react'
 import type { Settings } from '../../lib/settings'
 import type { SetSetting } from '../../hooks/useAppSettings'
-import { hasDeviceAccess, normalizeFolder, pickDeviceFolder, requestDeviceAccess } from '../../lib/deviceBooks'
+import {
+  hasDeviceAccess,
+  normalizeFolder,
+  pickDeviceFolder,
+  requestDeviceAccess,
+  requestNotificationAccess,
+  syncBackgroundScan,
+} from '../../lib/deviceBooks'
 import { t } from '../../i18n'
 import { Row, Section, Toggle } from './parts'
 
@@ -9,6 +16,7 @@ import { Row, Section, Toggle } from './parts'
 export function DevicePage({ settings, set, busy, onScan }: { settings: Settings; set: SetSetting; busy: boolean; onScan: () => void }) {
   const [access, setAccess] = useState<boolean>()
   const [error, setError] = useState('')
+  const [bgNote, setBgNote] = useState('')
   useEffect(() => {
     // re-checked on return, since access is given (or taken away) in Android's own settings
     const check = () => document.visibilityState === 'visible' && void hasDeviceAccess().then(setAccess)
@@ -24,6 +32,14 @@ export function DevicePage({ settings, set, busy, onScan }: { settings: Settings
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
+  }
+
+  const toggleBackground = async (on: boolean) => {
+    setBgNote('')
+    set('deviceBackgroundScan', on)
+    // the announcement is a notification, so the permission is asked for right when the user turns this on
+    if (on && !(await requestNotificationAccess())) setBgNote(t('device.notifOff'))
+    await syncBackgroundScan({ deviceBackgroundScan: on, deviceFolders: settings.deviceFolders })
   }
 
   const folders = settings.deviceFolders
@@ -54,6 +70,12 @@ export function DevicePage({ settings, set, busy, onScan }: { settings: Settings
           onChange={(v) => set('deviceAutoScan', v)}
         />
         <Toggle
+          label={t('device.bg')}
+          hint={t('device.bgHint')}
+          checked={settings.deviceBackgroundScan}
+          onChange={(v) => void toggleBackground(v)}
+        />
+        <Toggle
           label={t('device.renameSync')}
           hint={t('device.renameSyncHint')}
           checked={settings.phoneRenameSync}
@@ -62,6 +84,7 @@ export function DevicePage({ settings, set, busy, onScan }: { settings: Settings
         <Row label={t('device.scanNow')} hint={t('device.scanNowHint')}>
           <button disabled={busy || !folders.length} onClick={onScan}>{t('device.scanNow')}</button>
         </Row>
+        {bgNote && <div role="alert" className="muted">{bgNote}</div>}
       </Section>
       <Section title={t('device.folders')}>
         {folders.length ? (

@@ -29,11 +29,12 @@ jobs:
           rm -f android/app/src/main/res/mipmap-*/ic_launcher*.png
           cp -r resources/android/. android/app/src/main/res/
       # Native plugins: self-update (+ install permission, FileProvider path) and the books already on the phone
-      # (+ storage permissions), and versionCode = run number (tag v1.0.<n> ends with it).
+      # (+ storage and notification permissions, background scan worker), and versionCode = run number (tag v1.0.<n> ends with it).
       - run: |
           pkg=android/app/src/main/java/com/yanivm/reader
           cp resources/android-updater/AppUpdaterPlugin.java $pkg/
           cp resources/android-device-books/DeviceBooksPlugin.java $pkg/
+          cp resources/android-device-books/BackgroundScanWorker.java $pkg/
           cp resources/android-open-with/OpenWithPlugin.java $pkg/
           sed -i 's/^public class MainActivity extends BridgeActivity {}$/public class MainActivity extends BridgeActivity {\n    @Override\n    public void onCreate(android.os.Bundle savedInstanceState) {\n        registerPlugin(AppUpdaterPlugin.class);\n        registerPlugin(DeviceBooksPlugin.class);\n        registerPlugin(OpenWithPlugin.class);\n        super.onCreate(savedInstanceState);\n    }\n}/' $pkg/MainActivity.java
           grep -q 'registerPlugin(DeviceBooksPlugin.class)' $pkg/MainActivity.java
@@ -47,10 +48,11 @@ jobs:
           open(p, 'w', encoding='utf-8').write(m.replace('</activity>', f + '        </activity>', 1))
           PY
           grep -q 'android.intent.action.VIEW' android/app/src/main/AndroidManifest.xml
-          sed -i 's#<application#<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />\n    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />\n    <application android:requestLegacyExternalStorage="true"#' android/app/src/main/AndroidManifest.xml
+          sed -i 's#<application#<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />\n    <application android:requestLegacyExternalStorage="true"#' android/app/src/main/AndroidManifest.xml
           sed -i 's#</paths>#    <external-files-path name="app_update" path="app-update/" />\n</paths>#' android/app/src/main/res/xml/file_paths.xml
           sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"1.0.${{ github.run_number }}\"/" android/app/build.gradle
           grep -q requestLegacyExternalStorage android/app/src/main/AndroidManifest.xml
+          grep -q POST_NOTIFICATIONS android/app/src/main/AndroidManifest.xml
           grep -q "versionCode ${{ github.run_number }}" android/app/build.gradle
       # Release build (smaller, faster, WebView not debuggable), signed with the same fixed key (secrets)
       # so every build, including the earlier debug ones, can update the previous one.
@@ -67,6 +69,10 @@ jobs:
             }
           }
           android.buildTypes.release.signingConfig android.signingConfigs.release
+          // the scan that runs without the app on the screen (BackgroundScanWorker)
+          dependencies {
+            implementation 'androidx.work:work-runtime:2.9.1'
+          }
           // lint on the generated Capacitor project only slows the build down
           android.lint.checkReleaseBuilds false
           EOF

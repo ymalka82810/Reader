@@ -3,6 +3,8 @@
 // through the injected Capacitor bridge, so @capacitor/core isn't bundled.
 
 import { createStore, entries, setMany } from 'idb-keyval'
+import { t } from '../i18n'
+import { loadSettings, type Settings } from './settings'
 
 interface CapacitorBridge {
   isNativePlatform?: () => boolean
@@ -81,4 +83,67 @@ export async function readDeviceFile(f: DeviceFile): Promise<File> {
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   const ext = f.name.split('.').pop()?.toLowerCase() ?? ''
   return new File([await res.blob()], f.name, { type: TYPES[ext] ?? '', lastModified: f.modified })
+}
+
+/** whether the app may post notifications (the background scan announces new books with one) */
+export async function hasNotificationAccess(): Promise<boolean> {
+  if (!deviceBooksSupported()) return false
+  try {
+    return (await call<{ granted: boolean }>('notificationStatus')).granted
+  } catch {
+    return false
+  }
+}
+
+/** asks for the notification permission (Android 13+ shows a dialog); resolves with the answer */
+export async function requestNotificationAccess(): Promise<boolean> {
+  if (!deviceBooksSupported()) return false
+  try {
+    return (await call<{ granted: boolean }>('requestNotifications')).granted
+  } catch {
+    return false
+  }
+}
+
+/** true once after the app was opened from the \"new books found\" notification, so the library offers them at once */
+export async function consumeScanNotificationTap(): Promise<boolean> {
+  if (!deviceBooksSupported()) return false
+  try {
+    return (await call<{ tapped: boolean }>('consumeNotificationTap')).tapped
+  } catch {
+    return false
+  }
+}
+
+/** every file the library has dealt with, as {path: \"size|modified\"} */
+export async function seenFiles(): Promise<Record<string, string>> {
+  return Object.fromEntries((await entries<string, string>(seenStore)).map(([k, v]) => [String(k), v]))
+}
+
+/**
+ * Tells the native side whether to keep scanning while the app is closed or not on the screen (it checks every
+ * ~15 minutes and posts one notification about new books; it never adds any), with the folders, the books the
+ * library already knows and the notification's texts. Called when the app comes forward or goes away and when
+ * the setting changes, so the native side always has the latest.
+ */
+export async function syncBackgroundScan(s: Pick<Settings, 'deviceBackgroundScan' | 'deviceFolders'> = loadSettings()): Promise<void> {
+  if (!deviceBooksSupported()) return
+  try {
+    if (!s.deviceBackgroundScan || !(await hasDeviceAccess())) {
+      await call('setBackground', { enabled: false })
+      return
+    }
+    await call('setBackground', {
+      enabled: true,
+      folders: s.deviceFolders,
+      extensions: BOOK_EXTENSIONS,
+      known: await seenFiles(),
+      title: t('device.bgTitle'),
+      textOne: t('device.bgOne'),
+      textMany: t('device.bgMany'),
+      channel: t('device.bgChannel'),
+    })
+  } catch (e) {
+    console.warn('device scan: background scan not updated', e)
+  }
 }
