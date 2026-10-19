@@ -14,6 +14,7 @@
   --fill: rgba(128,128,128,.14);
   --border: rgba(128,128,128,.32);
   --border-strong: rgba(128,128,128,.55);
+  --control-border: rgba(128,128,128,.4); /* the outline the filter buttons use; every library button and menu shares it */
   --border-subtle: rgba(128,128,128,.2);
   --shadow-sm: 0 1px 3px rgba(0,0,0,.14);
   --shadow-md: 0 4px 14px rgba(0,0,0,.16);
@@ -425,3 +426,11 @@ i.lv4 { background: var(--accent) !important; }
 .lib-tools .select-btn > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 600px) { .lib-tools .select-btn:not(.view-toggle) { flex: 1 1 40%; } }
 .select-btn[aria-pressed="true"] { background: rgba(49,130,206,.18); }
+
+/* library: every button and floating menu gets the same soft outline as the filter buttons, so none of them blends into the background */
+.library button:not(.card):not(.notice-close):not(.select-btn):not(.dd-btn), .modal button:not(.dd-btn), .continue-cta { border: 1px solid var(--control-border); }
+.library .resume-dots button, .library .menu button { border: 0; }
+.more-btn { border: 1px solid rgba(255,255,255,.55); }
+.menu { border: 1px solid var(--control-border); }
+.hc .library button:not(.card):not(.notice-close):not(.select-btn):not(.dd-btn), .hc .modal button:not(.dd-btn), .hc .menu, .hc .continue-cta { border: 2px solid #fff; }
+.hc .library .resume-dots button, .hc .library .menu button { border: 0; }
