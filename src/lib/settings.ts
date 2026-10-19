@@ -48,6 +48,10 @@ export interface Settings {
   yearlyGoalHours: number
   /** how long without a backup before the library asks for one */
   backupRemind: BackupRemind
+  /** Android app: look for new books in the phone's folders every time the app opens */
+  deviceAutoScan: boolean
+  /** Android app: the folders looked through, relative to the phone's storage root ('' is all of it) */
+  deviceFolders: string[]
 }
 
 export type BackupRemind = 'default' | 'week' | 'month' | 'off'
@@ -95,6 +99,8 @@ const DEFAULTS: Settings = {
   dailyGoalMin: 0,
   yearlyGoalHours: 0,
   backupRemind: 'default',
+  deviceAutoScan: true,
+  deviceFolders: ['Documents', 'Download'],
 }
 
 const KEY = 'reader:settings'

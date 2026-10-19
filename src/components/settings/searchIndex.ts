@@ -1,6 +1,7 @@
 import { t, type MessageKey } from '../../i18n'
 import { EYE_SCROLL_AVAILABLE } from '../../lib/viewModes'
 import { isNativeApp } from '../../lib/updater'
+import { deviceBooksSupported } from '../../lib/deviceBooks'
 import { PAGES, type PageId } from './pages'
 
 export type Entry = { page: PageId; label: string; where: string }
@@ -29,6 +30,9 @@ const ENTRIES: [PageId, MessageKey, boolean?][] = [
   ['backup', 'prefs.autoSection'],
   ['backup', 'prefs.reminderSection'],
   ['backup', 'prefs.storageSection'],
+  ['device', 'device.auto', deviceBooksSupported()],
+  ['device', 'device.scanNow', deviceBooksSupported()],
+  ['device', 'device.folders', deviceBooksSupported()],
   ['goals', 'goals.daily'],
   ['goals', 'goals.yearly'],
   ['about', 'prefs.shortcuts'],

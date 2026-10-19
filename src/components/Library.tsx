@@ -11,6 +11,7 @@ import { useFolders } from '../hooks/useFolders'
 import { useBackup } from '../hooks/useBackup'
 import { useAutoBackup } from '../hooks/useAutoBackup'
 import { useUpdateCheck } from '../hooks/useUpdateCheck'
+import { useDeviceScan } from '../hooks/useDeviceScan'
 import { useConfirm } from '../hooks/useConfirm'
 import { hasTag, listTags, parseTags } from '../lib/tags'
 import { localeTag, t } from '../i18n'
@@ -92,6 +93,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   const imp = useImport({ refresh, setBusy, setError })
   const backup = useBackup({ refresh, setBusy, setError, showToast, onBackedUp: () => setDismissed(true), confirm })
   const checkUpdate = useUpdateCheck({ setBusy, setError, showToast, confirm })
+  const scanDevice = useDeviceScan({ addFiles: imp.addFiles, setBusy, setError, showToast, confirm })
   const auto = useAutoBackup({ setError, showToast })
 
   // without persistent storage the browser may evict the library, so remind sooner
@@ -514,6 +516,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
             onSettingsClosed?.()
           }}
           onCheckUpdate={checkUpdate}
+          onScanDevice={scanDevice}
           backup={{
             busy: !!busy,
             storage,

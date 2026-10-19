@@ -1,0 +1,207 @@
+package com.yanivm.reader;
+
+import android.Manifest;
+import android.app.Activity;
+import android.content.ActivityNotFoundException;
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Environment;
+import android.provider.DocumentsContract;
+import android.provider.Settings;
+
+import androidx.activity.result.ActivityResult;
+
+import com.getcapacitor.JSArray;
+import com.getcapacitor.JSObject;
+import com.getcapacitor.PermissionState;
+import com.getcapacitor.Plugin;
+import com.getcapacitor.PluginCall;
+import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.ActivityCallback;
+import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.annotation.Permission;
+import com.getcapacitor.annotation.PermissionCallback;
+
+import java.io.File;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Set;
+
+/**
+ * Finds the book files already on the phone (Documents, Download, and folders the user adds), so the library can
+ * pick up new ones by itself, like dedicated e-reader apps do.
+ *
+ * Reading other apps' documents needs "All files access" on Android 11+ (MANAGE_EXTERNAL_STORAGE: the user turns it
+ * on in a system screen that requestAccess opens), and READ_EXTERNAL_STORAGE with requestLegacyExternalStorage
+ * on Android 10 and older. The JS reads each found file through Capacitor's local server (convertFileSrc), so the
+ * book's bytes never pass through the bridge as base64.
+ *
+ * Needs in AndroidManifest.xml: MANAGE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE (maxSdkVersion 32) and
+ * android:requestLegacyExternalStorage="true" on <application>.
+ * Register it in MainActivity: registerPlugin(DeviceBooksPlugin.class) before super.onCreate().
+ *
+ * JS: status() -> {granted}
+ *     requestAccess() -> {granted} once the user is back from the system screen or permission dialog
+ *     scan({folders, extensions}) -> {files: [{path, name, size, modified}]}; folders are relative to the shared
+ *       storage root ("Documents", "Download", "Books/Hebrew"); rejects with "permission" without access
+ *     pickFolder() -> {folder?} relative to the root (absent when cancelled); rejects with "not local" for a folder
+ *       outside the phone's own storage (SD card, cloud), or "no picker"
+ */
+@CapacitorPlugin(
+    name = "DeviceBooks",
+    permissions = @Permission(alias = "storage", strings = { Manifest.permission.READ_EXTERNAL_STORAGE })
+)
+public class DeviceBooksPlugin extends Plugin {
+    private static final int MAX_DEPTH = 8;
+    private static final int MAX_FILES = 5000;
+
+    private boolean hasAccess() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) return Environment.isExternalStorageManager();
+        return getPermissionState("storage") == PermissionState.GRANTED;
+    }
+
+    private void resolveStatus(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("granted", hasAccess());
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void status(PluginCall call) {
+        resolveStatus(call);
+    }
+
+    @PluginMethod
+    public void requestAccess(PluginCall call) {
+        if (hasAccess()) {
+            resolveStatus(call);
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Intent own = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:" + getContext().getPackageName()));
+            try {
+                startActivityForResult(call, own, "accessResult");
+            } catch (ActivityNotFoundException e) {
+                // some vendors only have the list of all apps
+                try {
+                    startActivityForResult(call, new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION), "accessResult");
+                } catch (ActivityNotFoundException e2) {
+                    call.reject("no settings");
+                }
+            }
+        } else {
+            requestPermissionForAlias("storage", call, "storageResult");
+        }
+    }
+
+    @ActivityCallback
+    private void accessResult(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        resolveStatus(call); // the settings screen always answers "cancelled": ask the system instead
+    }
+
+    @PermissionCallback
+    private void storageResult(PluginCall call) {
+        resolveStatus(call);
+    }
+
+    @PluginMethod
+    public void scan(PluginCall call) {
+        if (!hasAccess()) {
+            call.reject("permission");
+            return;
+        }
+        JSArray folders = call.getArray("folders", new JSArray());
+        JSArray extensions = call.getArray("extensions", new JSArray());
+        new Thread(() -> {
+            try {
+                Set<String> exts = new HashSet<>();
+                for (int i = 0; i < extensions.length(); i++) exts.add(extensions.getString(i).toLowerCase(Locale.ROOT));
+                File root = Environment.getExternalStorageDirectory();
+                String rootPath = root.getCanonicalPath();
+                JSArray files = new JSArray();
+                Set<String> seen = new HashSet<>();
+                for (int i = 0; i < folders.length(); i++) {
+                    walk(new File(root, folders.getString(i)), rootPath, exts, files, seen, 0);
+                }
+                JSObject ret = new JSObject();
+                ret.put("files", files);
+                call.resolve(ret);
+            } catch (Exception e) {
+                call.reject("scan", e);
+            }
+        }).start();
+    }
+
+    /** collects the matching files under dir; `seen` keeps overlapping folders (Documents and Documents/Books) from listing a file twice */
+    private void walk(File dir, String rootPath, Set<String> exts, JSArray out, Set<String> seen, int depth) throws Exception {
+        if (depth > MAX_DEPTH || out.length() >= MAX_FILES || !dir.isDirectory()) return;
+        String path = dir.getCanonicalPath();
+        // stay inside the shared storage, never in other apps' private folders, and never loop through a link
+        if (!(path.equals(rootPath) || path.startsWith(rootPath + "/"))) return;
+        if (path.equals(rootPath + "/Android") || !seen.add(path)) return;
+        File[] list = dir.listFiles();
+        if (list == null) return;
+        for (File f : list) {
+            String name = f.getName();
+            if (name.startsWith(".")) continue;
+            if (f.isDirectory()) {
+                walk(f, rootPath, exts, out, seen, depth + 1);
+                continue;
+            }
+            int dot = name.lastIndexOf('.');
+            if (dot < 0 || !exts.contains(name.substring(dot + 1).toLowerCase(Locale.ROOT))) continue;
+            if (!f.isFile() || !seen.add(f.getCanonicalPath())) continue;
+            JSObject o = new JSObject();
+            o.put("path", f.getAbsolutePath());
+            o.put("name", name);
+            o.put("size", f.length());
+            o.put("modified", f.lastModified());
+            out.put(o);
+            if (out.length() >= MAX_FILES) return;
+        }
+    }
+
+    @PluginMethod
+    public void pickFolder(PluginCall call) {
+        try {
+            startActivityForResult(call, new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), "folderResult");
+        } catch (ActivityNotFoundException e) {
+            call.reject("no picker");
+        }
+    }
+
+    @ActivityCallback
+    private void folderResult(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        JSObject ret = new JSObject();
+        Intent data = result.getData();
+        if (result.getResultCode() != Activity.RESULT_OK || data == null || data.getData() == null) {
+            call.resolve(ret);
+            return;
+        }
+        String folder = null;
+        try {
+            String id = DocumentsContract.getTreeDocumentId(data.getData());
+            String rootPath = Environment.getExternalStorageDirectory().getCanonicalPath();
+            if (id != null && id.startsWith("primary:")) {
+                // the phone's own storage: "primary:Books/Hebrew"
+                folder = id.substring("primary:".length());
+            } else if (id != null && id.startsWith("raw:")) {
+                // the Downloads app hands out real paths: "raw:/storage/emulated/0/Download/Books"
+                String p = new File(id.substring("raw:".length())).getCanonicalPath();
+                if (p.equals(rootPath)) folder = "";
+                else if (p.startsWith(rootPath + "/")) folder = p.substring(rootPath.length() + 1);
+            }
+        } catch (Exception e) {
+            folder = null;
+        }
+        if (folder == null) {
+            call.reject("not local");
+            return;
+        }
+        ret.put("folder", folder);
+        call.resolve(ret);
+    }
+}

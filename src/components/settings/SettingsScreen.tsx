@@ -8,6 +8,7 @@ import { AboutPage } from './AboutPage'
 import { AccessibilityPage } from './AccessibilityPage'
 import { AppearancePage } from './AppearancePage'
 import { BackupPage, type BackupActions } from './BackupPage'
+import { DevicePage } from './DevicePage'
 import { DisplayPage } from './DisplayPage'
 import { GoalsPage } from './GoalsPage'
 import { LanguagePage } from './LanguagePage'
@@ -37,11 +38,13 @@ type Props = {
   /** the backup actions the library lends to the backup page */
   backup: BackupActions
   onCheckUpdate: () => void
+  /** scans the phone for new books (Android app) */
+  onScanDevice: () => void
   startPage?: PageId
 }
 
 /** full-screen settings: pages in a list, with each page's settings in sections */
-export function SettingsScreen({ onClose, backup, onCheckUpdate, startPage }: Props) {
+export function SettingsScreen({ onClose, backup, onCheckUpdate, onScanDevice, startPage }: Props) {
   const wide = useWide()
   const [settings, set] = useAppSettings()
   const [page, setPage] = useState<PageId | null>(() => startPage ?? PAGES.find(([id]) => id === rememberedSettings())?.[0] ?? null)
@@ -135,6 +138,9 @@ export function SettingsScreen({ onClose, backup, onCheckUpdate, startPage }: Pr
             {current === 'appearance' && <AppearancePage settings={settings} set={set} />}
             {current === 'a11y' && <AccessibilityPage settings={settings} set={set} />}
             {current === 'display' && <DisplayPage />}
+            {current === 'device' && (
+              <DevicePage settings={settings} set={set} busy={backup.busy} onScan={() => { close(); onScanDevice() }} />
+            )}
             {current === 'goals' && <GoalsPage settings={settings} set={set} />}
             {current === 'language' && <LanguagePage settings={settings} set={set} />}
             {current === 'backup' && <BackupPage actions={backup} leave={close} settings={settings} set={set} />}

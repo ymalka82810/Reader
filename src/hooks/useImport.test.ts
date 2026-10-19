@@ -123,4 +123,30 @@ describe('useImport', () => {
     const warn = add.mock.calls.find((c) => c[0] === 'beforeunload')![1]
     expect(remove).toHaveBeenCalledWith('beforeunload', warn)
   })
+  it('reads a lazy file only when its turn comes', async () => {
+    const order: string[] = []
+    importFile.mockImplementation(async (f: File) => void order.push(`import ${f.name}`))
+    const lazy = (name: string) => ({ name, load: async () => (order.push(`load ${name}`), file(name)) })
+    const { result } = setup()
+    await act(() => result.current.addFiles([lazy('a.epub'), lazy('b.epub')]))
+    expect(order).toEqual(['load a.epub', 'import a.epub', 'load b.epub', 'import b.epub'])
+  })
+
+  it('with skipDuplicates, skips books already in the library without asking or reporting, and reports each item', async () => {
+    const { ImportError } = await import('../lib/errors')
+    const { t } = await import('../i18n')
+    importFile
+      .mockImplementationOnce(async (_f, _p, onDuplicate) => {
+        expect(await onDuplicate(existing)).toBe('skip')
+        throw new ImportError(t('import.exists'))
+      })
+      .mockRejectedValueOnce(new Error('broken'))
+      .mockResolvedValueOnce({})
+    const onEach = vi.fn()
+    const { result, setError } = setup()
+    await act(() => result.current.addFiles([file('a.epub'), file('b.pdf'), file('c.epub')], { skipDuplicates: true, onEach }))
+    expect(result.current.dupBatch).toBeUndefined()
+    expect(setError).toHaveBeenLastCalledWith('b.pdf: broken')
+    expect(onEach.mock.calls.map((c) => c[0])).toEqual([0, 1, 2])
+  })
 })
