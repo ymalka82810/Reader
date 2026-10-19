@@ -432,3 +432,8 @@ i.lv4 { background: var(--accent) !important; }
 .more-btn { border: 1px solid rgba(255,255,255,.55); }
 .menu { border: 1px solid var(--control-border); }
 .hc .lib-header button, .hc .folder-actions button, .hc .select-bar button, .hc .lib-toast button, .hc .import-actions button, .hc .continue-cta, .hc .menu { border: 2px solid #fff; }
+
+/* reader, settings, audio and panels: the same outline on every remaining button (list rows, cards and dots stay frameless) */
+.topbar button, .bottombar button, .prefs-head button, .prefs-open, .audio-buttons button, .audio-extra button, .chapter-btn, .notes-tools button, .seg button, .goals-range button, .speed-presets button, .fonts button, .move-list button, .dup-list button, .search form button, .dict .row button, .edit .row button, .auto-pace button, .goals button, .review button { border: 1px solid var(--control-border); }
+/* the Aa/font pickers, the selected states and the filled buttons keep their own colour; only the frame is added */
+.hc .hc .topbar button, .hc .bottombar button, .hc .prefs-head button, .hc .prefs-open, .hc .audio-buttons button, .hc .audio-extra button, .hc .chapter-btn, .hc .notes-tools button, .hc .seg button, .hc .goals-range button, .hc .speed-presets button, .hc .fonts button, .hc .move-list button, .hc .dup-list button, .hc .search form button, .hc .dict .row button, .hc .edit .row button, .hc .auto-pace button, .hc .goals button, .hc .review button { border: 2px solid #fff; }
