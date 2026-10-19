@@ -16,7 +16,7 @@ const file = (name: string) => new File(['x'], name)
 const existing = { id: 'old', title: 'Old' } as BookMeta
 
 function setup() {
-  const deps = { refresh: vi.fn(async () => {}), setBusy: vi.fn(), setError: vi.fn() }
+  const deps = { refresh: vi.fn(async () => {}), setError: vi.fn(), showToast: vi.fn() }
   const hook = renderHook(() => useImport(deps))
   return { ...hook, ...deps }
 }
@@ -30,12 +30,13 @@ beforeEach(() => {
 })
 
 describe('useImport', () => {
-  it('imports each file, refreshing after every one, and clears the busy state', async () => {
-    const { result, refresh, setBusy, setError } = setup()
+  it('imports each file, refreshing after every one, and ends idle', async () => {
+    const { result, refresh, setError } = setup()
     await act(() => result.current.addFiles([file('a.epub'), file('b.epub')]))
     expect(importFile).toHaveBeenCalledTimes(2)
     expect(refresh).toHaveBeenCalledTimes(3) // once per file and a final one
-    expect(setBusy).toHaveBeenLastCalledWith(undefined)
+    expect(result.current.running).toBe(false)
+    expect(result.current.message).toBeUndefined()
     expect(setError).toHaveBeenLastCalledWith(undefined)
     expect(result.current.batch).toBeUndefined()
   })
@@ -148,5 +149,87 @@ describe('useImport', () => {
     expect(result.current.dupBatch).toBeUndefined()
     expect(setError).toHaveBeenLastCalledWith('b.pdf: broken')
     expect(onEach.mock.calls.map((c) => c[0])).toEqual([0, 1, 2])
+  })
+
+  it('cancel stops the queue: the book in progress is dropped, the rest are not read, nothing is reported as failed', async () => {
+    const seen: string[] = []
+    importFile.mockImplementation(
+      (f: File, _p: unknown, _d: unknown, signal: AbortSignal) =>
+        new Promise((resolve, reject) => {
+          seen.push(f.name)
+          signal.addEventListener('abort', () => reject(signal.reason))
+          if (f.name === 'a.epub') resolve({})
+        }),
+    )
+    const { result, setError, showToast, refresh } = setup()
+    let done!: Promise<void>
+    act(() => {
+      done = result.current.addFiles([file('a.epub'), file('b.epub'), file('c.epub')])
+    })
+    await vi.waitFor(() => expect(seen).toEqual(['a.epub', 'b.epub']))
+    expect(result.current.running).toBe(true)
+    await act(async () => {
+      result.current.cancel()
+      await done
+    })
+    expect(seen).toEqual(['a.epub', 'b.epub']) // c.epub never started
+    expect(result.current.running).toBe(false)
+    expect(result.current.batch).toBeUndefined()
+    expect(setError).toHaveBeenLastCalledWith(undefined)
+    expect(showToast).toHaveBeenCalledTimes(1)
+    expect(refresh).toHaveBeenCalled()
+  })
+
+  it('files added while the queue is running join it instead of starting a second one', async () => {
+    let release!: () => void
+    const gate = new Promise<void>((r) => (release = r))
+    const order: string[] = []
+    importFile.mockImplementation(async (f: File) => {
+      order.push(f.name)
+      if (f.name === 'a.epub') await gate
+      return {}
+    })
+    const { result } = setup()
+    let first!: Promise<void>
+    let second!: Promise<void>
+    act(() => {
+      first = result.current.addFiles([file('a.epub')])
+    })
+    await vi.waitFor(() => expect(order).toEqual(['a.epub']))
+    act(() => {
+      second = result.current.addFiles([file('b.epub'), file('c.epub')])
+    })
+    expect(result.current.batch).toMatchObject({ done: 0, total: 3 })
+    await act(async () => {
+      release()
+      await Promise.all([first, second])
+    })
+    expect(order).toEqual(['a.epub', 'b.epub', 'c.epub'])
+    expect(result.current.running).toBe(false)
+  })
+
+  it('keeps going when the library is left and shows the progress again when it comes back', async () => {
+    let release!: () => void
+    const gate = new Promise<void>((r) => (release = r))
+    importFile.mockImplementation(async () => {
+      await gate
+      return {}
+    })
+    const first = setup()
+    let done!: Promise<void>
+    act(() => {
+      done = first.result.current.addFiles([file('a.epub'), file('b.epub')])
+    })
+    await vi.waitFor(() => expect(first.result.current.running).toBe(true))
+    first.unmount()
+    const back = setup()
+    expect(back.result.current.running).toBe(true)
+    expect(back.result.current.batch).toMatchObject({ done: 0, total: 2 })
+    await act(async () => {
+      release()
+      await done
+    })
+    expect(back.result.current.running).toBe(false)
+    expect(back.refresh).toHaveBeenCalled()
   })
 })

@@ -135,7 +135,9 @@ export async function extractPdf(
   fileName: string,
   onProgress?: (done: number, total: number) => void,
   onOcrProgress?: (done: number, total: number) => void,
+  signal?: AbortSignal,
 ): Promise<ExtractedPdf> {
+  signal?.throwIfAborted()
   // pdf.js is heavy; load it only when a PDF is actually imported.
   const [pdfjs, { default: workerUrl }] = await Promise.all([
     import('pdfjs-dist/legacy/build/pdf.mjs'),
@@ -157,6 +159,7 @@ export async function extractPdf(
   const pageImages = new Map<number, Blob>()
   try {
     for (let i = 1; i <= total; i++) {
+      signal?.throwIfAborted()
       const p = await pdf.getPage(i)
       const items = await rawItems(p)
       if (looksTabular(items)) hasTables = true
@@ -166,6 +169,7 @@ export async function extractPdf(
     }
     info = ((await pdf.getMetadata().catch(() => null))?.info ?? {}) as Record<string, string>
     bookmarks = await outlineStarts(pdf)
+    signal?.throwIfAborted()
     cover = await renderCover(pdf)
     // tables are shown from the original PDF: no text to convert, OCR or render page images for
     if (hasTables) {
@@ -185,9 +189,10 @@ export async function extractPdf(
     const empty = pages.flatMap((lines, i) => (charCount(lines) < MIN_PAGE_CHARS ? [i] : []))
     if (empty.length >= total / 2) {
       try {
-        const read = await (await import('./ocr')).ocrPdf(pdf, empty.map((i) => i + 1), onOcrProgress)
+        const read = await (await import('./ocr')).ocrPdf(pdf, empty.map((i) => i + 1), onOcrProgress, signal)
         empty.forEach((i, k) => (pages[i] = read[k] ?? []))
       } catch (e) {
+        if (signal?.aborted) throw e // a cancel is not an OCR failure
         console.error(e)
         throw new ImportError(t('pdf.ocrFailed'))
       }
@@ -197,6 +202,7 @@ export async function extractPdf(
     // pages whose text came out badly keep a picture of the original page next to it
     const poor = pages.flatMap((lines, i) => (isPoorPage(lines) ? [i] : []))
     for (const i of poor.slice(0, MAX_PAGE_IMAGES)) {
+      signal?.throwIfAborted()
       const img = await renderPage(pdf, i + 1, PAGE_IMAGE_HEIGHT, 0.7)
       if (img) pageImages.set(i, img)
     }

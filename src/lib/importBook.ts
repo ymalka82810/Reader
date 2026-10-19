@@ -39,6 +39,9 @@ const isNative = (f: File) => /\.(mobi|azw3?|fb2|fbz|fb2\.zip|cbz)$/i.test(f.nam
 const lowerName = (f: File) =>
   f.name === f.name.toLowerCase() ? f : new File([f], f.name.toLowerCase(), { type: f.type })
 
+/** a cancelled import: the book in progress is dropped, nothing of it is saved */
+export const isAbort = (e: unknown) => e instanceof DOMException && e.name === 'AbortError'
+
 /** the failure for a file whose exact content is already in the library */
 export const isAlreadyInLibrary = (e: unknown) => e instanceof ImportError && e.message === ALREADY_EXISTS
 
@@ -65,15 +68,18 @@ export async function importFile(
   file: File,
   onProgress?: (msg: string) => void,
   onDuplicate?: OnDuplicate,
+  signal?: AbortSignal,
 ): Promise<BookRecord> {
+  signal?.throwIfAborted()
   if (!file.size) throw new ImportError(t('import.empty'))
   if (!isEpub(file) && !isPdf(file) && !isTxt(file) && !isDocx(file) && !isNative(file) && !isAudio(file))
     throw new ImportError(t('import.unsupported'))
   try {
     if (await hasDrm(file)) throw new ImportError(t('err.drm'))
-    return await readIntoLibrary(file, onProgress, onDuplicate)
+    return await readIntoLibrary(file, onProgress, onDuplicate, signal)
   } catch (e) {
     if (e instanceof DeferredDuplicate) throw e
+    if (signal?.aborted) throw signal.reason // cancelled by the user: not a failure to explain
     console.error(e)
     throw new ImportError(explainImportError(e))
   }
@@ -94,9 +100,11 @@ async function readIntoLibrary(
   file: File,
   onProgress?: (msg: string) => void,
   onDuplicate?: OnDuplicate,
+  signal?: AbortSignal,
 ): Promise<BookRecord> {
   // Hash the file as the user supplied it (a PDF/TXT conversion isn't guaranteed to be byte-stable).
   const id = await contentId(file)
+  signal?.throwIfAborted()
   if (await hasBook(id)) throw new ImportError(ALREADY_EXISTS)
 
   let epub = file
@@ -107,6 +115,11 @@ async function readIntoLibrary(
   let author: string
   let words: number | undefined
   let book: { destroy?: () => void } = {}
+  /** a cancel after the book was opened also releases it */
+  const check = () => {
+    if (signal?.aborted) book.destroy?.()
+    signal?.throwIfAborted()
+  }
 
   if (isAudio(file)) {
     onProgress?.(t('import.readingAudio'))
@@ -127,7 +140,9 @@ async function readIntoLibrary(
       file.name,
       (done, total) => onProgress?.(`${t('import.extracting')} ${done}/${total}`),
       (done, total) => onProgress?.(`${t('import.ocr')} ${Math.min(done + 1, total)}/${total}`),
+      signal,
     )
+    check()
     fromPdf = true
     if (x.hasTables) {
       // a text conversion would wreck the tables: keep the PDF itself, which foliate-js shows page by page
@@ -136,6 +151,7 @@ async function readIntoLibrary(
     } else {
       onProgress?.(t('import.pdfConverting'))
       const blob = await buildEpub(x)
+      check()
       epub = new File([blob], file.name.replace(/\.pdf$/i, '') + '.epub', { type: 'application/epub+zip' })
     }
   }
@@ -154,6 +170,7 @@ async function readIntoLibrary(
     epub = new File([blob], file.name.replace(/\.docx$/i, '') + '.epub', { type: 'application/epub+zip' })
   }
 
+  check()
   onProgress?.(t('import.reading'))
   if (isNative(file)) epub = lowerName(file)
   const opened = await makeBook(epub)
@@ -168,11 +185,13 @@ async function readIntoLibrary(
   onProgress?.(t('import.counting'))
   words = await wordsOfBook(opened)
   }
+  check()
 
   const dup = (await listBooks()).find((b) => sameBook(b, { title, author }))
   let replaceId: string | undefined
   if (dup) {
     const choice = onDuplicate ? await onDuplicate(dup) : 'skip'
+    check()
     if (choice === 'defer') {
       throw new DeferredDuplicate(dup, title, async (c) => {
         if (c === 'skip') {
@@ -192,6 +211,7 @@ async function readIntoLibrary(
   return store(replaceId)
 
   async function store(replaceId: string | undefined): Promise<BookRecord> {
+  check() // last chance: once saved, the book stays
   const rec: BookRecord = {
     id,
     file: epub,

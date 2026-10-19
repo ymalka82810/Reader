@@ -90,7 +90,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   const { selecting, setSelecting, selected, setSelected, selectedFolders, setSelectedFolders, exitSelect } = selection
   const { books, createdNames, refresh, deleteBooks } = useLibrary(setError, { showToast, clearToast })
   const { pending: confirmAsk, confirm } = useConfirm()
-  const imp = useImport({ refresh, setBusy, setError })
+  const imp = useImport({ refresh, setError, showToast })
   const backup = useBackup({ refresh, setBusy, setError, showToast, onBackedUp: () => setDismissed(true), confirm })
   const checkUpdate = useUpdateCheck({ setBusy, setError, showToast, confirm })
   const scanDevice = useDeviceScan({ addFiles: imp.addFiles, setBusy, setError, showToast, confirm })
@@ -280,7 +280,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
                 }
               : undefined
           }
-          busy={!!busy}
+          busy={!!busy || imp.running}
           onBackup={backup.askExport}
           onRestore={() => restoreInput.current?.click()}
           onGoals={() => setGoalsOpen(true)}
@@ -361,7 +361,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
         </div>
       )}
 
-      {busy && (
+      {(busy || imp.running) && (
         <div className="notice">
           {batch && (
             <div className="batch">
@@ -378,7 +378,15 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
               <progress value={batch.done} max={batch.total} />
             </div>
           )}
-          {busy}
+          {busy ?? imp.message}
+          {imp.running && !busy && (
+            <div className="import-actions">
+              <small>{t('import.background')}</small>
+              <button className="danger" onClick={imp.cancel}>
+                {t('import.cancel')}
+              </button>
+            </div>
+          )}
         </div>
       )}
       {error && (
@@ -388,7 +396,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
         </div>
       )}
 
-      {books.length === 0 && !busy ? (
+      {books.length === 0 && !busy && !imp.running ? (
         <div className="empty">
           <p>{t('lib.empty')}</p>
           <p>{t('lib.emptyHint')}</p>
@@ -518,7 +526,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
           onCheckUpdate={checkUpdate}
           onScanDevice={scanDevice}
           backup={{
-            busy: !!busy,
+            busy: !!busy || imp.running,
             storage,
             onPersist: reqPersist,
             onBackup: backup.askExport,

@@ -74,6 +74,8 @@ select { font: inherit; padding: .4rem .6rem; border-radius: var(--radius-lg); b
 .batch-head { display: flex; justify-content: space-between; font-size: .85rem; margin-bottom: .3rem; }
 .batch progress { width: 100%; height: .6rem; }
 .notice.error { background: rgba(200,50,50,.18); white-space: pre-line; }
+.import-actions { display: flex; align-items: center; justify-content: space-between; gap: .6rem; flex-wrap: wrap; margin-top: .5rem; }
+.import-actions small { opacity: .8; }
 .notice.closable { display: flex; align-items: flex-start; gap: .6rem; }
 .notice.closable > span { flex: 1; }
 .notice-close { flex: none; padding: 0 .5rem; background: transparent; font-size: 1.1rem; line-height: 1.5; }
