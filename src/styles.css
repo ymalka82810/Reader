@@ -35,7 +35,16 @@ button.secondary { background: transparent; border: 1px solid var(--border-stron
 button.quiet { background: transparent; }
 button.quiet:hover:not(:disabled), button.secondary:hover:not(:disabled) { background: var(--fill, rgba(128,128,128,.18)); }
 button:disabled { opacity: .5; }
-button, .select-btn, .dd-btn { transition: background-color .15s, box-shadow .15s; }
+button, .select-btn, .dd-btn { transition: background-color .15s, box-shadow .15s, transform .1s, opacity .1s; }
+/* press feedback: a soft overlay (works on any background, filled or transparent) and a tiny shrink, so a tap is always felt */
+button:active:not(:disabled), .select-btn:active, .dd-btn:active { box-shadow: inset 0 0 0 999px rgba(128,128,128,.3); transform: scale(.97); }
+button.card:active:not(:disabled) { box-shadow: none; opacity: .75; }
+.select-list li:active, .dd-list li:active { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+@media (hover: hover) {
+  button:hover:not(:disabled):not(:active), .select-btn:hover:not(:active), .dd-btn:hover:not(:active) { box-shadow: inset 0 0 0 999px rgba(128,128,128,.14); }
+  button.card:hover:not(:disabled):not(:active) { box-shadow: none; opacity: .88; }
+}
+@media (prefers-reduced-motion: reduce) { button:active:not(:disabled), .select-btn:active, .dd-btn:active { transform: none; } }
 /* native controls follow the theme and the rounded look */
 input[type=checkbox], input[type=radio], input[type=range], progress { accent-color: var(--accent); }
 input[type=color] { padding: 2px; border: 1px solid var(--border); border-radius: var(--radius-md); background: transparent; cursor: pointer; }
@@ -337,6 +346,7 @@ i.lv4 { background: var(--accent) !important; }
 /* high contrast: black and white, yellow accents, thick borders, no translucent text */
 :root.hc { --bg: #000; --fg: #fff; --accent: #ffe600; --on-accent: #000; color-scheme: dark; }
 .hc button { border: 2px solid var(--fg); background: #000; color: #fff; }
+.hc button:active:not(:disabled), .hc .select-btn:active, .hc .dd-btn:active { background: #fff; color: #000; box-shadow: none; }
 .hc button.primary, .hc button.on, .hc button[aria-pressed="true"]:not(.card):not(.swatch), .hc .seg button.on, .hc .continue-cta, .hc .fonts button.on { background: var(--accent); color: #000; border-color: var(--accent); }
 .hc .topbar button[aria-pressed="true"] { color: #000; }
 .hc .danger { background: #000; color: #ff8080; border-color: #ff8080; }
