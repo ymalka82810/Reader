@@ -149,14 +149,18 @@ export const setWords = (id: string, words: number) =>
     if (b) await set(id, { ...b, words }, store)
   })
 
-/** moves books to a folder; `undefined` puts them back under their author */
+/** moves books to a folder; `undefined` puts them back under their author. A named folder also becomes the book's author. */
 export const setFolder = (ids: string[], folder: string | undefined) =>
   serial(async () => {
     for (const id of ids) {
       const b = await get<BookMeta>(id, store)
       if (!b) continue
       if (folder === undefined) delete b.folder
-      else b.folder = folder
+      else {
+        b.folder = folder
+        // the folder is the author: a book moved into a folder takes the folder's name as its author
+        if (folder.trim()) b.author = folder
+      }
       await set(id, b, store)
     }
   })
@@ -180,12 +184,12 @@ export const removeFolderName = (name: string) =>
     await set(FOLDERS_KEY, (await listFolderNames()).filter((n) => !sameName(n, name)), folderStore)
   })
 
-/** renames a folder: every book in it (also those filed there only by author) gets the new name explicitly */
+/** renames a folder: every book in it (also those filed there only by author) gets the new name, as folder and as author */
 export const renameFolder = (oldName: string, newName: string) =>
   serial(async () => {
     for (const b of await values<BookMeta>(store)) {
       if (folderKey(b) !== folderKey({ author: oldName })) continue
-      await set(b.id, { ...b, folder: newName }, store)
+      await set(b.id, { ...b, folder: newName, author: newName }, store)
     }
     const names = (await listFolderNames()).filter((n) => !sameName(n, oldName) && !sameName(n, newName))
     await set(FOLDERS_KEY, [...names, newName], folderStore)
