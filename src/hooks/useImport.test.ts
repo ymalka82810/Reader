@@ -8,6 +8,12 @@ const takeSharedFiles = vi.hoisted(() => vi.fn())
 const onLaunchFiles = vi.hoisted(() => vi.fn())
 vi.mock('../lib/importBook', async (orig) => ({ ...(await orig<object>()), importFile }))
 vi.mock('../lib/inbox', () => ({ takeSharedFiles, onLaunchFiles }))
+const service = vi.hoisted(() => ({
+  startImportService: vi.fn(async () => false),
+  updateImportService: vi.fn(),
+  stopImportService: vi.fn(),
+}))
+vi.mock('../lib/deviceBooks', async (orig) => ({ ...(await orig<object>()), ...service }))
 
 const { useImport } = await import('./useImport')
 const { DeferredDuplicate } = await import('../lib/importBook')
@@ -27,6 +33,10 @@ beforeEach(() => {
   takeSharedFiles.mockReset()
   takeSharedFiles.mockResolvedValue([])
   onLaunchFiles.mockReset()
+  service.startImportService.mockReset()
+  service.startImportService.mockResolvedValue(false)
+  service.updateImportService.mockReset()
+  service.stopImportService.mockReset()
 })
 
 describe('useImport', () => {
@@ -286,5 +296,46 @@ describe('useImport', () => {
     expect(setError).toHaveBeenLastCalledWith(undefined)
     expect(showToast).not.toHaveBeenCalled() // the whole queue wasn't cancelled
     expect(result.current.running).toBe(false)
+  })
+
+  it('with the background service the queue does not pause when the app is hidden, and the service stops at the end', async () => {
+    service.startImportService.mockResolvedValue(true)
+    const hidden = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+    importFile.mockResolvedValue({})
+    const { result } = setup()
+    await act(() => result.current.addFiles([file('a.epub'), file('b.epub')]))
+    expect(importFile).toHaveBeenCalledTimes(2) // not held back until the app came forward
+    expect(service.startImportService).toHaveBeenCalledTimes(1)
+    await vi.waitFor(() => expect(service.stopImportService).toHaveBeenCalledTimes(1))
+    hidden.mockRestore()
+  })
+
+  it('stops the service even when the queue ends before it had started', async () => {
+    let started!: (ok: boolean) => void
+    service.startImportService.mockReturnValue(new Promise<boolean>((r) => (started = r)))
+    const { result } = setup()
+    await act(() => result.current.addFiles([file('a.epub')]))
+    expect(service.stopImportService).not.toHaveBeenCalled()
+    started(true)
+    await vi.waitFor(() => expect(service.stopImportService).toHaveBeenCalledTimes(1))
+  })
+
+  it('without the service (browser) a hidden app pauses the queue until it is visible again', async () => {
+    const hidden = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+    const { result } = setup()
+    let done!: Promise<void>
+    act(() => {
+      done = result.current.addFiles([file('a.epub')])
+    })
+    await new Promise((r) => setTimeout(r, 20))
+    expect(importFile).not.toHaveBeenCalled()
+    hidden.mockReturnValue('visible')
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'))
+      await done
+    })
+    expect(importFile).toHaveBeenCalledTimes(1)
+    expect(service.stopImportService).not.toHaveBeenCalled()
+    hidden.mockRestore()
   })
 })

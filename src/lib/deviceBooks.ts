@@ -137,3 +137,26 @@ export async function syncBackgroundScan(s: Pick<Settings, 'deviceBackgroundScan
     console.warn('device scan: background scan not updated', e)
   }
 }
+
+/**
+ * While the import queue runs, holds the app alive when it is not on the screen (a foreground service with an ongoing
+ * notification). Resolves true when the service started, so the queue knows it need not pause when the app is hidden.
+ */
+export async function startImportService(title: string, text: string): Promise<boolean> {
+  if (!deviceBooksSupported()) return false
+  try {
+    return (await call<{ started: boolean }>('startImportService', { title, text })).started
+  } catch {
+    return false
+  }
+}
+
+/** the ongoing notification's texts and progress bar (total 0 or 1: no bar) */
+export function updateImportService(title: string, text: string, done: number, total: number): void {
+  void call('updateImportService', { title, text, done, total }).catch(() => {})
+}
+
+/** the queue is finished or cancelled */
+export function stopImportService(): void {
+  void call('stopImportService').catch(() => {})
+}

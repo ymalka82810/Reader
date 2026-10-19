@@ -278,6 +278,8 @@ export const en: Record<keyof typeof he, Message> = {
   'import.pdfTables': 'Tables detected: the PDF is kept as is, without conversion.',
   'import.pdfLarge': 'This PDF is over 20MB: it is kept as is, without conversion.',
   'import.cancelling': 'Cancelling…',
+  'import.bgTitle': 'Adding books to the library',
+  'import.bgAsk': 'Waiting for your answer about duplicate books. Tap to open the app',
   'import.reading': 'Reading the book…',
   'import.cancel': 'Cancel adding',
   'import.cancelAll': 'Cancel all',
