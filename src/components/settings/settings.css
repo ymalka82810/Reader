@@ -29,6 +29,9 @@
 .prefs-open { flex: none; font-size: 1.2rem; line-height: 1; padding: .5rem .7rem; background: transparent; }
 .prefs-control { display: flex; align-items: center; gap: .5rem; }
 .prefs-control input[type=range] { width: 10rem; }
+/* text action buttons in a settings row (check update, scan now, backup...) must read as buttons, not as plain text */
+.prefs-control button:not([aria-label]) { padding: .5rem 1rem; font-weight: 600; white-space: nowrap; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px solid var(--accent); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
+.hc .prefs-control button:not([aria-label]) { color: inherit; background: transparent; border: 2px solid #fff; box-shadow: none; }
 .prefs-toggle { cursor: pointer; }
 .prefs-toggle input { flex: none; width: 1.3rem; height: 1.3rem; }
 .prefs-control .upload { white-space: nowrap; }
