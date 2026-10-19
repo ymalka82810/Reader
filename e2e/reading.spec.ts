@@ -96,7 +96,7 @@ for (const flow of ['paginated', 'scrolled'] as const) {
   })
 }
 
-test('the back gesture leaves the book only when repeated', async ({ page }) => {
+test('the back gesture goes from the book to the library, and there asks before leaving the app', async ({ page }) => {
   await page.goto('/')
   await page.locator('input[type=file]').first().setInputFiles({
     name: 'test.epub',
@@ -107,10 +107,14 @@ test('the back gesture leaves the book only when repeated', async ({ page }) => 
   await expect(page.getByText(/^עמוד/)).toBeVisible({ timeout: 30_000 })
 
   await page.goBack()
-  await expect(page.getByText('החלקה נוספת תחזיר לספרייה')).toBeVisible()
-  await expect(page.getByText(/^עמוד/)).toBeVisible()
+  await expect(page.locator('.card', { hasText: 'ספר בדיקה' })).toBeVisible()
 
+  // in the library a back asks first; cancelling stays, and the app is still there
   await page.goBack()
+  const ask = page.getByRole('alertdialog', { name: 'לצאת מהאפליקציה?' })
+  await expect(ask).toBeVisible()
+  await ask.getByRole('button', { name: 'ביטול' }).click()
+  await expect(ask).toHaveCount(0)
   await expect(page.locator('.card', { hasText: 'ספר בדיקה' })).toBeVisible()
 })
 
