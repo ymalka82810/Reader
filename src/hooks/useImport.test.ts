@@ -338,4 +338,79 @@ describe('useImport', () => {
     expect(service.stopImportService).not.toHaveBeenCalled()
     hidden.mockRestore()
   })
+
+  it('shows the progress in the service notification: title with the count, the current book as text', async () => {
+    service.startImportService.mockResolvedValue(true)
+    vi.useFakeTimers({ toFake: ['Date'] })
+    let release!: () => void
+    importFile.mockImplementation(
+      (f: File) => new Promise((resolve) => (f.name === 'a.epub' ? (release = () => resolve({})) : resolve({}))),
+    )
+    const { result } = setup()
+    let done!: Promise<void>
+    act(() => {
+      done = result.current.addFiles([file('a.epub'), file('b.epub')])
+    })
+    await vi.waitFor(() => expect(service.updateImportService).toHaveBeenCalled())
+    expect(service.updateImportService.mock.calls[0]).toEqual(['מוסיף ספרים לספרייה (0/2)', expect.stringContaining('a.epub'), 0, 2])
+    vi.setSystemTime(Date.now() + 2000) // the notification is refreshed at most once a second
+    await act(async () => {
+      release()
+      await done
+    })
+    const last = service.updateImportService.mock.calls.at(-1)!
+    expect(last[0]).toMatch(/\(\d\/2\)$/)
+    vi.useRealTimers()
+  })
+
+  it('does not flood the notification: many quick progress changes make one update a second', async () => {
+    service.startImportService.mockResolvedValue(true)
+    vi.useFakeTimers({ toFake: ['Date'] })
+    importFile.mockImplementation(async (_f: File, progress: (m: string) => void) => {
+      for (let i = 0; i < 20; i++) progress(`step ${i}`)
+      return {}
+    })
+    const { result } = setup()
+    await act(() => result.current.addFiles([file('a.epub'), file('b.epub')]))
+    expect(service.updateImportService.mock.calls.length).toBeLessThanOrEqual(2)
+    vi.useRealTimers()
+  })
+
+  it('tells in the notification that an answer about a duplicate is waited for', async () => {
+    service.startImportService.mockResolvedValue(true)
+    vi.useFakeTimers({ toFake: ['Date'] })
+    importFile.mockImplementation(async (_f, _p, onDuplicate) => onDuplicate(existing))
+    const { result } = setup()
+    let done!: Promise<void>
+    act(() => {
+      done = result.current.addFiles([file('a.epub')])
+    })
+    await vi.waitFor(() => expect(result.current.dupAsk).toBeDefined())
+    vi.setSystemTime(Date.now() + 2000)
+    await act(async () => {
+      result.current.dupAsk!.answer('skip')
+      await done
+    })
+    vi.useRealTimers()
+    expect(service.updateImportService.mock.calls.some((c) => String(c[1]).includes('ממתין לתשובה'))).toBe(true)
+  })
+
+  it('cancelling the queue also stops the service', async () => {
+    service.startImportService.mockResolvedValue(true)
+    importFile.mockImplementation(
+      (_f: File, _p: unknown, _d: unknown, signal: AbortSignal) =>
+        new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason))),
+    )
+    const { result } = setup()
+    let done!: Promise<void>
+    act(() => {
+      done = result.current.addFiles([file('a.epub'), file('b.epub')])
+    })
+    await vi.waitFor(() => expect(importFile).toHaveBeenCalled())
+    await act(async () => {
+      result.current.cancel()
+      await done
+    })
+    await vi.waitFor(() => expect(service.stopImportService).toHaveBeenCalledTimes(1))
+  })
 })

@@ -161,4 +161,23 @@ describe('useDeviceScan', () => {
     hidden.mockRestore()
     vi.useRealTimers()
   })
+
+  it('after the user gives file access, asks for the notification permission and updates the background scan', async () => {
+    localStorage.setItem('reader:settings', JSON.stringify({ deviceAutoScan: false }))
+    lib.hasDeviceAccess.mockResolvedValue(false)
+    const { result } = setup()
+    await act(() => result.current())
+    expect(lib.requestDeviceAccess).toHaveBeenCalled()
+    await vi.waitFor(() => expect(lib.requestNotificationAccess).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(lib.syncBackgroundScan).toHaveBeenCalled())
+  })
+
+  it('does not ask for the notification permission when access was refused', async () => {
+    localStorage.setItem('reader:settings', JSON.stringify({ deviceAutoScan: false }))
+    lib.hasDeviceAccess.mockResolvedValue(false)
+    lib.requestDeviceAccess.mockResolvedValueOnce(false)
+    const { result } = setup()
+    await act(() => result.current())
+    expect(lib.requestNotificationAccess).not.toHaveBeenCalled()
+  })
 })

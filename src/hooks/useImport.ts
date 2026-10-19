@@ -137,10 +137,9 @@ async function work(run: Run) {
   // Android app: a foreground service keeps the app alive while it is not on the screen, so the queue carries on
   // instead of pausing, and the ongoing notification shows its progress (no-op in the browser)
   let kept = false
-  const service = startImportService(t('import.bgTitle'), '').then((ok) => (kept = ok))
   let lastKey = ''
   let lastAt = 0
-  const unwatch = subscribe(() => {
+  const showProgress = () => {
     if (!kept) return
     const b = state.batch
     const text = state.dupAsk || state.dupBatch ? t('import.bgAsk') : (state.message ?? '')
@@ -150,7 +149,13 @@ async function work(run: Run) {
     lastKey = key
     lastAt = now
     updateImportService(b ? `${t('import.bgTitle')} (${b.done}/${b.total})` : t('import.bgTitle'), text, b?.done ?? 0, b?.total ?? 0)
+  }
+  const service = startImportService(t('import.bgTitle'), '').then((ok) => {
+    kept = ok
+    showProgress() // what happened while the service was starting
+    return ok
   })
+  const unwatch = subscribe(showProgress)
   const warn = (e: BeforeUnloadEvent) => e.preventDefault()
   window.addEventListener('beforeunload', warn)
   const deferred: { name: string; err: DeferredDuplicate }[] = []
