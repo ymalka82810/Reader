@@ -308,7 +308,7 @@ public class DeviceBooksPlugin extends Plugin {
             // names a file used to have are not known: the volume scan drops the entries of files that are no longer there
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 try {
-                    android.provider.MediaStore.scanVolume(getContext(), android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY);
+                    android.provider.MediaStore.scanVolume(getContext().getContentResolver(), android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY);
                 } catch (Exception ignored) {
                 }
             }
