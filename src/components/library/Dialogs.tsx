@@ -2,6 +2,7 @@ import { Dialog } from '../Dialog'
 import { t } from '../../i18n'
 import { Dropdown } from '../Dropdown'
 import type { BookMeta } from '../../lib/db'
+import { formatBookName, type BookName } from '../../lib/bookName'
 import { folderKey, type Folder } from '../../lib/folders'
 import type { DupAsk, DupBatch } from '../../hooks/useImport'
 import type { PwAsk } from '../../hooks/useBackup'
@@ -306,18 +307,20 @@ export function PasswordDialog({
 }
 
 export function EditBookDialog({
-  title,
+  name,
   author,
   tags,
   knownTags,
   phoneFile,
-  onTitle,
+  identify,
+  onName,
   onAuthor,
   onTags,
   onSave,
   onCancel,
 }: {
-  title: string
+  /** the title in the naming template's parts; saved as formatBookName(name) */
+  name: BookName
   author: string
   /** the tags field as typed */
   tags: string
@@ -325,12 +328,15 @@ export function EditBookDialog({
   knownTags: string[]
   /** the book's file on the phone, when it has one: whether it is renamed along with the book */
   phoneFile?: { sync: boolean; onSync: (v: boolean) => void }
-  onTitle: (v: string) => void
+  /** looks the book up and fills the fields with what was found; `note` says where it came from */
+  identify: { busy: boolean; note?: string; run: () => void }
+  onName: (v: BookName) => void
   onAuthor: (v: string) => void
   onTags: (v: string) => void
   onSave: () => void
   onCancel: () => void
 }) {
+  const full = formatBookName(name)
   return (
     <div className="modal-backdrop" onClick={onCancel}>
       <Dialog
@@ -341,18 +347,33 @@ export function EditBookDialog({
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
           if (e.key === 'Escape') onCancel()
-          else if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') onSave()
+          else if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT' && full) onSave()
         }}
       >
         <h2>{t('edit.title')}</h2>
+        <div className="series-row">
+          <label>
+            {t('edit.series')}
+            <input value={name.series} onChange={(e) => onName({ ...name, series: e.target.value })} placeholder={t('edit.seriesHint')} />
+          </label>
+          <label className="series-no">
+            {t('edit.seriesNo')}
+            <input value={name.number} onChange={(e) => onName({ ...name, number: e.target.value })} inputMode="numeric" />
+          </label>
+        </div>
         <label>
           {t('edit.bookName')}
-          <input value={title} onChange={(e) => onTitle(e.target.value)} autoFocus />
+          <input value={name.title} onChange={(e) => onName({ ...name, title: e.target.value })} autoFocus />
         </label>
         <label>
           {t('edit.author')}
           <input value={author} onChange={(e) => onAuthor(e.target.value)} />
         </label>
+        {full && <small className="muted saved-as">{t('edit.savedAs', { name: full })}</small>}
+        <button className="secondary" onClick={identify.run} disabled={identify.busy || !full}>
+          {identify.busy ? t('edit.identifying') : t('edit.identify')}
+        </button>
+        {identify.note && <small role="status">{identify.note}</small>}
         <label>
           {t('edit.tags')}
           <input value={tags} onChange={(e) => onTags(e.target.value)} placeholder={t('edit.tagsHint')} list="known-tags" />
@@ -369,7 +390,7 @@ export function EditBookDialog({
           </label>
         )}
         <div className="modal-actions">
-          <button className="primary" onClick={onSave} disabled={!title.trim()}>
+          <button className="primary" onClick={onSave} disabled={!full}>
             {t('common.save')}
           </button>
           <button onClick={onCancel}>{t('common.cancel')}</button>

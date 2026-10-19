@@ -7,26 +7,25 @@ afterEach(() => {
 })
 
 const book = (over: Partial<Parameters<typeof bookFileName>[0]> = {}) => ({
-  title: 'ספר',
-  author: 'מחבר',
+  title: "פרסי ג'קסון 1 - גנב הברק",
   fileName: 'old.epub',
   kind: 'epub' as const,
   ...over,
 })
 
 describe('bookFileName', () => {
-  it('is "title - author" with the stored file\'s extension', () => {
-    expect(bookFileName(book())).toBe('ספר - מחבר.epub')
-    expect(bookFileName(book({ kind: 'other', fileName: 'x.MOBI' }))).toBe('ספר - מחבר.mobi')
+  it('is the title, in the naming template, with the stored file\'s extension', () => {
+    expect(bookFileName(book())).toBe("פרסי ג'קסון 1 - גנב הברק.epub")
+    expect(bookFileName(book({ kind: 'other', fileName: 'x.MOBI' }))).toBe("פרסי ג'קסון 1 - גנב הברק.mobi")
   })
 
   it('names a converted PDF as the EPUB it now is', () => {
-    expect(bookFileName(book({ kind: 'pdf', fromPdf: true, fileName: 'a.pdf' }))).toBe('ספר - מחבר.epub')
-    expect(bookFileName(book({ kind: 'pdf', fileName: 'a.pdf' }))).toBe('ספר - מחבר.pdf')
+    expect(bookFileName(book({ kind: 'pdf', fromPdf: true, fileName: 'a.pdf' }))).toBe("פרסי ג'קסון 1 - גנב הברק.epub")
+    expect(bookFileName(book({ kind: 'pdf', fileName: 'a.pdf' }))).toBe("פרסי ג'קסון 1 - גנב הברק.pdf")
   })
 
-  it('leaves out an empty author and characters a file name cannot hold', () => {
-    expect(bookFileName(book({ author: ' ', title: 'א/ב: ג?' }))).toBe('א_ב_ ג_.epub')
+  it('leaves out characters a file name cannot hold', () => {
+    expect(bookFileName(book({ title: 'א/ב: ג?' }))).toBe('א_ב_ ג_.epub')
   })
 })
 
@@ -53,7 +52,7 @@ describe('refreshPhoneFiles', () => {
 
 describe('bookFileName with the phone file\'s own extension', () => {
   it('keeps a PDF a PDF', () => {
-    expect(bookFileName(book({ kind: 'epub', fromPdf: true, fileName: 'a.epub' }), 'pdf')).toBe('ספר - מחבר.pdf')
+    expect(bookFileName(book({ kind: 'epub', fromPdf: true, fileName: 'a.epub' }), 'pdf')).toBe("פרסי ג'קסון 1 - גנב הברק.pdf")
   })
 })
 

@@ -267,7 +267,7 @@ describe('useImport', () => {
       await done
     })
     expect(order).toEqual(['a.epub', 'c.epub'])
-    expect(onEach.mock.calls.map((c) => c[0])).toEqual([0, 1, 2]) // the cancelled one counts as dealt with
+    expect(onEach.mock.calls.map((c) => c[0])).toEqual([0, 2]) // the cancelled one is not dealt with: a scan offers it again
     expect(setError).toHaveBeenLastCalledWith(undefined)
     expect(result.current.queue).toEqual([])
   })

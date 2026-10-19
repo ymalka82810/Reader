@@ -118,5 +118,37 @@ describe('Library', () => {
     await shows('Dune')
     expect((await listBooks()).length).toBe(2)
   })
-})
 
+  it('edits the name in the series template and fills it from Google Books after consent', async () => {
+    await saveBook(book('b1', 'גנב הברק', ''))
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ items: [{ volumeInfo: { title: "פרסי ג'קסון 1 - גנב הברק", authors: ['ריק ריירדן'] } }] }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      render(<Library onOpen={() => {}} />)
+      const card = (await shows('גנב הברק')).closest('li')!
+      fireEvent.click(within(card).getByLabelText('פעולות לספר'))
+      fireEvent.click(await screen.findByRole('menuitem', { name: 'עריכת פרטים ותגיות' }))
+      const dialog = await screen.findByRole('dialog', { name: 'עריכת פרטי ספר' })
+      expect((within(dialog).getByLabelText('שם הספר') as HTMLInputElement).value).toBe('גנב הברק')
+
+      fireEvent.click(within(dialog).getByRole('button', { name: 'זיהוי באינטרנט' }))
+      // nothing leaves the device before the user agrees
+      const ask = await screen.findByRole('alertdialog')
+      expect(fetchMock).not.toHaveBeenCalled()
+      fireEvent.click(within(ask).getByRole('button', { name: 'אפשר' }))
+
+      await waitFor(() => expect((within(dialog).getByLabelText('סדרה') as HTMLInputElement).value).toBe("פרסי ג'קסון"))
+      expect((within(dialog).getByLabelText('מספר בסדרה') as HTMLInputElement).value).toBe('1')
+      expect((within(dialog).getByLabelText('מחבר') as HTMLInputElement).value).toBe('ריק ריירדן')
+      expect(within(dialog).getByText("השם שיישמר: פרסי ג'קסון 1 - גנב הברק")).toBeTruthy()
+
+      fireEvent.click(within(dialog).getByRole('button', { name: 'שמירה' }))
+      await waitFor(async () => expect((await listBooks())[0]).toMatchObject({ title: "פרסי ג'קסון 1 - גנב הברק", author: 'ריק ריירדן' }))
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+})

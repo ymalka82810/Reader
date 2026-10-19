@@ -39,7 +39,8 @@ type Props = {
   backup: BackupActions
   onCheckUpdate: () => void
   /** scans the phone for new books (Android app) */
-  onScanDevice: () => void
+  /** retry: also offer the books whose adding was cancelled or failed */
+  onScanDevice: (retry?: boolean) => void
   startPage?: PageId
 }
 
@@ -139,7 +140,7 @@ export function SettingsScreen({ onClose, backup, onCheckUpdate, onScanDevice, s
             {current === 'a11y' && <AccessibilityPage settings={settings} set={set} />}
             {current === 'display' && <DisplayPage />}
             {current === 'device' && (
-              <DevicePage settings={settings} set={set} busy={backup.busy} onScan={() => { close(); onScanDevice() }} />
+              <DevicePage settings={settings} set={set} busy={backup.busy} onScan={(retry) => { close(); onScanDevice(retry) }} />
             )}
             {current === 'goals' && <GoalsPage settings={settings} set={set} />}
             {current === 'language' && <LanguagePage settings={settings} set={set} />}

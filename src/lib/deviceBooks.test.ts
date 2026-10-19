@@ -34,6 +34,15 @@ describe('pickNew', () => {
     expect(pickNew([file('/s/a.epub', 11, 1)], seen)).toHaveLength(1)
     expect(pickNew([file('/s/a.epub', 10, 2)], seen)).toHaveLength(1)
   })
+
+  it('on a retry, also keeps the files dealt with but never tied to a book (cancelled, failed)', () => {
+    const seen = new Map([['/s/added.epub', '10|1'], ['/s/cancelled.pdf', '10|1'], ['/s/deleted.epub', '10|1']])
+    const files = [file('/s/added.epub'), file('/s/cancelled.pdf'), file('/s/deleted.epub'), file('/s/new.epub')]
+    expect(pickNew(files, seen).map((f) => f.path)).toEqual(['/s/new.epub'])
+    // a book deleted from the library keeps its file's path, so it doesn't come back
+    const ofBooks = new Set(['/s/added.epub', '/s/deleted.epub'])
+    expect(pickNew(files, seen, ofBooks).map((f) => f.path)).toEqual(['/s/cancelled.pdf', '/s/new.epub'])
+  })
 })
 
 describe('the seen list', () => {

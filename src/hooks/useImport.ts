@@ -21,7 +21,7 @@ export type LazyFile = {
 export type AddOptions = {
   /** books from a scan of the phone: a book the library already has is skipped without asking or reporting it */
   skipDuplicates?: boolean
-  /** called after each item, whether it was added, skipped or failed */
+  /** called after each item that was added, skipped or failed; not for one that was cancelled, which is not dealt with */
   onEach?: (index: number) => void
 }
 
@@ -164,8 +164,7 @@ async function work(run: Run) {
     const entry = entries[i]!
     const { item, skipDuplicates, onEach } = entry
     if (entry.cancelled) {
-      // cancelled while waiting: counted as dealt with, like a book the user said no to
-      onEach?.()
+      // cancelled while waiting: not dealt with, so a scan of the phone offers it again
       run.processed = i + 1
       setState({ queue: queueOf(run), batch: entries.length > 1 ? { done: i + 1, total: entries.length } : undefined })
       continue
@@ -221,7 +220,7 @@ async function work(run: Run) {
       run.activeId = undefined
       entry.ctrl = undefined
     }
-    onEach?.()
+    if (!own.signal.aborted) onEach?.() // a book cancelled while being added is not dealt with either
     const done = (run.processed = i + 1)
     const nowMs = Date.now()
     setState({
