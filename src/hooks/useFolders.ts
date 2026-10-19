@@ -5,6 +5,8 @@ import { folderKey, folderToStore, groupFolders, sortFolders, type Folder, type 
 import type { Confirm } from './useConfirm'
 import { localeTag, t } from '../i18n'
 
+export type FolderDialogState = { rename?: string; name: string; author?: boolean }
+
 type Deps = {
   books: BookMeta[]
   /** the books that pass the current search, filter and sort */
@@ -27,8 +29,8 @@ export function useFolders({ books, shown, createdNames, searching, refresh, sho
   const [openFolder, setOpenFolder] = useState<string>()
   const [moving, setMoving] = useState<BookMeta[]>()
   const [newFolder, setNewFolder] = useState('')
-  // creating a folder, or renaming the one being viewed (name typed so far)
-  const [folderDialog, setFolderDialog] = useState<{ rename?: string; name: string }>()
+  // creating a folder, or renaming the one being viewed (name typed so far; `author`: its books take the new name as author)
+  const [folderDialog, setFolderDialog] = useState<FolderDialogState>()
 
   // created folders with no books at all are listed too (a filter hiding a folder's books doesn't make it empty)
   const allFolders = useMemo(() => {
@@ -63,14 +65,15 @@ export function useFolders({ books, shown, createdNames, searching, refresh, sho
     if (openFolder !== undefined && !current && !searching) setOpenFolder(undefined)
   }, [openFolder, current, searching])
 
-  const moveTo = async (list: BookMeta[], name: string | undefined, created = false) => {
+  /** `setAuthor`: the moved books also take the folder's name as their author */
+  const moveTo = async (list: BookMeta[], name: string | undefined, created = false, setAuthor = false) => {
     setMoving(undefined)
     setNewFolder('')
     // books whose author already names the target folder go back to "filed by author" rather than storing a copy
     const plain = list.filter((b) => name === undefined || folderToStore(b, name) === undefined)
     const explicit = list.filter((b) => !plain.includes(b))
     if (plain.length) await setFolder(plain.map((b) => b.id), undefined)
-    if (explicit.length && name !== undefined) await setFolder(explicit.map((b) => b.id), name)
+    if (explicit.length && name !== undefined) await setFolder(explicit.map((b) => b.id), name, setAuthor)
     if (created && name) await addFolderName(name)
     void autoSyncPhoneNames(list.map((b) => b.id)).catch(() => {})
     exitSelect()
@@ -86,7 +89,7 @@ export function useFolders({ books, shown, createdNames, searching, refresh, sho
     if (!d || !name) return
     if (d.rename !== undefined) {
       const inside = books.filter((b) => folderKey(b) === folderKey({ author: d.rename! })).map((b) => b.id)
-      await renameFolder(d.rename, name)
+      await renameFolder(d.rename, name, !!d.author)
       void autoSyncPhoneNames(inside).catch(() => {})
       setOpenFolder(folderKey({ author: name }))
     } else await addFolderName(name)
