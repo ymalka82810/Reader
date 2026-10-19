@@ -97,6 +97,8 @@ select { font: inherit; padding: .4rem .6rem; border-radius: var(--radius-lg); b
 .empty { text-align: center; color: var(--fg-muted); margin-top: 20vh; line-height: 1.8; }
 .grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 1rem; }
 .grid li { position: relative; content-visibility: auto; contain-intrinsic-size: auto 280px; }
+/* content-visibility clips whatever sticks out of the card, so while a book's ⋯ menu is open it must not apply (else the bottom items are cut off and cannot be tapped) */
+.grid li:has(.card-menu) { content-visibility: visible; z-index: 3; }
 .card { width: 100%; padding: 0; text-align: start; background: transparent; display: flex; flex-direction: column; gap: .5rem; }
 .cover { width: 100%; aspect-ratio: 2/3; object-fit: cover; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); background: #ddd; }
 .cover.placeholder { display: grid; place-items: center; padding: .5rem; text-align: center; font-weight: 700; background: linear-gradient(135deg, #3b6ea5, #1f3b5c); color: #fff; overflow: hidden; container-type: inline-size; }
