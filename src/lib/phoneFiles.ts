@@ -1,7 +1,7 @@
 // A book's own file on the phone (Android app only): its name follows the book's title and author, and a single
 // book can be saved there from the library. Talks to the native DeviceBooks plugin like lib/deviceBooks.ts does.
 
-import { createStore, del, get, keys, set } from 'idb-keyval'
+import { createStore, del, get, keys, set, values } from 'idb-keyval'
 import { getBook, getBookMeta, getFile, listBooks, type BookMeta } from './db'
 import { deviceBooksSupported, hasDeviceAccess, markSeen, requestDeviceAccess, type DeviceFile } from './deviceBooks'
 import { download } from './download'
@@ -20,6 +20,8 @@ const pathStore = createStore('reader-device-paths-db', 'paths')
 export const rememberPhoneFile = (id: string, path: string) => set(id, path, pathStore)
 export const phoneFileOf = (id: string) => get<string>(id, pathStore)
 export const forgetPhoneFile = (id: string) => del(id, pathStore)
+/** the paths of every file tied to a book, also of books since deleted from the library */
+export const phoneFilePaths = async () => new Set(await values<string>(pathStore))
 
 const baseName = (path: string) => path.slice(path.lastIndexOf('/') + 1)
 

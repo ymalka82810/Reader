@@ -60,14 +60,20 @@ export const normalizeFolder = (f: string) => f.trim().replace(/^\/+|\/+$/g, '')
 const seenStore = createStore('reader-device-db', 'seen')
 const stamp = (f: DeviceFile) => `${f.size}|${f.modified}`
 
-/** the files not dealt with before, in a stable order (by folder, then name) */
-export function pickNew(files: DeviceFile[], seen: Map<string, string>): DeviceFile[] {
-  return files.filter((f) => seen.get(f.path) !== stamp(f)).sort((a, b) => a.path.localeCompare(b.path))
+/**
+ * The files not dealt with before, in a stable order (by folder, then name). With `ofBooks` (the paths of the files
+ * tied to a book, kept or deleted), a file dealt with but never tied to one counts as new too: a retry of the books
+ * whose adding was cancelled or failed, or that were skipped as duplicates (those are skipped again).
+ */
+export function pickNew(files: DeviceFile[], seen: Map<string, string>, ofBooks?: Set<string>): DeviceFile[] {
+  return files
+    .filter((f) => seen.get(f.path) !== stamp(f) || (ofBooks && !ofBooks.has(f.path)))
+    .sort((a, b) => a.path.localeCompare(b.path))
 }
 
-export async function newDeviceFiles(files: DeviceFile[]): Promise<DeviceFile[]> {
+export async function newDeviceFiles(files: DeviceFile[], ofBooks?: Set<string>): Promise<DeviceFile[]> {
   const seen = new Map((await entries<string, string>(seenStore)).map(([k, v]) => [String(k), v]))
-  return pickNew(files, seen)
+  return pickNew(files, seen, ofBooks)
 }
 
 export const markSeen = (files: DeviceFile[]) => setMany(files.map((f) => [f.path, stamp(f)]), seenStore)
