@@ -2,7 +2,7 @@
 // file name it was added under) and then completed from Google Books, which needs no key. Only the title and author are
 // sent, and only after the user agreed (consent 'books').
 
-import { guessBookName, seriesOf, withoutAuthor, type BookName } from './bookName'
+import { guessBookName, seriesOf, tidyBookName, withoutAuthor, type BookName } from './bookName'
 import { norm } from './sameBook'
 
 export interface Identified extends BookName {
@@ -24,9 +24,9 @@ const stem = (fileName: string) => fileName.replace(/\.[^.]+$/, '')
 
 /** What the library's own names say: the title, and when that holds no series, the file name it was added under. */
 export function identifyLocally(b: { title: string; author: string; fileName: string }): BookName {
-  const fromTitle = guessBookName(b.title)
+  const fromTitle = guessBookName(tidyBookName(b.title))
   if (fromTitle.series) return fromTitle
-  const fromFile = guessBookName(withoutAuthor(stem(b.fileName), b.author))
+  const fromFile = guessBookName(tidyBookName(withoutAuthor(stem(b.fileName), b.author)))
   // the file name names the same book: its title is the book's title, or holds it ("גנב הברק" in "גנב הברק מהדורה 2")
   if (fromFile.series && norm(fromFile.title).includes(norm(fromTitle.title))) return fromFile
   return fromTitle
