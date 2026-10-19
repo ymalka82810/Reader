@@ -16,6 +16,8 @@ import { applyA11yClasses, loadSettings } from './lib/settings'
 import { isNativeApp } from './lib/updater'
 
 document.documentElement.classList.toggle('native-app', isNativeApp)
+// iOS Safari only applies :active (the pressed look of buttons) when some touch listener exists
+document.addEventListener('touchstart', () => {}, { passive: true })
 applyDocumentLocale()
 applyA11yClasses(loadSettings())
 applyAppTheme(loadAppTheme())
