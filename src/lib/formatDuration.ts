@@ -17,3 +17,10 @@ export function formatDuration(totalSeconds: number): string {
   if (head.length === 0) return last
   return `${head.join(', ')} ${t(/^\d/.test(last) ? 'dur.andNum' : 'dur.and', { b: last })}`
 }
+
+/** "about 45 seconds left"; exactly one second / minute / hour reads "one second left" (Hebrew: נותרה שנייה) */
+export function remainingText(totalSeconds: number): string {
+  const s = Math.max(0, Math.round(totalSeconds))
+  const key = s === 1 || s === 60 || s === 3600 ? 'lib.batchRemainingOne' : 'lib.batchRemaining'
+  return t(key, { time: formatDuration(s) })
+}

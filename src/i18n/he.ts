@@ -50,6 +50,7 @@ export const he = {
   'lib.batchProgress': '{done}/{total} ספרים',
   'lib.batchEstimating': 'מחשב זמן…',
   'lib.batchRemaining': 'נותרו כ-{time}',
+  'lib.batchRemainingOne': 'נותרה {time}',
 
   'filter.label': 'סינון',
   'filter.all': 'הכול',

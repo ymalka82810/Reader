@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import { setLocale } from '../i18n'
-import { formatDuration } from './formatDuration'
+import { formatDuration, remainingText } from './formatDuration'
 
 describe('formatDuration (he)', () => {
   beforeAll(() => setLocale('he'))
@@ -16,5 +16,11 @@ describe('formatDuration (he)', () => {
   it('hours, minutes and seconds from an hour', () => {
     expect(formatDuration(9351)).toBe('שעתיים, 35 דקות ו-51 שניות')
     expect(formatDuration(3600)).toBe('שעה')
+  })
+
+  it('remainingText: singular reads נותרה', () => {
+    expect(remainingText(1)).toBe('נותרה שנייה')
+    expect(remainingText(60)).toBe('נותרה דקה')
+    expect(remainingText(45)).toBe('נותרו כ-45 שניות')
   })
 })
