@@ -49,6 +49,8 @@ test('import a PDF', async ({ page }) => {
 })
 
 test('delete a book, with undo', async ({ page }) => {
+  // import + a deliberate 7.5s wait for the delete to become final: close to 30s on the shared CI runners
+  test.setTimeout(60_000)
   await addFile(page, 'delete-me.txt', 'text/plain', Buffer.from('שלום עולם. '.repeat(50)))
   await openNoAuthorFolder(page)
   const card = page.getByRole('button', { name: /delete-me/ })
@@ -75,6 +77,8 @@ test('delete a book, with undo', async ({ page }) => {
 })
 
 test('back up the library, delete the book, restore it', async ({ page }) => {
+  // import + a deliberate 7.5s wait for the delete to become final: close to 30s on the shared CI runners
+  test.setTimeout(60_000)
   await addFile(page, 'backup-me.txt', 'text/plain', Buffer.from('טקסט לגיבוי. '.repeat(50)))
   await openNoAuthorFolder(page)
   const card = page.getByRole('button', { name: /backup-me/ })
