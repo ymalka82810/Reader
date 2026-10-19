@@ -8,11 +8,12 @@ import { Seg } from '../reader/shared'
 import { Row, Section } from './parts'
 
 /** the services that receive what the user selects */
-const SERVICES: Service[] = ['translate', 'dict']
+const SERVICES: Service[] = ['translate', 'dict', 'books']
 
 const SERVICE_NAME: Record<Service, string> = {
   translate: t('prefs.svc.translate'),
   dict: t('prefs.svc.dict'),
+  books: t('prefs.svc.books'),
 }
 
 export function LanguagePage({ settings, set }: { settings: Settings; set: SetSetting }) {

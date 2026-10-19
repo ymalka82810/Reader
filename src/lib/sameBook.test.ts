@@ -34,4 +34,12 @@ describe('sameBook', () => {
     expect(sameBook(b('---', 'x'), b('...', 'x'))).toBe(false)
     expect(sameBook(b('', ''), b('', ''))).toBe(false)
   })
+  it('matches a book renamed to the series template with the bare title', () => {
+    expect(sameBook(b("פרסי ג'קסון 1 - גנב הברק", 'ריק ריירדן'), b('גנב הברק', 'ריק ריירדן'))).toBe(true)
+    expect(sameBook(b('גנב הברק'), b("פרסי ג'קסון 1 - גנב הברק"))).toBe(true)
+  })
+  it('keeps apart two series that share a book title', () => {
+    expect(sameBook(b('סדרה א 1 - ההתחלה', 'x'), b('סדרה ב 1 - ההתחלה', 'x'))).toBe(false)
+    expect(sameBook(b('סדרה א 1 - ההתחלה', 'x'), b('סדרה א 2 - ההתחלה', 'x'))).toBe(false)
+  })
 })

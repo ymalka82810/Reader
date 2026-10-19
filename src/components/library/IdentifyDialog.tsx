@@ -1,0 +1,100 @@
+import { useEffect, useState } from 'react'
+import { Dialog } from '../Dialog'
+import type { BookMeta } from '../../lib/db'
+import { formatBookName } from '../../lib/bookName'
+import { identifyBook } from '../../lib/bookLookup'
+import { t } from '../../i18n'
+
+export type NameChange = { id: string; title: string; author: string }
+
+type Suggestion = NameChange & { was: string; online: boolean; pick: boolean }
+
+/** Identifies the books one after another and offers the new names; only the ticked ones are saved. */
+export function IdentifyDialog({
+  books,
+  online,
+  onSave,
+  onCancel,
+}: {
+  books: BookMeta[]
+  /** whether Google Books may be asked (the user agreed); otherwise only the library's own names are read */
+  online: boolean
+  onSave: (changes: NameChange[]) => void
+  onCancel: () => void
+}) {
+  const [found, setFound] = useState<Suggestion[]>([])
+  const [done, setDone] = useState(0)
+
+  useEffect(() => {
+    const ac = new AbortController()
+    void (async () => {
+      for (const b of books) {
+        const r = await identifyBook(b, online, ac.signal).catch(() => undefined)
+        if (ac.signal.aborted) return
+        const title = r && formatBookName(r)
+        const author = r?.author ?? ''
+        if (r && title && (title !== b.title || author !== (b.author ?? '').trim())) {
+          setFound((f) => [...f, { id: b.id, title, author, was: b.title, online: r.online, pick: true }])
+        }
+        setDone((n) => n + 1)
+      }
+    })()
+    return () => ac.abort()
+  }, [books, online])
+
+  const running = done < books.length
+  const picked = found.filter((f) => f.pick)
+  const toggle = (id: string) => setFound((f) => f.map((x) => (x.id === id ? { ...x, pick: !x.pick } : x)))
+  const unchanged = done - found.length
+
+  return (
+    <div className="modal-backdrop" onClick={onCancel}>
+      <Dialog
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('identify.title')}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.key === 'Escape' && onCancel()}
+      >
+        <h2>{t('identify.title')}</h2>
+        {found.length > 0 && <small className="muted">{t('identify.hint')}</small>}
+        {found.length > 0 && (
+          <ul className="dup-list">
+            {found.map((f) => (
+              <li key={f.id}>
+                <label className="pick-row">
+                  <input type="checkbox" checked={f.pick} onChange={() => toggle(f.id)} />
+                  <span className="identify-item">
+                    <span>{f.title}</span>
+                    <small className="muted">
+                      {[f.author, f.online ? t('identify.fromWeb') : t('identify.fromName')].filter(Boolean).join(' · ')}
+                    </small>
+                    {f.was !== f.title && <small className="muted identify-was">{f.was}</small>}
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        )}
+        <small role="status" className="muted">
+          {running
+            ? t('identify.progress', { done: done + 1, total: books.length })
+            : found.length
+              ? unchanged > 0 && t('identify.unchanged', { n: unchanged })
+              : t('identify.nothing')}
+        </small>
+        <div className="modal-actions">
+          <button
+            className="primary"
+            disabled={running || !picked.length}
+            onClick={() => onSave(picked.map(({ id, title, author }) => ({ id, title, author })))}
+          >
+            {t('identify.save', { n: picked.length })}
+          </button>
+          <button onClick={onCancel}>{t('common.cancel')}</button>
+        </div>
+      </Dialog>
+    </div>
+  )
+}

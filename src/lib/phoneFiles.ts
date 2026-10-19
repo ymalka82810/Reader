@@ -1,4 +1,4 @@
-// A book's own file on the phone (Android app only): its name follows the book's title and author, and a single
+// A book's own file on the phone (Android app only): its name follows the book's title, and a single
 // book can be saved there from the library. Talks to the native DeviceBooks plugin like lib/deviceBooks.ts does.
 
 import { createStore, del, get, keys, set, values } from 'idb-keyval'
@@ -25,11 +25,12 @@ export const phoneFilePaths = async () => new Set(await values<string>(pathStore
 
 const baseName = (path: string) => path.slice(path.lastIndexOf('/') + 1)
 
-/** "Title - Author.epub": the extension of the stored file (a converted PDF is an EPUB) */
-export function bookFileName(b: Pick<BookMeta, 'title' | 'author' | 'fileName' | 'fromPdf' | 'kind'>, extension?: string): string {
+/** The book's title, which follows the naming template ("פרסי ג'קסון 1 - גנב הברק.epub"), with the extension of the stored
+ *  file (a converted PDF is an EPUB). The author is the folder's business, not the file's. */
+export function bookFileName(b: Pick<BookMeta, 'title' | 'fileName' | 'fromPdf' | 'kind'>, extension?: string): string {
   const dot = b.fileName.lastIndexOf('.')
   const ext = extension ?? (b.fromPdf || b.kind === 'epub' ? 'epub' : dot > 0 ? b.fileName.slice(dot + 1).toLowerCase() : '')
-  const stem = safeFileName([b.title, b.author].map((s) => s.trim()).filter(Boolean).join(' - '), 'book')
+  const stem = safeFileName(b.title.trim(), 'book')
   return ext ? `${stem}.${ext}` : stem
 }
 
@@ -65,7 +66,7 @@ export async function saveBookToPhone(id: string): Promise<string | undefined> {
   return saved.name
 }
 
-/** Renames the phone's file of each book to match its current title and author. Books never put on the phone, or
+/** Renames the phone's file of each book to match its current title. Books never put on the phone, or
  *  whose file is no longer there, are left alone. Resolves with how many were renamed and how many failed. */
 export async function syncPhoneNames(ids: string[]): Promise<{ renamed: number; failed: number }> {
   const out = { renamed: 0, failed: 0 }

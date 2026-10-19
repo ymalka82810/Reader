@@ -13,7 +13,11 @@ import { useAutoBackup } from '../hooks/useAutoBackup'
 import { useUpdateCheck } from '../hooks/useUpdateCheck'
 import { useDeviceScan } from '../hooks/useDeviceScan'
 import { deviceBooksSupported } from '../lib/deviceBooks'
-import { phoneFileOf, saveBookToPhone, syncPhoneNames } from '../lib/phoneFiles'
+import { autoSyncPhoneNames, phoneFileOf, saveBookToPhone, syncPhoneNames } from '../lib/phoneFiles'
+import { formatBookName, splitBookName, type BookName } from '../lib/bookName'
+import { identifyBook } from '../lib/bookLookup'
+import { hasConsent, setConsent, SERVICE_HOST } from '../lib/consent'
+import { IdentifyDialog, type NameChange } from './library/IdentifyDialog'
 import { loadSettings } from '../lib/settings'
 import { useConfirm } from '../hooks/useConfirm'
 import { hasTag, listTags, parseTags } from '../lib/tags'
@@ -62,7 +66,11 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   const [filter, setFilter] = useState<LibraryFilter>(NO_FILTER)
   const [picking, setPicking] = useState(false)
   const [editing, setEditing] = useState<BookMeta>()
-  const [editTitle, setEditTitle] = useState('')
+  const [editName, setEditName] = useState<BookName>({ series: '', number: '', title: '' })
+  const [editLookup, setEditLookup] = useState<{ busy: boolean; note?: string }>({ busy: false })
+  /** counts the edit dialogs opened, so a lookup that ends after its dialog closed changes nothing */
+  const editRun = useRef(0)
+  const [identifying, setIdentifying] = useState<{ books: BookMeta[]; online: boolean }>()
   const [editAuthor, setEditAuthor] = useState('')
   const [editTags, setEditTags] = useState('')
   /** the book has a file on the phone that can be renamed along with it; undefined = not known (or not an Android app) */
@@ -234,8 +242,10 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   }
 
   const openEdit = (b: BookMeta) => {
+    editRun.current++
     setEditing(b)
-    setEditTitle(b.title)
+    setEditName(splitBookName(b.title))
+    setEditLookup({ busy: false })
     setEditAuthor(b.author || '')
     setEditTags((b.tags ?? []).join(', '))
     setEditPhone(false)
@@ -252,13 +262,60 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
     }
   }
 
+  /** Google Books may be asked only after a yes; a no still identifies from the library's own names */
+  const allowLookup = async () => {
+    if (hasConsent('books')) return true
+    const yes = await confirm({
+      title: t('consent.title'),
+      text: `${t('consent.books', { host: SERVICE_HOST.books })} ${t('consent.revoke')}`,
+      ok: t('consent.allow'),
+    })
+    if (yes) setConsent('books', true)
+    return yes
+  }
+
+  const identifyEditing = async () => {
+    if (!editing) return
+    const run = editRun.current
+    const online = await allowLookup()
+    if (run !== editRun.current) return
+    setEditLookup({ busy: true })
+    const found = await identifyBook({ title: formatBookName(editName), author: editAuthor, fileName: editing.fileName }, online).catch(
+      () => undefined,
+    )
+    if (run !== editRun.current) return
+    if (found) {
+      setEditName({ series: found.series, number: found.number, title: found.title })
+      setEditAuthor(found.author)
+    }
+    const note = !online ? 'edit.identifiedOffline' : found?.online ? 'edit.identifiedOnline' : 'edit.identifiedLocal'
+    setEditLookup({ busy: false, note: t(note) })
+  }
+
+  const identifySelected = async () => {
+    const list = books.filter((b) => selected.has(b.id))
+    if (!list.length) return
+    setIdentifying({ books: list, online: await allowLookup() })
+  }
+
+  const saveIdentified = async (changes: NameChange[]) => {
+    setIdentifying(undefined)
+    for (const c of changes) await updateMeta(c.id, c.title, c.author)
+    await refresh()
+    exitSelect()
+    showToast(t('identify.saved', { n: changes.length }), undefined, 4000)
+    const { failed } = await autoSyncPhoneNames(changes.map((c) => c.id)).catch(() => ({ renamed: 0, failed: 1 }))
+    if (failed) setError(t('edit.phoneFailed'))
+  }
+
   const saveEdit = async () => {
     if (!editing) return
-    const title = editTitle.trim()
+    const title = formatBookName(editName)
     if (!title) return
     await updateMeta(editing.id, title, editAuthor.trim(), parseTags(editTags))
     const syncPhone = editPhone && editSync
     const id = editing.id
+    editRun.current++
     setEditing(undefined)
     await refresh()
     if (syncPhone) {
@@ -393,6 +450,9 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
             <button className="secondary" onClick={() => setSelected(new Set((searching ? shown : current!.books).map((b) => b.id)))}>{t('lib.selectAllBooks')}</button>
             <button className="secondary" disabled={selected.size === 0} onClick={() => fo.setMoving(books.filter((b) => selected.has(b.id)))}>
               {t('lib.moveBooks')}
+            </button>
+            <button className="secondary" disabled={selected.size === 0} onClick={() => void identifySelected()}>
+              {t('lib.identifyBooks')}
             </button>
             <button
               className="danger"
@@ -577,7 +637,6 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
           onCancel={() => setPicking(false)}
         />
       )}
-      {confirmAsk &&<ConfirmDialog ask={confirmAsk} />}
       {settingsOpen && (
         <SettingsScreen
           startPage={settingsPage}
@@ -610,18 +669,32 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
       {reviewOpen && <ReviewDialog books={books} onClose={() => setReviewOpen(false)} />}
       {editing && (
         <EditBookDialog
-          title={editTitle}
+          name={editName}
           author={editAuthor}
           tags={editTags}
           knownTags={tags.map((x) => x.name)}
           phoneFile={editPhone ? { sync: editSync, onSync: setEditSync } : undefined}
-          onTitle={setEditTitle}
+          identify={{ ...editLookup, run: () => void identifyEditing() }}
+          onName={setEditName}
           onAuthor={setEditAuthor}
           onTags={setEditTags}
           onSave={saveEdit}
-          onCancel={() => setEditing(undefined)}
+          onCancel={() => {
+            editRun.current++
+            setEditing(undefined)
+          }}
         />
       )}
+      {identifying && (
+        <IdentifyDialog
+          books={identifying.books}
+          online={identifying.online}
+          onSave={(c) => void saveIdentified(c)}
+          onCancel={() => setIdentifying(undefined)}
+        />
+      )}
+      {/* last, so a question asked from inside another dialog shows on top of it */}
+      {confirmAsk && <ConfirmDialog ask={confirmAsk} />}
     </div>
   )
 }
