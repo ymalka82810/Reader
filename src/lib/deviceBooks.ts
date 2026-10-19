@@ -153,10 +153,12 @@ export async function startImportService(title: string, text: string): Promise<b
 
 /** the ongoing notification's texts and progress bar (total 0 or 1: no bar) */
 export function updateImportService(title: string, text: string, done: number, total: number): void {
+  if (!deviceBooksSupported()) return
   void call('updateImportService', { title, text, done, total }).catch(() => {})
 }
 
 /** the queue is finished or cancelled */
 export function stopImportService(): void {
+  if (!deviceBooksSupported()) return
   void call('stopImportService').catch(() => {})
 }

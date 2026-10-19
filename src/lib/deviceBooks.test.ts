@@ -7,7 +7,11 @@ import {
   normalizeFolder,
   pickNew,
   readDeviceFile,
+  requestNotificationAccess,
+  startImportService,
+  stopImportService,
   syncBackgroundScan,
+  updateImportService,
   type DeviceFile,
 } from './deviceBooks'
 
@@ -106,5 +110,70 @@ describe('background scan', () => {
   it('reports a tap on the notification once', async () => {
     native({ consumeNotificationTap: { tapped: true } })
     expect(await consumeScanNotificationTap()).toBe(true)
+  })
+
+  it('does not offer the folders of a scan the user switched off, even with access', async () => {
+    const nativePromise = native({ status: { granted: true }, setBackground: {} })
+    await syncBackgroundScan({ deviceBackgroundScan: false, deviceFolders: ['Books'] })
+    expect(nativePromise.mock.calls.some((c) => (c[2] as { folders?: string[] } | undefined)?.folders)).toBe(false)
+  })
+
+  it('keeps going when the native side refuses an update', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const nativePromise = vi.fn(async (_p: string, method: string, _o?: object) => {
+      if (method === 'setBackground') throw new Error('nope')
+      return { granted: true }
+    })
+    ;(globalThis as { Capacitor?: unknown }).Capacitor = { isNativePlatform: () => true, isPluginAvailable: () => true, nativePromise }
+    await expect(syncBackgroundScan({ deviceBackgroundScan: true, deviceFolders: [] })).resolves.toBeUndefined()
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('asks for the notification permission and reports the answer, false when refused or unavailable', async () => {
+    expect(await requestNotificationAccess()).toBe(false) // outside the app
+    const nativePromise = native({ requestNotifications: { granted: true } })
+    expect(await requestNotificationAccess()).toBe(true)
+    expect(nativePromise).toHaveBeenCalledWith('DeviceBooks', 'requestNotifications', undefined)
+    nativePromise.mockRejectedValueOnce(new Error('x'))
+    expect(await requestNotificationAccess()).toBe(false)
+  })
+
+  it('a tap that cannot be read counts as no tap', async () => {
+    const nativePromise = native({})
+    nativePromise.mockRejectedValueOnce(new Error('x'))
+    expect(await consumeScanNotificationTap()).toBe(false)
+  })
+})
+
+describe('import service', () => {
+  const native = () => {
+    const nativePromise = vi.fn(async (_p: string, method: string, _o?: object) => (method === 'startImportService' ? { started: true } : {}))
+    ;(globalThis as { Capacitor?: unknown }).Capacitor = { isNativePlatform: () => true, isPluginAvailable: () => true, nativePromise }
+    return nativePromise
+  }
+
+  it('starts with the title and text and says whether Android allowed it', async () => {
+    const nativePromise = native()
+    expect(await startImportService('מוסיף', 'ספר')).toBe(true)
+    expect(nativePromise).toHaveBeenCalledWith('DeviceBooks', 'startImportService', { title: 'מוסיף', text: 'ספר' })
+    nativePromise.mockRejectedValueOnce(new Error('refused'))
+    expect(await startImportService('a', 'b')).toBe(false)
+  })
+
+  it('sends progress updates and the stop', () => {
+    const nativePromise = native()
+    updateImportService('כותרת', 'טקסט', 2, 5)
+    stopImportService()
+    expect(nativePromise).toHaveBeenCalledWith('DeviceBooks', 'updateImportService', { title: 'כותרת', text: 'טקסט', done: 2, total: 5 })
+    expect(nativePromise).toHaveBeenCalledWith('DeviceBooks', 'stopImportService', undefined)
+  })
+
+  it('does nothing in the browser', async () => {
+    expect(await startImportService('a', 'b')).toBe(false)
+    expect(() => {
+      updateImportService('a', 'b', 1, 2)
+      stopImportService()
+    }).not.toThrow()
   })
 })
