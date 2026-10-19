@@ -237,7 +237,7 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: var(--radius-sm); border:
 @media (prefers-color-scheme: dark) { :root:not([data-theme]) .menu .danger-item { color: #ff8080; } }
 :root[data-theme="dark"] .menu .danger-item { color: #ff8080; }
 .resume { margin-bottom: 1rem; min-width: 0; max-width: 100%; }
-.resume-track { display: flex; gap: 0; min-width: 0; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
+.resume-track { display: flex; gap: .75rem; min-width: 0; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
 .resume-track::-webkit-scrollbar { display: none; }
 .resume-dots { display: flex; justify-content: center; margin-top: .25rem; }
 .resume-dots button { position: relative; width: 28px; height: 44px; padding: 0; min-width: 0; min-height: 0; border: 0; background: transparent; }
