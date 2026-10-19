@@ -66,7 +66,11 @@ export function LibTools({ query, onQuery, filter, onFilter, types, folders, onP
         options={FILTERS.map(([v, text]): [ReadState, string] => [v, v === 'all' ? t('filter.allLabeled') : text])}
       />
       <button type="button" className="select-btn" aria-expanded={showMore} onClick={() => setShowMore((v) => !v)}>
-        <span>{activeMore ? t('filter.moreN', { n: activeMore }) : t('filter.more')}</span>
+        <span>
+          {showMore
+            ? activeMore ? t('filter.lessN', { n: activeMore }) : t('filter.less')
+            : activeMore ? t('filter.moreN', { n: activeMore }) : t('filter.more')}
+        </span>
         <svg viewBox="0 0 12 8" width="12" height="8" aria-hidden="true">
           <path d={showMore ? 'M1 6.5l5-5 5 5' : 'M1 1.5l5 5 5-5'} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
