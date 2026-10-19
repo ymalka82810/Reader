@@ -53,13 +53,19 @@ export async function ocrPdf(
   pdf: PDFDocumentProxy,
   pageNumbers: number[],
   onProgress?: (done: number, total: number) => void,
+  signal?: AbortSignal,
 ): Promise<Line[][]> {
+  signal?.throwIfAborted()
   const { createWorker } = await import('tesseract.js')
   const worker = await createWorker(['heb', 'eng'])
+  // a cancel stops the page being read at once, instead of waiting for it to finish
+  const stop = () => void worker.terminate().catch(() => {})
+  signal?.addEventListener('abort', stop, { once: true })
   const canvas = document.createElement('canvas')
   const pages: Line[][] = []
   try {
     for (const [n, i] of pageNumbers.entries()) {
+      signal?.throwIfAborted()
       onProgress?.(n, pageNumbers.length)
       const page = await pdf.getPage(i)
       const base = page.getViewport({ scale: 1 })
@@ -68,14 +74,18 @@ export async function ocrPdf(
       canvas.height = Math.ceil(viewport.height)
       await page.render({ canvas, viewport }).promise
       page.cleanup()
-      const { data } = await worker.recognize(canvas, {}, { blocks: true })
+      const { data } = await worker.recognize(canvas, {}, { blocks: true }).catch((e) => {
+        signal?.throwIfAborted() // the worker was terminated by the cancel: report that, not the failed read
+        throw e
+      })
       const found = (data.blocks ?? []).flatMap((b) => b.paragraphs.flatMap((p) => p.lines))
       pages.push(ocrLinesToLines(found, canvas.height))
     }
     onProgress?.(pageNumbers.length, pageNumbers.length)
   } finally {
+    signal?.removeEventListener('abort', stop)
     canvas.width = canvas.height = 0
-    await worker.terminate()
+    await worker.terminate().catch(() => {})
   }
   return pages
 }
