@@ -88,7 +88,7 @@ describe('useImport', () => {
       result.current.dupBatch!.done(['replace'])
       await done
     })
-    expect(commit).toHaveBeenCalledWith('replace')
+    expect(commit).toHaveBeenCalledWith('replace', expect.any(Function), expect.any(AbortSignal))
     expect(result.current.dupBatch).toBeUndefined()
     expect(setError).toHaveBeenLastCalledWith(undefined)
   })
@@ -109,6 +109,35 @@ describe('useImport', () => {
       await done
     })
     expect(setError).toHaveBeenLastCalledWith('a.epub: disk full')
+  })
+
+  it('stops committing deferred duplicates when the queue is cancelled, without reporting it', async () => {
+    let started!: () => void
+    const first = vi.fn((_c: unknown, _p: unknown, signal?: AbortSignal) => {
+      started()
+      return new Promise<undefined>((_, reject) => signal!.addEventListener('abort', () => reject(signal!.reason)))
+    })
+    const second = vi.fn(async () => undefined)
+    importFile
+      .mockRejectedValueOnce(new DeferredDuplicate(existing, 'Old', first))
+      .mockRejectedValueOnce(new DeferredDuplicate(existing, 'Old', second))
+    const { result, setError, showToast } = setup()
+    let done!: Promise<void>
+    act(() => {
+      done = result.current.addFiles([file('a.pdf'), file('b.pdf')])
+    })
+    await vi.waitFor(() => expect(result.current.dupBatch).toBeDefined())
+    const committing = new Promise<void>((r) => (started = r))
+    act(() => result.current.dupBatch!.done(['add', 'add']))
+    await committing
+    expect(result.current.message).toContain('a.pdf')
+    await act(async () => {
+      result.current.cancel()
+      await done
+    })
+    expect(second).not.toHaveBeenCalled()
+    expect(setError).toHaveBeenLastCalledWith(undefined)
+    expect(showToast).toHaveBeenCalled()
   })
 
   it('imports files shared into the app on startup', async () => {

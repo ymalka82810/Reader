@@ -232,8 +232,7 @@ async function work(run: Run) {
           : undefined,
     })
   }
-  const cancelled = signal.aborted
-  if (deferred.length && !cancelled) {
+  if (deferred.length && !signal.aborted) {
     setState({ message: undefined, batch: undefined, dupDetail: false })
     const choices = await new Promise<DuplicateChoice[]>((done) =>
       setState({
@@ -245,13 +244,19 @@ async function work(run: Run) {
     )
     setState({ dupBatch: undefined })
     for (const [i, d] of deferred.entries()) {
+      if (signal.aborted) break
+      const choice = choices[i] ?? 'skip'
+      if (choice !== 'skip') setState({ message: t('import.adding', { name: d.name }) })
       try {
-        await d.err.commit(choices[i] ?? 'skip')
+        // a converted book is converted again here (it isn't kept while waiting), so it reports progress and can be cancelled
+        await d.err.commit(choice, (message) => setState({ message }), signal)
       } catch (e) {
+        if (signal.aborted) break
         errors.push(`${d.name}: ${e instanceof Error ? e.message : String(e)}`)
       }
     }
   }
+  const cancelled = signal.aborted // also while the duplicates were being asked about or added
   window.removeEventListener('beforeunload', warn)
   unwatch()
   void service.then((ok) => ok && stopImportService()) // also when the queue ended before the service had started
