@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto'
 import { afterEach, describe, expect, it } from 'vitest'
-import { bookFileName, forgetPhoneFile, matchPhoneFiles, phoneFileOf, rememberPhoneFile, syncPhoneNames } from './phoneFiles'
+import { bookFileName, forgetPhoneFile, matchPhoneFiles, phoneFileOf, refreshPhoneFiles, rememberPhoneFile, syncPhoneNames } from './phoneFiles'
 
 afterEach(() => {
   delete (globalThis as { Capacitor?: unknown }).Capacitor
@@ -42,6 +42,12 @@ describe('the remembered phone file', () => {
 describe('syncPhoneNames', () => {
   it('does nothing outside the Android app', async () => {
     expect(await syncPhoneNames(['b1'])).toEqual({ renamed: 0, failed: 0 })
+  })
+})
+
+describe('refreshPhoneFiles', () => {
+  it('does nothing outside the Android app', async () => {
+    expect(await refreshPhoneFiles()).toBe(0)
   })
 })
 

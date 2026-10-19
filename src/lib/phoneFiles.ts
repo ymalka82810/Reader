@@ -88,6 +88,30 @@ export async function syncPhoneNames(ids: string[]): Promise<{ renamed: number; 
   return out
 }
 
+/** Brings every book's file on the phone up to date once: the name follows the book's title and author, and the system's
+ *  media index (what file managers and other readers show) learns the current names, also for books renamed before the
+ *  index was updated. Resolves with how many files were renamed. */
+export async function refreshPhoneFiles(): Promise<number> {
+  if (!deviceBooksSupported()) return 0
+  const ids = (await keys(pathStore)).map(String)
+  const { renamed } = await syncPhoneNames(ids)
+  const paths = (await Promise.all(ids.map((id) => phoneFileOf(id)))).filter((p): p is string => !!p)
+  await call('refreshIndex', { paths }).catch(() => {})
+  return renamed
+}
+
+/** the same, once after the update that fixed the index, then on demand */
+const REFRESHED_KEY = 'reader:phoneIndexRefreshed'
+export async function refreshPhoneFilesOnce(): Promise<void> {
+  try {
+    if (localStorage.getItem(REFRESHED_KEY)) return
+    await refreshPhoneFiles()
+    localStorage.setItem(REFRESHED_KEY, '1')
+  } catch {
+    // tried again at the next scan
+  }
+}
+
 /** the books' phone files follow their names by themselves (the setting), once access is there */
 export const autoSyncPhoneNames = (ids: string[]) =>
   loadSettings().phoneRenameSync ? syncPhoneNames(ids) : Promise.resolve({ renamed: 0, failed: 0 })
