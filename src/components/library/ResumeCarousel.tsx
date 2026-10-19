@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { BookMeta } from '../../lib/db'
 import { t } from '../../i18n'
 import { Cover } from './Cover'
@@ -6,9 +6,16 @@ import { Cover } from './Cover'
 // books in progress, most recently opened first; swipe sideways between them, one dot per book
 export function ResumeCarousel({ books, onOpen }: { books: BookMeta[]; onOpen: (id: string) => void }) {
   const track = useRef<HTMLDivElement>(null)
+  const settle = useRef<number | undefined>(undefined)
   const [index, setIndex] = useState(0)
 
-  const touch = useRef<{ x: number; scroll: number } | null>(null)
+  const n = books.length
+  // a closed circle: the list is repeated, the user always rests on the middle copy and is silently moved
+  // back to it after each swipe, so there is no visible edge in either direction
+  const loop = n > 1
+  const copies = n >= 4 ? 3 : 5
+  const mid = Math.floor(copies / 2)
+  const items = loop ? Array.from({ length: copies }, (_, c) => books.map((b) => ({ b, c }))).flat() : books.map((b) => ({ b, c: mid }))
 
   // distance between the start of one card and the next: card width + the gap between cards
   const step = () => {
@@ -18,49 +25,62 @@ export function ResumeCarousel({ books, onOpen }: { books: BookMeta[]; onOpen: (
     return a && b ? Math.abs(b.offsetLeft - a.offsetLeft) : el.clientWidth
   }
 
+  // scrollLeft is negative in RTL
+  const dirOf = (el: HTMLElement) => (getComputedStyle(el).direction === 'rtl' ? -1 : 1)
+  const slideAt = (el: HTMLElement, w: number) => Math.round(Math.abs(el.scrollLeft) / w)
+
+  const jump = (el: HTMLElement, slide: number, w: number) => {
+    el.style.scrollSnapType = 'none'
+    el.scrollTo({ left: dirOf(el) * slide * w, behavior: 'auto' })
+    requestAnimationFrame(() => { el.style.scrollSnapType = '' })
+  }
+
+  useLayoutEffect(() => {
+    const el = track.current
+    const w = step()
+    if (el && w && loop) jump(el, mid * n + Math.min(index, n - 1), w)
+    // only when the number of books changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [n])
+
+  useEffect(() => () => window.clearTimeout(settle.current), [])
+
   const onScroll = () => {
     const el = track.current
     const w = step()
     if (!el || !w) return
-    // scrollLeft is negative in RTL, so use its magnitude
-    setIndex(Math.min(books.length - 1, Math.round(Math.abs(el.scrollLeft) / w)))
+    const g = slideAt(el, w)
+    setIndex(Math.min(g, items.length - 1) % n)
+    if (!loop) return
+    // once the swipe has come to rest, move back to the equivalent card on the middle copy
+    window.clearTimeout(settle.current)
+    settle.current = window.setTimeout(() => {
+      const cur = slideAt(el, w)
+      if (cur < mid * n || cur >= (mid + 1) * n) jump(el, mid * n + (cur % n), w)
+    }, 150)
   }
 
   const goTo = (i: number) => {
     const el = track.current
-    if (!el) return
-    const dir = getComputedStyle(el).direction === 'rtl' ? -1 : 1
-    el.scrollTo({ left: dir * i * step(), behavior: 'smooth' })
-  }
-
-  // swiping past either end wraps around to the other end
-  const onTouchStart = (e: React.TouchEvent) => {
-    const el = track.current
-    const x = e.touches[0]?.clientX
-    touch.current = el && x !== undefined ? { x, scroll: el.scrollLeft } : null
-  }
-
-  const onTouchEnd = (e: React.TouchEvent) => {
-    const el = track.current
-    const start = touch.current
-    touch.current = null
-    if (!el || !start || books.length < 2) return
-    const endX = e.changedTouches[0]?.clientX
-    if (endX === undefined) return
-    const dx = endX - start.x
-    if (Math.abs(dx) < 40 || Math.abs(el.scrollLeft - start.scroll) > 2) return // normal swipe, the track moved by itself
-    const rtl = getComputedStyle(el).direction === 'rtl'
-    // RTL: first book is on the right, so dragging right reveals the next one; LTR is the mirror
-    const beyondStart = rtl ? dx < 0 : dx > 0
-    if (beyondStart && index === 0) goTo(books.length - 1)
-    else if (!beyondStart && index === books.length - 1) goTo(0)
+    const w = step()
+    if (!el || !w) return
+    const g = slideAt(el, w)
+    // pick the copy of book i closest to where we are, so the dot always takes the shortest way round
+    let target = i
+    for (let c = 0; c < copies; c++) if (Math.abs(c * n + i - g) < Math.abs(target - g)) target = c * n + i
+    el.scrollTo({ left: dirOf(el) * target * w, behavior: 'smooth' })
   }
 
   return (
     <div className="resume">
-      <div className="resume-track" ref={track} onScroll={onScroll} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-        {books.map((b) => (
-          <button key={b.id} className="continue" onClick={() => onOpen(b.id)}>
+      <div className="resume-track" ref={track} onScroll={onScroll}>
+        {items.map(({ b, c }) => (
+          <button
+            key={`${c}-${b.id}`}
+            className="continue"
+            onClick={() => onOpen(b.id)}
+            {...(c !== mid ? { 'aria-hidden': true, tabIndex: -1 } : {})}
+          >
             <Cover book={b} />
             <span className="continue-info">
               <small>{t('lib.resume')}</small>
