@@ -1,6 +1,5 @@
 import { t } from '../i18n'
 import type { PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs'
-import { ImportError } from './errors'
 import { buildLines, looksTabular, normalizeStreamOrder, rawItems, readingGroups, type Line } from './pdfLayout'
 import { detectHeadings, isBlankPixels, isPoorPage, joinPages, looksReversed, stripRunningLines, toParagraphs } from './pdfText'
 
@@ -22,8 +21,8 @@ export interface ExtractedPdf {
   }[]
   /** the first page rendered as a JPEG, used as the book's cover */
   cover?: Blob
-  /** the PDF has tables, which a text conversion would wreck: the original file is kept instead */
-  hasTables?: boolean
+  /** the PDF has tables or is a scan, which a text conversion would wreck or can't read: the original file is kept instead */
+  keepOriginal?: boolean
 }
 
 interface PageImage {
@@ -134,7 +133,6 @@ export async function extractPdf(
   file: Blob,
   fileName: string,
   onProgress?: (done: number, total: number) => void,
-  onOcrProgress?: (done: number, total: number) => void,
   signal?: AbortSignal,
 ): Promise<ExtractedPdf> {
   signal?.throwIfAborted()
@@ -181,8 +179,11 @@ export async function extractPdf(
     bookmarks = await outlineStarts(pdf)
     signal?.throwIfAborted()
     cover = await renderCover(pdf)
-    // tables are shown from the original PDF: no text to convert, OCR or render page images for
-    if (hasTables) {
+    const charCount = (lines: Line[]) => lines.map((l) => l.text).join('').replace(/\s/g, '').length
+    // a scan has no text layer (at least half the pages are images)
+    const isScan = pages.filter((lines) => charCount(lines) < MIN_PAGE_CHARS).length >= total / 2
+    // tables and scans are shown from the original PDF: no text to convert or render page images for
+    if (hasTables || isScan) {
       return {
         title: info.Title || fileName.replace(/\.pdf$/i, ''),
         author: info.Author || '',
@@ -190,23 +191,8 @@ export async function extractPdf(
         pageCount: total,
         chapters: [],
         cover: cover ?? undefined,
-        hasTables,
+        keepOriginal: true,
       }
-    }
-
-    const charCount = (lines: Line[]) => lines.map((l) => l.text).join('').replace(/\s/g, '').length
-    // a scan has no text layer: read the images of the empty pages (the pdf must stay open for this)
-    const empty = pages.flatMap((lines, i) => (charCount(lines) < MIN_PAGE_CHARS ? [i] : []))
-    if (empty.length >= total / 2) {
-      try {
-        const read = await (await import('./ocr')).ocrPdf(pdf, empty.map((i) => i + 1), onOcrProgress, signal)
-        empty.forEach((i, k) => (pages[i] = read[k] ?? []))
-      } catch (e) {
-        if (signal?.aborted) throw e // a cancel is not an OCR failure
-        console.error(e)
-        throw new ImportError(t('pdf.ocrFailed'))
-      }
-      if (!pages.some((lines) => charCount(lines) >= MIN_PAGE_CHARS)) throw new ImportError(t('pdf.noText'))
     }
 
     // pages whose text came out badly keep a picture of the original page next to it
@@ -278,7 +264,7 @@ export async function extractPdf(
     pageCount: total,
     chapters,
     cover: cover ?? undefined,
-    hasTables: false,
+    keepOriginal: false,
   }
 }
 

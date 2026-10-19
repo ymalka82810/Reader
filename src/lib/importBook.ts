@@ -172,15 +172,14 @@ async function readIntoLibrary(
       file,
       file.name,
       (done, total) => onProgress?.(`${t('import.extracting')} ${done}/${total}`),
-      (done, total) => onProgress?.(`${t('import.ocr')} ${Math.min(done + 1, total)}/${total}`),
       signal,
     )
     check()
     fromPdf = true
-    if (x.hasTables) {
-      // a text conversion would wreck the tables: keep the PDF itself, which foliate-js shows page by page
+    if (x.keepOriginal) {
+      // a text conversion would wreck the tables (or find no text in a scan): keep the PDF itself, which foliate-js shows page by page
       cover = x.cover
-      onProgress?.(t('import.pdfTables'))
+      onProgress?.(t('import.pdfKept'))
     } else {
       onProgress?.(t('import.pdfConverting'))
       const blob = await buildEpub(x)
