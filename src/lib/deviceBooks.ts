@@ -85,16 +85,6 @@ export async function readDeviceFile(f: DeviceFile): Promise<File> {
   return new File([await res.blob()], f.name, { type: TYPES[ext] ?? '', lastModified: f.modified })
 }
 
-/** whether the app may post notifications (the background scan announces new books with one) */
-export async function hasNotificationAccess(): Promise<boolean> {
-  if (!deviceBooksSupported()) return false
-  try {
-    return (await call<{ granted: boolean }>('notificationStatus')).granted
-  } catch {
-    return false
-  }
-}
-
 /** asks for the notification permission (Android 13+ shows a dialog); resolves with the answer */
 export async function requestNotificationAccess(): Promise<boolean> {
   if (!deviceBooksSupported()) return false
@@ -116,7 +106,7 @@ export async function consumeScanNotificationTap(): Promise<boolean> {
 }
 
 /** every file the library has dealt with, as {path: \"size|modified\"} */
-export async function seenFiles(): Promise<Record<string, string>> {
+async function seenFiles(): Promise<Record<string, string>> {
   return Object.fromEntries((await entries<string, string>(seenStore)).map(([k, v]) => [String(k), v]))
 }
 
