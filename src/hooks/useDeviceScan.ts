@@ -16,6 +16,8 @@ import { t } from '../i18n'
 
 const MIN_GAP = 60_000
 let lastAuto = 0
+/** books the user said no to in an automatic offer: not asked about again until the app is opened next time */
+const declined = new Set<string>()
 
 /** the offer to read the phone's books is made once; after that, access is given from the settings */
 const OFFERED_KEY = 'reader:deviceOffered'
@@ -65,15 +67,18 @@ export function useDeviceScan({ addFiles, setBusy, setError, showToast, confirm 
         manual = true // the user just chose this: show the progress and ask before adding, as from the settings
       }
       if (manual) setBusy(t('device.scanning'))
-      const found = await newDeviceFiles(await scanDevice(loadSettings().deviceFolders))
+      const all = await newDeviceFiles(await scanDevice(loadSettings().deviceFolders))
       setBusy(undefined)
+      const found = manual ? all : all.filter((f) => !declined.has(f.path))
       if (!found.length) {
         if (manual) showToast(t('device.noneNew'), undefined, 4000)
         return
       }
-      // the first scan can find a whole collection; PDFs take a while each, so a manual scan asks first
-      if (manual && !(await confirm({ title: t('device.foundTitle'), text: t('device.foundText', { n: found.length }), ok: t('device.add') }))) return
-      if (!manual) showToast(t('device.adding', { n: found.length }), undefined, 4000)
+      // never added by itself: whatever turns up, the user is asked first (a collection can be large, and PDFs take a while each)
+      if (!(await confirm({ title: t('device.foundTitle'), text: t('device.foundText', { n: found.length }), ok: t('device.add') }))) {
+        if (!manual) found.forEach((f) => declined.add(f.path))
+        return
+      }
       await importNew(found)
     } catch (e) {
       setBusy(undefined)
