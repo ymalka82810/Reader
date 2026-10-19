@@ -34,6 +34,7 @@ const ENTRIES: [PageId, MessageKey, boolean?][] = [
   ['device', 'device.bg', deviceBooksSupported()],
   ['device', 'device.renameSync', deviceBooksSupported()],
   ['device', 'device.scanNow', deviceBooksSupported()],
+  ['device', 'device.retry', deviceBooksSupported()],
   ['device', 'device.folders', deviceBooksSupported()],
   ['goals', 'goals.daily'],
   ['goals', 'goals.yearly'],

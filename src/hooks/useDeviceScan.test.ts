@@ -8,7 +8,7 @@ const lib = vi.hoisted(() => ({
   hasDeviceAccess: vi.fn(async () => true),
   requestDeviceAccess: vi.fn(async () => true),
   scanDevice: vi.fn(async (): Promise<DeviceFile[]> => []),
-  newDeviceFiles: vi.fn(async (f: DeviceFile[]) => f),
+  newDeviceFiles: vi.fn(async (f: DeviceFile[], _ofBooks?: Set<string>) => f),
   markSeen: vi.fn(async () => {}),
   readDeviceFile: vi.fn(async (f: DeviceFile) => new File(['x'], f.name)),
   consumeScanNotificationTap: vi.fn(async () => false),
@@ -106,6 +106,15 @@ describe('useDeviceScan', () => {
     await act(() => result.current())
     expect(addFiles).not.toHaveBeenCalled()
     expect(showToast).toHaveBeenCalledWith('לא נמצאו ספרים חדשים בטלפון.', undefined, 4000)
+  })
+
+  it('a retry also asks about the files dealt with but never tied to a book; a plain scan does not', async () => {
+    localStorage.setItem('reader:settings', JSON.stringify({ deviceAutoScan: false }))
+    const { result } = setup()
+    await act(() => result.current())
+    expect(lib.newDeviceFiles.mock.lastCall).toEqual([[], undefined])
+    await act(() => result.current(true))
+    expect(lib.newDeviceFiles.mock.lastCall?.[1]).toBeInstanceOf(Set)
   })
 
   it('reports a manual scan that fails, and when access is refused', async () => {

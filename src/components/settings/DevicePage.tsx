@@ -13,7 +13,7 @@ import { t } from '../../i18n'
 import { Row, Section, Toggle } from './parts'
 
 /** Android app: the books already on the phone — access, automatic scan, the folders looked through */
-export function DevicePage({ settings, set, busy, onScan }: { settings: Settings; set: SetSetting; busy: boolean; onScan: () => void }) {
+export function DevicePage({ settings, set, busy, onScan }: { settings: Settings; set: SetSetting; busy: boolean; onScan: (retry?: boolean) => void }) {
   const [access, setAccess] = useState<boolean>()
   const [error, setError] = useState('')
   const [bgNote, setBgNote] = useState('')
@@ -82,7 +82,10 @@ export function DevicePage({ settings, set, busy, onScan }: { settings: Settings
           onChange={(v) => set('phoneRenameSync', v)}
         />
         <Row label={t('device.scanNow')} hint={t('device.scanNowHint')}>
-          <button disabled={busy || !folders.length} onClick={onScan}>{t('device.scanNow')}</button>
+          <button disabled={busy || !folders.length} onClick={() => onScan()}>{t('device.scanNow')}</button>
+        </Row>
+        <Row label={t('device.retry')} hint={t('device.retryHint')}>
+          <button disabled={busy || !folders.length} onClick={() => onScan(true)}>{t('device.retryButton')}</button>
         </Row>
         {bgNote && <div role="alert" className="muted">{bgNote}</div>}
       </Section>
