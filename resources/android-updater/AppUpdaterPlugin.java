@@ -47,6 +47,7 @@ import java.security.NoSuchAlgorithmException;
  * JS: appInfo() -> {versionCode, versionName}
  *     downloadAndInstall({url, sha256?}) -> resolves once the install dialog is shown; rejects with
  *       "busy", "bad url", "download", "checksum", "not an update", "permission" or "no installer"
+ *     exitApp() -> closes the app
  *     event "progress" -> {percent} while downloading (-1 when the size is unknown)
  */
 @CapacitorPlugin(name = "AppUpdater")
@@ -82,6 +83,13 @@ public class AppUpdaterPlugin extends Plugin {
             ret.put("versionName", "");
         }
         call.resolve(ret);
+    }
+
+    /** closes the app (the web side asks for it after the user confirms leaving from the library) */
+    @PluginMethod
+    public void exitApp(PluginCall call) {
+        call.resolve();
+        getActivity().runOnUiThread(() -> getActivity().finish());
     }
 
     @PluginMethod

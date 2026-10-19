@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { makeBook } from 'foliate-js/view.js'
 import { flattenToc, type FlatTocItem } from './reader/toc'
+import { useBackGesture } from '../hooks/useBackGesture'
 import { getBook } from '../lib/db'
 import { classifyLink, parseSandboxMessage, toSandboxHtml, type SandboxCommand } from '../lib/sandbox'
 import { t } from '../i18n'
@@ -35,6 +36,7 @@ const savedIndex = (id: string) => {
  */
 export default function InteractiveReader({ id, onClose, onOpenPlain }: { id: string; onClose: () => void; onOpenPlain: () => void }) {
   const frame = useRef<HTMLIFrameElement>(null)
+  useBackGesture(onClose, 1)
   const book = useRef<InteractiveBook | null>(null)
   const [title, setTitle] = useState('')
   const [toc, setToc] = useState<FlatTocItem[]>([])
