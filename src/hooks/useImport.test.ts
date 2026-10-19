@@ -232,4 +232,59 @@ describe('useImport', () => {
     expect(back.result.current.running).toBe(false)
     expect(back.refresh).toHaveBeenCalled()
   })
+
+  it('cancelOne skips a waiting book without touching the others', async () => {
+    let release!: () => void
+    const gate = new Promise<void>((r) => (release = r))
+    const order: string[] = []
+    importFile.mockImplementation(async (f: File) => {
+      order.push(f.name)
+      if (f.name === 'a.epub') await gate
+      return {}
+    })
+    const onEach = vi.fn()
+    const { result, setError } = setup()
+    let done!: Promise<void>
+    act(() => {
+      done = result.current.addFiles([file('a.epub'), file('b.epub'), file('c.epub')], { onEach })
+    })
+    await vi.waitFor(() => expect(result.current.queue.map((q) => q.name)).toEqual(['a.epub', 'b.epub', 'c.epub']))
+    expect(result.current.queue[0]).toMatchObject({ active: true })
+    act(() => result.current.cancelOne(result.current.queue[1]!.id))
+    expect(result.current.queue.map((q) => q.name)).toEqual(['a.epub', 'c.epub'])
+    await act(async () => {
+      release()
+      await done
+    })
+    expect(order).toEqual(['a.epub', 'c.epub'])
+    expect(onEach.mock.calls.map((c) => c[0])).toEqual([0, 1, 2]) // the cancelled one counts as dealt with
+    expect(setError).toHaveBeenLastCalledWith(undefined)
+    expect(result.current.queue).toEqual([])
+  })
+
+  it('cancelOne on the book being added drops only that one and goes on with the rest, with no error', async () => {
+    const seen: string[] = []
+    importFile.mockImplementation(
+      (f: File, _p: unknown, _d: unknown, signal: AbortSignal) =>
+        new Promise((resolve, reject) => {
+          seen.push(f.name)
+          if (f.name === 'a.epub') signal.addEventListener('abort', () => reject(signal.reason))
+          else resolve({})
+        }),
+    )
+    const { result, setError, showToast } = setup()
+    let done!: Promise<void>
+    act(() => {
+      done = result.current.addFiles([file('a.epub'), file('b.epub')])
+    })
+    await vi.waitFor(() => expect(seen).toEqual(['a.epub']))
+    await act(async () => {
+      result.current.cancelOne(result.current.queue.find((q) => q.active)!.id)
+      await done
+    })
+    expect(seen).toEqual(['a.epub', 'b.epub'])
+    expect(setError).toHaveBeenLastCalledWith(undefined)
+    expect(showToast).not.toHaveBeenCalled() // the whole queue wasn't cancelled
+    expect(result.current.running).toBe(false)
+  })
 })

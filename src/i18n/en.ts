@@ -267,6 +267,8 @@ export const en: Record<keyof typeof he, Message> = {
   'import.pdfTables': 'Tables detected: the PDF is kept as is, without conversion.',
   'import.reading': 'Reading the book…',
   'import.cancel': 'Cancel adding',
+  'import.cancelAll': 'Cancel all',
+  'import.cancelOne': 'Cancel adding {name}',
   'import.cancelled': 'Adding cancelled. Books that were already added stay in the library.',
   'import.background': 'You can keep using the app; adding carries on in the background.',
   'import.readingAudio': 'Reading the audiobook…',

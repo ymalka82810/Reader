@@ -27,12 +27,16 @@ type Deps = {
 }
 
 type Batch = { done: number; total: number; deadline?: number }
+/** a book still to be added (or being added now), as the screen lists it */
+export type QueueItem = { id: number; name: string; active: boolean }
 type State = {
   /** the queue is working; the library stays usable meanwhile */
   running: boolean
   /** what the current book is going through ("reading", "counting"…) */
   message?: string
   batch?: Batch
+  /** the books not finished yet, each of which can be cancelled alone */
+  queue: QueueItem[]
   /** a same-title book already exists: waits for the user's choice */
   dupBatch?: DupBatch
   dupDetail: boolean
@@ -43,7 +47,7 @@ type State = {
  * The queue lives outside React, so it keeps going when the library is left (a book is opened to read) and
  * is picked up again, with its progress, when the library comes back. The screen only shows it.
  */
-let state: State = { running: false, dupDetail: false }
+let state: State = { running: false, dupDetail: false, queue: [] }
 const listeners = new Set<() => void>()
 const setState = (patch: Partial<State>) => {
   state = { ...state, ...patch }
@@ -59,17 +63,24 @@ let handlers: Deps | undefined
 /** what finished while no library was on screen, shown when the next one mounts */
 let pendingError: string | undefined
 
-type Entry = { item: File | LazyFile; skipDuplicates?: boolean; onEach?: () => void }
-type Run = { entries: Entry[]; ctrl: AbortController; done: Promise<void>; processed: number }
+type Entry = { id: number; item: File | LazyFile; skipDuplicates?: boolean; onEach?: () => void; cancelled?: boolean; ctrl?: AbortController }
+type Run = { entries: Entry[]; ctrl: AbortController; done: Promise<void>; processed: number; activeId?: number }
+let nextId = 0
+
+const queueOf = (run: Run): QueueItem[] =>
+  run.entries
+    .slice(run.processed)
+    .filter((e) => !e.cancelled)
+    .map((e) => ({ id: e.id, name: e.item.name, active: e.id === run.activeId }))
 let current: Run | undefined
 
 /** Adds files to the queue: starts it, or joins the one already running (its progress then covers them too). */
 function enqueue(files: FileList | (File | LazyFile)[], { skipDuplicates, onEach }: AddOptions = {}): Promise<void> {
-  const entries: Entry[] = Array.from(files).map((item, i) => ({ item, skipDuplicates, onEach: onEach && (() => onEach(i)) }))
+  const entries: Entry[] = Array.from(files).map((item, i) => ({ id: nextId++, item, skipDuplicates, onEach: onEach && (() => onEach(i)) }))
   if (current) {
     current.entries.push(...entries)
     // a single file shows no progress bar; with more joining, the bar counts them all
-    if (entries.length) setState({ batch: { done: current.processed, total: current.entries.length } })
+    if (entries.length) setState({ batch: { done: current.processed, total: current.entries.length }, queue: queueOf(current) })
     return current.done
   }
   const ctrl = new AbortController()
@@ -79,6 +90,16 @@ function enqueue(files: FileList | (File | LazyFile)[], { skipDuplicates, onEach
     current = undefined
   })
   return run.done
+}
+
+/** stops one book: while it waits it is simply skipped, while it is being added it is dropped without a trace; the rest go on */
+function cancelOne(id: number) {
+  const e = current?.entries.find((x) => x.id === id)
+  if (!e || e.cancelled) return
+  e.cancelled = true
+  e.ctrl?.abort()
+  if (current?.activeId === id) state.dupAsk?.answer('skip') // its question, if it is waiting on one
+  if (current) setState({ queue: queueOf(current) })
 }
 
 /** stops the queue: the book in progress is dropped without a trace, the ones already added stay, the rest are not read */
@@ -96,7 +117,7 @@ async function work(run: Run) {
   pendingError = undefined
   const errors: string[] = []
   let started = Date.now()
-  setState({ running: true, message: undefined, batch: entries.length > 1 ? { done: 0, total: entries.length } : undefined })
+  setState({ running: true, message: undefined, batch: entries.length > 1 ? { done: 0, total: entries.length } : undefined, queue: queueOf(run) })
   // keep the screen awake while importing; best-effort, released on completion
   let wake: { release(): Promise<void> } | undefined
   const takeWake = () =>
@@ -110,7 +131,15 @@ async function work(run: Run) {
   const deferred: { name: string; err: DeferredDuplicate }[] = []
   // entries can be added while this loop runs
   for (let i = 0; i < entries.length && !signal.aborted; i++) {
-    const { item, skipDuplicates, onEach } = entries[i]!
+    const entry = entries[i]!
+    const { item, skipDuplicates, onEach } = entry
+    if (entry.cancelled) {
+      // cancelled while waiting: counted as dealt with, like a book the user said no to
+      onEach?.()
+      run.processed = i + 1
+      setState({ queue: queueOf(run), batch: entries.length > 1 ? { done: i + 1, total: entries.length } : undefined })
+      continue
+    }
     // leaving the tab pauses the queue instead of failing the next file; paused time doesn't count towards the ETA
     if (document.visibilityState === 'hidden') {
       const pausedAt = Date.now()
@@ -125,10 +154,16 @@ async function work(run: Run) {
       started += Date.now() - pausedAt
       void takeWake()
     }
+    // this book's own switch, which the whole queue's switch also throws
+    const own = new AbortController()
+    entry.ctrl = own
+    const stopWithQueue = () => own.abort()
+    signal.addEventListener('abort', stopWithQueue, { once: true })
+    run.activeId = entry.id
     try {
-      setState({ message: t('import.adding', { name: item.name }) })
+      setState({ message: t('import.adding', { name: item.name }), queue: queueOf(run) })
       const f = 'load' in item ? await item.load() : item
-      signal.throwIfAborted()
+      own.signal.throwIfAborted()
       const several = entries.length > 1
       await importFile(
         f,
@@ -139,19 +174,27 @@ async function work(run: Run) {
             several
             ? async () => 'defer'
             : (existing) => new Promise<DuplicateChoice>((resolve) => setState({ dupAsk: { file: f.name, existing, answer: resolve } })),
-        signal,
+        own.signal,
       )
       await handlers?.refresh() // show each book as soon as it's done
     } catch (e) {
-      if (signal.aborted || isAbort(e)) break // cancelled: not a failure, and not worth reporting per file
-      if (e instanceof DeferredDuplicate) deferred.push({ name: item.name, err: e })
-      else if (!(skipDuplicates && isAlreadyInLibrary(e))) errors.push(`${item.name}: ${e instanceof Error ? e.message : String(e)}`)
+      if (signal.aborted) break // the whole queue was cancelled: not a failure, and not worth reporting per file
+      // only this book was cancelled: nothing to report, on to the next
+      if (!(own.signal.aborted || isAbort(e))) {
+        if (e instanceof DeferredDuplicate) deferred.push({ name: item.name, err: e })
+        else if (!(skipDuplicates && isAlreadyInLibrary(e))) errors.push(`${item.name}: ${e instanceof Error ? e.message : String(e)}`)
+      }
+    } finally {
+      signal.removeEventListener('abort', stopWithQueue)
+      run.activeId = undefined
+      entry.ctrl = undefined
     }
     onEach?.()
     const done = (run.processed = i + 1)
     const nowMs = Date.now()
     setState({
       dupAsk: undefined,
+      queue: queueOf(run),
       batch:
         entries.length > 1
           ? { done, total: entries.length, deadline: nowMs + ((nowMs - started) / done) * (entries.length - done) }
@@ -180,7 +223,7 @@ async function work(run: Run) {
   }
   window.removeEventListener('beforeunload', warn)
   void wake?.release().catch(() => {}) // already released by the browser (e.g. tab was hidden): nothing to do
-  setState({ running: false, message: undefined, batch: undefined, dupAsk: undefined })
+  setState({ running: false, message: undefined, batch: undefined, dupAsk: undefined, queue: [] })
   const error = errors.length ? errors.join('\n') : undefined
   if (error) {
     if (handlers) handlers.setError(error)
@@ -228,6 +271,8 @@ export function useImport(deps: Deps) {
   return {
     addFiles,
     cancel,
+    cancelOne,
+    queue: s.queue,
     running: s.running,
     message: s.message,
     batch: s.batch,
