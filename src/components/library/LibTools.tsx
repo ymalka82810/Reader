@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Select } from '../Select'
+import { FolderIcon } from './FolderIcon'
 import { t } from '../../i18n'
 import type { Tag } from '../../lib/tags'
 import { isFiltering, NO_FILTER, SMARTS, typeLabel, type LibraryFilter, type ReadState, type Smart } from '../../lib/libraryFilter'
@@ -40,10 +41,13 @@ type Props = {
   onTag: (key: string) => void
   list: boolean
   onList: (list: boolean) => void
+  /** folders listed above the single books (true) or below them */
+  foldersFirst: boolean
+  onFoldersFirst: (first: boolean) => void
 }
 
 /** search box with the filter, tag and sort pickers right under it */
-export function LibTools({ query, onQuery, filter, onFilter, types, folders, onPickBooks, sort, onSort, tags, tag, onTag, list, onList }: Props) {
+export function LibTools({ query, onQuery, filter, onFilter, types, folders, onPickBooks, sort, onSort, tags, tag, onTag, list, onList, foldersFirst, onFoldersFirst }: Props) {
   const [showMore, setShowMore] = useState(false)
   const activeMore = (filter.type ? 1 : 0) + (filter.folder !== undefined ? 1 : 0) + (filter.ids.size ? 1 : 0)
   return (
@@ -87,6 +91,16 @@ export function LibTools({ query, onQuery, filter, onFilter, types, folders, onP
         </button>
       )}
       <Select label={t('sort.label')} value={sort} onChange={onSort} options={SORTS} />
+      <button
+        type="button"
+        className="select-btn view-toggle"
+        aria-label={foldersFirst ? t('folders.top') : t('folders.bottom')}
+        title={foldersFirst ? t('folders.top') : t('folders.bottom')}
+        onClick={() => onFoldersFirst(!foldersFirst)}
+      >
+        <FolderIcon />
+        <span aria-hidden="true">{foldersFirst ? '↑' : '↓'}</span>
+      </button>
       <button
         type="button"
         className="select-btn view-toggle"

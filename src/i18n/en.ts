@@ -76,6 +76,8 @@ export const en: Record<keyof typeof he, Message> = {
   'pick.show': 'Show {n}',
   'pick.ok': 'OK',
   'view.list': 'List view',
+  'folders.top': 'Folders on top',
+  'folders.bottom': 'Folders at the bottom',
   'sort.label': 'Sort',
   'sort.recent': 'Recently opened',
   'sort.added': 'Recently added',

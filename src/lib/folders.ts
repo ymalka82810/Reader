@@ -41,3 +41,23 @@ export const folderToStore = (b: Pick<BookMeta, 'author'>, name: string): string
   const n = clean(name)
   return keyOf(n) === keyOf(clean(b.author)) ? undefined : n
 }
+
+export type FolderSort = 'recent' | 'added' | 'title' | 'author' | 'longest'
+
+/**
+ * Orders the folder list the way the sort picker says. A folder holding a single author's only book is shown as that book
+ * (`loose`), so it sorts by the book's title; a real folder sorts by its name. The "no author" folder goes last when sorting
+ * by name. `foldersFirst` puts the real folders before the loose books, or after them.
+ */
+export function sortFolders(folders: Folder[], loose: Set<string>, sort: FolderSort, foldersFirst: boolean): Folder[] {
+  const opened = (b: BookMeta) => b.lastOpened ?? b.addedAt
+  const newest = (f: Folder, at: (b: BookMeta) => number) => f.books.reduce((m, b) => Math.max(m, at(b)), 0)
+  const label = (f: Folder) => (sort === 'title' && loose.has(f.key) ? f.books[0]!.title : f.name)
+  const byName = (a: Folder, b: Folder) => (!a.key ? 1 : !b.key ? -1 : label(a).localeCompare(label(b), localeTag()))
+  const byDate = (at: (b: BookMeta) => number) => (a: Folder, b: Folder) => newest(b, at) - newest(a, at) || byName(a, b)
+  const order = sort === 'recent' ? byDate(opened) : sort === 'added' ? byDate((b) => b.addedAt) : byName
+  const sorted = [...folders].sort(order)
+  const real = sorted.filter((f) => !loose.has(f.key))
+  const single = sorted.filter((f) => loose.has(f.key))
+  return foldersFirst ? [...real, ...single] : [...single, ...real]
+}

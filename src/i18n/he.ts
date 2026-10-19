@@ -75,6 +75,8 @@ export const he = {
   'pick.show': 'הצג {n}',
   'pick.ok': 'אישור',
   'view.list': 'תצוגת רשימה',
+  'folders.top': 'תיקיות למעלה',
+  'folders.bottom': 'תיקיות למטה',
   'sort.label': 'מיון',
   'sort.recent': 'נפתח לאחרונה',
   'sort.added': 'נוסף לאחרונה',

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { addFolderName, removeFolderName, renameFolder, setFolder, type BookMeta } from '../lib/db'
-import { folderKey, folderToStore, groupFolders, type Folder } from '../lib/folders'
+import { folderKey, folderToStore, groupFolders, sortFolders, type Folder, type FolderSort } from '../lib/folders'
 import type { Confirm } from './useConfirm'
 import { localeTag, t } from '../i18n'
 
@@ -15,10 +15,13 @@ type Deps = {
   exitSelect: () => void
   deleteBooks: (list: BookMeta[]) => Promise<void>
   confirm: Confirm
+  sort: FolderSort
+  /** folders above the single books (true) or below them */
+  foldersFirst: boolean
 }
 
 /** folder grouping, the folder being viewed, and moving books between folders */
-export function useFolders({ books, shown, createdNames, searching, refresh, showToast, exitSelect, deleteBooks, confirm }: Deps) {
+export function useFolders({ books, shown, createdNames, searching, refresh, showToast, exitSelect, deleteBooks, confirm, sort, foldersFirst }: Deps) {
   // the folder being viewed (its key; '' = books without an author) and the books being moved
   const [openFolder, setOpenFolder] = useState<string>()
   const [moving, setMoving] = useState<BookMeta[]>()
@@ -35,15 +38,17 @@ export function useFolders({ books, shown, createdNames, searching, refresh, sho
       .filter((f) => f.key && !keys.has(f.key))
     return [...full, ...empty].sort((a, b) => (!a.key ? 1 : !b.key ? -1 : a.name.localeCompare(b.name, localeTag())))
   }, [books, createdNames])
-  const folders = useMemo(() => {
-    const withBooks = new Map(groupFolders(shown).map((f) => [f.key, f]))
-    return allFolders.flatMap((f) => (f.books.length ? (withBooks.get(f.key) ?? []) : f))
-  }, [allFolders, shown])
   // an author with one book is shown as that book; a folder the user made or filled stays a folder
   const loose = useMemo(() => {
     const made = new Set(createdNames.map((name) => folderKey({ author: name })))
     return new Set(allFolders.filter((f) => f.books.length === 1 && f.books[0]!.folder === undefined && !made.has(f.key)).map((f) => f.key))
   }, [allFolders, createdNames])
+  // the folder list follows the sort picker and the folders-above/below choice
+  const folders = useMemo(() => {
+    const withBooks = new Map(groupFolders(shown).map((f) => [f.key, f]))
+    const visible = allFolders.flatMap((f) => (f.books.length ? (withBooks.get(f.key) ?? []) : f))
+    return sortFolders(visible, loose, sort, foldersFirst)
+  }, [allFolders, shown, loose, sort, foldersFirst])
   // with a single folder there is nothing to choose: show its books straight away
   const current =
     openFolder === undefined
