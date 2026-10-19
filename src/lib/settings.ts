@@ -50,6 +50,8 @@ export interface Settings {
   backupRemind: BackupRemind
   /** Android app: look for new books in the phone's folders every time the app opens */
   deviceAutoScan: boolean
+  /** Android app: keep looking for new books while the app is closed or not on the screen, and announce them in a notification */
+  deviceBackgroundScan: boolean
   /** Android app: the folders looked through, relative to the phone's storage root ('' is all of it) */
   deviceFolders: string[]
   /** Android app: when a book's title or author changes, its file on the phone is renamed to match */
@@ -102,6 +104,7 @@ const DEFAULTS: Settings = {
   yearlyGoalHours: 0,
   backupRemind: 'default',
   deviceAutoScan: true,
+  deviceBackgroundScan: true,
   deviceFolders: ['Documents', 'Download'],
   phoneRenameSync: true,
 }

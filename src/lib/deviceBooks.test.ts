@@ -1,6 +1,15 @@
 import 'fake-indexeddb/auto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { markSeen, newDeviceFiles, normalizeFolder, pickNew, readDeviceFile, type DeviceFile } from './deviceBooks'
+import {
+  consumeScanNotificationTap,
+  markSeen,
+  newDeviceFiles,
+  normalizeFolder,
+  pickNew,
+  readDeviceFile,
+  syncBackgroundScan,
+  type DeviceFile,
+} from './deviceBooks'
 
 const file = (path: string, size = 10, modified = 1): DeviceFile => ({ path, name: path.split('/').pop()!, size, modified })
 
@@ -56,5 +65,46 @@ describe('readDeviceFile', () => {
 
   it('fails outside the app, where there is no local server', async () => {
     await expect(readDeviceFile(file('/s/a.epub'))).rejects.toThrow('no file access')
+  })
+})
+
+describe('background scan', () => {
+  const native = (answers: Record<string, unknown>) => {
+    const nativePromise = vi.fn(async (_plugin: string, method: string, _options?: object) => answers[method])
+    ;(globalThis as { Capacitor?: unknown }).Capacitor = { isNativePlatform: () => true, isPluginAvailable: () => true, nativePromise }
+    return nativePromise
+  }
+
+  it('turns the native scan on with the folders, the known books and the notification texts', async () => {
+    await markSeen([file('/s/Download/known.epub', 10, 1)])
+    const nativePromise = native({ status: { granted: true }, setBackground: {} })
+    await syncBackgroundScan({ deviceBackgroundScan: true, deviceFolders: ['Download', 'Books'] })
+    const call = nativePromise.mock.calls.find((c) => c[1] === 'setBackground')!
+    expect(call[2]).toMatchObject({
+      enabled: true,
+      folders: ['Download', 'Books'],
+      known: { '/s/Download/known.epub': '10|1' },
+      title: 'נמצאו ספרים חדשים',
+    })
+    expect((call[2] as { textMany: string }).textMany).toContain('{n}')
+  })
+
+  it('turns it off when the setting is off or there is no file access', async () => {
+    const off = native({ status: { granted: true }, setBackground: {} })
+    await syncBackgroundScan({ deviceBackgroundScan: false, deviceFolders: ['Download'] })
+    expect(off).toHaveBeenCalledWith('DeviceBooks', 'setBackground', { enabled: false })
+    const noAccess = native({ status: { granted: false }, setBackground: {} })
+    await syncBackgroundScan({ deviceBackgroundScan: true, deviceFolders: ['Download'] })
+    expect(noAccess).toHaveBeenCalledWith('DeviceBooks', 'setBackground', { enabled: false })
+  })
+
+  it('does nothing outside the Android app', async () => {
+    await expect(syncBackgroundScan({ deviceBackgroundScan: true, deviceFolders: [] })).resolves.toBeUndefined()
+    expect(await consumeScanNotificationTap()).toBe(false)
+  })
+
+  it('reports a tap on the notification once', async () => {
+    native({ consumeNotificationTap: { tapped: true } })
+    expect(await consumeScanNotificationTap()).toBe(true)
   })
 })

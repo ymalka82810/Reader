@@ -1,12 +1,15 @@
 import { useEffect, useRef } from 'react'
 import {
   deviceBooksSupported,
+  consumeScanNotificationTap,
   hasDeviceAccess,
   markSeen,
   newDeviceFiles,
   readDeviceFile,
   requestDeviceAccess,
+  requestNotificationAccess,
   scanDevice,
+  syncBackgroundScan,
   type DeviceFile,
 } from '../lib/deviceBooks'
 import { linkKnownBooks } from '../lib/phoneFiles'
@@ -65,6 +68,7 @@ export function useDeviceScan({ addFiles, setBusy, setError, showToast, confirm 
           if (manual) setError(t('device.noAccess'))
           return
         }
+        void requestNotificationAccess().then(() => syncBackgroundScan()) // so the background scan can announce what it finds
         manual = true // the user just chose this: show the progress and ask before adding, as from the settings
       }
       if (manual) setBusy(t('device.scanning'))
@@ -99,12 +103,24 @@ export function useDeviceScan({ addFiles, setBusy, setError, showToast, confirm 
     scanRef.current = scan
   })
   // when the app opens, and when it comes back to the front (a book was just downloaded), at most once a minute;
-  // the library remounts each time a book is closed, so the time is kept outside the component
+  // the library remounts each time a book is closed, so the time is kept outside the component.
+  // Opened from the background scan's notification, it scans at once (and even with the automatic scan off),
+  // since the user is there for the new books. Whenever the app comes or goes, the native background scan
+  // (closed app, or open but not on the screen) is brought up to date with the folders and the known books.
   useEffect(() => {
     const auto = () => {
-      if (document.visibilityState !== 'visible' || !loadSettings().deviceAutoScan || Date.now() - lastAuto < MIN_GAP) return
-      lastAuto = Date.now()
-      void scanRef.current(false)
+      if (document.visibilityState !== 'visible') {
+        void syncBackgroundScan()
+        return
+      }
+      const due = loadSettings().deviceAutoScan && Date.now() - lastAuto >= MIN_GAP
+      if (due) lastAuto = Date.now()
+      void consumeScanNotificationTap().then((tapped) => {
+        if (!due && !tapped) return
+        lastAuto = Date.now()
+        void scanRef.current(false)
+      })
+      void syncBackgroundScan()
     }
     auto()
     document.addEventListener('visibilitychange', auto)

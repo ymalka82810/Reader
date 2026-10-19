@@ -3,7 +3,9 @@ package com.yanivm.reader;
 import android.Manifest;
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
@@ -11,6 +13,11 @@ import android.provider.DocumentsContract;
 import android.provider.Settings;
 
 import androidx.activity.result.ActivityResult;
+import androidx.core.app.NotificationManagerCompat;
+import androidx.core.content.ContextCompat;
+import androidx.work.ExistingPeriodicWorkPolicy;
+import androidx.work.PeriodicWorkRequest;
+import androidx.work.WorkManager;
 
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -30,6 +37,9 @@ import java.io.FileOutputStream;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
+
+import org.json.JSONObject;
 
 /**
  * Finds the book files already on the phone (Documents, Download, and folders the user adds), so the library can
@@ -40,8 +50,9 @@ import java.util.Set;
  * on Android 10 and older. The JS reads each found file through Capacitor's local server (convertFileSrc), so the
  * book's bytes never pass through the bridge as base64.
  *
- * Needs in AndroidManifest.xml: MANAGE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE (maxSdkVersion 32) and
+ * Needs in AndroidManifest.xml: POST_NOTIFICATIONS, MANAGE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE (maxSdkVersion 32) and
  * android:requestLegacyExternalStorage="true" on <application>.
+ * Needs in app/build.gradle: androidx.work:work-runtime.
  * Register it in MainActivity: registerPlugin(DeviceBooksPlugin.class) before super.onCreate().
  *
  * JS: status() -> {granted}
@@ -53,20 +64,69 @@ import java.util.Set;
  *     save({name, data}) -> {path, name, size, modified}: starts a new file in the Download folder from base64 `data`
  *       (a name already taken gets " (2)"); save({path, data}) appends the next piece to it. Rejects with "permission"
  *       or "save"
+ *     setBackground({enabled, folders, extensions, known, title, textOne, textMany, channel}) -> {}: turns the scan that
+ *       runs without the app on the screen on or off (BackgroundScanWorker, every ~15 minutes, even when the app is
+ *       closed). `known` is {path: "size|modified"} of what the library already dealt with; the texts are the
+ *       notification's, in the app's language
+ *     notificationStatus() / requestNotifications() -> {granted}: Android 13+ asks for the notification permission
+ *     consumeNotificationTap() -> {tapped}: true once after the app was opened from the "new books" notification
  *     pickFolder() -> {folder?} relative to the root (absent when cancelled); rejects with "not local" for a folder
  *       outside the phone's own storage (SD card, cloud), or "no picker"
  */
 @CapacitorPlugin(
     name = "DeviceBooks",
-    permissions = @Permission(alias = "storage", strings = { Manifest.permission.READ_EXTERNAL_STORAGE })
+    permissions = {
+        @Permission(alias = "storage", strings = { Manifest.permission.READ_EXTERNAL_STORAGE }),
+        @Permission(alias = "notifications", strings = { "android.permission.POST_NOTIFICATIONS" })
+    }
 )
 public class DeviceBooksPlugin extends Plugin {
     private static final int MAX_DEPTH = 8;
     private static final int MAX_FILES = 5000;
 
-    private boolean hasAccess() {
+    /** true while the app's screen is in front; the background scan stays quiet then */
+    private static volatile boolean foreground = false;
+    /** the app was opened from the "new books" notification and the web side has not asked about it yet */
+    private static volatile boolean tapped = false;
+
+    static boolean isInForeground() {
+        return foreground;
+    }
+
+    static boolean hasAccess(Context ctx) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) return Environment.isExternalStorageManager();
-        return getPermissionState("storage") == PermissionState.GRANTED;
+        return ContextCompat.checkSelfPermission(ctx, Manifest.permission.READ_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+    }
+
+    private boolean hasAccess() {
+        return hasAccess(getContext());
+    }
+
+    @Override
+    public void load() {
+        noteTap(getActivity() == null ? null : getActivity().getIntent());
+    }
+
+    @Override
+    protected void handleOnNewIntent(Intent intent) {
+        noteTap(intent);
+    }
+
+    @Override
+    protected void handleOnResume() {
+        foreground = true;
+    }
+
+    @Override
+    protected void handleOnPause() {
+        foreground = false;
+    }
+
+    private static void noteTap(Intent intent) {
+        if (intent != null && intent.getBooleanExtra(BackgroundScanWorker.EXTRA_TAP, false)) {
+            tapped = true;
+            intent.removeExtra(BackgroundScanWorker.EXTRA_TAP);
+        }
     }
 
     private void resolveStatus(PluginCall call) {
@@ -124,17 +184,8 @@ public class DeviceBooksPlugin extends Plugin {
         JSArray extensions = call.getArray("extensions", new JSArray());
         new Thread(() -> {
             try {
-                Set<String> exts = new HashSet<>();
-                for (int i = 0; i < extensions.length(); i++) exts.add(extensions.getString(i).toLowerCase(Locale.ROOT));
-                File root = Environment.getExternalStorageDirectory();
-                String rootPath = root.getCanonicalPath();
-                JSArray files = new JSArray();
-                Set<String> seen = new HashSet<>();
-                for (int i = 0; i < folders.length(); i++) {
-                    walk(new File(root, folders.getString(i)), rootPath, exts, files, seen, 0);
-                }
                 JSObject ret = new JSObject();
-                ret.put("files", files);
+                ret.put("files", collect(folders, extensions));
                 call.resolve(ret);
             } catch (Exception e) {
                 call.reject("scan", e);
@@ -142,8 +193,22 @@ public class DeviceBooksPlugin extends Plugin {
         }).start();
     }
 
+    /** the matching book files in the given folders (relative to the shared storage root); also used by the background scan */
+    static JSArray collect(JSArray folders, JSArray extensions) throws Exception {
+        Set<String> exts = new HashSet<>();
+        for (int i = 0; i < extensions.length(); i++) exts.add(extensions.getString(i).toLowerCase(Locale.ROOT));
+        File root = Environment.getExternalStorageDirectory();
+        String rootPath = root.getCanonicalPath();
+        JSArray files = new JSArray();
+        Set<String> seen = new HashSet<>();
+        for (int i = 0; i < folders.length(); i++) {
+            walk(new File(root, folders.getString(i)), rootPath, exts, files, seen, 0);
+        }
+        return files;
+    }
+
     /** collects the matching files under dir; `seen` keeps overlapping folders (Documents and Documents/Books) from listing a file twice */
-    private void walk(File dir, String rootPath, Set<String> exts, JSArray out, Set<String> seen, int depth) throws Exception {
+    private static void walk(File dir, String rootPath, Set<String> exts, JSArray out, Set<String> seen, int depth) throws Exception {
         if (depth > MAX_DEPTH || out.length() >= MAX_FILES || !dir.isDirectory()) return;
         String path = dir.getCanonicalPath();
         // stay inside the shared storage, never in other apps' private folders, and never loop through a link
@@ -271,6 +336,68 @@ public class DeviceBooksPlugin extends Plugin {
         } catch (Exception e) {
             call.reject("save", e);
         }
+    }
+
+    private boolean notificationsOn() {
+        return NotificationManagerCompat.from(getContext()).areNotificationsEnabled();
+    }
+
+    private void resolveNotifications(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("granted", notificationsOn());
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void notificationStatus(PluginCall call) {
+        resolveNotifications(call);
+    }
+
+    @PluginMethod
+    public void requestNotifications(PluginCall call) {
+        // before Android 13 notifications need no permission (the user can still switch them off in the system settings)
+        if (Build.VERSION.SDK_INT >= 33 && !notificationsOn()) requestPermissionForAlias("notifications", call, "notificationsResult");
+        else resolveNotifications(call);
+    }
+
+    @PermissionCallback
+    private void notificationsResult(PluginCall call) {
+        resolveNotifications(call);
+    }
+
+    @PluginMethod
+    public void consumeNotificationTap(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("tapped", tapped);
+        tapped = false;
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void setBackground(PluginCall call) {
+        Context ctx = getContext();
+        boolean enabled = Boolean.TRUE.equals(call.getBoolean("enabled", false));
+        SharedPreferences.Editor prefs = ctx.getSharedPreferences(BackgroundScanWorker.PREFS, Context.MODE_PRIVATE).edit();
+        prefs.putBoolean("enabled", enabled);
+        WorkManager work = WorkManager.getInstance(ctx);
+        if (enabled) {
+            prefs.putString("folders", call.getArray("folders", new JSArray()).toString());
+            prefs.putString("extensions", call.getArray("extensions", new JSArray()).toString());
+            prefs.putString("title", call.getString("title", "New books found"));
+            prefs.putString("textOne", call.getString("textOne", "A new book was found on this phone."));
+            prefs.putString("textMany", call.getString("textMany", "{n} new books were found on this phone."));
+            prefs.putString("channel", call.getString("channel", "New books"));
+            JSONObject known = call.getObject("known", new JSObject());
+            BackgroundScanWorker.writeJson(ctx, "bg_known.json", known);
+            BackgroundScanWorker.pruneNotified(ctx, known);
+            // KEEP: syncing again must not push the next round back each time
+            work.enqueueUniquePeriodicWork("device-book-scan", ExistingPeriodicWorkPolicy.KEEP,
+                new PeriodicWorkRequest.Builder(BackgroundScanWorker.class, 15, TimeUnit.MINUTES).build());
+        } else {
+            work.cancelUniqueWork("device-book-scan");
+        }
+        prefs.apply();
+        call.resolve();
     }
 
     @PluginMethod

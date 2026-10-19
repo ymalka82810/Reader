@@ -11,6 +11,9 @@ const lib = vi.hoisted(() => ({
   newDeviceFiles: vi.fn(async (f: DeviceFile[]) => f),
   markSeen: vi.fn(async () => {}),
   readDeviceFile: vi.fn(async (f: DeviceFile) => new File(['x'], f.name)),
+  consumeScanNotificationTap: vi.fn(async () => false),
+  requestNotificationAccess: vi.fn(async () => true),
+  syncBackgroundScan: vi.fn(async () => {}),
 }))
 vi.mock('../lib/deviceBooks', () => lib)
 
@@ -131,6 +134,31 @@ describe('useDeviceScan', () => {
     await new Promise((r) => setTimeout(r, 10))
     expect(second.confirm).not.toHaveBeenCalled()
     expect(second.addFiles).not.toHaveBeenCalled()
+    vi.useRealTimers()
+  })
+
+  it('opened from the background scan\'s notification, scans at once even with the automatic scan off', async () => {
+    vi.setSystemTime(Date.now() + 900_000)
+    localStorage.setItem('reader:settings', JSON.stringify({ deviceAutoScan: false }))
+    localStorage.setItem('reader:deviceOffered', '1')
+    lib.consumeScanNotificationTap.mockResolvedValueOnce(true)
+    lib.scanDevice.mockResolvedValue([found('new.epub')])
+    const { confirm } = setup()
+    await vi.waitFor(() => expect(confirm).toHaveBeenCalledTimes(1))
+    expect(lib.scanDevice).toHaveBeenCalled()
+    vi.useRealTimers()
+  })
+
+  it('brings the native background scan up to date when the app opens and when it goes to the background', async () => {
+    vi.setSystemTime(Date.now() + 1_200_000)
+    localStorage.setItem('reader:settings', JSON.stringify({ deviceAutoScan: false }))
+    setup()
+    await vi.waitFor(() => expect(lib.syncBackgroundScan).toHaveBeenCalled())
+    vi.clearAllMocks()
+    const hidden = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(lib.syncBackgroundScan).toHaveBeenCalled()
+    hidden.mockRestore()
     vi.useRealTimers()
   })
 })
