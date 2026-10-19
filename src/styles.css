@@ -68,7 +68,7 @@ select { font: inherit; padding: .4rem .6rem; border-radius: var(--radius-lg); b
 .select-list li { padding: .5rem .7rem; border-radius: var(--radius-md); cursor: pointer; outline: none; }
 .select-list li:hover, .select-list li:focus { background: rgba(49,130,206,.22); }
 .select-list li[aria-selected="true"] { background: var(--accent); color: var(--on-accent); }
-.lib-tools input { flex: 1 1 100%; min-width: 0; padding: .5rem .8rem; border-radius: var(--radius-lg); border: 1px solid rgba(128,128,128,.4); background: transparent; color: inherit; font: inherit; }
+.lib-search { position: sticky; top: var(--lib-header-h, 4rem); z-index: 5; display: block; width: 100%; box-sizing: border-box; margin-bottom: .6rem; box-shadow: 0 0 0 .4rem var(--bg); min-width: 0; padding: .5rem .8rem; border-radius: var(--radius-lg); border: 1px solid rgba(128,128,128,.4); background: var(--bg); color: inherit; font: inherit; }
 .dd { position: relative; }
 .dd-btn { display: flex; align-items: center; gap: .5rem; padding: .5rem .7rem; border-radius: var(--radius-lg); border: 1px solid rgba(128,128,128,.4); background: transparent; color: inherit; font: inherit; white-space: nowrap; cursor: pointer; }
 .dd-btn svg { opacity: .65; transition: transform .15s; }

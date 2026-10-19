@@ -23,8 +23,6 @@ const SORTS: [Sort, string][] = [
 const ANY = '*'
 
 type Props = {
-  query: string
-  onQuery: (q: string) => void
   filter: LibraryFilter
   onFilter: (f: LibraryFilter) => void
   /** file types present in the library; the type picker is hidden when there is only one */
@@ -46,19 +44,26 @@ type Props = {
   onFoldersFirst: (first: boolean) => void
 }
 
-/** search box with the filter, tag and sort pickers right under it */
-export function LibTools({ query, onQuery, filter, onFilter, types, folders, onPickBooks, sort, onSort, tags, tag, onTag, list, onList, foldersFirst, onFoldersFirst }: Props) {
+/** search box, pinned in the library header under the main row */
+export function LibSearch({ query, onQuery }: { query: string; onQuery: (q: string) => void }) {
+  return (
+    <input
+      type="search"
+      className="lib-search"
+      placeholder={t('lib.searchPlaceholder')}
+      aria-label={t('lib.search')}
+      value={query}
+      onChange={(e) => onQuery(e.target.value)}
+    />
+  )
+}
+
+/** filter row (read state, more filters, folder placement, view) that scrolls away beneath the pinned search */
+export function LibTools({ filter, onFilter, types, folders, onPickBooks, sort, onSort, tags, tag, onTag, list, onList, foldersFirst, onFoldersFirst }: Props) {
   const [showMore, setShowMore] = useState(false)
-  const activeMore = (filter.type ? 1 : 0) + (filter.folder !== undefined ? 1 : 0) + (filter.ids.size ? 1 : 0)
+  const activeMore = (filter.type ? 1 : 0) + (filter.folder !== undefined ? 1 : 0) + (filter.ids.size ? 1 : 0) + (filter.smart ? 1 : 0)
   return (
     <div className="lib-tools">
-      <input
-        type="search"
-        placeholder={t('lib.searchPlaceholder')}
-        aria-label={t('lib.search')}
-        value={query}
-        onChange={(e) => onQuery(e.target.value)}
-      />
       <Select
         label={t('filter.label')}
         value={filter.state}
@@ -85,12 +90,16 @@ export function LibTools({ query, onQuery, filter, onFilter, types, folders, onP
         <FolderIcon />
         <span aria-hidden="true">{foldersFirst ? '↑' : '↓'}</span>
       </button>
-      <Select
-        label={t('smart.label')}
-        value={filter.smart || ANY}
-        onChange={(v) => onFilter({ ...filter, smart: v === ANY ? '' : (v as Smart) })}
-        options={[[ANY, t('smart.none')], ...SMARTS.map((x): [string, string] => [x, x === 'stale' ? t('smart.stale') : t('smart.longest')])]}
-      />
+      <button
+        type="button"
+        className="select-btn view-toggle"
+        aria-pressed={list}
+        aria-label={t('view.list')}
+        title={t('view.list')}
+        onClick={() => onList(!list)}
+      >
+        {list ? '☰' : '▦'}
+      </button>
       {tags.length > 0 && (
         <Select
           label={t('tag.filterLabel')}
@@ -104,19 +113,15 @@ export function LibTools({ query, onQuery, filter, onFilter, types, folders, onP
           {t('filter.clear')}
         </button>
       )}
-      <Select label={t('sort.label')} value={sort} onChange={onSort} options={SORTS} />
-      <button
-        type="button"
-        className="select-btn view-toggle"
-        aria-pressed={list}
-        aria-label={t('view.list')}
-        title={t('view.list')}
-        onClick={() => onList(!list)}
-      >
-        {list ? '☰' : '▦'}
-      </button>
       {showMore && (
         <div className="lib-tools-more">
+          <Select
+            label={t('smart.label')}
+            value={filter.smart || ANY}
+            onChange={(v) => onFilter({ ...filter, smart: v === ANY ? '' : (v as Smart) })}
+            options={[[ANY, t('smart.none')], ...SMARTS.map((x): [string, string] => [x, x === 'stale' ? t('smart.stale') : t('smart.longest')])]}
+          />
+          <Select label={t('sort.label')} value={sort} onChange={onSort} options={SORTS} />
           {types.length > 1 && (
             <Select
               label={t('filter.type')}
