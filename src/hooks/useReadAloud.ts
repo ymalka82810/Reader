@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react'
 import type { FoliateRelocateDetail, FoliateView } from 'foliate-js/view.js'
+import { failureOf, loadVoice, speechEngine, type SpeechFailure } from '../lib/speech'
 
 const RATE_KEY = 'reader:tts-rate'
 export const MIN_RATE = 0.5
@@ -7,7 +8,7 @@ export const MAX_RATE = 2.5
 export const RATE_STEP = 0.1
 const HIGHLIGHT = '#ffd54f'
 
-export const readAloudSupported = typeof window !== 'undefined' && 'speechSynthesis' in window
+export const readAloudSupported = !!speechEngine
 
 const clampRate = (r: number) => Math.round(Math.min(MAX_RATE, Math.max(MIN_RATE, r)) * 10) / 10
 
@@ -41,18 +42,27 @@ function segments(ssml: string): { mark?: string; text: string }[] {
   return out
 }
 
+/** the language to read the book in: the reader's guess wins over the book's metadata ('' when unknown) */
+const bookLanguage = (view: FoliateView | null, guess: string): string =>
+  guess || [view?.book.metadata?.language].flat()[0] || ''
+
 interface Deps {
   viewRef: MutableRefObject<FoliateView | null>
   lastDetail: MutableRefObject<FoliateRelocateDetail | null>
   /** primary language subtag of the book, '' when unknown */
   lang: MutableRefObject<string>
+  /** shown in the Android app's notification while reading */
+  title?: string
+  /** the reading stopped on its own for this reason */
+  onFail?: (why: SpeechFailure) => void
 }
 
 /**
- * Reads the book aloud with the device's speech synthesis, sentence by sentence from the top of
- * the screen, highlighting the sentence being spoken and following it across sections.
+ * Reads the book aloud with the device's speech synthesis (the Web Speech API, or Android's own in the app),
+ * sentence by sentence from the top of the screen, highlighting the sentence being spoken and following it
+ * across sections, in the voice chosen for the book's language.
  */
-export function useReadAloud({ viewRef, lastDetail, lang }: Deps) {
+export function useReadAloud({ viewRef, lastDetail, lang, title, onFail }: Deps) {
   const [active, setActive] = useState(false)
   const [rate, setRateState] = useState(loadRate)
   const rateRef = useRef(rate)
@@ -67,7 +77,7 @@ export function useReadAloud({ viewRef, lastDetail, lang }: Deps) {
 
   const stop = useCallback(() => {
     run.current++
-    if (readAloudSupported) speechSynthesis.cancel()
+    speechEngine?.cancel()
     clearMark()
     setActive(false)
   }, [clearMark])
@@ -86,10 +96,12 @@ export function useReadAloud({ viewRef, lastDetail, lang }: Deps) {
   const toggle = useCallback(async () => {
     if (active) return stop()
     const view = viewRef.current
-    if (!view || !readAloudSupported) return
+    const engine = speechEngine
+    if (!view || !engine) return
     const id = ++run.current
     const live = () => id === run.current
     setActive(true)
+    engine.begin(title ?? '')
     try {
       let index = lastDetail.current?.section?.current ?? 0
       const total = lastDetail.current?.section?.total ?? view.book.sections.length
@@ -118,22 +130,19 @@ export function useReadAloud({ viewRef, lastDetail, lang }: Deps) {
         for (const seg of segments(ssml)) {
           if (!live()) break
           if (seg.mark) view.tts.setMark(seg.mark)
-          await new Promise<void>((resolve) => {
-            const u = new SpeechSynthesisUtterance(seg.text)
-            u.rate = rateRef.current
-            const code = lang.current || [view.book.metadata?.language].flat()[0]
-            if (code) u.lang = code
-            u.onend = u.onerror = () => resolve()
-            speechSynthesis.speak(u)
-          })
+          const code = bookLanguage(view, lang.current)
+          // read for every sentence, so a voice picked meanwhile is heard from the next one
+          await engine.speak(seg.text, { rate: rateRef.current, lang: code || undefined, voice: loadVoice(code) || undefined })
         }
         if (live()) ssml = view.tts.next()
       }
     } catch (e) {
-      console.error(e)
+      const why = failureOf(e)
+      if (why && live()) onFail?.(why)
+      else if (!why) console.error(e)
     }
     if (live()) stop()
-  }, [active, stop, viewRef, lastDetail, lang, clearMark])
+  }, [active, stop, viewRef, lastDetail, lang, title, onFail, clearMark])
 
   // leaving the book silences it
   useEffect(() => stop, [stop])

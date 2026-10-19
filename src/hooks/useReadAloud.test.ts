@@ -3,26 +3,28 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FoliateRelocateDetail, FoliateView } from 'foliate-js/view.js'
 
-type Utterance = { text: string; rate: number; lang: string; onend: () => void }
-const spoken: { text: string; rate: number; lang: string }[] = []
+type Utterance = { text: string; rate: number; lang: string; voice: { voiceURI: string } | null; onend: () => void }
+const spoken: { text: string; rate: number; lang: string; voice?: string }[] = []
 const speak = vi.fn((u: Utterance) => {
-  spoken.push({ text: u.text, rate: u.rate, lang: u.lang })
+  spoken.push({ text: u.text, rate: u.rate, lang: u.lang, voice: u.voice?.voiceURI })
   queueMicrotask(() => u.onend())
 })
 const cancel = vi.fn()
+const getVoices = () => [{ voiceURI: 'en-1', name: 'English 1', lang: 'en-US' }]
 class FakeUtterance {
   onend: () => void = () => {}
   onerror: () => void = () => {}
   rate = 1
   lang = ''
+  voice: { voiceURI: string } | null = null
   text: string
   constructor(text: string) {
     this.text = text
   }
 }
 // readAloudSupported is decided when the module loads, so the fakes go in first
-Object.defineProperty(window, 'speechSynthesis', { value: { speak, cancel }, configurable: true })
-vi.stubGlobal('speechSynthesis', { speak, cancel })
+Object.defineProperty(window, 'speechSynthesis', { value: { speak, cancel, getVoices }, configurable: true })
+vi.stubGlobal('speechSynthesis', { speak, cancel, getVoices })
 vi.stubGlobal('SpeechSynthesisUtterance', FakeUtterance)
 
 const { useReadAloud, MAX_RATE, MIN_RATE } = await import('./useReadAloud')
@@ -115,6 +117,14 @@ describe('useReadAloud reading', () => {
     await act(() => result.current.toggle())
     await waitFor(() => expect(result.current.active).toBe(false))
     expect(spoken[0]?.lang).toBe('he')
+  })
+
+  it('reads in the voice chosen for the book language', async () => {
+    localStorage.setItem('reader:tts-voices', JSON.stringify({ en: 'en-1' }))
+    const { result } = setup([[ssml('<mark name="a"/>Hello.')]], 'en-US')
+    await act(() => result.current.toggle())
+    await waitFor(() => expect(result.current.active).toBe(false))
+    expect(spoken[0]?.voice).toBe('en-1')
   })
 
   it('toggling while reading stops the speech', async () => {
