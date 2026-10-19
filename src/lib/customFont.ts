@@ -34,6 +34,23 @@ export async function saveCustomFont(file: File): Promise<CustomFont> {
   return font
 }
 
-/** @font-face rule for the uploaded font */
-export const customFontFace = (f: CustomFont) =>
-  `@font-face { font-family: "${CUSTOM_FONT_FAMILY}"; src: url("${f.dataUrl}"); font-display: swap; }`
+/**
+ * The font as one blob: URL that every chapter's CSS points at, instead of each chapter embedding the whole
+ * file (up to 8MB, a third more as base64) in its own stylesheet. Falls back to the data: URL if the
+ * conversion fails. Pass the result to releaseCustomFontUrl when the reader closes.
+ */
+export async function customFontUrl(f: CustomFont): Promise<string> {
+  try {
+    return URL.createObjectURL(await (await fetch(f.dataUrl)).blob())
+  } catch {
+    return f.dataUrl
+  }
+}
+
+export const releaseCustomFontUrl = (url: string) => {
+  if (url.startsWith('blob:')) URL.revokeObjectURL(url)
+}
+
+/** @font-face rule for the uploaded font at `url` (see customFontUrl) */
+export const customFontFace = (url: string) =>
+  `@font-face { font-family: "${CUSTOM_FONT_FAMILY}"; src: url("${url}"); font-display: swap; }`
