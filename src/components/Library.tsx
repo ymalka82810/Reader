@@ -68,6 +68,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   const [editing, setEditing] = useState<BookMeta>()
   const [editName, setEditName] = useState<BookName>({ series: '', number: '', title: '' })
   const [editLookup, setEditLookup] = useState<{ busy: boolean; note?: string }>({ busy: false })
+  const [editError, setEditError] = useState<string>()
   /** counts the edit dialogs opened, so a lookup that ends after its dialog closed changes nothing */
   const editRun = useRef(0)
   const [identifying, setIdentifying] = useState<{ books: BookMeta[]; online: boolean }>()
@@ -246,6 +247,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
     setEditing(b)
     setEditName(splitBookName(b.title))
     setEditLookup({ busy: false })
+    setEditError(undefined)
     setEditAuthor(b.author || '')
     setEditTags((b.tags ?? []).join(', '))
     setEditPhone(false)
@@ -300,19 +302,44 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
 
   const saveIdentified = async (changes: NameChange[]) => {
     setIdentifying(undefined)
-    for (const c of changes) await updateMeta(c.id, c.title, c.author)
+    // each book is saved on its own, so one that fails does not stop the rest
+    const saved: string[] = []
+    let failure: unknown
+    for (const c of changes) {
+      try {
+        await updateMeta(c.id, c.title, c.author)
+        saved.push(c.id)
+      } catch (e) {
+        failure = e
+      }
+    }
     await refresh()
     exitSelect()
-    showToast(t('identify.saved', { n: changes.length }), undefined, 4000)
-    const { failed } = await autoSyncPhoneNames(changes.map((c) => c.id)).catch(() => ({ renamed: 0, failed: 1 }))
-    if (failed) setError(t('edit.phoneFailed'))
+    const errors: string[] = []
+    if (saved.length < changes.length) {
+      const msg = failure instanceof Error ? failure.message : String(failure)
+      errors.push(t('identify.saveFailed', { n: changes.length - saved.length, msg }))
+    }
+    if (saved.length) {
+      showToast(t('identify.saved', { n: saved.length }), undefined, 4000)
+      const { failed } = await autoSyncPhoneNames(saved).catch(() => ({ renamed: 0, failed: 1 }))
+      if (failed) errors.push(t('edit.phoneFailed'))
+    }
+    if (errors.length) setError(errors.join('\n'))
   }
 
   const saveEdit = async () => {
     if (!editing) return
     const title = formatBookName(editName)
     if (!title) return
-    await updateMeta(editing.id, title, editAuthor.trim(), parseTags(editTags))
+    setEditError(undefined)
+    try {
+      await updateMeta(editing.id, title, editAuthor.trim(), parseTags(editTags))
+    } catch (e) {
+      // the dialog stays open with what was typed, so saving can be tried again
+      setEditError(t('edit.saveFailed', { msg: e instanceof Error ? e.message : String(e) }))
+      return
+    }
     const syncPhone = editPhone && editSync
     const id = editing.id
     editRun.current++
@@ -675,6 +702,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
           knownTags={tags.map((x) => x.name)}
           phoneFile={editPhone ? { sync: editSync, onSync: setEditSync } : undefined}
           identify={{ ...editLookup, run: () => void identifyEditing() }}
+          error={editError}
           onName={setEditName}
           onAuthor={setEditAuthor}
           onTags={setEditTags}

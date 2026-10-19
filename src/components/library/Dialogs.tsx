@@ -313,6 +313,7 @@ export function EditBookDialog({
   knownTags,
   phoneFile,
   identify,
+  error,
   onName,
   onAuthor,
   onTags,
@@ -330,6 +331,8 @@ export function EditBookDialog({
   phoneFile?: { sync: boolean; onSync: (v: boolean) => void }
   /** looks the book up and fills the fields with what was found; `note` says where it came from */
   identify: { busy: boolean; note?: string; run: () => void }
+  /** why the last save failed; shown in the dialog, which stays open so it can be tried again */
+  error?: string
   onName: (v: BookName) => void
   onAuthor: (v: string) => void
   onTags: (v: string) => void
@@ -388,6 +391,11 @@ export function EditBookDialog({
             <input type="checkbox" checked={phoneFile.sync} onChange={(e) => phoneFile.onSync(e.target.checked)} />
             {t('edit.syncPhone')}
           </label>
+        )}
+        {error && (
+          <div className="notice error" role="alert">
+            {error}
+          </div>
         )}
         <div className="modal-actions">
           <button className="primary" onClick={onSave} disabled={!full}>
