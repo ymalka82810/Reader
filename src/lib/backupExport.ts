@@ -1,8 +1,9 @@
-import { getAllProgress, getFile, getNotes, listBooks, type Annotation } from './db'
+import { getAllProgress, getFile, getNotes, listBooks, listFolderNames, type Annotation } from './db'
 import { loadStats } from './stats'
 import { loadReadingHours, loadReadingLog } from './readingLog'
 import { listWords, loadCardStates } from './flashcards'
 import { loadSettings } from './settings'
+import { loadCustomFont } from './customFont'
 import { encryptBlob, encryptChunks } from './encrypt'
 import type { Manifest, ManifestBook } from './backupManifest'
 
@@ -92,6 +93,8 @@ async function buildPlain(onProgress?: (done: number, total: number) => void): P
     readingHours: await loadReadingHours(),
     vocab: await listWords(),
     cardStates: Object.fromEntries(await loadCardStates()),
+    customFont: await loadCustomFont(),
+    folders: await listFolderNames(),
   }
   const headerBytes = new TextEncoder().encode(JSON.stringify(manifest))
   const lenPrefix = new Uint8Array(4)

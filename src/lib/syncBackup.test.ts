@@ -3,8 +3,11 @@ import {
   deleteBook,
   getAllProgress,
   getBook,
+  addFolderName,
   getNotes,
   listBooks,
+  listFolderNames,
+  removeFolderName,
   mergeProgress,
   saveBook,
   saveNotes,
@@ -17,6 +20,7 @@ import { importLibrary } from './backupImport'
 import { loadSettings, saveSettings } from './settings'
 import { addStats, loadStats } from './stats'
 import { addReadingTime, loadReadingLog } from './readingLog'
+import { loadCustomFont, removeCustomFont, restoreCustomFont } from './customFont'
 import { clear, createStore } from 'idb-keyval'
 
 const book = (id: string, extra: Partial<BookRecord> = {}): BookRecord => ({
@@ -42,6 +46,8 @@ const asFile = (b: Blob) => new File([b], 'x.bin')
 async function wipe() {
   for (const b of await listBooks()) await deleteBook(b.id)
   for (const id of Object.keys(await getAllProgress())) await deleteBook(id)
+  for (const name of await listFolderNames()) await removeFolderName(name)
+  await removeCustomFont()
   localStorage.clear()
 }
 
@@ -123,6 +129,39 @@ describe('backup', () => {
     await saveBook(book('other', { title: 'ספר - הכותרת' }))
     expect(await importLibrary(asFile(blob))).toEqual({ restored: 0, skipped: 1 })
     expect((await listBooks()).map((b) => b.id)).toEqual(['other'])
+  })
+  it('round-trips folders the user created, also empty ones, merging with those already here', async () => {
+    await saveBook(book('a'))
+    await addFolderName('Empty shelf')
+    const blob = await exportLibrary()
+    await wipe()
+    await addFolderName('Local')
+    await addFolderName('empty shelf')
+    await importLibrary(asFile(blob))
+    expect(await listFolderNames()).toEqual(['Local', 'empty shelf'])
+    await removeFolderName('empty shelf')
+    await importLibrary(asFile(blob))
+    expect(await listFolderNames()).toEqual(['Local', 'Empty shelf'])
+  })
+  it('round-trips the uploaded font', async () => {
+    await saveBook(book('a'))
+    const font = { name: 'My Font', dataUrl: 'data:font/ttf;base64,AAEAAA==' }
+    await restoreCustomFont(font)
+    saveSettings({ ...loadSettings(), fontFamily: 'custom' })
+    const blob = await exportLibrary()
+    await wipe()
+    await importLibrary(asFile(blob))
+    expect(await loadCustomFont()).toEqual(font)
+    expect(loadSettings().fontFamily).toBe('custom')
+  })
+  it('does not replace a font already on this device', async () => {
+    await saveBook(book('a'))
+    await restoreCustomFont({ name: 'Backup', dataUrl: 'data:font/ttf;base64,AAEA' })
+    const blob = await exportLibrary()
+    await removeCustomFont()
+    await restoreCustomFont({ name: 'Local', dataUrl: 'data:font/woff2;base64,d09G' })
+    await importLibrary(asFile(blob))
+    expect((await loadCustomFont())!.name).toBe('Local')
   })
   it('rejects an unsupported version', async () => {
     const header = new TextEncoder().encode(JSON.stringify({ version: 2, books: [] }))

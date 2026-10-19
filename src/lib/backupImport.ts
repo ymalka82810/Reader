@@ -1,9 +1,10 @@
-import { getNotes, hasBook, listBooks, mergeProgress, saveBook, saveNotes, type BookRecord } from './db'
+import { addFolderName, getNotes, hasBook, listBooks, mergeProgress, saveBook, saveNotes, type BookRecord } from './db'
 import { sameBook } from './sameBook'
 import { mergeStats } from './stats'
 import { mergeReadingHours, mergeReadingLog } from './readingLog'
 import { mergeReview } from './flashcards'
 import { loadSettings, saveSettings } from './settings'
+import { restoreCustomFont } from './customFont'
 import { decryptStream, isEncrypted, PasswordRequiredError } from './encrypt'
 import { CORRUPT, parseManifest } from './backupManifest'
 import { t } from '../i18n'
@@ -121,6 +122,9 @@ export async function importLibrary(
   if (header.readingLog) await mergeReadingLog(header.readingLog)
   if (header.readingHours) await mergeReadingHours(header.readingHours)
   if (header.vocab || header.cardStates) await mergeReview(header.vocab ?? [], header.cardStates ?? {})
+  // folders the user created (also empty ones) are merged by name; the font is needed when the settings point at it
+  for (const name of header.folders ?? []) await addFolderName(name)
+  if (header.customFont) await restoreCustomFont(header.customFont)
   if (header.settings) saveSettings({ ...loadSettings(), ...header.settings })
   return { restored: header.books.length - skipped, skipped }
 }

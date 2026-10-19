@@ -25,6 +25,19 @@ export const loadCustomFont = () => get<CustomFont>(KEY, store).catch(() => unde
 
 export const removeCustomFont = () => del(KEY, store)
 
+/** a font read back from a backup: the data URL must be plain base64, since it goes inside @font-face's url("") */
+export const isCustomFont = (v: unknown): v is CustomFont =>
+  typeof v === 'object' &&
+  v !== null &&
+  typeof (v as CustomFont).name === 'string' &&
+  typeof (v as CustomFont).dataUrl === 'string' &&
+  /^data:[\w.+/-]*;base64,[A-Za-z0-9+/]*={0,2}$/.test((v as CustomFont).dataUrl)
+
+/** stores a font restored from a backup, unless this device already has one of its own */
+export async function restoreCustomFont(font: CustomFont): Promise<void> {
+  if (!(await loadCustomFont())) await set(KEY, { name: font.name, dataUrl: font.dataUrl }, store)
+}
+
 /** stores an uploaded font file; rejects anything that is not a font or is too big */
 export async function saveCustomFont(file: File): Promise<CustomFont> {
   if (!/\.(ttf|otf|woff2?)$/i.test(file.name)) throw new Error(t('font.badType'))

@@ -3,6 +3,7 @@ import type { Annotation, BookRecord, Progress } from './db'
 import type { Stats } from './stats'
 import type { Settings } from './settings'
 import type { CardState, VocabWord } from './flashcards'
+import { isCustomFont, type CustomFont } from './customFont'
 
 /** Container format: [4-byte LE header length][JSON header][concatenated blob bytes].
  *  Keeps the whole library (files, covers, metadata, reading progress) in one file,
@@ -33,6 +34,10 @@ export interface Manifest {
   /** words looked up in the dictionary, and how well each flashcard is known */
   vocab?: VocabWord[]
   cardStates?: Record<string, CardState>
+  /** the font the user uploaded, as stored on the device (a data: URL) */
+  customFont?: CustomFont
+  /** folders the user created, including empty ones */
+  folders?: string[]
 }
 
 export const CORRUPT = t('backup.corrupt')
@@ -85,5 +90,7 @@ export function parseManifest(text: string, bodySize: number): Manifest {
     readingHours: isObj(raw.readingHours) ? (raw.readingHours as Manifest['readingHours']) : undefined,
     vocab: Array.isArray(raw.vocab) ? (raw.vocab as VocabWord[]) : undefined,
     cardStates: isObj(raw.cardStates) ? (raw.cardStates as Manifest['cardStates']) : undefined,
+    customFont: isCustomFont(raw.customFont) ? raw.customFont : undefined,
+    folders: Array.isArray(raw.folders) ? raw.folders.filter((f): f is string => typeof f === 'string' && f.trim() !== '') : undefined,
   }
 }
