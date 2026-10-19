@@ -9,6 +9,7 @@ import { QuoteShareDialog } from './reader/QuoteShareDialog'
 import { SearchPanel } from './reader/SearchPanel'
 import { SettingsPanel } from './reader/SettingsPanel'
 import { ViewModesSection } from './reader/ViewModesSection'
+import { ReadAloudSection } from './reader/ReadAloudSection'
 import { COLOR_NAMES, HIGHLIGHT_COLORS } from './reader/colors'
 import { Icon } from './reader/shared'
 import { Dialog } from './Dialog'
@@ -132,7 +133,7 @@ export default function Reader({ id, startCfi, onClose, onSettings }: { id: stri
     }
   }, [])
 
-  const { status, error, title, dir, toc, bookLang } = useFoliateView(id, host, viewRef, settings, fontUrl ? customFontFace(fontUrl) : '', startCfi, {
+  const { status, error, title, dir, toc, bookLang, lang: language } = useFoliateView(id, host, viewRef, settings, fontUrl ? customFontFace(fontUrl) : '', startCfi, {
     prepare: async () => {
       const [, s] = await Promise.all([notes.load(), loadStats(id)])
       stats.current = s
@@ -251,7 +252,13 @@ export default function Reader({ id, startCfi, onClose, onSettings }: { id: stri
   useEffect(() => {
     if (panel !== 'search' && hitIdx === null) viewRef.current?.clearSearch()
   }, [panel, hitIdx])
-  const speech = useReadAloud({ viewRef, lastDetail, lang: bookLang })
+  const speech = useReadAloud({
+    viewRef,
+    lastDetail,
+    lang: bookLang,
+    title,
+    onFail: (why) => why !== 'interrupted' && flash(t(why === 'no-voice' ? 'reader.ttsNoVoice' : 'reader.ttsUnsupported')),
+  })
   const eye = useEyeScroll({
     enabled: EYE_SCROLL_AVAILABLE && modes.eyeScroll && status === 'ready',
     viewRef,
@@ -675,6 +682,9 @@ export default function Reader({ id, startCfi, onClose, onSettings }: { id: stri
             eyeStatus={eye.status}
             onRecalibrate={eye.recalibrate}
           />
+          {readAloudSupported && (
+            <ReadAloudSection lang={language} rate={speech.rate} reading={speech.active} />
+          )}
         </SettingsPanel>
       )}
     </div>

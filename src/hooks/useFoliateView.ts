@@ -57,6 +57,7 @@ export function useFoliateView(
   const [toc, setToc] = useState<FlatTocItem[]>([])
   /** primary language subtag of the open book ("he", "en", …), '' when unknown */
   const bookLang = useRef('')
+  const [lang, setLang] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -85,6 +86,7 @@ export function useFoliateView(
         setTitle(rec.title)
         const lang = [view.book.metadata?.language].flat()[0]
         bookLang.current = typeof lang === 'string' ? (lang.split(/[-_]/)[0] ?? '').toLowerCase() : ''
+        setLang(bookLang.current)
         fixBookDir(view, bookLang.current, rec.title)
         guardBookEdges(view)
         syncDir()
@@ -134,5 +136,5 @@ export function useFoliateView(
     if (viewRef.current) applySettings(viewRef.current, settings, customFace)
   }, [viewRef, settings, customFace])
 
-  return { status, error, title, dir, toc, bookLang }
+  return { status, error, title, dir, toc, bookLang, lang }
 }

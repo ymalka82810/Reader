@@ -28,8 +28,9 @@ jobs:
       - run: |
           rm -f android/app/src/main/res/mipmap-*/ic_launcher*.png
           cp -r resources/android/. android/app/src/main/res/
-      # Native plugins: self-update (+ install permission, FileProvider path) and the books already on the phone
-      # (+ storage and notification permissions, background scan worker), and versionCode = run number (tag v1.0.<n> ends with it).
+      # Native plugins: self-update (+ install permission, FileProvider path), the books already on the phone
+      # (+ storage and notification permissions, background scan worker), reading aloud (the WebView has no
+      # speechSynthesis), and versionCode = run number (tag v1.0.<n> ends with it).
       - run: |
           pkg=android/app/src/main/java/com/yanivm/reader
           cp resources/android-updater/AppUpdaterPlugin.java $pkg/
@@ -37,9 +38,12 @@ jobs:
           cp resources/android-device-books/BackgroundScanWorker.java $pkg/
           cp resources/android-device-books/ImportKeepAliveService.java $pkg/
           cp resources/android-open-with/OpenWithPlugin.java $pkg/
-          sed -i 's/^public class MainActivity extends BridgeActivity {}$/public class MainActivity extends BridgeActivity {\n    @Override\n    public void onCreate(android.os.Bundle savedInstanceState) {\n        registerPlugin(AppUpdaterPlugin.class);\n        registerPlugin(DeviceBooksPlugin.class);\n        registerPlugin(OpenWithPlugin.class);\n        super.onCreate(savedInstanceState);\n    }\n}/' $pkg/MainActivity.java
+          cp resources/android-tts/NativeTtsPlugin.java $pkg/
+          cp resources/android-tts/ReadAloudService.java $pkg/
+          sed -i 's/^public class MainActivity extends BridgeActivity {}$/public class MainActivity extends BridgeActivity {\n    @Override\n    public void onCreate(android.os.Bundle savedInstanceState) {\n        registerPlugin(AppUpdaterPlugin.class);\n        registerPlugin(DeviceBooksPlugin.class);\n        registerPlugin(OpenWithPlugin.class);\n        registerPlugin(NativeTtsPlugin.class);\n        super.onCreate(savedInstanceState);\n    }\n}/' $pkg/MainActivity.java
           grep -q 'registerPlugin(DeviceBooksPlugin.class)' $pkg/MainActivity.java
           grep -q 'registerPlugin(OpenWithPlugin.class)' $pkg/MainActivity.java
+          grep -q 'registerPlugin(NativeTtsPlugin.class)' $pkg/MainActivity.java
           # "Open with" / share sheet entries for book files, inside MainActivity's <activity>
           python3 - <<'PY'
           p = 'android/app/src/main/AndroidManifest.xml'
@@ -49,20 +53,23 @@ jobs:
           open(p, 'w', encoding='utf-8').write(m.replace('</activity>', f + '        </activity>', 1))
           PY
           grep -q 'android.intent.action.VIEW' android/app/src/main/AndroidManifest.xml
-          sed -i 's#<application#<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />\n    <uses-permission android:name="android.permission.WAKE_LOCK" />\n    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />\n    <application android:requestLegacyExternalStorage="true"#' android/app/src/main/AndroidManifest.xml
+          sed -i 's#<application#<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />\n    <queries><intent><action android:name="android.intent.action.TTS_SERVICE" /></intent></queries>\n    <uses-permission android:name="android.permission.WAKE_LOCK" />\n    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />\n    <application android:requestLegacyExternalStorage="true"#' android/app/src/main/AndroidManifest.xml
           sed -i 's#</paths>#    <external-files-path name="app_update" path="app-update/" />\n</paths>#' android/app/src/main/res/xml/file_paths.xml
           sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"1.0.${{ github.run_number }}\"/" android/app/build.gradle
           grep -q requestLegacyExternalStorage android/app/src/main/AndroidManifest.xml
           grep -q POST_NOTIFICATIONS android/app/src/main/AndroidManifest.xml
-          # keeps the import queue alive while the app is not on the screen
+          # keep the import queue and the reading aloud alive while the app is not on the screen
           python3 - <<'PY'
           p = 'android/app/src/main/AndroidManifest.xml'
           m = open(p, encoding='utf-8').read()
           assert '</application>' in m
-          svc = '        <service android:name=".ImportKeepAliveService" android:exported="false" android:foregroundServiceType="dataSync" />\n    '
+          svc = ('        <service android:name=".ImportKeepAliveService" android:exported="false" android:foregroundServiceType="dataSync" />\n'
+                 '        <service android:name=".ReadAloudService" android:exported="false" android:foregroundServiceType="mediaPlayback" />\n    ')
           open(p, 'w', encoding='utf-8').write(m.replace('</application>', svc + '</application>', 1))
           PY
           grep -q ImportKeepAliveService android/app/src/main/AndroidManifest.xml
+          grep -q ReadAloudService android/app/src/main/AndroidManifest.xml
+          grep -q TTS_SERVICE android/app/src/main/AndroidManifest.xml
           grep -q FOREGROUND_SERVICE_DATA_SYNC android/app/src/main/AndroidManifest.xml
           grep -q "versionCode ${{ github.run_number }}" android/app/build.gradle
       # Release build (smaller, faster, WebView not debuggable), signed with the same fixed key (secrets)
