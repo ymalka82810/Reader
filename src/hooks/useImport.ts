@@ -28,7 +28,7 @@ type Deps = {
 
 type Batch = { done: number; total: number; deadline?: number }
 /** a book still to be added (or being added now), as the screen lists it */
-export type QueueItem = { id: number; name: string; active: boolean }
+type QueueItem = { id: number; name: string; active: boolean }
 type State = {
   /** the queue is working; the library stays usable meanwhile */
   running: boolean
