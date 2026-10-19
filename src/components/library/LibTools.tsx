@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { Select } from '../Select'
-import { FolderIcon } from './FolderIcon'
 import { t } from '../../i18n'
 import type { Tag } from '../../lib/tags'
 import { isFiltering, NO_FILTER, SMARTS, typeLabel, type LibraryFilter, type ReadState, type Smart } from '../../lib/libraryFilter'
@@ -71,6 +70,17 @@ export function LibTools({ query, onQuery, filter, onFilter, types, folders, onP
           <path d={showMore ? 'M1 6.5l5-5 5 5' : 'M1 1.5l5 5 5-5'} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
+      <button
+        type="button"
+        className="select-btn"
+        title={t('folders.position')}
+        onClick={() => onFoldersFirst(!foldersFirst)}
+      >
+        <span>{foldersFirst ? t('folders.top') : t('folders.bottom')}</span>
+        <svg viewBox="0 0 12 8" width="12" height="8" aria-hidden="true">
+          <path d={foldersFirst ? 'M1 6.5l5-5 5 5' : 'M1 1.5l5 5 5-5'} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
       <Select
         label={t('smart.label')}
         value={filter.smart || ANY}
@@ -91,16 +101,6 @@ export function LibTools({ query, onQuery, filter, onFilter, types, folders, onP
         </button>
       )}
       <Select label={t('sort.label')} value={sort} onChange={onSort} options={SORTS} />
-      <button
-        type="button"
-        className="select-btn view-toggle"
-        aria-label={foldersFirst ? t('folders.top') : t('folders.bottom')}
-        title={foldersFirst ? t('folders.top') : t('folders.bottom')}
-        onClick={() => onFoldersFirst(!foldersFirst)}
-      >
-        <FolderIcon />
-        <span aria-hidden="true">{foldersFirst ? '↑' : '↓'}</span>
-      </button>
       <button
         type="button"
         className="select-btn view-toggle"
