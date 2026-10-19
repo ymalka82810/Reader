@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Select } from '../Select'
+import { FolderIcon } from './FolderIcon'
 import { t } from '../../i18n'
 import type { Tag } from '../../lib/tags'
 import { isFiltering, NO_FILTER, SMARTS, typeLabel, type LibraryFilter, type ReadState, type Smart } from '../../lib/libraryFilter'
@@ -72,14 +73,13 @@ export function LibTools({ query, onQuery, filter, onFilter, types, folders, onP
       </button>
       <button
         type="button"
-        className="select-btn"
-        title={t('folders.position')}
+        className="select-btn view-toggle"
+        aria-label={foldersFirst ? t('folders.top') : t('folders.bottom')}
+        title={foldersFirst ? t('folders.top') : t('folders.bottom')}
         onClick={() => onFoldersFirst(!foldersFirst)}
       >
-        <span>{foldersFirst ? t('folders.top') : t('folders.bottom')}</span>
-        <svg viewBox="0 0 12 8" width="12" height="8" aria-hidden="true">
-          <path d={foldersFirst ? 'M1 6.5l5-5 5 5' : 'M1 1.5l5 5 5-5'} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        <FolderIcon />
+        <span aria-hidden="true">{foldersFirst ? '↑' : '↓'}</span>
       </button>
       <Select
         label={t('smart.label')}
