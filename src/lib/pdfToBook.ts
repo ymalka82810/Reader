@@ -1,7 +1,7 @@
 import { t } from '../i18n'
 import type { PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import { ImportError } from './errors'
-import { buildLines, looksTabular, rawItems, readingGroups, type Line } from './pdfLayout'
+import { buildLines, looksTabular, normalizeStreamOrder, rawItems, readingGroups, type Line } from './pdfLayout'
 import { detectHeadings, isBlankPixels, isPoorPage, joinPages, looksReversed, stripRunningLines, toParagraphs } from './pdfText'
 
 const PAGES_PER_SECTION = 8
@@ -171,7 +171,7 @@ export async function extractPdf(
     for (let i = 1; i <= total; i++) {
       signal?.throwIfAborted()
       const p = await pdf.getPage(i)
-      const items = await rawItems(p)
+      const items = normalizeStreamOrder(await rawItems(p))
       if (looksTabular(items)) hasTables = true
       pages.push(readingGroups(items).flatMap(buildLines))
       p.cleanup()

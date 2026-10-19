@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { looksTabular, readingGroups, type Line, type RawItem } from './pdfLayout'
+import { buildLines, looksTabular, normalizeStreamOrder, readingGroups, type Line, type RawItem } from './pdfLayout'
 import { detectHeadings, fixVisual, isBlankPixels, isPoorPage, joinPages, looksReversed, stripRunningLines, toParagraphs } from './pdfText'
 
 const MIRROR: Record<string, string> = { '(': ')', ')': '(' }
@@ -253,5 +253,27 @@ describe('isBlankPixels', () => {
   })
   it('is false once any pixel has ink', () => {
     expect(isBlankPixels(px(255, 255, 255, 255, 200, 255, 255, 255))).toBe(false)
+  })
+})
+
+describe('normalizeStreamOrder', () => {
+  const run = (str: string, x: number, y: number, eol = false): RawItem => ({ str, x, y, w: 40, h: 10, eol })
+  // a Hebrew page of 12 lines x 4 words, words laid out right to left, in reading order
+  const reading = Array.from({ length: 12 }, (_, l) =>
+    Array.from({ length: 4 }, (_, w) => run(`מילה${l}${w}`, 300 - w * 50, 300 - l * 14, w === 3)),
+  ).flat()
+  const text = (items: RawItem[]) => buildLines(items).map((l) => l.text)
+
+  it('leaves a page stored in reading order alone', () => {
+    expect(normalizeStreamOrder(reading)).toBe(reading)
+  })
+  it('puts a page stored back to front into reading order', () => {
+    const backwards = [...reading].reverse()
+    expect(text(normalizeStreamOrder(backwards))).toEqual(text(reading))
+    expect(text(normalizeStreamOrder(backwards))[0]).toBe('מילה00מילה01מילה02מילה03')
+  })
+  it('does not touch a page with too few lines to tell', () => {
+    const few = [run('א', 0, 100), run('ב', 0, 120), run('ג', 0, 140)]
+    expect(normalizeStreamOrder(few)).toBe(few)
   })
 })
