@@ -80,6 +80,18 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
     saveFoldersFirst(v)
   }
   const input = useRef<HTMLInputElement>(null)
+  const header = useRef<HTMLElement>(null)
+  // the search box pins right under the header, whose height varies with the safe area
+  useEffect(() => {
+    const el = header.current
+    if (!el) return
+    const set = () => el.parentElement?.style.setProperty('--lib-header-h', el.offsetHeight + 'px')
+    set()
+    if (typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(set)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
   const restoreInput = useRef<HTMLInputElement>(null)
   const [storage, setStorage] = useState<StorageStatus>()
   const [dismissed, setDismissed] = useState(false)
@@ -282,7 +294,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
       >
         {t('a11y.skip')}
       </a>
-      <header className="lib-header">
+      <header className="lib-header" ref={header}>
         <button className="prefs-open quiet" aria-label={t('prefs.open')} title={t('prefs.open')} onClick={() => setSettingsOpen(true)}>
           ☰
         </button>
@@ -328,7 +340,6 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
             e.target.value = ''
           }}
         />
-        {books.length > 1 && <LibSearch query={query} onQuery={setQuery} />}
       </header>
 
       <main id="lib-content" tabIndex={-1}>
@@ -343,6 +354,8 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
       )}
 
       {resume.length > 0 && <ResumeCarousel books={resume} onOpen={(id) => onOpen(id)} />}
+
+      {books.length > 1 && <LibSearch query={query} onQuery={setQuery} />}
 
       {books.length > 1 && (
         <LibTools
