@@ -6,11 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <!-- Chapter documents are blob: pages and inherit this policy. No 'unsafe-inline' and no blob: in
          script-src keeps scripts inside an EPUB from running (the book iframe is same-origin, so a
-         running script could read the whole library). The CDN hosts are for tesseract.js (OCR). frame-src 'self' is for eye.html, the eye-scrolling
+         running script could read the whole library). frame-src 'self' is for eye.html, the eye-scrolling
          page, which has its own policy. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net; worker-src 'self' blob:; frame-src blob: 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self' blob: data:; media-src 'self' blob: data:; connect-src 'self' blob: data: https://api.github.com https://cdn.jsdelivr.net https://tessdata.projectnaptha.com https://*.githubusercontent.com https://*.wiktionary.org https://api.mymemory.translated.net https://translate.googleapis.com https://lingva.ml https://lingva.thedaviddelta.com; object-src 'none'; base-uri 'self'"
+      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; frame-src blob: 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self' blob: data:; media-src 'self' blob: data:; connect-src 'self' blob: data: https://api.github.com https://*.githubusercontent.com https://*.wiktionary.org https://api.mymemory.translated.net https://translate.googleapis.com https://lingva.ml https://lingva.thedaviddelta.com; object-src 'none'; base-uri 'self'"
     />
     <title>קורא ספרים</title>
     <meta name="theme-color" content="#2b6cb0" media="(prefers-color-scheme: light)" />
