@@ -49,7 +49,7 @@ export const he = {
   'lib.moveBooks': 'העבר ספרים',
   'lib.batchProgress': '{done}/{total} ספרים',
   'lib.batchEstimating': 'מחשב זמן…',
-  'lib.batchRemaining': 'נותרו כ-{n} שניות',
+  'lib.batchRemaining': 'נותרו כ-{time}',
 
   'filter.label': 'סינון',
   'filter.all': 'הכול',
@@ -245,6 +245,11 @@ export const he = {
   'goals.more': 'יותר',
   'time.min': '{m} דק׳',
   'time.hour': '{h} שע׳',
+  'dur.hour': { one: 'שעה', two: 'שעתיים', other: '{n} שעות' },
+  'dur.min': { one: 'דקה', two: 'שתי דקות', other: '{n} דקות' },
+  'dur.sec': { one: 'שנייה', two: 'שתי שניות', other: '{n} שניות' },
+  'dur.and': 'ו{b}',
+  'dur.andNum': 'ו-{b}',
 
   // flashcards (review of looked-up words and highlights)
   'review.title': 'חזרה',
