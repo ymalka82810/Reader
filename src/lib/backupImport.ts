@@ -3,7 +3,7 @@ import { sameBook } from './sameBook'
 import { mergeStats } from './stats'
 import { mergeReadingHours, mergeReadingLog } from './readingLog'
 import { mergeReview } from './flashcards'
-import { loadSettings, saveSettings } from './settings'
+import { mergeBackupSettings } from './settings'
 import { restoreCustomFont } from './customFont'
 import { decryptStream, isEncrypted, PasswordRequiredError } from './encrypt'
 import { CORRUPT, parseManifest } from './backupManifest'
@@ -80,37 +80,42 @@ export async function importLibrary(
     for (let i = 0; i < header.books.length; i++) {
       const { fileType, fileRange, coverType, coverRange, ...rest } = header.books[i]!
       // same id = the very same book, merged below; a different id with the same title and author is a duplicate
-      if (!(await hasBook(rest.id)) && known.some((b) => sameBook(b, rest))) {
+      const exists = await hasBook(rest.id)
+      if (!exists && known.some((b) => sameBook(b, rest))) {
         skipped++
         done = i + 1
         onProgress?.(done, header.books.length)
         continue
       }
-      const fileBlob = await reader.take(base + fileRange[0], base + fileRange[1], fileType)
-      const coverBlob = coverRange ? await reader.take(base + coverRange[0], base + coverRange[1], coverType) : undefined
-      const rec: BookRecord = { ...rest, file: fileBlob, cover: coverBlob }
-      await saveBook(rec)
-      if (!known.some((b) => b.id === rec.id)) known.push(rec)
+      // a book already here keeps its file and details (title, author, tags, folder, read mark), which may have
+      // been edited since the backup; only position, notes and stats are merged into it
+      if (!exists) {
+        const fileBlob = await reader.take(base + fileRange[0], base + fileRange[1], fileType)
+        const coverBlob = coverRange ? await reader.take(base + coverRange[0], base + coverRange[1], coverType) : undefined
+        const rec: BookRecord = { ...rest, file: fileBlob, cover: coverBlob }
+        await saveBook(rec)
+        known.push(rec)
+      }
       // newest reading position wins, so restoring an old backup never rewinds a book
       const prog =
-        header.progress?.[rec.id] ??
-        (rec.cfi
+        header.progress?.[rest.id] ??
+        (rest.cfi
           ? {
-              cfi: rec.cfi,
-              fraction: rec.fraction ?? 0,
-              lastOpened: rec.lastOpened ?? rec.addedAt,
+              cfi: rest.cfi,
+              fraction: rest.fraction ?? 0,
+              lastOpened: rest.lastOpened ?? rest.addedAt,
             }
           : undefined)
-      if (prog) await mergeProgress(rec.id, prog)
-      const incoming = header.notes?.[rec.id]
+      if (prog) await mergeProgress(rest.id, prog)
+      const incoming = header.notes?.[rest.id]
       if (incoming?.length) {
         // merge with notes already on this device, keeping one copy of each
-        const byId = new Map((await getNotes(rec.id)).map((n) => [n.id, n]))
+        const byId = new Map((await getNotes(rest.id)).map((n) => [n.id, n]))
         for (const n of incoming) byId.set(n.id, n)
-        await saveNotes(rec.id, [...byId.values()])
+        await saveNotes(rest.id, [...byId.values()])
       }
-      const st = header.stats?.[rec.id]
-      if (st) await mergeStats(rec.id, st)
+      const st = header.stats?.[rest.id]
+      if (st) await mergeStats(rest.id, st)
       done = i + 1
       onProgress?.(done, header.books.length)
     }
@@ -125,6 +130,6 @@ export async function importLibrary(
   // folders the user created (also empty ones) are merged by name; the font is needed when the settings point at it
   for (const name of header.folders ?? []) await addFolderName(name)
   if (header.customFont) await restoreCustomFont(header.customFont)
-  if (header.settings) saveSettings({ ...loadSettings(), ...header.settings })
+  if (header.settings) mergeBackupSettings(header.settings)
   return { restored: header.books.length - skipped, skipped }
 }
