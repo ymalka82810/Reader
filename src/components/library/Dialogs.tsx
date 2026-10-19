@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Dialog } from '../Dialog'
 import { t } from '../../i18n'
 import { Dropdown } from '../Dropdown'
@@ -7,6 +8,7 @@ import { folderKey, type Folder } from '../../lib/folders'
 import type { DupAsk, DupBatch } from '../../hooks/useImport'
 import type { PwAsk } from '../../hooks/useBackup'
 import type { ConfirmAsk } from '../../hooks/useConfirm'
+import type { FolderDialogState } from '../../hooks/useFolders'
 import { FolderIcon } from './FolderIcon'
 
 export function DuplicateBatchDialog({
@@ -166,9 +168,13 @@ export function MoveDialog({
   folders: Folder[]
   newFolder: string
   onNewFolder: (name: string) => void
-  onMove: (name: string | undefined, created?: boolean) => void
+  onMove: (name: string | undefined, created?: boolean, setAuthor?: boolean) => void
   onCancel: () => void
 }) {
+  // off by default: a folder like "summer reading" must not overwrite the books' authors
+  const [setAuthor, setSetAuthor] = useState(false)
+  // the author only changes for a named folder, never for "no author" or "back to the author"
+  const move = (name: string, created?: boolean) => onMove(name, created, !!name && setAuthor)
   return (
     <div className="modal-backdrop" onClick={onCancel}>
       <Dialog
@@ -185,7 +191,7 @@ export function MoveDialog({
             .filter((f) => !books.every((b) => folderKey(b) === f.key))
             .map((f) => (
               <li key={f.key}>
-                <button onClick={() => onMove(f.name)}>
+                <button onClick={() => move(f.name)}>
                   <FolderIcon /> {f.name || t('folder.noAuthor')} <small>({t('books.count', { n: f.books.length })})</small>
                 </button>
               </li>
@@ -206,12 +212,16 @@ export function MoveDialog({
           <input
             value={newFolder}
             onChange={(e) => onNewFolder(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && newFolder.trim() && onMove(newFolder.trim(), true)}
+            onKeyDown={(e) => e.key === 'Enter' && newFolder.trim() && move(newFolder.trim(), true)}
             placeholder={t('folder.name')}
           />
         </label>
+        <label className="check-row">
+          <input type="checkbox" checked={setAuthor} onChange={(e) => setSetAuthor(e.target.checked)} />
+          {t('move.setAuthor', { n: books.length })}
+        </label>
         <div className="modal-actions">
-          <button className="primary" disabled={!newFolder.trim()} onClick={() => onMove(newFolder.trim(), true)}>
+          <button className="primary" disabled={!newFolder.trim()} onClick={() => move(newFolder.trim(), true)}>
             {t('move.createAndMove')}
           </button>
           <button onClick={onCancel}>{t('common.cancel')}</button>
@@ -227,8 +237,8 @@ export function FolderNameDialog({
   onSave,
   onCancel,
 }: {
-  dialog: { rename?: string; name: string }
-  onChange: (d: { rename?: string; name: string }) => void
+  dialog: FolderDialogState
+  onChange: (d: FolderDialogState) => void
   onSave: () => void
   onCancel: () => void
 }) {
@@ -251,6 +261,12 @@ export function FolderNameDialog({
           {t('folder.name')}
           <input value={dialog.name} onChange={(e) => onChange({ ...dialog, name: e.target.value })} autoFocus />
         </label>
+        {dialog.rename !== undefined && (
+          <label className="check-row">
+            <input type="checkbox" checked={!!dialog.author} onChange={(e) => onChange({ ...dialog, author: e.target.checked })} />
+            {t('folder.renameAuthor')}
+          </label>
+        )}
         <div className="modal-actions">
           <button className="primary" disabled={!dialog.name.trim()} onClick={onSave}>
             {t('common.save')}
