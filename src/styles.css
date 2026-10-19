@@ -212,6 +212,8 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: var(--radius-sm); border:
 .dup-list li { display: flex; gap: .5rem; align-items: center; justify-content: space-between; font-size: .9rem; }
 .modal label.pick-row { flex-direction: row; align-items: center; gap: .6rem; font-size: .9rem; opacity: 1; flex: 1; min-width: 0; cursor: pointer; }
 .pick-row input { flex: none; width: auto; }
+.modal label.check-row { flex-direction: row; align-items: center; gap: .6rem; font-size: .9rem; cursor: pointer; }
+.modal label.check-row input { flex: none; width: auto; padding: 0; }
 .dup-list li span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .dup-list li { padding-bottom: .5rem; border-bottom: 1px solid var(--border-subtle); }
 .dup-list li:last-child { border-bottom: 0; }

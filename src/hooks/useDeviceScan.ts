@@ -46,7 +46,7 @@ export function useDeviceScan({ addFiles, setBusy, setError, showToast, confirm 
 
   const importNew = async (files: DeviceFile[]) => {
     await addFiles(
-      files.map((f) => ({ name: f.name, load: () => readDeviceFile(f) })),
+      files.map((f) => ({ name: f.name, devicePath: f.path, load: () => readDeviceFile(f) })),
       // remembered one by one, so an import cut short (the app closed) carries on with the rest next time
       { skipDuplicates: true, onEach: (i) => void markSeen([files[i]!]).catch((e) => console.warn('device scan: not remembered', e)) },
     )

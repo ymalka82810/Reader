@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { BookMeta } from '../lib/db'
+import { rememberPhoneFile } from '../lib/phoneFiles'
 import { importFile, isAbort, isAlreadyInLibrary, DeferredDuplicate, type DuplicateChoice } from '../lib/importBook'
 import { onLaunchFiles, takeSharedFiles } from '../lib/inbox'
 import { t } from '../i18n'
@@ -9,7 +10,12 @@ export type DupBatch = {
   done: (choices: DuplicateChoice[]) => void
 }
 /** a file read only when its turn comes, so a long batch from the phone isn't held in memory all at once */
-export type LazyFile = { name: string; load: () => Promise<File> }
+export type LazyFile = {
+  name: string
+  load: () => Promise<File>
+  /** a book found on the phone: where its file is, so the file can follow the book's name later */
+  devicePath?: string
+}
 
 export type AddOptions = {
   /** books from a scan of the phone: a book the library already has is skipped without asking or reporting it */
@@ -165,7 +171,7 @@ async function work(run: Run) {
       const f = 'load' in item ? await item.load() : item
       own.signal.throwIfAborted()
       const several = entries.length > 1
-      await importFile(
+      const rec = await importFile(
         f,
         (message) => setState({ message }),
         skipDuplicates
@@ -176,6 +182,7 @@ async function work(run: Run) {
             : (existing) => new Promise<DuplicateChoice>((resolve) => setState({ dupAsk: { file: f.name, existing, answer: resolve } })),
         own.signal,
       )
+      if ('devicePath' in item && item.devicePath) await rememberPhoneFile(rec.id, item.devicePath).catch(() => {})
       await handlers?.refresh() // show each book as soon as it's done
     } catch (e) {
       if (signal.aborted) break // the whole queue was cancelled: not a failure, and not worth reporting per file

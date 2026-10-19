@@ -10,6 +10,8 @@ export type BookActions = {
   onToggle: (id: string) => void
   onEdit: (b: BookMeta) => void
   onMove: (b: BookMeta) => void
+  /** saves this one book's file to the phone (a download in the browser) */
+  onDownload: (b: BookMeta) => void
   onDelete: (b: BookMeta) => void
   refresh: () => void
 }
@@ -17,7 +19,7 @@ export type BookActions = {
 type CardProps = BookActions & { book: BookMeta; picked: boolean }
 
 /** one book's card with its "⋯" actions menu */
-export function BookCard({ book: b, picked, selecting, onOpen, onToggle, onEdit, onMove, onDelete, refresh }: CardProps) {
+export function BookCard({ book: b, picked, selecting, onOpen, onToggle, onEdit, onMove, onDownload, onDelete, refresh }: CardProps) {
   const [menu, setMenu] = useState(false)
   const more = useRef<HTMLButtonElement>(null)
   const close = (refocus = false) => {
@@ -78,6 +80,7 @@ export function BookCard({ book: b, picked, selecting, onOpen, onToggle, onEdit,
                 </button>
                 <button role="menuitem" onClick={() => { close(); onEdit(b) }}>{t('book.editMeta')}</button>
                 <button role="menuitem" onClick={() => { close(); onMove(b) }}>{t('book.moveToFolder')}</button>
+                <button role="menuitem" onClick={() => { close(); onDownload(b) }}>{t('book.saveToPhone')}</button>
                 <div className="menu-sep" role="separator" />
                 <button role="menuitem" className="danger-item" onClick={() => { close(); onDelete(b) }}>{t('common.delete')}</button>
               </div>

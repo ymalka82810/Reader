@@ -31,6 +31,7 @@ const ENTRIES: [PageId, MessageKey, boolean?][] = [
   ['backup', 'prefs.reminderSection'],
   ['backup', 'prefs.storageSection'],
   ['device', 'device.auto', deviceBooksSupported()],
+  ['device', 'device.renameSync', deviceBooksSupported()],
   ['device', 'device.scanNow', deviceBooksSupported()],
   ['device', 'device.folders', deviceBooksSupported()],
   ['goals', 'goals.daily'],

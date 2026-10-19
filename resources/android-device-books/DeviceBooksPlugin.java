@@ -23,7 +23,10 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
 
+import android.util.Base64;
+
 import java.io.File;
+import java.io.FileOutputStream;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
@@ -45,6 +48,11 @@ import java.util.Set;
  *     requestAccess() -> {granted} once the user is back from the system screen or permission dialog
  *     scan({folders, extensions}) -> {files: [{path, name, size, modified}]}; folders are relative to the shared
  *       storage root ("Documents", "Download", "Books/Hebrew"); rejects with "permission" without access
+ *     rename({path, name}) -> {path, name}: renames a file in the shared storage (a name already taken gets " (2)");
+ *       rejects with "permission", "missing" (no such file), "outside" or "rename"
+ *     save({name, data}) -> {path, name, size, modified}: starts a new file in the Download folder from base64 `data`
+ *       (a name already taken gets " (2)"); save({path, data}) appends the next piece to it. Rejects with "permission"
+ *       or "save"
  *     pickFolder() -> {folder?} relative to the root (absent when cancelled); rejects with "not local" for a folder
  *       outside the phone's own storage (SD card, cloud), or "no picker"
  */
@@ -160,6 +168,108 @@ public class DeviceBooksPlugin extends Plugin {
             o.put("modified", f.lastModified());
             out.put(o);
             if (out.length() >= MAX_FILES) return;
+        }
+    }
+
+    /** a file name that cannot climb out of its folder or hide */
+    private static String cleanName(String name) {
+        String n = name == null ? "" : name.replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", "_").trim();
+        while (n.startsWith(".")) n = n.substring(1);
+        return n;
+    }
+
+    /** `name` in `dir`, or "name (2).ext", "name (3).ext"… when that is taken (`self` itself never counts as taken) */
+    private static File freeFile(File dir, String name, File self) {
+        File f = new File(dir, name);
+        int dot = name.lastIndexOf('.');
+        String stem = dot > 0 ? name.substring(0, dot) : name;
+        String ext = dot > 0 ? name.substring(dot) : "";
+        for (int i = 2; f.exists() && !f.equals(self); i++) f = new File(dir, stem + " (" + i + ")" + ext);
+        return f;
+    }
+
+    private boolean insideStorage(File f) throws Exception {
+        String rootPath = Environment.getExternalStorageDirectory().getCanonicalPath();
+        String p = f.getCanonicalPath();
+        return p.startsWith(rootPath + "/") && !p.startsWith(rootPath + "/Android/");
+    }
+
+    @PluginMethod
+    public void rename(PluginCall call) {
+        if (!hasAccess()) {
+            call.reject("permission");
+            return;
+        }
+        try {
+            File from = new File(call.getString("path", ""));
+            String name = cleanName(call.getString("name"));
+            if (name.isEmpty()) {
+                call.reject("rename");
+                return;
+            }
+            if (!insideStorage(from)) {
+                call.reject("outside");
+                return;
+            }
+            if (!from.isFile()) {
+                call.reject("missing");
+                return;
+            }
+            File to = freeFile(from.getParentFile(), name, from);
+            if (!to.equals(from) && !from.renameTo(to)) {
+                call.reject("rename");
+                return;
+            }
+            JSObject ret = new JSObject();
+            ret.put("path", to.getAbsolutePath());
+            ret.put("name", to.getName());
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("rename", e);
+        }
+    }
+
+    @PluginMethod
+    public void save(PluginCall call) {
+        if (!hasAccess()) {
+            call.reject("permission");
+            return;
+        }
+        try {
+            String data = call.getString("data", "");
+            String path = call.getString("path");
+            File f;
+            boolean append = path != null;
+            if (append) {
+                f = new File(path);
+                // only a file this method started: inside the Download folder
+                File dl = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                if (!f.getCanonicalPath().startsWith(dl.getCanonicalPath() + "/") || !f.isFile()) {
+                    call.reject("save");
+                    return;
+                }
+            } else {
+                String name = cleanName(call.getString("name"));
+                if (name.isEmpty()) {
+                    call.reject("save");
+                    return;
+                }
+                File dl = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                //noinspection ResultOfMethodCallIgnored
+                dl.mkdirs();
+                f = freeFile(dl, name, null);
+            }
+            try (FileOutputStream out = new FileOutputStream(f, append)) {
+                out.write(Base64.decode(data, Base64.DEFAULT));
+            }
+            JSObject ret = new JSObject();
+            ret.put("path", f.getAbsolutePath());
+            ret.put("name", f.getName());
+            ret.put("size", f.length());
+            ret.put("modified", f.lastModified());
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("save", e);
         }
     }
 

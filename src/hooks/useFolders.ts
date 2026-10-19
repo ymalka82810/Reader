@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { addFolderName, removeFolderName, renameFolder, setFolder, type BookMeta } from '../lib/db'
+import { autoSyncPhoneNames } from '../lib/phoneFiles'
 import { folderKey, folderToStore, groupFolders, sortFolders, type Folder, type FolderSort } from '../lib/folders'
 import type { Confirm } from './useConfirm'
 import { localeTag, t } from '../i18n'
@@ -71,6 +72,7 @@ export function useFolders({ books, shown, createdNames, searching, refresh, sho
     if (plain.length) await setFolder(plain.map((b) => b.id), undefined)
     if (explicit.length && name !== undefined) await setFolder(explicit.map((b) => b.id), name)
     if (created && name) await addFolderName(name)
+    void autoSyncPhoneNames(list.map((b) => b.id)).catch(() => {})
     exitSelect()
     await refresh()
     showToast(
@@ -83,7 +85,9 @@ export function useFolders({ books, shown, createdNames, searching, refresh, sho
     const name = d?.name.replace(/\s+/g, ' ').trim()
     if (!d || !name) return
     if (d.rename !== undefined) {
+      const inside = books.filter((b) => folderKey(b) === folderKey({ author: d.rename! })).map((b) => b.id)
       await renameFolder(d.rename, name)
+      void autoSyncPhoneNames(inside).catch(() => {})
       setOpenFolder(folderKey({ author: name }))
     } else await addFolderName(name)
     setFolderDialog(undefined)
