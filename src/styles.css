@@ -97,14 +97,14 @@ select { font: inherit; padding: .4rem .6rem; border-radius: var(--radius-lg); b
 .notice-close { flex: none; padding: 0 .5rem; background: transparent; font-size: 1.1rem; line-height: 1.5; }
 .empty { text-align: center; color: var(--fg-muted); margin-top: 20vh; line-height: 1.8; }
 .grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 1rem; }
-.grid li { position: relative; content-visibility: auto; contain-intrinsic-size: auto 280px; }
+.grid li { min-width: 0; position: relative; content-visibility: auto; contain-intrinsic-size: auto 280px; }
 /* content-visibility clips whatever sticks out of the card, so while a book's ⋯ menu is open it must not apply (else the bottom items are cut off and cannot be tapped) */
 .grid li:has(.card-menu) { content-visibility: visible; z-index: 3; }
-.card { width: 100%; padding: 0; text-align: start; background: transparent; display: flex; flex-direction: column; gap: .5rem; }
+.card { width: 100%; min-width: 0; padding: 0; text-align: start; background: transparent; display: flex; flex-direction: column; gap: .5rem; }
 .cover { width: 100%; aspect-ratio: 2/3; object-fit: cover; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); background: #ddd; }
 .cover.placeholder { display: grid; place-items: center; padding: .5rem; text-align: center; font-weight: 700; background: linear-gradient(135deg, #3b6ea5, #1f3b5c); color: #fff; overflow: hidden; container-type: inline-size; }
 .cover.placeholder span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; line-clamp: 6; overflow: hidden; overflow-wrap: break-word; font-size: clamp(.55rem, 15cqw, .95rem); line-height: 1.25; max-width: 100%; }
-.meta { display: flex; flex-direction: column; gap: .15rem; }
+.meta { min-width: 0; overflow-wrap: anywhere; display: flex; flex-direction: column; gap: .15rem; }
 .meta strong { font-size: .95rem; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .meta small { color: var(--fg-muted); }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
@@ -270,6 +270,7 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: var(--radius-sm); border:
 .continue .cover { width: 64px; flex: none; }
 @media (max-width: 480px) { .continue .cover { width: 52px; } .continue-cta { padding: .4rem .7rem; font-size: .9rem; } }
 .continue-info { display: flex; flex-direction: column; gap: .25rem; flex: 1; min-width: 0; }
+.continue-info { overflow-wrap: anywhere; }
 .continue-info small { color: var(--fg-muted); }
 .continue-info strong { font-size: 1.05rem; }
 .continue-progress { display: flex; align-items: center; gap: .5rem; }
