@@ -12,7 +12,7 @@ import {
   syncBackgroundScan,
   type DeviceFile,
 } from '../lib/deviceBooks'
-import { linkKnownBooks } from '../lib/phoneFiles'
+import { linkKnownBooks, refreshPhoneFiles, refreshPhoneFilesOnce } from '../lib/phoneFiles'
 import { loadSettings } from '../lib/settings'
 import type { AddOptions, LazyFile } from './useImport'
 import type { Confirm } from './useConfirm'
@@ -75,6 +75,9 @@ export function useDeviceScan({ addFiles, setBusy, setError, showToast, confirm 
       const scanned = await scanDevice(loadSettings().deviceFolders)
       // books added before the library followed phone files get tied to theirs, quietly
       const linked = await linkKnownBooks(scanned).catch(() => 0)
+      // the names of the books' files on the phone, and the system's index of them, are brought up to date: once
+      // by itself, and every time it is asked for from the settings
+      await (manual ? refreshPhoneFiles() : refreshPhoneFilesOnce()).catch(() => {})
       const all = await newDeviceFiles(scanned)
       setBusy(undefined)
       const found = manual ? all : all.filter((f) => !declined.has(f.path))
