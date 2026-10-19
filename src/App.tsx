@@ -3,19 +3,31 @@ import ErrorBoundary from './components/ErrorBoundary'
 import Library from './components/Library'
 import Reader from './components/Reader'
 import { makeBook } from 'foliate-js/view.js'
-import { getBook, getBookMeta } from './lib/db'
+import { getBookMeta, getFile, setScripted, type BookMeta } from './lib/db'
 import { isScriptedBook } from './lib/sandbox'
+import { t } from './i18n'
 import type { PageId } from './components/settings/SettingsScreen'
 
 const AudioPlayer = lazy(() => import('./components/AudioPlayer'))
 const InteractiveReader = lazy(() => import('./components/InteractiveReader'))
 
-/** an EPUB that declares scripts (an interactive book), which only the sandboxed reader can run */
-async function isInteractive(id: string): Promise<boolean> {
-  const rec = await getBook(id)
-  if (rec?.kind !== 'epub' || rec.fromPdf) return false
-  return isScriptedBook(await makeBook(rec.file))
+/** an EPUB that declares scripts (an interactive book), which only the sandboxed reader can run. Checked when
+ *  the book is added; a book from before that is opened once here and the answer stored. */
+async function isInteractive(m: BookMeta): Promise<boolean> {
+  if (m.kind !== 'epub' || m.fromPdf) return false
+  if (m.scripted !== undefined) return m.scripted
+  const file = await getFile(m.id)
+  if (!file) return false
+  const scripted = isScriptedBook(await makeBook(file))
+  await setScripted(m.id, scripted).catch(() => {})
+  return scripted
 }
+
+const Loading = () => (
+  <div className="overlay-msg" role="status">
+    {t('common.loading')}
+  </div>
+)
 
 export default function App() {
   const [openId, setOpenId] = useState<string | null>(() =>
@@ -49,7 +61,7 @@ export default function App() {
     getBookMeta(openId)
       .then(async (m) => {
         const audio = m?.kind === 'audio'
-        const interactive = !audio && (await isInteractive(openId).catch(() => false))
+        const interactive = !!m && (await isInteractive(m).catch(() => false))
         if (!alive) return
         setAudioId(audio ? openId : null)
         setInteractiveId(interactive ? openId : null)
@@ -62,16 +74,16 @@ export default function App() {
   }, [openId])
 
   if (!openId) return <Library onOpen={open} startSettings={settingsPage} onSettingsClosed={() => setSettingsPage(undefined)} />
-  if (checked !== openId) return null
+  if (checked !== openId) return <Loading />
   const close = () => setOpenId(null)
   return (
     <ErrorBoundary key={openId} onClose={close}>
       {audioId === openId ? (
-        <Suspense fallback={null}>
+        <Suspense fallback={<Loading />}>
           <AudioPlayer id={openId} onClose={close} />
         </Suspense>
       ) : interactiveId === openId && plainId !== openId ? (
-        <Suspense fallback={null}>
+        <Suspense fallback={<Loading />}>
           <InteractiveReader id={openId} onClose={close} onOpenPlain={() => setPlainId(openId)} />
         </Suspense>
       ) : (

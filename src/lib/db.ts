@@ -29,6 +29,8 @@ export interface BookRecord {
   words?: number
   /** labels the user attached; a book can carry several */
   tags?: string[]
+  /** an EPUB that declares scripts (opens in the sandboxed reader), checked when the book is added; unset = books from before */
+  scripted?: boolean
 }
 
 const store = createStore('reader-db', 'books')
@@ -147,6 +149,13 @@ export const setWords = (id: string, words: number) =>
   serial(async () => {
     const b = await get<BookMeta>(id, store)
     if (b) await set(id, { ...b, words }, store)
+  })
+
+/** stores whether a book declares scripts, for books added before that was checked on import */
+export const setScripted = (id: string, scripted: boolean) =>
+  serial(async () => {
+    const b = await get<BookMeta>(id, store)
+    if (b) await set(id, { ...b, scripted }, store)
   })
 
 /** moves books to a folder; `undefined` puts them back under their author. The author is kept unless `setAuthor`
