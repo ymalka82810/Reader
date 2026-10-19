@@ -642,6 +642,7 @@ export const en: Record<keyof typeof he, Message> = {
   'device.scanNowHint': 'Adds the new books from the folders below',
   'device.scanning': 'Scanning the phone…',
   'device.noneNew': 'No new books found on this phone.',
+  'device.linked': { one: 'No new books. One book was tied to its file on the phone.', other: 'No new books. {n} books were tied to their files on the phone.' },
   'device.foundTitle': 'New books found',
   'device.foundText': { one: 'Found one new book on this phone. Add it to the library?', other: 'Found {n} new books on this phone. Add them to the library? Converting PDFs takes a while.' },
   'device.add': 'Add',

@@ -9,6 +9,7 @@ import {
   scanDevice,
   type DeviceFile,
 } from '../lib/deviceBooks'
+import { linkKnownBooks } from '../lib/phoneFiles'
 import { loadSettings } from '../lib/settings'
 import type { AddOptions, LazyFile } from './useImport'
 import type { Confirm } from './useConfirm'
@@ -67,11 +68,14 @@ export function useDeviceScan({ addFiles, setBusy, setError, showToast, confirm 
         manual = true // the user just chose this: show the progress and ask before adding, as from the settings
       }
       if (manual) setBusy(t('device.scanning'))
-      const all = await newDeviceFiles(await scanDevice(loadSettings().deviceFolders))
+      const scanned = await scanDevice(loadSettings().deviceFolders)
+      // books added before the library followed phone files get tied to theirs, quietly
+      const linked = await linkKnownBooks(scanned).catch(() => 0)
+      const all = await newDeviceFiles(scanned)
       setBusy(undefined)
       const found = manual ? all : all.filter((f) => !declined.has(f.path))
       if (!found.length) {
-        if (manual) showToast(t('device.noneNew'), undefined, 4000)
+        if (manual) showToast(linked ? t('device.linked', { n: linked }) : t('device.noneNew'), undefined, 4000)
         return
       }
       // never added by itself: whatever turns up, the user is asked first (a collection can be large, and PDFs take a while each)
