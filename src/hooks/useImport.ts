@@ -3,6 +3,7 @@ import type { BookMeta } from '../lib/db'
 import { rememberPhoneFile } from '../lib/phoneFiles'
 import { importFile, isAbort, isAlreadyInLibrary, DeferredDuplicate, type DuplicateChoice } from '../lib/importBook'
 import { onLaunchFiles, takeSharedFiles } from '../lib/inbox'
+import { startImportService, stopImportService, updateImportService } from '../lib/deviceBooks'
 import { t } from '../i18n'
 
 export type DupBatch = {
@@ -133,6 +134,23 @@ async function work(run: Run) {
       .then((w) => (wake = w))
       .catch((e) => console.warn('wake lock unavailable', e)) // best-effort: importing works without it
   void takeWake()
+  // Android app: a foreground service keeps the app alive while it is not on the screen, so the queue carries on
+  // instead of pausing, and the ongoing notification shows its progress (no-op in the browser)
+  let kept = false
+  const service = startImportService(t('import.bgTitle'), '').then((ok) => (kept = ok))
+  let lastKey = ''
+  let lastAt = 0
+  const unwatch = subscribe(() => {
+    if (!kept) return
+    const b = state.batch
+    const text = state.dupAsk || state.dupBatch ? t('import.bgAsk') : (state.message ?? '')
+    const key = `${b?.done}/${b?.total}|${text}`
+    const now = Date.now()
+    if (key === lastKey || now - lastAt < 1000) return
+    lastKey = key
+    lastAt = now
+    updateImportService(b ? `${t('import.bgTitle')} (${b.done}/${b.total})` : t('import.bgTitle'), text, b?.done ?? 0, b?.total ?? 0)
+  })
   const warn = (e: BeforeUnloadEvent) => e.preventDefault()
   window.addEventListener('beforeunload', warn)
   const deferred: { name: string; err: DeferredDuplicate }[] = []
@@ -148,7 +166,8 @@ async function work(run: Run) {
       continue
     }
     // leaving the tab pauses the queue instead of failing the next file; paused time doesn't count towards the ETA
-    if (document.visibilityState === 'hidden') {
+    if (document.visibilityState === 'hidden') await service // whether the service holds the app decides if the queue pauses
+    if (document.visibilityState === 'hidden' && !kept) {
       const pausedAt = Date.now()
       await new Promise<void>((resolve) => {
         const on = () => {
@@ -230,6 +249,8 @@ async function work(run: Run) {
     }
   }
   window.removeEventListener('beforeunload', warn)
+  unwatch()
+  void service.then((ok) => ok && stopImportService()) // also when the queue ended before the service had started
   void wake?.release().catch(() => {}) // already released by the browser (e.g. tab was hidden): nothing to do
   setState({ running: false, message: undefined, batch: undefined, dupAsk: undefined, queue: [] })
   const error = errors.length ? errors.join('\n') : undefined

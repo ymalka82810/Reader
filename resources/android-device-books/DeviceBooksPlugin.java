@@ -9,6 +9,9 @@ import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.View;
 import android.provider.DocumentsContract;
 import android.provider.Settings;
 
@@ -50,7 +53,8 @@ import org.json.JSONObject;
  * on Android 10 and older. The JS reads each found file through Capacitor's local server (convertFileSrc), so the
  * book's bytes never pass through the bridge as base64.
  *
- * Needs in AndroidManifest.xml: POST_NOTIFICATIONS, MANAGE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE (maxSdkVersion 32) and
+ * Needs in AndroidManifest.xml: FOREGROUND_SERVICE, FOREGROUND_SERVICE_DATA_SYNC, WAKE_LOCK, the ImportKeepAliveService
+ * <service> (foregroundServiceType="dataSync"), POST_NOTIFICATIONS, MANAGE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE (maxSdkVersion 32) and
  * android:requestLegacyExternalStorage="true" on <application>.
  * Needs in app/build.gradle: androidx.work:work-runtime.
  * Register it in MainActivity: registerPlugin(DeviceBooksPlugin.class) before super.onCreate().
@@ -70,6 +74,10 @@ import org.json.JSONObject;
  *       notification's, in the app's language
  *     notificationStatus() / requestNotifications() -> {granted}: Android 13+ asks for the notification permission
  *     consumeNotificationTap() -> {tapped}: true once after the app was opened from the "new books" notification
+ *     startImportService({title, text}) -> {started}: holds the app alive (foreground service, ongoing notification,
+ *       partial wake lock) while the import queue runs with the app not on the screen
+ *     updateImportService({title, text, done, total}) -> {}: the notification's texts and progress bar
+ *     stopImportService() -> {}: the queue is finished or cancelled
  *     pickFolder() -> {folder?} relative to the root (absent when cancelled); rejects with "not local" for a folder
  *       outside the phone's own storage (SD card, cloud), or "no picker"
  */
@@ -120,6 +128,29 @@ public class DeviceBooksPlugin extends Plugin {
     @Override
     protected void handleOnPause() {
         foreground = false;
+        keepWebViewRunning();
+    }
+
+    @Override
+    protected void handleOnStop() {
+        keepWebViewRunning();
+    }
+
+    /** an import queue is running under ImportKeepAliveService */
+    private static volatile boolean importing = false;
+
+    /**
+     * Chromium treats a WebView whose window is hidden as a background page and slows its timers right down. While
+     * the import queue runs with the app not on the screen, tell the WebView its window is still visible (the same
+     * trick cordova-plugin-background-mode uses), so the queue is not throttled.
+     */
+    private void keepWebViewRunning() {
+        if (!importing || getBridge() == null || getActivity() == null) return;
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            if (importing && getBridge() != null && getBridge().getWebView() != null) {
+                getBridge().getWebView().dispatchWindowVisibilityChanged(View.VISIBLE);
+            }
+        }, 1000);
     }
 
     private static void noteTap(Intent intent) {
@@ -397,6 +428,29 @@ public class DeviceBooksPlugin extends Plugin {
             work.cancelUniqueWork("device-book-scan");
         }
         prefs.apply();
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void startImportService(PluginCall call) {
+        boolean started = ImportKeepAliveService.start(getContext(), call.getString("title", ""), call.getString("text", ""));
+        importing = started;
+        JSObject ret = new JSObject();
+        ret.put("started", started);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void updateImportService(PluginCall call) {
+        ImportKeepAliveService.update(getContext(), call.getString("title", ""), call.getString("text", ""),
+            call.getInt("done", 0), call.getInt("total", 0));
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void stopImportService(PluginCall call) {
+        importing = false;
+        ImportKeepAliveService.stop(getContext());
         call.resolve();
     }
 
