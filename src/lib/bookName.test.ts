@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { formatBookName, guessBookName, seriesOf, splitBookName, tidyBookName, withoutAuthor } from './bookName'
+import {
+  formatBookName,
+  guessBookName,
+  isJunkTitle,
+  nameFromOpening,
+  seriesOf,
+  splitBookName,
+  tidyBookName,
+  withoutAuthor,
+} from './bookName'
 
 const EXAMPLES: [string, { series: string; number: string; title: string }][] = [
   ["פרסי ג'קסון 1 - גנב הברק", { series: "פרסי ג'קסון", number: '1', title: 'גנב הברק' }],
@@ -95,5 +104,51 @@ describe('tidyBookName', () => {
     ['המגדל של נירון', 'המגדל של נירון'],
   ])('%s -> %s', (from, to) => {
     expect(tidyBookName(from)).toBe(to)
+  })
+})
+
+describe('isJunkTitle', () => {
+  it.each([
+    ['1~2402 1', true],
+    ['בתהמעמקיםריקריירדן', true],
+    ['', true],
+    ['גורלו של אפולו', false],
+    ['1984', true],
+    ['Dune', false],
+  ])('%s -> %s', (title, junk) => {
+    expect(isJunkTitle(title)).toBe(junk)
+  })
+})
+
+describe('nameFromOpening', () => {
+  const author = 'ריק ריירדן'
+
+  it('reads the series, the number and the title from the title page', () => {
+    const lines = [author, "מגנוס צ'ייס והאלים של אסגרד", 'ספר ראשון', 'להב הקיץ', 'מאנגלית: פלונית', 'הוצאת מרגנית']
+    expect(nameFromOpening(lines, author).name).toEqual({ series: "מגנוס צ'ייס והאלים של אסגרד", number: '1', title: 'להב הקיץ' })
+  })
+
+  it('reads a number and a title on one line, with the article', () => {
+    const lines = ["מחבר סדרת פרסי ג'קסון", 'גורלו של אפולו', 'הספר השלישי: המבוך הבוער']
+    expect(nameFromOpening(lines, author).name).toEqual({ series: 'גורלו של אפולו', number: '3', title: 'המבוך הבוער' })
+  })
+
+  it('reads the English series line of a copyright page', () => {
+    expect(nameFromOpening(['The Trials of Apollo, Book Three: The Burning Maze', 'Rick Riordan'], 'Rick Riordan').name).toEqual({
+      series: 'The Trials of Apollo',
+      number: '3',
+      title: 'The Burning Maze',
+    })
+  })
+
+  it('reads a title page the PDF conversion joined into one line', () => {
+    const lines = ['ריק ריירדן גורלו של אפולו ספר שלישי המבוך הבוער מאנגלית: פלונית']
+    expect(nameFromOpening(lines, author).name).toEqual({ series: 'גורלו של אפולו', number: '3', title: 'המבוך הבוער' })
+  })
+
+  it('offers the short lines as candidates, without the author and the credits', () => {
+    const { name, candidates } = nameFromOpening([author, 'בית האדם', 'תרגום: פלוני', 'כל הזכויות שמורות'], author)
+    expect(name).toBeUndefined()
+    expect(candidates).toEqual(['בית האדם'])
   })
 })

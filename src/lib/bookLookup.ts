@@ -2,13 +2,15 @@
 // file name it was added under) and then completed from Google Books, which needs no key. Only the title and author are
 // sent, and only after the user agreed (consent 'books').
 
-import { guessBookName, seriesOf, tidyBookName, withoutAuthor, type BookName } from './bookName'
+import { guessBookName, isJunkTitle, nameFromOpening, seriesOf, tidyBookName, withoutAuthor, type BookName } from './bookName'
 import { norm } from './sameBook'
 
 export interface Identified extends BookName {
   author: string
   /** whether Google Books found the book; otherwise the result is what the library's own names gave */
   online: boolean
+  /** whether the name was read from the book's opening pages rather than from its title or file name */
+  fromText?: boolean
 }
 
 type VolumeInfo = {
@@ -99,33 +101,47 @@ export async function lookupOnline(want: { title: string; author: string }, sign
 }
 
 /**
- * The book's name in the template and its author. `online` decides whether Google Books is asked: what it finds
- * completes what the library's names gave (a series, a fuller title, a missing author), but never replaces a series or
- * an author the library already has. A failed lookup falls back to the library's names; only an abort rejects.
+ * The book's name in the template and its author. It is read from the library's names, and when they hold no series or
+ * say nothing ("1~2402 1"), from the book's opening lines (`opening`, see lib/bookText). `online` decides whether Google
+ * Books is asked, by that name and then by the opening's lines that may be the title: what it finds completes the name (a
+ * series, a fuller title, a missing author), but never replaces a series or an author already known. A failed lookup
+ * falls back to what was read; only an abort rejects.
  */
 export async function identifyBook(
   b: { title: string; author: string; fileName: string },
   online: boolean,
   signal?: AbortSignal,
+  opening: string[] = [],
 ): Promise<Identified> {
   const local = identifyLocally(b)
-  const mine: Identified = { ...local, author: b.author.trim(), online: false }
+  const read = opening.length ? nameFromOpening(opening, b.author) : { candidates: [] as string[] }
+  // a Hebrew book keeps a Hebrew name, rather than the original's name from its copyright page
+  const hebrewBook = hebrew(b.title) || opening.some(hebrew)
+  const fromText = !!read.name && (!hebrewBook || hebrew(read.name.title)) && (!local.series || isJunkTitle(local.title))
+  const base: BookName = fromText ? read.name! : local
+  const mine: Identified = { ...base, author: b.author.trim(), online: false, ...(fromText && { fromText }) }
   if (!online) return mine
+  const known = !isJunkTitle(base.title)
+  const wants = [...(known ? [base.title] : []), ...read.candidates.filter((c) => norm(c) !== norm(base.title))].slice(0, 4)
   let found: Identified | undefined
-  try {
-    found = await lookupOnline({ title: local.title, author: b.author }, signal)
-  } catch (e) {
-    if (signal?.aborted) throw e
-    console.warn(e)
+  for (const title of wants) {
+    try {
+      found = await lookupOnline({ title, author: b.author }, signal)
+    } catch (e) {
+      if (signal?.aborted) throw e
+      console.warn(e)
+      break
+    }
+    if (found) break
   }
   if (!found) return mine
   return {
-    series: local.series || found.series,
-    number: local.series ? local.number : found.number,
-    // a fuller title ("הארי פוטר ואבן" -> "הארי פוטר ואבן החכמים"), never a shorter one
-    title: norm(found.title).includes(norm(local.title)) ? found.title : local.title,
+    series: base.series || found.series,
+    number: base.series ? base.number : found.number,
+    // a fuller title ("הארי פוטר ואבן" -> "הארי פוטר ואבן החכמים"), never a shorter one; any title over one that says nothing
+    title: !known || norm(found.title).includes(norm(base.title)) ? found.title : base.title,
     // a Hebrew book keeps a Hebrew author name, rather than the original's "Rick Riordan"
-    author: mine.author || (hebrew(found.author) === hebrew(local.title) ? found.author : ''),
+    author: mine.author || (hebrew(found.author) === (known ? hebrew(base.title) : hebrewBook) ? found.author : ''),
     online: true,
   }
 }

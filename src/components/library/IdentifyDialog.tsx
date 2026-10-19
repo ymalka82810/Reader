@@ -3,11 +3,12 @@ import { Dialog } from '../Dialog'
 import type { BookMeta } from '../../lib/db'
 import { formatBookName } from '../../lib/bookName'
 import { identifyBook } from '../../lib/bookLookup'
+import { openingLines } from '../../lib/bookText'
 import { t } from '../../i18n'
 
 export type NameChange = { id: string; title: string; author: string }
 
-type Suggestion = NameChange & { was: string; online: boolean; pick: boolean }
+type Suggestion = NameChange & { was: string; online: boolean; fromText: boolean; pick: boolean }
 
 /** Identifies the books one after another and offers the new names; only the ticked ones are saved. */
 export function IdentifyDialog({
@@ -29,12 +30,15 @@ export function IdentifyDialog({
     const ac = new AbortController()
     void (async () => {
       for (const b of books) {
-        const r = await identifyBook(b, online, ac.signal).catch(() => undefined)
+        // the opening pages are read too: they name the book when its file name does not
+        const opening = await openingLines(b, ac.signal).catch(() => [])
+        if (ac.signal.aborted) return
+        const r = await identifyBook(b, online, ac.signal, opening).catch(() => undefined)
         if (ac.signal.aborted) return
         const title = r && formatBookName(r)
         const author = r?.author ?? ''
         if (r && title && (title !== b.title || author !== (b.author ?? '').trim())) {
-          setFound((f) => [...f, { id: b.id, title, author, was: b.title, online: r.online, pick: true }])
+          setFound((f) => [...f, { id: b.id, title, author, was: b.title, online: r.online, fromText: !!r.fromText, pick: true }])
         }
         setDone((n) => n + 1)
       }
@@ -68,7 +72,7 @@ export function IdentifyDialog({
                   <span className="identify-item">
                     <span>{f.title}</span>
                     <small className="muted">
-                      {[f.author, f.online ? t('identify.fromWeb') : t('identify.fromName')].filter(Boolean).join(' · ')}
+                      {[f.author, f.online ? t('identify.fromWeb') : f.fromText ? t('identify.fromText') : t('identify.fromName')].filter(Boolean).join(' · ')}
                     </small>
                     {f.was !== f.title && <small className="muted identify-was">{f.was}</small>}
                   </span>

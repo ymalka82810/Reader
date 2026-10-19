@@ -47,13 +47,30 @@ const ORDINALS: [RegExp, string][] = [
   [/^third$/i, '3'],
   [/^fourth$/i, '4'],
   [/^fifth$/i, '5'],
+  [/^sixth$/i, '6'],
+  [/^seventh$/i, '7'],
+  [/^eighth$/i, '8'],
+  [/^ninth$/i, '9'],
+  [/^tenth$/i, '10'],
+  [/^one$/i, '1'],
+  [/^two$/i, '2'],
+  [/^three$/i, '3'],
+  [/^four$/i, '4'],
+  [/^five$/i, '5'],
+  [/^six$/i, '6'],
+  [/^seven$/i, '7'],
+  [/^eight$/i, '8'],
+  [/^nine$/i, '9'],
+  [/^ten$/i, '10'],
 ]
 
 /** "3", "03", "#3", "שלישי" or "third" as "3"; undefined for anything else */
 function numberOf(word: string): string | undefined {
   const w = word.replace(/^#/, '')
   if (/^\d{1,3}$/.test(w)) return String(Number(w))
-  return ORDINALS.find(([re]) => re.test(w))?.[1]
+  // "השלישי" is "שלישי" with the article
+  const bare = /^ה[\u05D0-\u05EA]{3,}$/u.test(w) ? w.slice(1) : w
+  return ORDINALS.find(([re]) => re.test(w) || re.test(bare))?.[1]
 }
 
 const NUM = String.raw`(#?\d{1,3}|[\p{L}]+)`
@@ -151,4 +168,77 @@ export function tidyBookName(text: string): string {
   const comma = /^(.+?\s\d{1,3}),\s+(.+)$/u.exec(s)
   if (comma) s = `${comma[1]} - ${comma[2]}`
   return s
+}
+
+/** a title that says nothing about the book: no word at all ("1~2402 1"), or words run together into one ("בתהמעמקיםריקריירדן") */
+export function isJunkTitle(title: string): boolean {
+  const words = fold(title)
+    .split(' ')
+    .filter((w) => /\p{L}{2}/u.test(w))
+  return !words.length || (words.length === 1 && words[0]!.length >= 14)
+}
+
+// lines of a title page that are not the book's name: the publisher, the credits, the copyright notice, the author's other books
+const CREDIT =
+  /מרגנית|הוצא(?:ת|ה)|תרגו?ם|תרגמ|מאנגלית|מצרפתית|מגרמנית|עריכ|עורכ|עיצוב|עטיפ|איור|הגהה|כל הזכויות|©|isbn|copyright|all rights|printed|published|translated|edition|מהדורה|נדפס|מודפס|דפוס|www\.|https?:|@|טל[׳']|^מאת\b|^מחבר|^מחברת|^מאותו|^ספרים נוספים|^עוד ספרים|^רב[-־ ]?המכר|^בסדרה|^תוכן|^contents|^chapter|^פרק\b/iu
+
+const HEBREW = /[\u05D0-\u05EA]/
+
+const ORDINAL_WORD = String.raw`(?:ה?(?:ראשו(?:ן|נה)|שני(?:ה|יה)?|שלישי(?:ת)?|רביעי(?:ת)?|חמישי(?:ת)?|שישי(?:ת)?|שביעי(?:ת)?|שמיני(?:ת)?|תשיעי(?:ת)?|עשירי(?:ת)?)|\d{1,3})`
+const BOOK_PHRASE = new RegExp(String.raw`\s*((?:ה?ספר|ה?כרך)\s+${ORDINAL_WORD})(?![\p{L}\d])\s*[-–—:,.]?\s*`, 'u')
+const CREDIT_TAIL = /\s+(?:מאנגלית|מצרפתית|מגרמנית|תרגום|תרגמה|תרגם|הוצאת|עריכה|עריכת|עיצוב)(?=[\s:])[\s\S]*$/u
+
+/** A title page whose lines the PDF conversion joined into one ("ריק ריירדן גורלו של אפולו ספר שלישי המבוך הבוער מאנגלית: …")
+ *  back in its lines: split at the author's name and at "ספר שלישי", and without the credits that follow. */
+function pieces(line: string, author: string): string[] {
+  const a = clean(author)
+  return (a ? line.split(a) : [line])
+    .flatMap((p) => p.split(BOOK_PHRASE))
+    .map((p) => clean(p.replace(CREDIT_TAIL, '').replace(/^(?:מאת|by)\s+/iu, '')))
+    .filter(Boolean)
+}
+
+/** "ספר שלישי", "הספר השלישי", "כרך 2", "ספר ראשון: להב הקיץ": the number, and the title when it is on the same line */
+function bookLine(line: string): { number: string; title: string } | undefined {
+  const m = new RegExp(String.raw`^(?:ה?ספר|ה?כרך)\s+(ה?[\p{L}]+|#?\d{1,3})(?:\s*[-–—:,.]\s*(.+))?$`, 'u').exec(line)
+  const number = m && numberOf(m[1]!)
+  return number ? { number, title: clean(m[2] ?? '') } : undefined
+}
+
+/**
+ * Reads a book's name out of its opening lines (title page, half-title, copyright page). Its name is found when the book
+ * says which one it is in its series: "גורלו של אפולו / ספר שלישי / המבוך הבוער", or the template, or "גנב הברק (פרסי
+ * ג'קסון #1)" on one line. `candidates` are the short lines that may be its title, for a search when the name is not read.
+ */
+export function nameFromOpening(lines: string[], author: string): { name?: BookName; candidates: string[] } {
+  const a = fold(author)
+  const kept = lines
+    .flatMap((l) => pieces(clean(l.replace(/_+/g, ' ')), author))
+    .filter((l) => l && l.length <= 70 && /\p{L}{2}/u.test(l) && !CREDIT.test(l))
+    .filter((l) => !a || (fold(l) !== a && !fold(l).includes(a)))
+  const short = (l: string) => l.length <= 45 && l.split(' ').length <= 8 && !bookLine(l)
+
+  let name: BookName | undefined
+  for (let i = 0; i < kept.length && !name; i++) {
+    const b = bookLine(kept[i]!)
+    if (!b) continue
+    const series = [...kept.slice(Math.max(0, i - 3), i)].reverse().find((l) => short(l) && HEBREW.test(l) === HEBREW.test(kept[i]!))
+    const title = b.title || kept.slice(i + 1, i + 3).find(short) || ''
+    if (series && title && fold(series) !== fold(title)) name = { series: clean(series.replace(/^(?:מתוך )?(?:ה?סדר(?:ה|ת))\s+/u, '')), number: b.number, title }
+  }
+  if (!name) {
+    // a whole name on one line, Hebrew before English
+    const named = kept
+      .filter((l) => l.length <= 70)
+      .map((l) => guessBookName(tidyBookName(l)))
+      .filter((n) => n.series && n.title)
+    name = named.find((n) => HEBREW.test(n.title)) ?? named[0]
+  }
+  const seen = new Set<string>()
+  const candidates = kept
+    .filter(short)
+    .filter((l) => l.length >= 3 && !seen.has(fold(l)) && seen.add(fold(l)))
+    .sort((x, y) => Number(HEBREW.test(y)) - Number(HEBREW.test(x)))
+    .slice(0, 6)
+  return { name, candidates }
 }
