@@ -26,7 +26,7 @@ import { wordsOfFile } from '../lib/wordCount'
 import { bookType, byLength, isFiltering, isStale, longestOf, NO_FILTER, typesOf, type LibraryFilter } from '../lib/libraryFilter'
 import { folderKey, groupFolders } from '../lib/folders'
 import { BookGrid } from './library/BookGrid'
-import { readListView, saveListView } from '../lib/listView'
+import { readFoldersFirst, readListView, saveFoldersFirst, saveListView } from '../lib/listView'
 import { NoteHits } from './library/NoteHits'
 import { ResumeCarousel } from './library/ResumeCarousel'
 import { FolderBar, FolderList } from './library/FolderBar'
@@ -66,6 +66,11 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   const changeList = (v: boolean) => {
     setList(v)
     saveListView(v)
+  }
+  const [foldersFirst, setFoldersFirst] = useState(readFoldersFirst)
+  const changeFoldersFirst = (v: boolean) => {
+    setFoldersFirst(v)
+    saveFoldersFirst(v)
   }
   const input = useRef<HTMLInputElement>(null)
   const restoreInput = useRef<HTMLInputElement>(null)
@@ -188,7 +193,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
 
   // searching or filtering by tag looks through every folder at once
   const searching = !!query.trim() || !!activeTag
-  const fo = useFolders({ books, shown, createdNames, searching, refresh, showToast, exitSelect, deleteBooks, confirm })
+  const fo = useFolders({ books, shown, createdNames, searching, refresh, showToast, exitSelect, deleteBooks, confirm, sort, foldersFirst })
   const { folders, current } = fo
   const inFolderList = !searching && !current
   const pickedFolders = folders.filter((f) => selectedFolders.has(f.key))
@@ -328,6 +333,8 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
           onTag={setTag}
           list={list}
           onList={changeList}
+          foldersFirst={foldersFirst}
+          onFoldersFirst={changeFoldersFirst}
         />
       )}
 
