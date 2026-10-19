@@ -408,7 +408,6 @@ i.lv4 { background: var(--accent) !important; }
 .grid.list .card-menu { top: calc(50% + 26px); }
 .grid.list .sel-mark { top: 50%; transform: translateY(-50%); inset-inline-start: auto; inset-inline-end: 10px; }
 .lib-tools .select-btn.view-toggle { flex: none; width: 2.6rem; justify-content: center; padding-inline: 0; }
-.lib-tools .select-btn.view-toggle:has(.folder-svg) { width: auto; gap: .15rem; padding-inline: .6rem; }
 .lib-tools .select-btn > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 600px) { .lib-tools .select-btn:not(.view-toggle) { flex: 1 1 40%; } }
 .select-btn[aria-pressed="true"] { background: rgba(49,130,206,.18); }

@@ -78,6 +78,7 @@ export const en: Record<keyof typeof he, Message> = {
   'view.list': 'List view',
   'folders.top': 'Folders on top',
   'folders.bottom': 'Folders at the bottom',
+  'folders.position': 'Where folders go relative to single books',
   'sort.label': 'Sort',
   'sort.recent': 'Recently opened',
   'sort.added': 'Recently added',
