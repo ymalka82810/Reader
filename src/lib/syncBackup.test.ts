@@ -8,6 +8,9 @@ import {
   mergeProgress,
   saveBook,
   saveNotes,
+  setFinished,
+  setFolder,
+  updateMeta,
   updateProgress,
   type Annotation,
   type BookRecord,
@@ -124,6 +127,31 @@ describe('backup', () => {
     expect(await importLibrary(asFile(blob))).toEqual({ restored: 0, skipped: 1 })
     expect((await listBooks()).map((b) => b.id)).toEqual(['other'])
   })
+  it('keeps details and the file edited on this device after the backup', async () => {
+    await saveBook(book('a'))
+    const blob = await exportLibrary()
+    await setFolder(['a'], 'Shelf')
+    await updateMeta('a', 'New title', 'New author', ['fav'])
+    await setFinished('a', true)
+    await saveBook({ ...(await getBook('a'))!, file: new Blob(['local-file']) })
+    expect(await importLibrary(asFile(blob))).toEqual({ restored: 1, skipped: 0 })
+    const a = (await getBook('a'))!
+    expect(a).toMatchObject({ title: 'New title', author: 'New author', tags: ['fav'], folder: 'Shelf', finished: true })
+    expect(await a.file.text()).toBe('local-file')
+  })
+  it('still merges position and notes into a book that already exists', async () => {
+    await saveBook(book('a'))
+    await updateProgress('a', 'remote', 0.7)
+    await saveNotes('a', [note('n1')])
+    const blob = await exportLibrary()
+    await wipe()
+    await saveBook(book('a', { title: 'Renamed' }))
+    await importLibrary(asFile(blob))
+    const a = (await getBook('a'))!
+    expect(a.title).toBe('Renamed')
+    expect(a.cfi).toBe('remote')
+    expect(await getNotes('a')).toHaveLength(1)
+  })
   it('rejects an unsupported version', async () => {
     const header = new TextEncoder().encode(JSON.stringify({ version: 2, books: [] }))
     const len = new Uint8Array(4)
@@ -140,6 +168,15 @@ describe('backup as sync between devices', () => {
     localStorage.clear()
     await importLibrary(asFile(blob))
     expect(loadSettings()).toMatchObject({ theme: 'dark', fontSize: 28 })
+  })
+  it('keeps settings changed on this device and takes only those still at their default', async () => {
+    await saveBook(book('a'))
+    saveSettings({ ...loadSettings(), theme: 'dark', fontSize: 28 })
+    const blob = await exportLibrary()
+    localStorage.clear()
+    saveSettings({ ...loadSettings(), fontSize: 18 })
+    await importLibrary(asFile(blob))
+    expect(loadSettings()).toMatchObject({ theme: 'dark', fontSize: 18 })
   })
   it('moves newer positions and new notes onto a device that already has the book', async () => {
     await saveBook(book('a'))
