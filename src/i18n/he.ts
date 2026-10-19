@@ -273,6 +273,8 @@ export const he = {
   'import.converting': 'ממיר ל-EPUB…',
   'import.pdfConverting': 'ה-PDF מומר ל-EPUB ומאבד פריסה, עמודות, טבלאות ותמונות. מתאים לטקסט פשוט בלבד. ממיר…',
   'import.pdfTables': 'זוהו טבלאות: ה-PDF נשמר כמו שהוא, בלי המרה.',
+  'import.pdfLarge': 'קובץ ה-PDF גדול מ-20MB: הוא נשמר כמו שהוא, בלי המרה.',
+  'import.cancelling': 'מבטל…',
   'import.reading': 'קורא את הספר…',
   'import.cancel': 'ביטול ההוספה',
   'import.cancelAll': 'ביטול הכל',

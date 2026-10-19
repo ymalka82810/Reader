@@ -6,9 +6,10 @@ interface Countable {
 }
 
 /** words in the reading text of a book opened by foliate-js; sections without a document (images, PDF pages) add none */
-export async function wordsOfBook(book: Countable): Promise<number> {
+export async function wordsOfBook(book: Countable, signal?: AbortSignal): Promise<number> {
   let n = 0
   for (const s of book.sections ?? []) {
+    signal?.throwIfAborted() // a cancelled import stops counting at once
     if (s.linear === 'no' || !s.createDocument) continue
     try {
       n += countWords((await s.createDocument()).body?.textContent ?? '')

@@ -110,6 +110,7 @@ function cancelOne(id: number) {
 
 /** stops the queue: the book in progress is dropped without a trace, the ones already added stay, the rest are not read */
 function cancel() {
+  if (current) setState({ message: t('import.cancelling'), batch: undefined, queue: [] }) // shown at once, before the work behind it winds down
   current?.ctrl.abort()
   // a question waiting for an answer would hold the queue open
   state.dupAsk?.answer('skip')
