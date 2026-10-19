@@ -20,6 +20,31 @@ export interface RawItem {
   eol: boolean
 }
 
+/**
+ * Some PDFs (typically produced by tools that mirror Hebrew text) store the page back to front: the
+ * last word of the page first. Read in stream order the words, and the lines, then come out reversed.
+ * When the runs clearly move up the page instead of down it, put them back in reading order.
+ * Run-level "end of line" marks belong to the old order and are dropped; baselines decide the lines.
+ */
+export function normalizeStreamOrder(items: RawItem[]): RawItem[] {
+  let down = 0
+  let up = 0
+  let prev: RawItem | null = null
+  for (const it of items) {
+    if (!it.str.trim()) continue
+    if (prev) {
+      const dy = it.y - prev.y
+      if (Math.abs(dy) > Math.max(it.h, prev.h) * 0.5) {
+        if (dy < 0) down++
+        else up++
+      }
+    }
+    prev = it
+  }
+  if (up < 8 || up < down * 3) return items
+  return [...items].reverse().map((it) => ({ ...it, eol: false }))
+}
+
 /** Merge consecutive same-baseline runs into lines, in content-stream order. */
 export function buildLines(items: RawItem[]): Line[] {
   const lines: Line[] = []
