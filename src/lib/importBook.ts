@@ -39,6 +39,33 @@ const isNative = (f: File) => /\.(mobi|azw3?|fb2|fbz|fb2\.zip|cbz)$/i.test(f.nam
 const lowerName = (f: File) =>
   f.name === f.name.toLowerCase() ? f : new File([f], f.name.toLowerCase(), { type: f.type })
 
+/** a PDF bigger than this is kept as the PDF itself: converting it to EPUB would take too long and too much memory */
+export const LARGE_PDF_BYTES = 20 * 1024 * 1024
+
+/**
+ * Settles at once when the signal aborts, even if the work behind the promise is stuck in a step that
+ * cannot be interrupted (parsing, zipping, counting). That work is left to stop at its next checkpoint,
+ * and since nothing is saved after an abort, nothing of it remains.
+ */
+function abortable<T>(work: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return work
+  return new Promise<T>((resolve, reject) => {
+    if (signal.aborted) return reject(signal.reason)
+    const onAbort = () => reject(signal.reason)
+    signal.addEventListener('abort', onAbort, { once: true })
+    work.then(
+      (v) => {
+        signal.removeEventListener('abort', onAbort)
+        resolve(v)
+      },
+      (e) => {
+        signal.removeEventListener('abort', onAbort)
+        reject(e)
+      },
+    )
+  })
+}
+
 /** a cancelled import: the book in progress is dropped, nothing of it is saved */
 export const isAbort = (e: unknown) => e instanceof DOMException && e.name === 'AbortError'
 
@@ -76,7 +103,7 @@ export async function importFile(
     throw new ImportError(t('import.unsupported'))
   try {
     if (await hasDrm(file)) throw new ImportError(t('err.drm'))
-    return await readIntoLibrary(file, onProgress, onDuplicate, signal)
+    return await abortable(readIntoLibrary(file, onProgress, onDuplicate, signal), signal)
   } catch (e) {
     if (e instanceof DeferredDuplicate) throw e
     if (signal?.aborted) throw signal.reason // cancelled by the user: not a failure to explain
@@ -109,6 +136,7 @@ async function readIntoLibrary(
 
   let epub = file
   let fromPdf = false
+  let largePdf = false
   let audio: AudioInfo | undefined
   let cover: Blob | undefined
   let title: string
@@ -132,7 +160,12 @@ async function readIntoLibrary(
   // Converters pull in pdf.js / JSZip, so they load only when an import actually needs them.
   const { makeBook } = await import('foliate-js/view.js')
 
-  if (isPdf(file)) {
+  if (isPdf(file) && file.size > LARGE_PDF_BYTES) {
+    // too big to convert: the PDF itself is kept, which foliate-js shows page by page (no conversion started)
+    fromPdf = true
+    largePdf = true
+    onProgress?.(t('import.pdfLarge'))
+  } else if (isPdf(file)) {
     // Convert the PDF into a real EPUB first, then read it exactly like any other EPUB.
     const [{ extractPdf }, { buildEpub }] = await Promise.all([import('./pdfToBook'), import('./pdfToEpub')])
     const x = await extractPdf(
@@ -182,8 +215,12 @@ async function readIntoLibrary(
   }
   title = langMap(opened.metadata?.title) || epub.name.replace(/\.[^.]+$/, '')
   author = contributor(opened.metadata?.author)
-  onProgress?.(t('import.counting'))
-  words = await wordsOfBook(opened)
+  if (largePdf) {
+    words = 0 // a PDF shown as it is has no text to count
+  } else {
+    onProgress?.(t('import.counting'))
+    words = await wordsOfBook(opened, signal)
+  }
   }
   check()
 

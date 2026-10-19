@@ -149,7 +149,17 @@ export async function extractPdf(
     // JPEG2000 (common in scanned covers) and JBIG2 images are decoded by wasm that pdf.js loads from here
     wasmUrl: new URL('pdfjs-wasm/', document.baseURI).href,
   })
-  const pdf = await task.promise
+  // a cancel tears the document down at once, which also makes whatever page is being read fail fast
+  const stopTask = () => void task.destroy().catch(() => {})
+  signal?.addEventListener('abort', stopTask, { once: true })
+  let pdf: PDFDocumentProxy
+  try {
+    pdf = await task.promise
+  } catch (e) {
+    signal?.removeEventListener('abort', stopTask)
+    signal?.throwIfAborted()
+    throw e
+  }
   const total = pdf.numPages
   let pages: Line[][] = []
   let info: Record<string, string>
@@ -206,7 +216,11 @@ export async function extractPdf(
       const img = await renderPage(pdf, i + 1, PAGE_IMAGE_HEIGHT, 0.7)
       if (img) pageImages.set(i, img)
     }
+  } catch (e) {
+    signal?.throwIfAborted() // pages failing because the document was torn down: a cancel, not a bad file
+    throw e
   } finally {
+    signal?.removeEventListener('abort', stopTask)
     await task.destroy()
   }
 

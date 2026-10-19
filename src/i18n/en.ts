@@ -276,6 +276,8 @@ export const en: Record<keyof typeof he, Message> = {
   'import.converting': 'Converting to EPUB…',
   'import.pdfConverting': 'The PDF is converted to EPUB, losing layout, columns, tables and images. Suitable for plain text only. Converting…',
   'import.pdfTables': 'Tables detected: the PDF is kept as is, without conversion.',
+  'import.pdfLarge': 'This PDF is over 20MB: it is kept as is, without conversion.',
+  'import.cancelling': 'Cancelling…',
   'import.reading': 'Reading the book…',
   'import.cancel': 'Cancel adding',
   'import.cancelAll': 'Cancel all',
