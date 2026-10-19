@@ -67,6 +67,8 @@ export const en: Record<keyof typeof he, Message> = {
   'filter.noAuthor': 'No author',
   'filter.more': 'More filters',
   'filter.moreN': 'More filters ({n})',
+  'filter.less': 'Fewer filters',
+  'filter.lessN': 'Fewer filters ({n})',
   'filter.pick':'Pick books…',
   'filter.pickedN': 'Picked books ({n})',
   'filter.clear': 'Clear filter',

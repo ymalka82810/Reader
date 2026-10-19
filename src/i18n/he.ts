@@ -66,6 +66,8 @@ export const he = {
   'filter.noAuthor': 'ללא מחבר',
   'filter.more': 'עוד מסננים',
   'filter.moreN': 'עוד מסננים ({n})',
+  'filter.less': 'פחות מסננים',
+  'filter.lessN': 'פחות מסננים ({n})',
   'filter.pick':'בחירת ספרים…',
   'filter.pickedN': 'ספרים נבחרים ({n})',
   'filter.clear': 'נקה סינון',
