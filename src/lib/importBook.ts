@@ -76,12 +76,18 @@ export const isAlreadyInLibrary = (e: unknown) => e instanceof ImportError && e.
 export type DuplicateChoice = 'replace' | 'add' | 'skip'
 export type OnDuplicate = (existing: BookMeta) => Promise<DuplicateChoice | 'defer'>
 
-/** Thrown when onDuplicate answered 'defer': the book is parsed and waiting; call commit to finish or drop it. */
+/** finishes or drops a deferred duplicate; a book converted on import is converted again, so progress and cancelling apply */
+type Commit = (choice: DuplicateChoice, onProgress?: (msg: string) => void, signal?: AbortSignal) => Promise<BookRecord | undefined>
+
+/**
+ * Thrown when onDuplicate answered 'defer': the book waits for a choice; call commit to finish or drop it.
+ * Many can wait at once, so a waiting one holds no opened book and no converted copy, only the file it came from.
+ */
 export class DeferredDuplicate extends Error {
   existing: BookMeta
   title: string
-  commit: (choice: DuplicateChoice) => Promise<BookRecord | undefined>
-  constructor(existing: BookMeta, title: string, commit: (choice: DuplicateChoice) => Promise<BookRecord | undefined>) {
+  commit: Commit
+  constructor(existing: BookMeta, title: string, commit: Commit) {
     super('deferred')
     this.name = 'DeferredDuplicate'
     this.existing = existing
@@ -229,13 +235,17 @@ async function readIntoLibrary(
     const choice = onDuplicate ? await onDuplicate(dup) : 'skip'
     check()
     if (choice === 'defer') {
-      throw new DeferredDuplicate(dup, title, async (c) => {
-        if (c === 'skip') {
-          book.destroy?.()
-          return undefined
-        }
-        return store(c === 'replace' ? dup.id : undefined)
-      })
+      book.destroy?.()
+      book = {}
+      // a PDF/TXT/DOCX conversion is a new copy in memory: dropped now and made again only if the book is kept
+      if (epub !== file && !isNative(file)) {
+        epub = file
+        cover = undefined
+        throw new DeferredDuplicate(dup, title, async (c, progress, sig) =>
+          c === 'skip' ? undefined : importFile(file, progress, async () => c, sig),
+        )
+      }
+      throw new DeferredDuplicate(dup, title, async (c) => (c === 'skip' ? undefined : store(c === 'replace' ? dup.id : undefined)))
     }
     if (choice === 'skip') {
       book.destroy?.()
