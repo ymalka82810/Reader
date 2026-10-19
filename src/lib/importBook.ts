@@ -39,6 +39,9 @@ const isNative = (f: File) => /\.(mobi|azw3?|fb2|fbz|fb2\.zip|cbz)$/i.test(f.nam
 const lowerName = (f: File) =>
   f.name === f.name.toLowerCase() ? f : new File([f], f.name.toLowerCase(), { type: f.type })
 
+/** the failure for a file whose exact content is already in the library */
+export const isAlreadyInLibrary = (e: unknown) => e instanceof ImportError && e.message === ALREADY_EXISTS
+
 /** what to do when the library already holds a book with the same title and author */
 export type DuplicateChoice = 'replace' | 'add' | 'skip'
 export type OnDuplicate = (existing: BookMeta) => Promise<DuplicateChoice | 'defer'>

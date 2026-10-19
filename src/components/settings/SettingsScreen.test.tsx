@@ -22,7 +22,7 @@ const actions = (): BackupActions => ({
 })
 
 const renderScreen = (backup = actions(), onClose = vi.fn()) => {
-  render(<SettingsScreen onClose={onClose} backup={backup} onCheckUpdate={vi.fn()} />)
+  render(<SettingsScreen onClose={onClose} backup={backup} onCheckUpdate={vi.fn()} onScanDevice={vi.fn()} />)
   return { backup, onClose }
 }
 
