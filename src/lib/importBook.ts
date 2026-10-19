@@ -5,6 +5,7 @@ import { t } from '../i18n'
 import { wordsOfBook } from './wordCount'
 import { isAudio, readAudioMeta, type AudioInfo } from './audioBook'
 import { isDrmEpub, isDrmMobi } from './drm'
+import { isScriptedBook } from './sandbox'
 
 const ALREADY_EXISTS = t('import.exists')
 
@@ -142,6 +143,7 @@ async function readIntoLibrary(
   let title: string
   let author: string
   let words: number | undefined
+  let scripted: boolean | undefined
   let book: { destroy?: () => void } = {}
   /** a cancel after the book was opened also releases it */
   const check = () => {
@@ -214,6 +216,7 @@ async function readIntoLibrary(
   }
   title = langMap(opened.metadata?.title) || epub.name.replace(/\.[^.]+$/, '')
   author = contributor(opened.metadata?.author)
+  if (!fromPdf) scripted = isScriptedBook(opened)
   if (largePdf) {
     words = 0 // a PDF shown as it is has no text to count
   } else {
@@ -257,6 +260,7 @@ async function readIntoLibrary(
     fromPdf,
     audio,
     words,
+    scripted,
     title,
     author,
     cover,

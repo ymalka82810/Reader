@@ -66,6 +66,8 @@ export function parseManifest(text: string, bodySize: number): Manifest {
       author: typeof b.author === 'string' ? b.author : '',
       fileName: typeof b.fileName === 'string' ? b.fileName : `${b.id}.epub`,
       addedAt: Number.isFinite(b.addedAt) ? (b.addedAt as number) : Date.now(),
+      // anything but a boolean is checked again on first open
+      scripted: typeof b.scripted === 'boolean' ? b.scripted : undefined,
       fileType: typeof b.fileType === 'string' ? b.fileType : '',
       coverType: typeof b.coverType === 'string' ? b.coverType : undefined,
       fileRange,
