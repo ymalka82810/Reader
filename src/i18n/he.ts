@@ -264,6 +264,8 @@ export const he = {
   'import.pdfTables': 'זוהו טבלאות: ה-PDF נשמר כמו שהוא, בלי המרה.',
   'import.reading': 'קורא את הספר…',
   'import.cancel': 'ביטול ההוספה',
+  'import.cancelAll': 'ביטול הכל',
+  'import.cancelOne': 'ביטול ההוספה של {name}',
   'import.cancelled': 'ההוספה בוטלה. ספרים שכבר נוספו נשארו בספרייה.',
   'import.background': 'אפשר להמשיך להשתמש באפליקציה, ההוספה ממשיכה ברקע.',
   'import.readingAudio': 'קורא את הספר הקולי…',

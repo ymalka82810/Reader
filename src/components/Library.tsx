@@ -379,11 +379,28 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
             </div>
           )}
           {busy ?? imp.message}
+          {imp.running && !busy && imp.queue.length > 1 && (
+            <ul className="import-queue">
+              {imp.queue.map((it) => (
+                <li key={it.id} className={it.active ? 'active' : undefined}>
+                  <span>{it.name}</span>
+                  <button
+                    className="quiet"
+                    aria-label={t('import.cancelOne', { name: it.name })}
+                    title={t('import.cancelOne', { name: it.name })}
+                    onClick={() => imp.cancelOne(it.id)}
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
           {imp.running && !busy && (
             <div className="import-actions">
               <small>{t('import.background')}</small>
               <button className="danger" onClick={imp.cancel}>
-                {t('import.cancel')}
+                {imp.queue.length > 1 ? t('import.cancelAll') : t('import.cancel')}
               </button>
             </div>
           )}
