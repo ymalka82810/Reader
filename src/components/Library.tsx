@@ -16,6 +16,7 @@ import { deviceBooksSupported } from '../lib/deviceBooks'
 import { autoSyncPhoneNames, phoneFileOf, saveBookToPhone, syncPhoneNames } from '../lib/phoneFiles'
 import { formatBookName, splitBookName, type BookName } from '../lib/bookName'
 import { identifyBook } from '../lib/bookLookup'
+import { openingLines } from '../lib/bookText'
 import { hasConsent, setConsent, SERVICE_HOST } from '../lib/consent'
 import { IdentifyDialog, type NameChange } from './library/IdentifyDialog'
 import { loadSettings } from '../lib/settings'
@@ -282,15 +283,28 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
     const online = await allowLookup()
     if (run !== editRun.current) return
     setEditLookup({ busy: true })
-    const found = await identifyBook({ title: formatBookName(editName), author: editAuthor, fileName: editing.fileName }, online).catch(
-      () => undefined,
-    )
+    const opening = await openingLines(editing)
+    if (run !== editRun.current) return
+    const found = await identifyBook(
+      { title: formatBookName(editName), author: editAuthor, fileName: editing.fileName },
+      online,
+      undefined,
+      opening,
+    ).catch(() => undefined)
     if (run !== editRun.current) return
     if (found) {
       setEditName({ series: found.series, number: found.number, title: found.title })
       setEditAuthor(found.author)
     }
-    const note = !online ? 'edit.identifiedOffline' : found?.online ? 'edit.identifiedOnline' : 'edit.identifiedLocal'
+    const note = found?.online
+      ? 'edit.identifiedOnline'
+      : found?.fromText
+        ? online
+          ? 'edit.identifiedTextLocal'
+          : 'edit.identifiedTextOffline'
+        : online
+          ? 'edit.identifiedLocal'
+          : 'edit.identifiedOffline'
     setEditLookup({ busy: false, note: t(note) })
   }
 

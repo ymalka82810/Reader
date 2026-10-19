@@ -96,3 +96,25 @@ describe('identifyBook', () => {
     expect(await identifyBook({ title: 'גנב הברק', author: 'א', fileName: 'x.epub' }, true)).toMatchObject({ online: false })
   })
 })
+
+describe('identifyBook from the opening pages', () => {
+  const opening = ['ריק ריירדן', "מגנוס צ'ייס והאלים של אסגרד", 'ספר שלישי', 'ספינת המתים', 'הוצאת מרגנית']
+
+  it('reads the name from the book when the title says nothing', async () => {
+    const r = await identifyBook({ title: 'עותק של 1~2402 3', author: 'ריק ריירדן', fileName: 'עותק של 1~2402 3.pdf' }, false, undefined, opening)
+    expect(r).toMatchObject({ series: "מגנוס צ'ייס והאלים של אסגרד", number: '3', title: 'ספינת המתים', online: false, fromText: true })
+  })
+
+  it('keeps a series the title already has', async () => {
+    const r = await identifyBook({ title: 'סדרה 2 - שם', author: '', fileName: 'x.epub' }, false, undefined, opening)
+    expect(r).toMatchObject({ series: 'סדרה', number: '2', title: 'שם' })
+    expect(r.fromText).toBeUndefined()
+  })
+
+  it('searches by the opening lines when the title says nothing', async () => {
+    const fetchMock = stubFetch(answer({ title: 'בית האדם', subtitle: 'גיבורי האולימפוס 4', authors: ['ריק ריירדן'] }))
+    const r = await identifyBook({ title: '1~2402 1', author: 'ריק ריירדן', fileName: 'x.pdf' }, true, undefined, ['ריק ריירדן', 'בית האדם'])
+    expect(queryOf(fetchMock, 0)).toContain('בית האדם')
+    expect(r).toMatchObject({ series: 'גיבורי האולימפוס', number: '4', title: 'בית האדם', author: 'ריק ריירדן', online: true })
+  })
+})
