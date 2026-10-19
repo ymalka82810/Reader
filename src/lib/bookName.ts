@@ -132,3 +132,23 @@ export function withoutAuthor(name: string, author: string): string {
   if (fold(parts[0]!) === a) return parts.slice(1).join(' - ')
   return name
 }
+
+const latin = (s: string) => /[A-Za-z]/.test(s) && !/[\u0590-\u05FF]/.test(s)
+
+/**
+ * Cleans what file names and PDF metadata add around a book's name, before it is read: Drive's "עותק של" / "Copy of",
+ * a trailing "(1)", an English translation in parentheses after a Hebrew name, an English name before a Hebrew one
+ * ("The Trials of Apollo 4 - גורלו של אפולו 4, ..."), and the comma between the number and the title
+ * ("גורלו של אפולו 1, האורקל הנסתר" -> "גורלו של אפולו 1 - האורקל הנסתר").
+ */
+export function tidyBookName(text: string): string {
+  let s = clean(text.replace(/_+/g, ' '))
+  s = s.replace(/^(?:עותק של|copy of)\s+/iu, '').replace(/\s*\(\d{1,2}\)$/u, '')
+  const paren = /^(.+?)\s*\(([^()]+)\)$/u.exec(s)
+  if (paren && latin(paren[2]!) && /[\u0590-\u05FF]/.test(paren[1]!)) s = clean(paren[1]!)
+  const dash = /^(.+?)\s+[-–—]\s+(.+)$/u.exec(s)
+  if (dash && latin(dash[1]!) && /[\u0590-\u05FF]/.test(dash[2]!)) s = clean(dash[2]!)
+  const comma = /^(.+?\s\d{1,3}),\s+(.+)$/u.exec(s)
+  if (comma) s = `${comma[1]} - ${comma[2]}`
+  return s
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatBookName, guessBookName, seriesOf, splitBookName, withoutAuthor } from './bookName'
+import { formatBookName, guessBookName, seriesOf, splitBookName, tidyBookName, withoutAuthor } from './bookName'
 
 const EXAMPLES: [string, { series: string; number: string; title: string }][] = [
   ["פרסי ג'קסון 1 - גנב הברק", { series: "פרסי ג'קסון", number: '1', title: 'גנב הברק' }],
@@ -82,5 +82,18 @@ describe('withoutAuthor', () => {
     expect(withoutAuthor('ריק ריירדן - גנב הברק', 'ריק ריירדן')).toBe('גנב הברק')
     expect(withoutAuthor('גנב הברק - ריק ריירדן', '')).toBe('גנב הברק - ריק ריירדן')
     expect(withoutAuthor('פלדה - ושלג', 'ריק ריירדן')).toBe('פלדה - ושלג')
+  })
+})
+
+describe('tidyBookName', () => {
+  it.each([
+    ['עותק של משפחה קיין 1', 'משפחה קיין 1'],
+    ['Copy of גנב הברק (1)', 'גנב הברק'],
+    ['הנבואה האפלה (The Dark Prophecy)', 'הנבואה האפלה'],
+    ['גורלו של אפולו 1, האורקל הנסתר', 'גורלו של אפולו 1 - האורקל הנסתר'],
+    ['The Trials of Apollo 4 - גורלו של אפולו 4, קברו של הרוח', 'גורלו של אפולו 4 - קברו של הרוח'],
+    ['המגדל של נירון', 'המגדל של נירון'],
+  ])('%s -> %s', (from, to) => {
+    expect(tidyBookName(from)).toBe(to)
   })
 })
