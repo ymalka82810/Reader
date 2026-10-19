@@ -51,6 +51,7 @@ export const en: Record<keyof typeof he, Message> = {
   'lib.batchProgress': '{done}/{total} books',
   'lib.batchEstimating': 'Estimating time…',
   'lib.batchRemaining': 'About {time} left',
+  'lib.batchRemainingOne': '{time} left',
 
   'filter.label': 'Filter',
   'filter.all': 'All',
