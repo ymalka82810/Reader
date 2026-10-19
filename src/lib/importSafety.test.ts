@@ -96,6 +96,14 @@ describe('parseManifest', () => {
     expect(() => parseManifest(bad([0.5, 2]), 10)).toThrow()
     expect(() => parseManifest(bad('0-2'), 10)).toThrow()
   })
+  it('keeps a font and folders, dropping a font that could break out of the CSS url()', () => {
+    const font = { name: 'f', dataUrl: 'data:font/ttf;base64,AAEA' }
+    const m = parseManifest(JSON.stringify({ ...ok, customFont: font, folders: ['a', 3, ' ', 'b'] }), 10)
+    expect(m.customFont).toEqual(font)
+    expect(m.folders).toEqual(['a', 'b'])
+    const evil = { name: 'f', dataUrl: 'data:font/ttf;base64,AA"); } body { color: red' }
+    expect(parseManifest(JSON.stringify({ ...ok, customFont: evil }), 10).customFont).toBeUndefined()
+  })
 })
 
 describe('importLibrary from an encrypted backup', () => {
