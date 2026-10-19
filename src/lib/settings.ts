@@ -127,6 +127,19 @@ export function saveSettings(s: Settings) {
   }
 }
 
+/** settings restored from a backup: only those still at their default here are taken, so whatever was
+ *  changed on this device stays as it is */
+export function mergeBackupSettings(incoming: Partial<Settings>) {
+  const cur = loadSettings()
+  const def = defaults() as Partial<Settings>
+  const next: Record<string, unknown> = { ...cur }
+  for (const [k, v] of Object.entries(incoming)) {
+    const key = k as keyof Settings
+    if (JSON.stringify(cur[key]) === JSON.stringify(def[key])) next[k] = v
+  }
+  saveSettings(next as unknown as Settings)
+}
+
 type Colors = { bg: string; fg: string; link: string }
 const THEMES: Record<Exclude<Theme, 'custom'>, Colors> = {
   light: { bg: '#ffffff', fg: '#1a1a1a', link: '#0b57d0' },
