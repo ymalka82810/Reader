@@ -77,7 +77,6 @@ export const he = {
   'view.list': 'תצוגת רשימה',
   'folders.top': 'תיקיות למעלה',
   'folders.bottom': 'תיקיות למטה',
-  'folders.position': 'מיקום התיקיות ביחס לספרים בודדים',
   'sort.label': 'מיון',
   'sort.recent': 'נפתח לאחרונה',
   'sort.added': 'נוסף לאחרונה',
