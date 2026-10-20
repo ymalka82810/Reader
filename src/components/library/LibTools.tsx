@@ -83,22 +83,22 @@ export function LibTools({ filter, onFilter, types, folders, onPickBooks, sort, 
       <button
         type="button"
         className="select-btn view-toggle"
-        aria-label={foldersFirst ? t('folders.top') : t('folders.bottom')}
-        title={foldersFirst ? t('folders.top') : t('folders.bottom')}
-        onClick={() => onFoldersFirst(!foldersFirst)}
-      >
-        <FolderIcon />
-        <span aria-hidden="true">{foldersFirst ? '↑' : '↓'}</span>
-      </button>
-      <button
-        type="button"
-        className="select-btn view-toggle"
         aria-pressed={list}
         aria-label={t('view.list')}
         title={t('view.list')}
         onClick={() => onList(!list)}
       >
         {list ? '☰' : '▦'}
+      </button>
+      <button
+        type="button"
+        className="select-btn view-toggle"
+        aria-label={foldersFirst ? t('folders.top') : t('folders.bottom')}
+        title={foldersFirst ? t('folders.top') : t('folders.bottom')}
+        onClick={() => onFoldersFirst(!foldersFirst)}
+      >
+        <FolderIcon />
+        <span aria-hidden="true">{foldersFirst ? '↑' : '↓'}</span>
       </button>
       {tags.length > 0 && (
         <Select
