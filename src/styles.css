@@ -477,3 +477,8 @@ i.lv4 { background: var(--accent) !important; }
 /* high contrast: thick white frame */
 .hc .topbar button, .hc .bottombar button, .hc .prefs-head button, .hc .prefs-open, .hc .audio-buttons button, .hc .audio-extra button, .hc .chapter-btn, .hc .notes-tools button, .hc .seg button, .hc .goals-range button, .hc .speed-presets button, .hc .fonts button, .hc .move-list button, .hc .dup-list button, .hc .search form button, .hc .dict .row button, .hc .edit .row button, .hc .auto-pace button, .hc .goals button, .hc .review button { border: 2px solid #fff; }
 /* noop */
+
+/* pinch-to-resize: the word under the fingers shows the new size live; the page changes on release */
+.pinch-preview { position: fixed; z-index: 200; pointer-events: none; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); white-space: nowrap; }
+.pinch-preview-word { display: inline-block; padding: 0 .15em; border-radius: var(--radius-md); background: inherit; box-shadow: var(--shadow-md), 0 0 0 1px var(--border); transform-origin: center; }
+.pinch-preview-label { position: absolute; bottom: 100%; margin-bottom: 6px; padding: .1rem .5rem; border-radius: var(--radius-pill); background: var(--fg); color: var(--bg); font: 600 12px/1.5 system-ui, sans-serif; box-shadow: var(--shadow-sm); }
