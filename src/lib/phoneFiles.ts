@@ -72,6 +72,9 @@ export async function saveBookToPhone(id: string): Promise<string | undefined> {
   return saved.name
 }
 
+/** Opens the phone's Downloads folder (where saved books land) in the system's Downloads app. */
+export const openDownloadsFolder = () => call('openDownloads').then(() => undefined)
+
 /** Renames the phone's file of each book to match its current title. Books never put on the phone, or
  *  whose file is no longer there, are left alone. Resolves with how many were renamed and how many failed. */
 export async function syncPhoneNames(ids: string[]): Promise<{ renamed: number; failed: number }> {

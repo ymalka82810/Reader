@@ -116,7 +116,12 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: var(--radius-sm); border:
 
 .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: grid; place-items: center; z-index: 10; }
 .modal { background: var(--bg); color: var(--fg); border-radius: var(--radius-lg); padding: 1.2rem; width: min(90vw, 360px); display: flex; flex-direction: column; gap: .8rem; }
+.modal { max-width: 92vw; box-sizing: border-box; overflow-wrap: anywhere; box-shadow: var(--shadow-lg); border: 1px solid var(--border); }
 .modal h2 { margin: 0; font-size: 1.05rem; }
+.wait-modal { align-items: center; text-align: center; padding: 1.6rem 1.4rem; }
+.wait-modal p { margin: 0; }
+.wait-modal .spinner { width: 2rem; height: 2rem; margin: 0; border-width: .22rem; }
+.wait-hint { color: var(--fg-muted); font-size: .85rem; }
 .modal label { display: flex; flex-direction: column; gap: .3rem; font-size: .85rem; color: var(--fg-muted); }
 .modal label input { font-size: 1rem; padding: .55rem .8rem; border-radius: var(--radius-lg); border: 1px solid rgba(128,128,128,.4); background: transparent; color: inherit; font-family: inherit; text-align: start; }
 .modal label input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
@@ -181,7 +186,8 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: var(--radius-sm); border:
 .sel-bar { position: fixed; z-index: 7; transform: translateX(-50%); max-width: calc(100vw - 16px); overflow-x: auto; display: flex; gap: .5rem; padding: .45rem .6rem; border-radius: var(--radius-pill); background: var(--bg); box-shadow: var(--shadow-md); border: 1px solid var(--border); }
 .swatch { width: 44px; height: 44px; flex: none; padding: 0; border-radius: 50%; border: 2px solid transparent; }
 .swatch.on { border-color: var(--fg); }
-.toast { position: absolute; z-index: 8; bottom: 5rem; text-align: center; }
+.toast, .lib-toast { position: fixed; z-index: 20; inset-inline: 0; margin-inline: auto; width: fit-content; max-width: min(92vw, 28rem); box-sizing: border-box; padding: .7rem 1.1rem; border-radius: var(--radius-lg); background: var(--bg); color: var(--fg); border: 1px solid var(--border); box-shadow: var(--shadow-lg); text-align: center; overflow-wrap: anywhere; }
+.toast { bottom: 5rem; }
 .notes-tools { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .6rem; }
 .notes-tools button { padding: .4rem .7rem; font-size: .85rem; }
 .notes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .3rem; }
@@ -209,7 +215,8 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: var(--radius-sm); border:
 .menu { max-height: 80vh; overflow-y: auto; }
 .menu-title { padding: .4rem .6rem .1rem; font-size: .75rem; color: var(--fg-muted); }
 .menu-sep { border-top: 1px solid rgba(128,128,128,.3); margin: .2rem 0; }
-.lib-toast { bottom: calc(1.2rem + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: .9rem; }
+.lib-toast { bottom: calc(1.2rem + env(safe-area-inset-bottom)); display: flex; align-items: center; justify-content: center; gap: .9rem; }
+.lib-toast span { min-width: 0; overflow-wrap: anywhere; }
 .lib-toast button { flex: none; padding: .3rem .75rem; border-radius: var(--radius-md); background: rgba(140,196,255,.16); color: #8cc4ff; font-weight: 600; }
 .icon { display: block; }
 .topbar button:has(.icon) { flex: none; display: inline-flex; align-items: center; justify-content: center; }

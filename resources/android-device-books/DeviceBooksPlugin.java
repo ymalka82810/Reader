@@ -415,6 +415,18 @@ public class DeviceBooksPlugin extends Plugin {
         }
     }
 
+    @PluginMethod
+    public void openDownloads(PluginCall call) {
+        try {
+            Intent i = new Intent(android.app.DownloadManager.ACTION_VIEW_DOWNLOADS);
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(i);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("open", e);
+        }
+    }
+
     private boolean notificationsOn() {
         return NotificationManagerCompat.from(getContext()).areNotificationsEnabled();
     }
