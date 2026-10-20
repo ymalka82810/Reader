@@ -6,6 +6,7 @@ import { wordsOfBook } from './wordCount'
 import { isAudio, readAudioMeta, type AudioInfo } from './audioBook'
 import { isDrmEpub, isDrmMobi } from './drm'
 import { isScriptedBook } from './sandbox'
+import { repairEpub } from './epubRepair'
 
 const ALREADY_EXISTS = t('import.exists')
 
@@ -213,6 +214,7 @@ async function readIntoLibrary(
   check()
   onProgress?.(t('import.reading'))
   if (isNative(file)) epub = lowerName(file)
+  else if (isEpub(file)) epub = await repairEpub(file) // an OPF without any metadata would not open
   const opened = await makeBook(epub)
   book = opened
   try {
