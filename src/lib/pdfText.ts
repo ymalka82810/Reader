@@ -79,8 +79,63 @@ export function fixVisual(s: string): string {
   return rev.replace(/[0-9A-Za-z][0-9A-Za-z.,:/%'-]*/g, (m) => [...m].reverse().join(''))
 }
 
+/**
+ * Other Hebrew PDFs keep the letters of each word in reading order but lay the line out visually:
+ * the last word of the line comes first and sentence punctuation sits on the word's far side
+ * (".word" for "word."). Reading order of the letters is fine, so looksReversed stays false; here
+ * punctuation clinging to the start of Hebrew words far outweighs punctuation at their end.
+ */
+export function looksWordVisual(allLines: Line[][]): boolean {
+  let lead = 0
+  let trail = 0
+  for (const lines of allLines)
+    for (const l of lines)
+      for (const w of l.text.split(' ')) {
+        if (!/[א-ת]{2}/.test(w)) continue
+        if (/^[.,!?:;׃][^\s.,!?:;׃]/.test(w)) lead++
+        if (/[א-ת][.,!?:;׃]$/.test(w)) trail++
+      }
+  return lead > 20 && lead > trail * 4
+}
+
+/** How a PDF stores its Hebrew lines: letters reversed too ('chars'), only words and punctuation ('words'), or in reading order. */
+export type VisualOrder = 'chars' | 'words' | null
+
+export function visualOrder(allLines: Line[][]): VisualOrder {
+  if (looksReversed(allLines)) return 'chars'
+  return looksWordVisual(allLines) ? 'words' : null
+}
+
+/** Put one visually laid-out line (letters of each word already in reading order) back in reading order. */
+export function fixWordVisual(s: string): string {
+  if (!HEB.test(s)) return s
+  // consecutive non-Hebrew tokens (a Latin phrase, a number) read left to right in both orders: keep them together
+  const groups: string[][] = []
+  for (const tok of s.split(' ')) {
+    const last = groups[groups.length - 1]
+    if (!HEB.test(tok) && last && !HEB.test(last[0]!)) last.push(tok)
+    else groups.push([tok])
+  }
+  const edge = /^([^\p{L}\p{N}]*)(.*?)([^\p{L}\p{N}]*)$/su
+  const flip = (p: string) => [...p].reverse().map((c) => MIRROR[c] ?? c).join('')
+  return groups
+    .reverse()
+    .flatMap((g) => g)
+    .map((tok) => {
+      const m = edge.exec(tok)
+      return m ? flip(m[3]!) + m[2]! + flip(m[1]!) : tok
+    })
+    .join(' ')
+}
+
+/** Turn a line extracted from a visual-order PDF back into reading order. */
+export function fixLine(s: string, order: VisualOrder | boolean): string {
+  if (order === true || order === 'chars') return fixVisual(s)
+  return order === 'words' ? fixWordVisual(s) : s
+}
+
 /** Group a page's lines into paragraphs. */
-export function toParagraphs(lines: Line[], reversed: boolean): string[] {
+export function toParagraphs(lines: Line[], reversed: VisualOrder | boolean): string[] {
   // drop bare page numbers at the top/bottom of the page
   const isNum = (l?: Line) => !!l && /^[\d\s\-–]{1,6}$/.test(l.text)
   let ls = lines
@@ -100,7 +155,7 @@ export function toParagraphs(lines: Line[], reversed: boolean): string[] {
   let buf = ''
   let prev: Line | null = null
   for (const l of ls) {
-    const text = reversed ? fixVisual(l.text) : l.text
+    const text = fixLine(l.text, reversed)
     if (prev) {
       const gap = prev.y - l.y
       const prevShort = prev.x1 - prev.x0 < maxW * 0.72
@@ -135,7 +190,7 @@ export function isPoorPage(lines: Line[]): boolean {
 }
 
 /** Guess chapter headings from big, short lines (or "פרק …"/"Chapter …" lines) when there are no bookmarks. */
-export function detectHeadings(pages: Line[][], reversed: boolean): Map<number, string> {
+export function detectHeadings(pages: Line[][], reversed: VisualOrder | boolean): Map<number, string> {
   const hs = pages.flat().map((l) => l.h)
   const body = median(hs)
   const out = new Map<number, string>()
@@ -148,7 +203,7 @@ export function detectHeadings(pages: Line[][], reversed: boolean): Map<number, 
     const run: string[] = []
     for (const l of top) {
       // a reversed line only matches the "פרק …" pattern once put back in logical order
-      const text = reversed ? fixVisual(l.text) : l.text
+      const text = fixLine(l.text, reversed)
       const big = l.h >= body * 1.3 && l.text.length <= 70 && !/[.,;]$/.test(text)
       const byName = named.test(text) && l.text.length <= 50
       if (big || byName) run.push(text)
