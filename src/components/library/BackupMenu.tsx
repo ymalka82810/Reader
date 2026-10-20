@@ -18,10 +18,12 @@ type Props = {
   onRestore: () => void
   onGoals: () => void
   onReview: () => void
+  /** shown only while a filter is active: resets it */
+  onClearFilter?: () => void
 }
 
 /** the "⋯" menu in the library header: actions only (goals, review, folders, selecting, backup, restore); settings are in the settings screen */
-export function BackupMenu({ view, busy, onBusy, onBackup, onRestore, onGoals, onReview }: Props) {
+export function BackupMenu({ view, busy, onBusy, onBackup, onRestore, onGoals, onReview, onClearFilter }: Props) {
   const [open, setOpen] = useState(false)
   // the phone's back swipe closes the open menu first
   useBackGesture(() => setOpen(false), 3, open)
@@ -51,6 +53,11 @@ export function BackupMenu({ view, busy, onBusy, onBackup, onRestore, onGoals, o
             <button role="menuitem" onClick={() => { close(); onReview() }}>
               {t('review.title')}
             </button>
+            {onClearFilter && (
+              <button role="menuitem" onClick={() => { close(); onClearFilter() }}>
+                {t('filter.clear')}
+              </button>
+            )}
             {view && (
               <>
                 {view.onNewFolder && (

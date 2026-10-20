@@ -3,7 +3,7 @@ import { Select } from '../Select'
 import { FolderIcon } from './FolderIcon'
 import { t } from '../../i18n'
 import type { Tag } from '../../lib/tags'
-import { isFiltering, NO_FILTER, SMARTS, typeLabel, type LibraryFilter, type ReadState, type Smart } from '../../lib/libraryFilter'
+import { SMARTS, typeLabel, type LibraryFilter, type ReadState, type Smart } from '../../lib/libraryFilter'
 
 export type Sort = 'recent' | 'title' | 'author' | 'added' | 'longest'
 
@@ -113,11 +113,6 @@ export function LibTools({ filter, onFilter, types, folders, onPickBooks, sort, 
           onChange={onTag}
           options={[['', t('tag.filterAll')], ...tags.map((x): [string, string] => [x.key, t('tag.option', { name: x.name, n: x.count })])]}
         />
-      )}
-      {isFiltering(filter) && (
-        <button type="button" className="select-btn" onClick={() => onFilter(NO_FILTER)}>
-          {t('filter.clear')}
-        </button>
       )}
       {showMore && (
         <div className="lib-tools-more">

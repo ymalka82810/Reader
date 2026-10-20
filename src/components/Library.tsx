@@ -464,6 +464,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
           onRestore={() => restoreInput.current?.click()}
           onGoals={() => setGoalsOpen(true)}
           onReview={() => setReviewOpen(true)}
+          onClearFilter={books.length > 1 && isFiltering(filter) ? () => setFilter(NO_FILTER) : undefined}
         />
         <input
           ref={restoreInput}
