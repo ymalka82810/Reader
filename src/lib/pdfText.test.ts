@@ -1,6 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import { buildLines, looksTabular, normalizeStreamOrder, readingGroups, type Line, type RawItem } from './pdfLayout'
-import { detectHeadings, fixVisual, isBlankPixels, isPoorPage, joinPages, looksReversed, stripRunningLines, toParagraphs } from './pdfText'
+import {
+  detectHeadings,
+  fixLine,
+  fixVisual,
+  fixWordVisual,
+  isBlankPixels,
+  isPoorPage,
+  joinPages,
+  looksReversed,
+  looksWordVisual,
+  stripRunningLines,
+  toParagraphs,
+  visualOrder,
+} from './pdfText'
 
 const MIRROR: Record<string, string> = { '(': ')', ')': '(' }
 /** how a logical-order string is stored in a visual-order PDF: reversed, with brackets mirrored */
@@ -275,5 +288,55 @@ describe('normalizeStreamOrder', () => {
   it('does not touch a page with too few lines to tell', () => {
     const few = [run('א', 0, 100), run('ב', 0, 120), run('ג', 0, 140)]
     expect(normalizeStreamOrder(few)).toBe(few)
+  })
+})
+
+/** how a logical line is stored by a PDF that lays lines out visually but keeps each word's letters in order */
+const wordVisual = (words: string[]) => words.slice().reverse().join(' ')
+
+describe('word-visual order', () => {
+  const logical = ['הילדים הלכו לבית הספר.', 'היא אמרה, "אני כבר באה!"', 'מה קרה כאן?']
+  // last word first, sentence punctuation on the far side of its word
+  const stored = ['.הספר לבית הלכו הילדים', '"!באה כבר אני" ,אמרה היא', '?כאן קרה מה']
+
+  it('puts words and punctuation back in reading order', () => {
+    expect(fixWordVisual(stored[0]!)).toBe(logical[0])
+    expect(fixWordVisual(stored[2]!)).toBe(logical[2])
+  })
+  it('moves quotes and punctuation to their logical side', () => {
+    expect(fixWordVisual(stored[1]!)).toBe(logical[1])
+  })
+  it('mirrors brackets', () => {
+    expect(fixWordVisual('(בסוגריים) מילה')).toBe('מילה (בסוגריים)')
+  })
+  it('keeps a Latin phrase or number in its own order', () => {
+    expect(fixWordVisual('.2024 בשנת New York עיר')).toBe('עיר New York בשנת 2024.')
+  })
+  it('leaves lines without Hebrew alone', () => {
+    expect(fixWordVisual('plain english, text.')).toBe('plain english, text.')
+  })
+  it('detects the layout from the leading punctuation', () => {
+    const lines = Array.from({ length: 30 }, (_, i) => line(stored[i % 3]!, i))
+    expect(looksWordVisual([lines])).toBe(true)
+    expect(visualOrder([lines])).toBe('words')
+  })
+  it('does not flag ordinary logical Hebrew', () => {
+    const lines = Array.from({ length: 30 }, (_, i) => line(logical[i % 3]!, i))
+    expect(looksWordVisual([lines])).toBe(false)
+    expect(visualOrder([lines])).toBe(null)
+  })
+  it('prefers the reversed-letters fix when the letters are reversed too', () => {
+    const lines = Array.from({ length: 30 }, (_, i) => line(rev('הילדים הלכו לבית הספר.'), i))
+    expect(visualOrder([lines])).toBe('chars')
+  })
+  it('fixLine picks the fix by order', () => {
+    expect(fixLine(stored[0]!, 'words')).toBe(logical[0])
+    expect(fixLine(rev('שלום עולם'), 'chars')).toBe('שלום עולם')
+    expect(fixLine(rev('שלום עולם'), true)).toBe('שלום עולם')
+    expect(fixLine('שלום עולם', null)).toBe('שלום עולם')
+  })
+  it('toParagraphs rebuilds paragraphs from word-visual lines', () => {
+    const ls = [line(wordVisual('הילדים הלכו לבית'.split(' ')), 100), line('.הספר', 90)]
+    expect(toParagraphs(ls, 'words')).toEqual(['הילדים הלכו לבית הספר.'])
   })
 })

@@ -57,7 +57,7 @@ export async function epubOpening(file: Blob): Promise<string[]> {
 
 /** a PDF's first pages, with Hebrew stored in visual order turned back */
 async function pdfOpening(file: Blob, signal?: AbortSignal): Promise<string[]> {
-  const [pdfjs, { default: workerUrl }, layout, { looksReversed, fixVisual }] = await Promise.all([
+  const [pdfjs, { default: workerUrl }, layout, { visualOrder, fixLine }] = await Promise.all([
     import('pdfjs-dist/legacy/build/pdf.mjs'),
     import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'),
     import('./pdfLayout'),
@@ -74,8 +74,8 @@ async function pdfOpening(file: Blob, signal?: AbortSignal): Promise<string[]> {
       pages.push(layout.readingGroups(layout.normalizeStreamOrder(await layout.rawItems(p))).flatMap(layout.buildLines))
       p.cleanup()
     }
-    const reversed = looksReversed(pages)
-    return pages.flat().map((l) => (reversed ? fixVisual(l.text) : l.text)).slice(0, MAX_LINES)
+    const order = visualOrder(pages)
+    return pages.flat().map((l) => fixLine(l.text, order)).slice(0, MAX_LINES)
   } finally {
     void task.destroy().catch(() => {})
   }

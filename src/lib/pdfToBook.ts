@@ -1,7 +1,7 @@
 import { t } from '../i18n'
 import type { PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import { buildLines, looksTabular, normalizeStreamOrder, rawItems, readingGroups, type Line } from './pdfLayout'
-import { detectHeadings, isBlankPixels, isPoorPage, joinPages, looksReversed, stripRunningLines, toParagraphs } from './pdfText'
+import { detectHeadings, isBlankPixels, isPoorPage, joinPages, stripRunningLines, toParagraphs, visualOrder } from './pdfText'
 
 const PAGES_PER_SECTION = 8
 /** a page with less text than this is treated as an image (a scan) */
@@ -212,7 +212,7 @@ export async function extractPdf(
 
   const chars = pages.flat().map((l) => l.text).join('')
 
-  const reversed = looksReversed(pages)
+  const reversed = visualOrder(pages)
   const hebCount = (chars.match(/[֐-׿]/g) ?? []).length
   const rtl = hebCount > chars.length * 0.3
 
