@@ -1,5 +1,5 @@
 import react from '@vitejs/plugin-react'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { defineConfig, type Plugin } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import { visualizer } from 'rollup-plugin-visualizer'
@@ -22,6 +22,57 @@ const pdfjsWasm = (): Plugin => ({
   },
 })
 
+// foliate-js shows a PDF it was given as it is (a scan, tables, a very large file) through its own pdf.js, which finds its
+// worker, CSS, cmaps and standard fonts with `new URL(`vendor/pdfjs/${name}`, import.meta.url)`. Vite turns that into an
+// `import.meta.glob` it then leaves unresolved in the bundle, so the module throws when loaded and no such PDF can be added.
+// Give it explicit URLs instead: the worker and the two stylesheets are bundled, the cmaps and fonts are copied next to the app.
+const FOLIATE_PDFJS = 'node_modules/foliate-js/vendor/pdfjs'
+const FOLIATE_PDFJS_DIRS = ['cmaps', 'standard_fonts']
+const foliatePdfjsFiles = () =>
+  FOLIATE_PDFJS_DIRS.flatMap((d) => readdirSync(`${FOLIATE_PDFJS}/${d}`).map((f) => `${d}/${f}`))
+const foliatePdfjs = (): Plugin => ({
+  name: 'foliate-pdfjs',
+  enforce: 'pre',
+  transform(code, id) {
+    if (!/foliate-js\/pdf\.js$/.test(id.split('?')[0] ?? '')) return
+    const steps: [string, string][] = [
+      [
+        'const pdfjsPath = path => new URL(`vendor/pdfjs/${path}`, import.meta.url).toString()',
+        "import workerUrl from './vendor/pdfjs/pdf.worker.mjs?url'\n" +
+          "import textLayerCss from './vendor/pdfjs/text_layer_builder.css?raw'\n" +
+          "import annotationLayerCss from './vendor/pdfjs/annotation_layer_builder.css?raw'\n" +
+          "const pdfjsPath = path => (path === 'pdf.worker.mjs' ? workerUrl : new URL('pdfjs-vendor/' + path, document.baseURI).href)",
+      ],
+      // JPEG2000 / JBIG2 images (common in scans) are decoded by wasm fetched at run time, same files as the converter uses
+      [
+        'isEvalSupported: false,',
+        "isEvalSupported: false,\n        wasmUrl: new URL('pdfjs-wasm/', document.baseURI).href,",
+      ],
+      ["await fetchText(pdfjsPath('text_layer_builder.css'))", 'textLayerCss'],
+      ["await fetchText(pdfjsPath('annotation_layer_builder.css'))", 'annotationLayerCss'],
+    ]
+    let out = code
+    for (const [from, to] of steps) {
+      // a foliate-js update that changes these lines must be looked at, not silently skipped
+      if (!out.includes(from)) this.error(`foliate-pdfjs: expected code not found in foliate-js/pdf.js: ${from}`)
+      out = out.replace(from, to)
+    }
+    return { code: out, map: null }
+  },
+  configureServer(server) {
+    server.middlewares.use('/pdfjs-vendor', (req, res, next) => {
+      const name = decodeURIComponent(req.url?.split('?')[0] ?? '').replace(/^\//, '')
+      if (!foliatePdfjsFiles().includes(name)) return next()
+      res.setHeader('Content-Type', 'application/octet-stream')
+      res.end(readFileSync(`${FOLIATE_PDFJS}/${name}`))
+    })
+  },
+  generateBundle() {
+    for (const f of foliatePdfjsFiles())
+      this.emitFile({ type: 'asset', fileName: `pdfjs-vendor/${f}`, source: readFileSync(`${FOLIATE_PDFJS}/${f}`) })
+  },
+})
+
 export default defineConfig({
   base: './',
   // eye.html is the hidden page eye scrolling runs in, interactive.html the sandbox for scripted EPUBs (each has its own content-security policy, see the files)
@@ -29,6 +80,7 @@ export default defineConfig({
   plugins: [
     react(),
     pdfjsWasm(),
+    foliatePdfjs(),
     // `ANALYZE=1 npm run build` writes dist-stats.html (treemap of the bundle).
     !!process.env.ANALYZE && visualizer({ filename: 'dist-stats.html', gzipSize: true }),
     VitePWA({
@@ -46,6 +98,12 @@ export default defineConfig({
             urlPattern: ({ url }) => /\/assets\/pdf(\.worker)?[.-]/.test(url.pathname),
             handler: 'CacheFirst',
             options: { cacheName: 'pdfjs' },
+          },
+          {
+            // cmaps and standard fonts for PDFs shown as they are
+            urlPattern: ({ url }) => /\/pdfjs-vendor\//.test(url.pathname),
+            handler: 'CacheFirst',
+            options: { cacheName: 'pdfjs-vendor' },
           },
           {
             // Face Mesh (eye scrolling, ~17 MB) is only fetched when that mode is switched on
