@@ -270,7 +270,8 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
       const name = await saveBookToPhone(b.id)
       if (name) showToast(t(deviceBooksSupported() ? 'book.savedToPhone' : 'book.downloaded', { name }), undefined, 5000)
     } catch (e) {
-      setError(t('book.saveFailed', { msg: e instanceof Error ? e.message : String(e) }))
+      const code = e instanceof Error ? e.message : String(e)
+      setError(t('book.saveFailed', { msg: code === 'permission' ? t('book.savePermission') : code === 'save' ? t('book.saveWrite') : code }))
     }
   }
 

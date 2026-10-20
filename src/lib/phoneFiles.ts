@@ -54,11 +54,17 @@ export async function saveBookToPhone(id: string): Promise<string | undefined> {
     download(rec.file, name)
     return name
   }
-  if (!(await hasDeviceAccess()) && !(await requestDeviceAccess())) throw new Error('permission')
+  if (!(await hasDeviceAccess()) && !(await requestDeviceAccess().catch(() => false))) throw new Error('permission')
   type Saved = { path: string; name: string; size: number; modified: number }
-  let saved = await call<Saved>('save', { name, data: await toBase64(rec.file.slice(0, CHUNK)) })
-  for (let at = CHUNK; at < rec.file.size; at += CHUNK) {
-    saved = await call<Saved>('save', { path: saved.path, data: await toBase64(rec.file.slice(at, at + CHUNK)) })
+  let saved: Saved
+  try {
+    saved = await call<Saved>('save', { name, data: await toBase64(rec.file.slice(0, CHUNK)) })
+    for (let at = CHUNK; at < rec.file.size; at += CHUNK) {
+      saved = await call<Saved>('save', { path: saved.path, data: await toBase64(rec.file.slice(at, at + CHUNK)) })
+    }
+  } catch (e) {
+    // the native side only says "permission" or "save"; anything else is a bridge/read failure
+    throw new Error(e instanceof Error && e.message === 'permission' ? 'permission' : 'save')
   }
   await rememberPhoneFile(id, saved.path)
   // it sits in a scanned folder: the next scan must not offer the book's own copy as a new find

@@ -108,6 +108,8 @@ export const he = {
   'book.savedToPhone': 'נשמר בהורדות: {name}',
   'book.downloaded': 'הספר ירד: {name}',
   'book.saveFailed': 'לא הצלחתי לשמור את הספר: {msg}',
+  'book.savePermission': 'אין הרשאת גישה לקבצים. אפשר לאשר אותה בהגדרות הטלפון: אפליקציות ← קורא ספרים ← הרשאות ← גישה לכל הקבצים',
+  'book.saveWrite': 'הכתיבה לתיקיית ההורדות נכשלה (אולי אין מקום פנוי בטלפון)',
   'book.moveToFolder': 'העבר לתיקייה',
   'book.part': 'חלק {n}',
   'books.count': { one: 'ספר אחד', other: '{n} ספרים' },
