@@ -4,6 +4,8 @@ import { librarySize, markBackedUp } from '../lib/backupReminder'
 import { exportLibrary, exportLibraryTo } from '../lib/backupExport'
 import { importLibrary } from '../lib/backupImport'
 import { download } from '../lib/download'
+import { deviceBooksSupported } from '../lib/deviceBooks'
+import { openDownloadsFolder, saveBlobToPhone } from '../lib/phoneFiles'
 import { t } from '../i18n'
 import type { Confirm } from './useConfirm'
 
@@ -65,12 +67,29 @@ export function useBackup({ refresh, setBusy, setError, showToast, onBackedUp, c
       }
       setBusy(t('backup.preparing'))
       const progress = (done: number, total: number) => setBusy(`${t('backup.preparing')} ${done}/${total}`)
+      let savedName = name
       if (sink) await exportLibraryTo(sink, progress, password)
-      else download(await exportLibrary(progress, password), name)
+      else if (deviceBooksSupported()) {
+        // the app's WebView does not save downloaded files: write it to the phone's Download folder
+        const blob = await exportLibrary(progress, password)
+        setBusy(t('backup.saving'))
+        savedName = await saveBlobToPhone(blob, name)
+      } else download(await exportLibrary(progress, password), name)
       markBackedUp()
       onBackedUp()
+      setBusy(undefined)
+      if (deviceBooksSupported() && !sink) {
+        const open = await confirm({
+          title: t('backup.doneTitle'),
+          text: t('backup.doneText', { name: savedName }),
+          ok: t('book.openLocation'),
+          cancel: t('common.close'),
+        })
+        if (open) await openDownloadsFolder().catch(() => {})
+      } else showToast(t('backup.done', { name: savedName }), undefined, 6000)
     } catch (e) {
-      setError(t('backup.failed', { msg: e instanceof Error ? e.message : String(e) }))
+      const code = e instanceof Error ? e.message : String(e)
+      setError(t('backup.failed', { msg: code === 'permission' ? t('book.savePermission') : code === 'save' ? t('book.saveWrite') : code }))
     }
     setBusy(undefined)
   }

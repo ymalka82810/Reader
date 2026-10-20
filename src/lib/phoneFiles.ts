@@ -44,6 +44,22 @@ const toBase64 = (blob: Blob) =>
     r.readAsDataURL(blob)
   })
 
+/** Writes any file (a library backup) to the phone's Download folder through the native plugin, in pieces.
+ *  Resolves with the name it was saved under. Android app only. */
+export async function saveBlobToPhone(blob: Blob, name: string): Promise<string> {
+  if (!(await hasDeviceAccess()) && !(await requestDeviceAccess().catch(() => false))) throw new Error('permission')
+  type Saved = { path: string; name: string }
+  try {
+    let saved = await call<Saved>('save', { name, data: await toBase64(blob.slice(0, CHUNK)) })
+    for (let at = CHUNK; at < blob.size; at += CHUNK) {
+      saved = await call<Saved>('save', { path: saved.path, data: await toBase64(blob.slice(at, at + CHUNK)) })
+    }
+    return saved.name
+  } catch (e) {
+    throw new Error(e instanceof Error && e.message === 'permission' ? 'permission' : 'save')
+  }
+}
+
 /** Saves one book from the library to the phone's Download folder (a normal download in the browser).
  *  Resolves with the name it was saved under; undefined when the book is gone. */
 export async function saveBookToPhone(id: string): Promise<string | undefined> {
