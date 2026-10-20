@@ -456,7 +456,10 @@ i.lv4 { background: var(--accent) !important; }
 .lib-tools .select-btn.view-toggle { flex: none; width: 2.6rem; justify-content: center; padding-inline: 0; }
 .lib-tools .select-btn.view-toggle:has(.folder-svg) { width: auto; gap: .15rem; padding-inline: .6rem; }
 .lib-tools .select-btn > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-@media (max-width: 600px) { .lib-tools .select-btn:not(.view-toggle) { flex: 1 1 0; } }
+@media (max-width: 600px) {
+  .lib-tools > .select-btn:not(.view-toggle) { flex: 1 1 0; }
+  .lib-tools-more .select-btn { flex: 1 1 40%; }
+}
 .select-btn[aria-pressed="true"] { background: rgba(49,130,206,.18); }
 
 /* library: buttons and floating menus share the filter outline so none of them blends into the background */
