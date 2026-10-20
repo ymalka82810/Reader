@@ -32,6 +32,12 @@ export function Select<T extends string>({ value, options, onChange, label, clas
       if (e.target instanceof Node && (btn.current?.contains(e.target) || list.current?.contains(e.target))) return
       setOpen(false)
     }
+    // only a scroll that can actually move the button (the page or one of its ancestors) closes the menu;
+    // scrolling something unrelated, like the auto-advancing "continue reading" carousel, must leave it open
+    const onScroll = (e: Event) => {
+      if (e.target instanceof Node && !e.target.contains(btn.current)) return
+      setOpen(false)
+    }
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation()
@@ -40,13 +46,13 @@ export function Select<T extends string>({ value, options, onChange, label, clas
       }
     }
     document.addEventListener('pointerdown', close)
-    document.addEventListener('scroll', close, true)
+    document.addEventListener('scroll', onScroll, true)
     window.addEventListener('resize', close)
     document.addEventListener('keydown', key, true)
     list.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.focus()
     return () => {
       document.removeEventListener('pointerdown', close)
-      document.removeEventListener('scroll', close, true)
+      document.removeEventListener('scroll', onScroll, true)
       window.removeEventListener('resize', close)
       document.removeEventListener('keydown', key, true)
     }
