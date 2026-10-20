@@ -125,14 +125,6 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   const { selecting, setSelecting, selected, setSelected, selectedFolders, setSelectedFolders, exitSelect } = selection
   const { books, createdNames, loaded, refresh, deleteBooks } = useLibrary(setError, { showToast, clearToast })
   const { pending: confirmAsk, confirm } = useConfirm()
-  // the phone's back swipe in the library: dismisses an open question, else asks before leaving the app
-  useBackGesture(() => {
-    if (confirmAsk) {
-      confirmAsk.answer(false)
-      return
-    }
-    void confirm({ title: t('exit.title'), text: t('exit.text'), ok: t('exit.ok') }).then((yes) => yes && exitApp())
-  })
   const imp = useImport({ refresh, setError, showToast })
   const backup = useBackup({ refresh, setBusy, setError, showToast, onBackedUp: () => setDismissed(true), confirm })
   const checkUpdate = useUpdateCheck({ setBusy, setError, showToast, confirm })
@@ -233,6 +225,28 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   const searching = !!query.trim() || !!activeTag
   const fo = useFolders({ books, shown, createdNames, searching, refresh, showToast, exitSelect, deleteBooks, confirm, sort, foldersFirst })
   const { folders, current } = fo
+
+  // the phone's back swipe in the library: closes one layer per press (a question, a dialog, selection mode,
+  // an open folder, search/filters) and only when nothing is left open asks before leaving the app
+  useBackGesture(() => {
+    if (confirmAsk) confirmAsk.answer(false)
+    else if (fo.folderDialog) fo.setFolderDialog(undefined)
+    else if (confirmDel) setConfirmDel(undefined)
+    else if (editing) {
+      editRun.current++
+      setEditing(undefined)
+    } else if (identifying) setIdentifying(undefined)
+    else if (picking) setPicking(false)
+    else if (goalsOpen) setGoalsOpen(false)
+    else if (reviewOpen) setReviewOpen(false)
+    else if (selecting) exitSelect()
+    else if (fo.openFolder !== undefined) fo.setOpenFolder(undefined)
+    else if (query || isFiltering(filter) || tag) {
+      setQuery('')
+      setFilter(NO_FILTER)
+      setTag('')
+    } else void confirm({ title: t('exit.title'), text: t('exit.text'), ok: t('exit.ok') }).then((yes) => yes && exitApp())
+  })
   const inFolderList = !searching && !current
   const pickedFolders = folders.filter((f) => selectedFolders.has(f.key))
 
