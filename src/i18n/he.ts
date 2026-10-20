@@ -511,6 +511,8 @@ export const he = {
   'settings.removeFont': 'הסרת הגופן',
   'settings.fontFailed': 'העלאת הגופן נכשלה',
   'settings.justify': 'יישור לשני הצדדים',
+  'settings.bookStyles': 'עיצוב הספר עצמו',
+  'settings.bookStylesNote': 'מציג את העיצוב שהספר מביא איתו, כמו הזחת פסקאות וכותרות. הגופן, הגודל והצבעים שבחרת תמיד גוברים. כבוי: רק העיצוב של האפליקציה.',
   'settings.accessible': 'מצב נגיש (דיסלקסיה / ראייה חלשה): ריווח מוגדל וגופן פשוט',
   'settings.pageAnim': 'אנימציית מעבר בין עמודים',
   'settings.dictLang': 'שפת מילון',

@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import JSZip from 'jszip'
 
 /** a small but multi-page EPUB, built on the fly so no binary fixture is needed */
-async function makeEpub(): Promise<Buffer> {
+async function makeEpub(css = ''): Promise<Buffer> {
   const zip = new JSZip()
   zip.file('mimetype', 'application/epub+zip', { compression: 'STORE' })
   zip.file(
@@ -14,14 +14,15 @@ async function makeEpub(): Promise<Buffer> {
     'OEBPS/content.opf',
     `<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id">
 <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="id">e2e-book</dc:identifier><dc:title>ספר בדיקה</dc:title><dc:creator>מחבר בדיקה</dc:creator><dc:language>he</dc:language></metadata>
-<manifest>${chapters.map((n) => `<item id="c${n}" href="c${n}.xhtml" media-type="application/xhtml+xml"/>`).join('')}</manifest>
+<manifest>${chapters.map((n) => `<item id="c${n}" href="c${n}.xhtml" media-type="application/xhtml+xml"/>`).join('')}<item id="css" href="style.css" media-type="text/css"/></manifest>
 <spine>${chapters.map((n) => `<itemref idref="c${n}"/>`).join('')}</spine></package>`,
   )
+  zip.file('OEBPS/style.css', css)
   const para = 'זהו משפט ארוך למדי שנועד למלא את העמוד בטקסט כדי שיהיו הרבה עמודים בספר הבדיקה. '.repeat(12)
   for (const n of chapters) {
     zip.file(
       `OEBPS/c${n}.xhtml`,
-      `<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>פרק ${n}</title></head><body><h1>פרק ${n}</h1>${Array.from({ length: 40 }, () => `<p>${para}</p>`).join('')}</body></html>`,
+      `<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>פרק ${n}</title>${css ? '<link rel="stylesheet" href="style.css" type="text/css"/>' : ''}</head><body><h1>פרק ${n}</h1>${Array.from({ length: 40 }, () => `<p>${para}</p>`).join('')}</body></html>`,
     )
   }
   return zip.generateAsync({ type: 'nodebuffer' })
@@ -140,12 +141,12 @@ test('scripts inside an EPUB do not run', async ({ page }) => {
   expect(logs.some((l) => /Content Security Policy/i.test(l))).toBe(true)
 })
 
-async function importAndOpen(page: Page) {
+async function importAndOpen(page: Page, css = '') {
   await page.goto('/')
   await page.locator('input[type=file]').first().setInputFiles({
     name: 'test.epub',
     mimeType: 'application/epub+zip',
-    buffer: await makeEpub(),
+    buffer: await makeEpub(css),
   })
   await openBook(page)
   await expect(page.getByText(/^עמוד/)).toBeVisible({ timeout: 30_000 })
@@ -190,4 +191,29 @@ test('the Aa panel links to all the settings, and the back gesture then leaves t
   await page.goBack()
   await expect(screen).toHaveCount(0)
   await expect(page.locator('.card', { hasText: 'ספר בדיקה' })).toBeVisible()
+})
+
+const INDENT = 'p { text-indent: 40px }'
+/** text-indent of the first paragraph of the open section: the book's stylesheet sets it, the app's styling does not */
+const indentOf = (page: Page) =>
+  page.evaluate<string>(
+    `(() => { const d = document.querySelector('foliate-view').renderer.getContents()[0].doc; return getComputedStyle(d.querySelector('p')).textIndent })()`,
+  )
+
+test("the book's own styling is off by default", async ({ page }) => {
+  await importAndOpen(page, INDENT)
+  await expect.poll(() => indentOf(page)).toBe('0px')
+})
+
+test("the settings switch turns on the book's own styling", async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'הגדרות', exact: true }).click()
+  const screen = page.getByRole('dialog', { name: 'הגדרות', exact: true })
+  await screen.getByRole('button', { name: 'מראה וקריאה' }).click()
+  const toggle = screen.getByRole('checkbox', { name: /עיצוב הספר עצמו/ })
+  await expect(toggle).not.toBeChecked()
+  await toggle.check()
+  await page.keyboard.press('Escape')
+  await importAndOpen(page, INDENT)
+  await expect.poll(() => indentOf(page)).toBe('40px')
 })

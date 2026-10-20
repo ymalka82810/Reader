@@ -74,6 +74,7 @@ export function AppearancePage({ settings, set }: { settings: Settings; set: Set
           />
         </Row>
         <Toggle label={t('settings.justify')} checked={settings.justify} onChange={(on) => set('justify', on)} />
+        <Toggle label={t('settings.bookStyles')} hint={t('settings.bookStylesNote')} checked={settings.bookStyles} onChange={(on) => set('bookStyles', on)} />
       </Section>
 
       <Section title={t('prefs.pagesSection')}>

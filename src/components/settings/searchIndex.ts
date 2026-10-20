@@ -12,6 +12,7 @@ const ENTRIES: [PageId, MessageKey, boolean?][] = [
   ['appearance', 'settings.columnWidth'],
   ['appearance', 'settings.margins'],
   ['appearance', 'settings.justify'],
+  ['appearance', 'settings.bookStyles'],
   ['appearance', 'settings.pageAnim'],
   ['appearance', 'prefs.colorsSection'],
   ['appearance', 'prefs.fontSection'],
