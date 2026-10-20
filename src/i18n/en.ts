@@ -109,6 +109,8 @@ export const en: Record<keyof typeof he, Message> = {
   'book.savedToPhone': 'Saved in Downloads: {name}',
   'book.downloaded': 'Book downloaded: {name}',
   'book.saveFailed': 'Could not save the book: {msg}',
+  'book.saving': 'Saving the book to the phone…',
+  'book.preparing': 'Preparing the book for download…',
   'book.savePermission': 'No access to files. Allow it in the phone settings: Apps > Reader > Permissions > All files access',
   'book.saveWrite': 'Writing to the Download folder failed (the phone may be out of space)',
   'book.moveToFolder': 'Move to folder',
