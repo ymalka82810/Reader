@@ -14,6 +14,7 @@ type Toasts = {
 export function useLibrary(setError: (msg: string | undefined) => void, { showToast, clearToast }: Toasts) {
   const [books, setBooks] = useState<BookMeta[]>([])
   const [createdNames, setCreatedNames] = useState<string[]>([])
+  const [loaded, setLoaded] = useState(false) // false until the first read of the library is done: an empty list then means "still loading"
   // books removed from view that can still be restored; they are deleted for real once `timer` fires
   const pendingDel = useRef<{ ids: string[]; timer: number }>(undefined)
 
@@ -25,6 +26,8 @@ export function useLibrary(setError: (msg: string | undefined) => void, { showTo
     } catch (e) {
       console.error(e)
       setError(t('lib.storageBlocked'))
+    } finally {
+      setLoaded(true)
     }
   }, [setError])
   useEffect(() => {
@@ -71,5 +74,5 @@ export function useLibrary(setError: (msg: string | undefined) => void, { showTo
     showToast(t('lib.deleted', { n: list.length, title: list[0]?.title ?? '' }), undoDelete, UNDO_MS)
   }
 
-  return { books, createdNames, refresh, deleteBooks }
+  return { books, createdNames, loaded, refresh, deleteBooks }
 }

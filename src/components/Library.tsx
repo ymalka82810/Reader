@@ -123,7 +123,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   const { toast, showToast, clearToast } = useToast()
   const selection = useSelection()
   const { selecting, setSelecting, selected, setSelected, selectedFolders, setSelectedFolders, exitSelect } = selection
-  const { books, createdNames, refresh, deleteBooks } = useLibrary(setError, { showToast, clearToast })
+  const { books, createdNames, loaded, refresh, deleteBooks } = useLibrary(setError, { showToast, clearToast })
   const { pending: confirmAsk, confirm } = useConfirm()
   // the phone's back swipe in the library: dismisses an open question, else asks before leaving the app
   useBackGesture(() => {
@@ -266,12 +266,15 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   }
 
   const downloadBook = async (b: BookMeta) => {
+    setBusy(t(deviceBooksSupported() ? 'book.saving' : 'book.preparing'))
     try {
       const name = await saveBookToPhone(b.id)
       if (name) showToast(t(deviceBooksSupported() ? 'book.savedToPhone' : 'book.downloaded', { name }), undefined, 5000)
     } catch (e) {
       const code = e instanceof Error ? e.message : String(e)
       setError(t('book.saveFailed', { msg: code === 'permission' ? t('book.savePermission') : code === 'save' ? t('book.saveWrite') : code }))
+    } finally {
+      setBusy(undefined)
     }
   }
 
@@ -534,6 +537,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
               <progress value={batch.done} max={batch.total} />
             </div>
           )}
+          <span className="spinner" aria-hidden="true" />
           {busy ?? imp.message}
           {imp.running && !busy && imp.queue.length > 1 && (
             <ul className="import-queue">
@@ -569,7 +573,9 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
         </div>
       )}
 
-      {books.length === 0 && !busy && !imp.running ? (
+      {!loaded ? (
+        <p className="loading" role="status"><span className="spinner" aria-hidden="true" />{t('common.loading')}</p>
+      ) : books.length === 0 && !busy && !imp.running ? (
         <div className="empty">
           <p>{t('lib.empty')}</p>
           <p>{t('lib.emptyHint')}</p>

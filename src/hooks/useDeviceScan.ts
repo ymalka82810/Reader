@@ -71,7 +71,7 @@ export function useDeviceScan({ addFiles, setBusy, setError, showToast, confirm 
         void requestNotificationAccess().then(() => syncBackgroundScan()) // so the background scan can announce what it finds
         manual = true // the user just chose this: show the progress and ask before adding, as from the settings
       }
-      if (manual) setBusy(t('device.scanning'))
+      setBusy(t('device.scanning')) // also for the automatic scan: the library must not look idle meanwhile
       const scanned = await scanDevice(loadSettings().deviceFolders)
       // books added before the library followed phone files get tied to theirs, quietly
       const linked = await linkKnownBooks(scanned).catch(() => 0)
