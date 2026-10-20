@@ -71,7 +71,9 @@ select { font: inherit; padding: .4rem .6rem; border-radius: var(--radius-lg); b
 .select-list li[aria-selected="true"] { background: var(--accent); color: var(--on-accent); }
 /* full-width opaque strip that sits flush against the bottom of the pinned header, so nothing shows through between them */
 .lib-search-bar { position: sticky; top: calc(var(--lib-header-h, 4rem) - 1px); z-index: 5; margin: 0 -1rem .6rem; padding: .6rem 1rem; background: var(--bg); border-bottom: 1px solid var(--border-subtle); }
-.lib-search { display: block; width: 100%; box-sizing: border-box; min-width: 0; padding: .5rem .8rem; border-radius: var(--radius-lg); border: 1px solid rgba(128,128,128,.4); background: var(--bg); color: inherit; font: inherit; }
+.lib-search-icon { position: absolute; z-index: 1; inset-inline-start: calc(1rem + .8rem); top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--fg); opacity: .8; }
+.lib-search { display: block; width: 100%; box-sizing: border-box; min-width: 0; padding: .5rem .8rem; padding-inline-start: 2.6rem; border-radius: var(--radius-lg); border: 2px solid color-mix(in srgb, var(--fg) 85%, transparent); background: var(--bg); color: inherit; font: inherit; }
+.lib-search:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .dd { position: relative; }
 .dd-btn { display: flex; align-items: center; gap: .5rem; padding: .5rem .7rem; border-radius: var(--radius-lg); border: 1px solid rgba(128,128,128,.4); background: transparent; color: inherit; font: inherit; white-space: nowrap; cursor: pointer; }
 .dd-btn svg { opacity: .65; transition: transform .15s; }
