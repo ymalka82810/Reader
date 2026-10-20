@@ -494,6 +494,8 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
           books={resume}
           onOpen={(id) => onOpen(id)}
           onRemove={async (id) => {
+            const title = resume.find((b) => b.id === id)?.title ?? ''
+            if (!(await confirm({ title: t('lib.resumeRemoveTitle', { title }), text: t('lib.resumeRemoveText'), ok: t('lib.resumeRemoveOk'), danger: true }))) return
             await hideFromResume(id)
             await refresh()
           }}
