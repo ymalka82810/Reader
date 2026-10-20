@@ -21,6 +21,8 @@ export interface BookRecord {
   /** manual "read" mark, see isFinished */
   finished?: boolean
   lastOpened?: number
+  /** when the user removed the book from the "continue reading" carousel; it comes back once the book is opened again */
+  resumeHiddenAt?: number
   cfi?: string
   fraction?: number
   /** folder picked by the user; unset = filed by author, '' = deliberately in no folder */
@@ -213,6 +215,14 @@ export const setFinished = (id: string, finished: boolean) =>
     const b = await get<BookMeta>(id, store)
     if (!b) return
     b.finished = finished
+    await set(id, b, store)
+  })
+
+export const hideFromResume = (id: string) =>
+  serial(async () => {
+    const b = await get<BookMeta>(id, store)
+    if (!b) return
+    b.resumeHiddenAt = Date.now()
     await set(id, b, store)
   })
 

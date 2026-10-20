@@ -5,8 +5,8 @@ import { Cover } from './Cover'
 
 const AUTO_MS = 10_000
 
-// books in progress, most recently opened first; swipe sideways between them (it also moves on by itself every 10 seconds), one dot per book
-export function ResumeCarousel({ books, onOpen }: { books: BookMeta[]; onOpen: (id: string) => void }) {
+// books in progress, most recently opened first, each removable by hand with its ✕; swipe sideways between them (it also moves on by itself every 10 seconds), one dot per book
+export function ResumeCarousel({ books, onOpen, onRemove }: { books: BookMeta[]; onOpen: (id: string) => void; onRemove: (id: string) => void }) {
   const track = useRef<HTMLDivElement>(null)
   const settle = useRef<number | undefined>(undefined)
   // last time anything moved the carousel (user or auto), and whether a mouse is resting on it
@@ -104,12 +104,8 @@ export function ResumeCarousel({ books, onOpen }: { books: BookMeta[]; onOpen: (
     >
       <div className="resume-track" ref={track} onScroll={onScroll}>
         {items.map(({ b, c }) => (
-          <button
-            key={`${c}-${b.id}`}
-            className="continue"
-            onClick={() => onOpen(b.id)}
-            {...(c !== mid ? { 'aria-hidden': true, tabIndex: -1 } : {})}
-          >
+          <div key={`${c}-${b.id}`} className="resume-item" {...(c !== mid ? { 'aria-hidden': true, inert: true } : {})}>
+          <button className="continue" onClick={() => onOpen(b.id)}>
             <Cover book={b} />
             <span className="continue-info">
               <small>{t('lib.resume')}</small>
@@ -122,6 +118,8 @@ export function ResumeCarousel({ books, onOpen }: { books: BookMeta[]; onOpen: (
             </span>
             <span className="continue-cta">{t('lib.continue')}</span>
           </button>
+          <button className="resume-remove" aria-label={t('lib.resumeRemove', { title: b.title })} title={t('lib.resumeRemove', { title: b.title })} onClick={() => onRemove(b.id)}>✕</button>
+          </div>
         ))}
       </div>
       {books.length > 1 && (

@@ -8,6 +8,9 @@ export type Smart = '' | 'stale' | 'longest'
 export const SMARTS: Exclude<Smart, ''>[] = ['stale', 'longest']
 const STALE_DAYS = 30
 const LONGEST_COUNT = 10
+/** a book barely started (this fraction or less) drops out of the "continue reading" carousel after RESUME_STALE_DAYS */
+const RESUME_MIN_FRACTION = 0.03
+const RESUME_STALE_DAYS = 3
 
 /** what the library list is narrowed to; every part that is set must match */
 export interface LibraryFilter {
@@ -47,6 +50,19 @@ export function typesOf(books: Pick<BookMeta, 'kind' | 'fromPdf' | 'fileName'>[]
 export function isStale(b: Pick<BookMeta, 'lastOpened' | 'addedAt' | 'finished' | 'fraction'>, now: number): boolean {
   if (b.finished || (b.fraction ?? 0) >= 0.98) return false
   return now - (b.lastOpened ?? b.addedAt) > STALE_DAYS * 86_400_000
+}
+
+/** whether a book belongs in the "continue reading" carousel: started, not finished, not removed by hand since it was last
+ *  opened, and not a barely-started book (3% or less) left untouched for more than 3 days */
+export function inResume(
+  b: Pick<BookMeta, 'lastOpened' | 'finished' | 'fraction' | 'resumeHiddenAt'>,
+  now: number,
+): boolean {
+  const fraction = b.fraction ?? 0
+  if (!fraction || !b.lastOpened) return false
+  if (b.finished ?? fraction >= 0.98) return false
+  if (b.resumeHiddenAt !== undefined && b.resumeHiddenAt >= b.lastOpened) return false
+  return !(fraction <= RESUME_MIN_FRACTION && now - b.lastOpened > RESUME_STALE_DAYS * 86_400_000)
 }
 
 type Sized = Pick<BookMeta, 'id' | 'kind' | 'audio'>

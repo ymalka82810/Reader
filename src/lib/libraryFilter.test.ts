@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bookType, byLength, isFiltering, isStale, longestOf, NO_FILTER, typesOf } from './libraryFilter'
+import { bookType, byLength, inResume, isFiltering, isStale, longestOf, NO_FILTER, typesOf } from './libraryFilter'
 
 const b = (fileName: string, extra = {}) => ({ kind: 'epub' as const, fileName, ...extra })
 
@@ -42,5 +42,31 @@ describe('library filter', () => {
 
   it('counts a smart collection as filtering', () => {
     expect(isFiltering({ ...NO_FILTER, smart: 'stale' })).toBe(true)
+  })
+})
+
+describe('inResume', () => {
+  const DAY = 86_400_000
+  const now = 100 * DAY
+
+  it('keeps a started, unfinished book', () => {
+    expect(inResume({ fraction: 0.4, lastOpened: now - 10 * DAY }, now)).toBe(true)
+  })
+  it('drops a book at 3% or less once untouched for more than 3 days', () => {
+    expect(inResume({ fraction: 0.03, lastOpened: now - 3 * DAY - 1 }, now)).toBe(false)
+    expect(inResume({ fraction: 0.01, lastOpened: now - 5 * DAY }, now)).toBe(false)
+  })
+  it('keeps a barely-started book for up to 3 days, and a book over 3% however old', () => {
+    expect(inResume({ fraction: 0.03, lastOpened: now - 3 * DAY }, now)).toBe(true)
+    expect(inResume({ fraction: 0.031, lastOpened: now - 30 * DAY }, now)).toBe(true)
+  })
+  it('drops finished and never-started books', () => {
+    expect(inResume({ fraction: 0.99, lastOpened: now }, now)).toBe(false)
+    expect(inResume({ fraction: 0.5, finished: true, lastOpened: now }, now)).toBe(false)
+    expect(inResume({ fraction: 0, lastOpened: now }, now)).toBe(false)
+  })
+  it('hides a book removed by hand until it is opened again', () => {
+    expect(inResume({ fraction: 0.4, lastOpened: now - DAY, resumeHiddenAt: now }, now)).toBe(false)
+    expect(inResume({ fraction: 0.4, lastOpened: now + 1, resumeHiddenAt: now }, now)).toBe(true)
   })
 })
