@@ -5,6 +5,8 @@ export type ConfirmAsk = {
   text?: string
   /** the confirm button's label */
   ok: string
+  /** the cancel button's label (defaults to "ביטול") */
+  cancel?: string
   /** shows the confirm button as destructive */
   danger?: boolean
 }

@@ -13,7 +13,7 @@ import { useAutoBackup } from '../hooks/useAutoBackup'
 import { useUpdateCheck } from '../hooks/useUpdateCheck'
 import { useDeviceScan } from '../hooks/useDeviceScan'
 import { deviceBooksSupported } from '../lib/deviceBooks'
-import { autoSyncPhoneNames, phoneFileOf, saveBookToPhone, syncPhoneNames } from '../lib/phoneFiles'
+import { autoSyncPhoneNames, openDownloadsFolder, phoneFileOf, saveBookToPhone, syncPhoneNames } from '../lib/phoneFiles'
 import { formatBookName, splitBookName, type BookName } from '../lib/bookName'
 import { identifyBook } from '../lib/bookLookup'
 import { openingLines } from '../lib/bookText'
@@ -269,7 +269,16 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
     setBusy(t(deviceBooksSupported() ? 'book.saving' : 'book.preparing'))
     try {
       const name = await saveBookToPhone(b.id)
-      if (name) showToast(t(deviceBooksSupported() ? 'book.savedToPhone' : 'book.downloaded', { name }), undefined, 5000)
+      if (name && deviceBooksSupported()) {
+        setBusy(undefined)
+        const open = await confirm({
+          title: t('book.savedTitle'),
+          text: t('book.savedText', { name }),
+          ok: t('book.openLocation'),
+          cancel: t('common.close'),
+        })
+        if (open) await openDownloadsFolder().catch(() => {})
+      } else if (name) showToast(t('book.downloaded', { name }), undefined, 5000)
     } catch (e) {
       const code = e instanceof Error ? e.message : String(e)
       setError(t('book.saveFailed', { msg: code === 'permission' ? t('book.savePermission') : code === 'save' ? t('book.saveWrite') : code }))
@@ -520,7 +529,17 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
         </div>
       )}
 
-      {(busy || imp.running) && (
+      {busy && (
+        <div className="modal-backdrop">
+          <div className="modal wait-modal" role="alertdialog" aria-modal="true" aria-busy="true" aria-label={t('common.wait')}>
+            <span className="spinner" aria-hidden="true" />
+            <p role="status">{busy}</p>
+            <p className="wait-hint">{t('common.wait')}</p>
+          </div>
+        </div>
+      )}
+
+      {imp.running && !busy && (
         <div className="notice">
           {batch && (
             <div className="batch">
@@ -538,8 +557,8 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
             </div>
           )}
           <span className="spinner" aria-hidden="true" />
-          {busy ?? imp.message}
-          {imp.running && !busy && imp.queue.length > 1 && (
+          {imp.message}
+          {imp.queue.length > 1 && (
             <ul className="import-queue">
               {imp.queue.map((it) => (
                 <li key={it.id} className={it.active ? 'active' : undefined}>
@@ -556,7 +575,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
               ))}
             </ul>
           )}
-          {imp.running && !busy && (
+          {(
             <div className="import-actions">
               <small>{t('import.background')}</small>
               <button className="danger" onClick={imp.cancel}>

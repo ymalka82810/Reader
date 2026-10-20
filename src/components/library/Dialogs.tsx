@@ -148,7 +148,7 @@ export function ConfirmDialog({ ask }: { ask: ConfirmAsk & { answer: (yes: boole
             {ask.ok}
           </button>
           <button onClick={cancel} autoFocus={ask.danger}>
-            {t('common.cancel')}
+            {ask.cancel ?? t('common.cancel')}
           </button>
         </div>
       </Dialog>
