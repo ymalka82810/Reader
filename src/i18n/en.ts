@@ -31,6 +31,7 @@ export const en: Record<keyof typeof he, Message> = {
   'lib.noteHitsCapped': 'Showing the {n} newest matches.',
   'lib.resume': 'Continue reading',
   'lib.continue': 'Continue',
+  'lib.resumeRemove': 'Remove "{title}" from continue reading',
   'lib.empty': 'No books yet.',
   'lib.emptyHint': 'Tap “Add book” and pick an EPUB, PDF, MOBI, AZW3, FB2, CBZ, DOCX or TXT file, or an audiobook (M4B, MP3), from your phone or Google Drive.',
   'lib.noMatch': 'No books found for “{query}”.',

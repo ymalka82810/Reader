@@ -31,6 +31,7 @@ export const he = {
   'lib.noteHitsCapped': 'מוצגות {n} ההתאמות החדשות ביותר.',
   'lib.resume': 'המשך לקרוא',
   'lib.continue': 'המשך',
+  'lib.resumeRemove': 'הסר את "{title}" מהמשך קריאה',
   'lib.empty': 'אין עדיין ספרים.',
   'lib.emptyHint': 'לחץ על ״הוסף ספר״ ובחר קובץ EPUB, PDF, MOBI, AZW3, FB2, CBZ, DOCX, TXT או ספר קולי (M4B, MP3) מהטלפון או מגוגל דרייב.',
   'lib.noMatch': 'לא נמצאו ספרים עבור ״{query}״.',

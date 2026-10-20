@@ -290,6 +290,9 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: var(--radius-sm); border:
 .resume-dots button { position: relative; width: 28px; height: 44px; padding: 0; min-width: 0; min-height: 0; border: 0; background: transparent; }
 .resume-dots button::before { content: ""; position: absolute; top: 50%; left: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: currentColor; opacity: .3; }
 .resume-dots button.on::before { opacity: .9; background: var(--accent); }
+.resume-item { position: relative; flex: 0 0 100%; min-width: 0; max-width: 100%; scroll-snap-align: center; }
+.resume-remove { position: absolute; top: .2rem; inset-inline-end: .2rem; width: 28px; height: 28px; min-width: 0; min-height: 0; padding: 0; line-height: 1; font-size: .8rem; border: 0; border-radius: 50%; background: transparent; color: var(--fg-muted); }
+.resume-remove:hover { background: var(--fill); }
 .continue { display: flex; gap: .75rem; align-items: center; flex: 0 0 100%; width: 100%; min-width: 0; max-width: 100%; scroll-snap-align: center; box-sizing: border-box; padding: .7rem; text-align: start; border-radius: var(--radius-lg); background: rgba(49,130,206,.12); }
 .continue .cover { width: 64px; flex: none; }
 @media (max-width: 480px) { .continue .cover { width: 52px; } .continue-cta { padding: .4rem .7rem; font-size: .9rem; } }

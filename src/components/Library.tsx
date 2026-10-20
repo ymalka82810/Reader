@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { getAllNotes, getFile, isFinished, setWords, updateMeta, type Annotation, type BookMeta } from '../lib/db'
+import { getAllNotes, getFile, hideFromResume, isFinished, setWords, updateMeta, type Annotation, type BookMeta } from '../lib/db'
 import { searchNotes } from '../lib/noteSearch'
 import { backupDue } from '../lib/backupReminder'
 import { getStorageStatus, requestPersistence, type StorageStatus } from '../lib/storage'
@@ -32,7 +32,7 @@ import { forgetSettings, rememberedSettings } from './settings/remember'
 import { LibSearch, LibTools, type Sort } from './library/LibTools'
 import { PickBooksDialog } from './library/PickBooksDialog'
 import { wordsOfFile } from '../lib/wordCount'
-import { bookType, byLength, isFiltering, isStale, longestOf, NO_FILTER, typesOf, type LibraryFilter } from '../lib/libraryFilter'
+import { bookType, byLength, inResume, isFiltering, isStale, longestOf, NO_FILTER, typesOf, type LibraryFilter } from '../lib/libraryFilter'
 import { folderKey, groupFolders } from '../lib/folders'
 import { remainingText } from '../lib/formatDuration'
 import { BookGrid } from './library/BookGrid'
@@ -255,9 +255,9 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   const resume = useMemo(() => {
     if (selecting || query.trim() || isFiltering(filter) || activeTag) return []
     return books
-      .filter((b) => b.fraction && !isFinished(b) && b.lastOpened)
+      .filter((b) => inResume(b, loadedAt))
       .sort((a, b) => b.lastOpened! - a.lastOpened!)
-  }, [books, selecting, query, filter, activeTag])
+  }, [books, selecting, query, filter, activeTag, loadedAt])
 
   const doDelete = async () => {
     const list = confirmDel
@@ -488,7 +488,16 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
         </div>
       )}
 
-      {resume.length > 0 && <ResumeCarousel books={resume} onOpen={(id) => onOpen(id)} />}
+      {resume.length > 0 && (
+        <ResumeCarousel
+          books={resume}
+          onOpen={(id) => onOpen(id)}
+          onRemove={async (id) => {
+            await hideFromResume(id)
+            await refresh()
+          }}
+        />
+      )}
 
       {books.length > 1 && <LibSearch query={query} onQuery={setQuery} />}
 
