@@ -23,10 +23,18 @@ type Deps = {
   foldersFirst: boolean
 }
 
+const FOLDER_KEY = 'reader:folder'
+
 /** folder grouping, the folder being viewed, and moving books between folders */
 export function useFolders({ books, shown, createdNames, searching, refresh, showToast, exitSelect, deleteBooks, confirm, sort, foldersFirst }: Deps) {
   // the folder being viewed (its key; '' = books without an author) and the books being moved
-  const [openFolder, setOpenFolder] = useState<string>()
+  // kept for the session: opening a book unmounts the library, and back from the book returns to this folder
+  const [openFolder, setOpenFolderState] = useState<string | undefined>(() => sessionStorage.getItem(FOLDER_KEY) ?? undefined)
+  const setOpenFolder = (key: string | undefined) => {
+    if (key === undefined) sessionStorage.removeItem(FOLDER_KEY)
+    else sessionStorage.setItem(FOLDER_KEY, key)
+    setOpenFolderState(key)
+  }
   const [moving, setMoving] = useState<BookMeta[]>()
   const [newFolder, setNewFolder] = useState('')
   // creating a folder, or renaming the one being viewed (name typed so far; `author`: its books take the new name as author)
@@ -61,9 +69,10 @@ export function useFolders({ books, shown, createdNames, searching, refresh, sho
       : folders.find((f) => f.key === openFolder)
   // a folder that emptied out (or is filtered away) falls back to the folder list
   useEffect(() => {
+    // (not before the books have loaded: the folder remembered across opening a book must survive the first render)
     // oxlint-disable-next-line react/set-state-in-effect -- leaves a folder that no longer exists
-    if (openFolder !== undefined && !current && !searching) setOpenFolder(undefined)
-  }, [openFolder, current, searching])
+    if (openFolder !== undefined && !current && !searching && books.length > 0) setOpenFolder(undefined)
+  }, [openFolder, current, searching, books.length])
 
   /** `setAuthor`: the moved books also take the folder's name as their author */
   const moveTo = async (list: BookMeta[], name: string | undefined, created = false, setAuthor = false) => {

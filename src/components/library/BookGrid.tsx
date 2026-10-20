@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { useBackGesture } from '../../hooks/useBackGesture'
 import { isFinished, setFinished, type BookMeta } from '../../lib/db'
 import { Cover } from './Cover'
 import { t } from '../../i18n'
@@ -21,6 +22,8 @@ type CardProps = BookActions & { book: BookMeta; picked: boolean }
 /** one book's card with its "⋯" actions menu */
 export function BookCard({ book: b, picked, selecting, onOpen, onToggle, onEdit, onMove, onDownload, onDelete, refresh }: CardProps) {
   const [menu, setMenu] = useState(false)
+  // the phone's back swipe closes the open menu first
+  useBackGesture(() => setMenu(false), 3, menu)
   const more = useRef<HTMLButtonElement>(null)
   const close = (refocus = false) => {
     setMenu(false)

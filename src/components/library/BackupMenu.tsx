@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { useBackGesture } from '../../hooks/useBackGesture'
 import { t } from '../../i18n'
 import { menuKeyDown } from '../menuKeys'
 
@@ -20,6 +21,8 @@ type Props = {
 /** the "⋯" menu in the library header: actions only (goals, review, folders, selecting, backup, restore); settings are in the settings screen */
 export function BackupMenu({ view, busy, onBackup, onRestore, onGoals, onReview }: Props) {
   const [open, setOpen] = useState(false)
+  // the phone's back swipe closes the open menu first
+  useBackGesture(() => setOpen(false), 3, open)
   const trigger = useRef<HTMLButtonElement>(null)
   const close = (refocus = false) => {
     setOpen(false)
