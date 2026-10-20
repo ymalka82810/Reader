@@ -231,6 +231,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   useBackGesture(() => {
     if (confirmAsk) confirmAsk.answer(false)
     else if (fo.folderDialog) fo.setFolderDialog(undefined)
+    else if (fo.moving) fo.setMoving(undefined)
     else if (confirmDel) setConfirmDel(undefined)
     else if (editing) {
       editRun.current++

@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { useBackGesture } from '../hooks/useBackGesture'
 
 type Props<T extends string> = {
   value: T
@@ -11,6 +12,8 @@ type Props<T extends string> = {
 /** themed replacement for the native <select>, whose popup can't be styled */
 export function Select<T extends string>({ value, options, onChange, label, className }: Props<T>) {
   const [open, setOpen] = useState(false)
+  // the phone's back swipe closes the open menu first
+  useBackGesture(() => setOpen(false), 3, open)
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 })
   const btn = useRef<HTMLButtonElement>(null)
   const list = useRef<HTMLUListElement>(null)

@@ -12,6 +12,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResult;
 import androidx.core.content.FileProvider;
 import androidx.lifecycle.Lifecycle;
@@ -48,6 +49,7 @@ import java.security.NoSuchAlgorithmException;
  *     downloadAndInstall({url, sha256?}) -> resolves once the install dialog is shown; rejects with
  *       "busy", "bad url", "download", "checksum", "not an update", "permission" or "no installer"
  *     exitApp() -> closes the app
+ *     event "back" -> the system back gesture (the app never closes on back by itself)
  *     event "progress" -> {percent} while downloading (-1 when the size is unknown)
  */
 @CapacitorPlugin(name = "AppUpdater")
@@ -60,6 +62,17 @@ public class AppUpdaterPlugin extends Plugin {
 
     @Override
     public void load() {
+        // The system back gesture/button never closes the app by itself: it goes to the web side as a "back"
+        // event, and the screen on top closes one layer (the library asks before calling exitApp()).
+        // Without this, Capacitor's activity just finishes on back, since the @capacitor/app plugin isn't bundled.
+        getActivity().getOnBackPressedDispatcher().addCallback(getActivity(), new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if (hasListeners("back")) notifyListeners("back", new JSObject());
+                else if (getBridge().getWebView().canGoBack()) getBridge().getWebView().goBack();
+                // web side not listening (still loading): stay in the app rather than close it
+            }
+        });
         // Earlier versions downloaded into the cache
         deleteDir(new File(getContext().getCacheDir(), DIR));
         // An APK left from an earlier update is no longer needed once we're running it,

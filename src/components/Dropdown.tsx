@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { useBackGesture } from '../hooks/useBackGesture'
 
 interface Props<T extends string> {
   value: T
@@ -9,6 +10,8 @@ interface Props<T extends string> {
 
 export function Dropdown<T extends string>({ value, options, onChange, label }: Props<T>) {
   const [open, setOpen] = useState(false)
+  // the phone's back swipe closes the open menu first
+  useBackGesture(() => setOpen(false), 3, open)
   const [active, setActive] = useState(0)
   const ref = useRef<HTMLDivElement>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
