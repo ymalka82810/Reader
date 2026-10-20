@@ -237,6 +237,7 @@ export const en: Record<keyof typeof he, Message> = {
   'backup.restoreBtn': 'Restore',
   'backup.bigTitle': 'The library is large ({mb}MB)',
   'backup.bigText': 'The backup is built in memory and may fail on a weak device. Continue?',
+  'menu.busyNow': 'Another action is running (importing books or loading). Backup and restore work once it finishes.',
   'backup.preparing': 'Preparing backup…',
   'backup.saving': 'Saving the backup to the phone…',
   'backup.done': 'Backup saved: {name}',

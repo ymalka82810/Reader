@@ -459,6 +459,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
               : undefined
           }
           busy={!!busy || imp.running}
+          onBusy={() => showToast(t('menu.busyNow'), undefined, 5000)}
           onBackup={backup.askExport}
           onRestore={() => restoreInput.current?.click()}
           onGoals={() => setGoalsOpen(true)}
