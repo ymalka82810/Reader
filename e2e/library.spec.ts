@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 
 /** a one-page PDF with a text layer, assembled by hand so no binary fixture is needed */
-function makePdf(text: string): Buffer {
+function makePdf(text: string, padBytes = 0): Buffer {
   const stream = `BT /F1 18 Tf 72 700 Td (${text}) Tj ET`
   const objs = [
     '<< /Type /Catalog /Pages 2 0 R >>',
@@ -11,6 +11,8 @@ function makePdf(text: string): Buffer {
     `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
   ]
+  // an unused object that only makes the file big
+  if (padBytes) objs.push(`<< /Length ${padBytes} >>\nstream\n${'A'.repeat(padBytes)}\nendstream`)
   let out = '%PDF-1.4\n'
   const offsets: number[] = []
   objs.forEach((o, i) => {
@@ -46,6 +48,27 @@ test('import a PDF', async ({ page }) => {
   await addFile(page, 'pdf-test.pdf', 'application/pdf', makePdf('Hello PDF world, a page with a real text layer'))
   await openNoAuthorFolder(page)
   await expect(page.getByRole('button', { name: /pdf-test/ })).toBeVisible({ timeout: 60_000 })
+})
+
+test('a PDF over the size limit is kept as it is and opens in the reader', async ({ page }) => {
+  // 21 MB upload, kept as the PDF itself and drawn by foliate-js's own pdf.js
+  test.setTimeout(120_000)
+  await addFile(page, 'big-pdf.pdf', 'application/pdf', makePdf('Hello big PDF world', 21 * 1024 * 1024))
+  await openNoAuthorFolder(page)
+  const card = page.getByRole('button', { name: /big-pdf/ })
+  await expect(card).toBeVisible({ timeout: 90_000 })
+  await card.click()
+  await expect(page.locator('foliate-view')).toBeVisible({ timeout: 30_000 })
+  // the page is drawn with a text layer only if foliate's pdf module loaded
+  await expect
+    .poll(
+      () =>
+        page.evaluate<number>(
+          `(document.querySelector('foliate-view')?.renderer?.getContents?.() ?? []).reduce((n, c) => n + c.doc.querySelectorAll('.textLayer span').length, 0)`,
+        ),
+      { timeout: 60_000 },
+    )
+    .toBeGreaterThan(0)
 })
 
 test('delete a book, with undo', async ({ page }) => {
