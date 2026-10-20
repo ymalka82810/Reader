@@ -514,6 +514,8 @@ export const en: Record<keyof typeof he, Message> = {
   'settings.removeFont': 'Remove the font',
   'settings.fontFailed': 'Uploading the font failed',
   'settings.justify': 'Justify text',
+  'settings.bookStyles': "The book's own styling",
+  'settings.bookStylesNote': "Shows the styling the book brings, such as paragraph indents and headings. The font, size and colors you choose always win. Off: only the app's styling.",
   'settings.accessible': 'Accessible mode (dyslexia / low vision): larger spacing and a plain font',
   'settings.pageAnim': 'Page-turn animation',
   'settings.dictLang': 'Dictionary language',

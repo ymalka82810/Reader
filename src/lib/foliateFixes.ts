@@ -55,3 +55,22 @@ export function guardBookEdges(view: FoliateView) {
   r.prev = (distance?: number) => (blocked(-1) ? Promise.resolve() : prev(distance))
   r.next = (distance?: number) => (blocked(1) ? Promise.resolve() : next(distance))
 }
+
+const OWN_STYLE = 'data-reader-style'
+
+/**
+ * foliate puts one <style> first and one last in the head of every section; the app's own CSS (the settings) lives
+ * there. Mark them right when the section loads, so they are never mistaken for the book's stylesheets.
+ */
+export function markOwnStyles(doc: Document) {
+  const head = doc.head
+  if (!head) return
+  for (const el of [head.firstElementChild, head.lastElementChild]) if (el?.localName === 'style') el.setAttribute(OWN_STYLE, '')
+}
+
+/** turns the book's own stylesheets (linked or embedded) on or off in a section, leaving the app's styling alone */
+export function setBookStyles(doc: Document, on: boolean) {
+  for (const el of doc.querySelectorAll<HTMLLinkElement | HTMLStyleElement>('link[rel~="stylesheet"], style')) {
+    if (!el.hasAttribute(OWN_STYLE)) el.disabled = !on
+  }
+}

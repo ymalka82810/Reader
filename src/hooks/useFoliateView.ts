@@ -4,7 +4,7 @@ import type { FoliateRelocateDetail, FoliateView } from 'foliate-js/view.js'
 import { Overlayer } from 'foliate-js/overlayer.js'
 import { flattenToc, type FlatTocItem } from '../components/reader/toc'
 import { getBook } from '../lib/db'
-import { alignDocDir, fixBookDir, guardBookEdges } from '../lib/foliateFixes'
+import { alignDocDir, fixBookDir, guardBookEdges, markOwnStyles, setBookStyles } from '../lib/foliateFixes'
 import { bookFromSections } from '../lib/pdfToBook'
 import { t } from '../i18n'
 import { applyLayout, bookCSS, type Settings } from '../lib/settings'
@@ -28,6 +28,7 @@ function applySettings(view: FoliateView, s: Settings, customFace: string) {
   if (s.pageTransition) r.setAttribute?.('animated', '')
   else r.removeAttribute?.('animated')
   applyLayout(r, s)
+  for (const c of r.getContents?.() ?? []) if (c.doc) setBookStyles(c.doc, s.bookStyles)
   r.setStyles?.(bookCSS(s, customFace))
 }
 
@@ -95,6 +96,8 @@ export function useFoliateView(
         const on = <T,>(type: string, fn: (detail: T) => void) =>
           view.addEventListener(type, (e) => fn((e as CustomEvent<T>).detail))
         on<{ doc: Document; index: number }>('load', (d) => {
+          markOwnStyles(d.doc)
+          setBookStyles(d.doc, settingsRef.current.bookStyles)
           alignDocDir(view, d.doc)
           syncDir()
           h.current.load(d)

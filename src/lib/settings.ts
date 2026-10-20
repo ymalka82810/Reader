@@ -30,6 +30,8 @@ export interface Settings {
   customFg: string
   customLink: string
   justify: boolean
+  /** show the book's own stylesheets (indents, headings, its fonts…) under the app's settings; off = only the app's styling */
+  bookStyles: boolean
   /** wider letter/word/line spacing, left-aligned sans text: easier for dyslexia and low vision */
   accessible: boolean
   /** high contrast (app-wide): black and white with yellow accents, in the interface and in the book */
@@ -94,6 +96,7 @@ const DEFAULTS: Settings = {
   customFg: '#2b2b2b',
   customLink: '#1a5fb4',
   justify: false,
+  bookStyles: false,
   accessible: false,
   contrast: false,
   dyslexia: false,
