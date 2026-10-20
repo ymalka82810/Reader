@@ -234,6 +234,7 @@ export const he = {
   'backup.restoreBtn': 'שחזר',
   'backup.bigTitle': 'הספרייה גדולה ({mb}MB)',
   'backup.bigText': 'הגיבוי נבנה בזיכרון ועלול להיכשל במכשיר חלש. להמשיך?',
+  'menu.busyNow': 'רצה כרגע פעולה אחרת (ייבוא ספרים או טעינה). הגיבוי והשחזור יפעלו כשתסתיים.',
   'backup.preparing': 'מכין גיבוי…',
   'backup.saving': 'שומר את הגיבוי בטלפון…',
   'backup.done': 'הגיבוי נשמר: {name}',

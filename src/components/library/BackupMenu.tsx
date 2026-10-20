@@ -12,6 +12,8 @@ type View = {
 type Props = {
   view?: View
   busy: boolean
+  /** tapped backup/restore while something else is running: say so instead of doing nothing */
+  onBusy: () => void
   onBackup: () => void
   onRestore: () => void
   onGoals: () => void
@@ -19,7 +21,7 @@ type Props = {
 }
 
 /** the "⋯" menu in the library header: actions only (goals, review, folders, selecting, backup, restore); settings are in the settings screen */
-export function BackupMenu({ view, busy, onBackup, onRestore, onGoals, onReview }: Props) {
+export function BackupMenu({ view, busy, onBusy, onBackup, onRestore, onGoals, onReview }: Props) {
   const [open, setOpen] = useState(false)
   // the phone's back swipe closes the open menu first
   useBackGesture(() => setOpen(false), 3, open)
@@ -67,10 +69,12 @@ export function BackupMenu({ view, busy, onBackup, onRestore, onGoals, onReview 
                 key={label}
                 role="menuitem"
                 title={tip}
-                disabled={busy}
+                aria-disabled={busy}
+                className={busy ? 'dim' : undefined}
                 onClick={() => {
                   close()
-                  fn()
+                  if (busy) onBusy()
+                  else fn()
                 }}
               >
                 {label}

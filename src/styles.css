@@ -36,6 +36,7 @@ button.secondary { background: transparent; border: 1px solid var(--border-stron
 button.quiet { background: transparent; }
 button.quiet:hover:not(:disabled), button.secondary:hover:not(:disabled) { background: var(--fill, rgba(128,128,128,.18)); }
 button:disabled { opacity: .5; }
+.menu button.dim { opacity: .5; }
 button, .select-btn, .dd-btn { transition: background-color .15s, box-shadow .15s, transform .1s, opacity .1s; }
 /* press feedback: a soft overlay (works on any background, filled or transparent) and a tiny shrink, so a tap is always felt */
 button:active:not(:disabled), .select-btn:active, .dd-btn:active { box-shadow: inset 0 0 0 999px rgba(128,128,128,.3); transform: scale(.97); }
