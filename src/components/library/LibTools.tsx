@@ -47,14 +47,16 @@ type Props = {
 /** search box, pinned in the library header under the main row */
 export function LibSearch({ query, onQuery }: { query: string; onQuery: (q: string) => void }) {
   return (
-    <input
-      type="search"
-      className="lib-search"
-      placeholder={t('lib.searchPlaceholder')}
-      aria-label={t('lib.search')}
-      value={query}
-      onChange={(e) => onQuery(e.target.value)}
-    />
+    <div className="lib-search-bar">
+      <input
+        type="search"
+        className="lib-search"
+        placeholder={t('lib.searchPlaceholder')}
+        aria-label={t('lib.search')}
+        value={query}
+        onChange={(e) => onQuery(e.target.value)}
+      />
+    </div>
   )
 }
 
