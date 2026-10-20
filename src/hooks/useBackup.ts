@@ -43,10 +43,12 @@ export function useBackup({ refresh, setBusy, setError, showToast, onBackedUp, c
 
   const doExport = async (password?: string) => {
     setError(undefined)
+    if (deviceBooksSupported()) setBusy(t('backup.preparing')) // the browser's save dialog must be the first await
     const name = `${t('backup.fileName')}-${new Date().toISOString().slice(0, 10)}.readerbackup`
     try {
       // must run first: the save dialog needs the click's user activation, which awaits can use up
-      const picker = (window as SaveFilePickerWindow).showSaveFilePicker
+      // (in the Android app the browser's save dialog is skipped: the WebView may expose it without it ever answering)
+      const picker = deviceBooksSupported() ? undefined : (window as SaveFilePickerWindow).showSaveFilePicker
       let sink: BackupSink | undefined
       if (picker) {
         try {
@@ -90,8 +92,9 @@ export function useBackup({ refresh, setBusy, setError, showToast, onBackedUp, c
     } catch (e) {
       const code = e instanceof Error ? e.message : String(e)
       setError(t('backup.failed', { msg: code === 'permission' ? t('book.savePermission') : code === 'save' ? t('book.saveWrite') : code }))
+    } finally {
+      setBusy(undefined)
     }
-    setBusy(undefined)
   }
 
   const doImport = async (file: File, password?: string) => {
