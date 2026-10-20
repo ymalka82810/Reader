@@ -1,6 +1,7 @@
 import { useCallback, useLayoutEffect, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react'
 import type { FoliateView } from 'foliate-js/view.js'
 import type { Settings } from '../lib/settings'
+import { createPinchPreview, wordRangeAt, type PinchPreview } from '../lib/pinchPreview'
 
 export const MIN_FONT = 12
 export const MAX_FONT = 48
@@ -245,14 +246,28 @@ export function useBookEvents(deps: BookEventsDeps) {
     let pinchStartDist: number | null = null
     let pinchStartFont = 0
     let pinchFont: number | null = null
+    let preview: PinchPreview | null = null
+    const endPreview = () => {
+      preview?.remove()
+      preview = null
+    }
     doc.addEventListener(
       'touchstart',
       (ev: TouchEvent) => {
-        if (ev.touches.length === 2) {
-          pinchStartDist = pinchDist(ev)
-          pinchStartFont = d.current.settingsRef.current.fontSize
-          pinchFont = null
-        }
+        if (ev.touches.length !== 2) return
+        pinchStartDist = pinchDist(ev)
+        pinchStartFont = d.current.settingsRef.current.fontSize
+        pinchFont = null
+        // the word between the fingers is the anchor: only it is resized live, the page changes on release
+        endPreview()
+        const a = ev.touches[0]
+        const b = ev.touches[1]
+        if (!a || !b) return
+        const range = wordRangeAt(doc, (a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2)
+        if (!range) return
+        const fr = (doc.defaultView?.frameElement as HTMLElement | null)?.getBoundingClientRect()
+        preview = createPinchPreview(doc, range, { left: fr?.left ?? 0, top: fr?.top ?? 0 })
+        preview?.update(1, pinchStartFont)
       },
       { passive: true },
     )
@@ -263,15 +278,19 @@ export function useBookEvents(deps: BookEventsDeps) {
         ev.preventDefault()
         // applied once on release: every settings change re-lays-out the chapter and saves
         pinchFont = clampFont(pinchStartFont * (pinchDist(ev) / pinchStartDist))
+        preview?.update(pinchFont / pinchStartFont, pinchFont)
       },
       { passive: false },
     )
-    doc.addEventListener('touchend', (ev: TouchEvent) => {
+    const finishPinch = (ev: TouchEvent) => {
       if (ev.touches.length >= 2) return
       pinchStartDist = null
+      endPreview()
       const next = pinchFont
       pinchFont = null
       if (next != null) d.current.setSettings((s) => (s.fontSize === next ? s : { ...s, fontSize: next }))
-    })
+    }
+    doc.addEventListener('touchend', finishPinch)
+    doc.addEventListener('touchcancel', finishPinch)
   }, [])
 }
