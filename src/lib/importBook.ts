@@ -2,7 +2,7 @@ import { ImportError, explainImportError } from './errors'
 import { contentId, hasBook, listBooks, replaceBook, saveBook, type BookMeta, type BookRecord } from './db'
 import { sameBook } from './sameBook'
 import { t } from '../i18n'
-import { wordsOfBook } from './wordCount'
+import { wordsOfBook, wordsOfExtracted } from './wordCount'
 import { isAudio, readAudioMeta, type AudioInfo } from './audioBook'
 import { isDrmEpub, isDrmMobi } from './drm'
 import { isScriptedBook } from './sandbox'
@@ -43,6 +43,8 @@ const lowerName = (f: File) =>
 
 /** a PDF bigger than this is kept as the PDF itself: converting it to EPUB would take too long and too much memory */
 export const LARGE_PDF_BYTES = 20 * 1024 * 1024
+/** a text file this big is a whole collection, not a book; converting it would freeze a phone and take hundreds of MB of memory */
+export const MAX_TXT_BYTES = 15 * 1024 * 1024
 
 /**
  * Settles at once when the signal aborts, even if the work behind the promise is stuck in a step that
@@ -109,6 +111,8 @@ export async function importFile(
   if (!file.size) throw new ImportError(t('import.empty'))
   if (!isEpub(file) && !isPdf(file) && !isTxt(file) && !isDocx(file) && !isNative(file) && !isAudio(file))
     throw new ImportError(t('import.unsupported'))
+  if (isTxt(file) && file.size > MAX_TXT_BYTES)
+    throw new ImportError(t('import.txtTooBig', { mb: Math.round(MAX_TXT_BYTES / 1024 / 1024) }))
   try {
     if (await hasDrm(file)) throw new ImportError(t('err.drm'))
     return await abortable(readIntoLibrary(file, onProgress, onDuplicate, signal), signal)
@@ -150,6 +154,8 @@ async function readIntoLibrary(
   let title: string
   let author: string
   let words: number | undefined
+  /** words of a book converted from PDF/TXT/DOCX, counted from the text the converter already holds */
+  let knownWords: number | undefined
   let scripted: boolean | undefined
   let book: { destroy?: () => void } = {}
   /** a cancel after the book was opened also releases it */
@@ -191,7 +197,8 @@ async function readIntoLibrary(
       onProgress?.(t('import.pdfKept'))
     } else {
       onProgress?.(t('import.pdfConverting'))
-      const blob = await buildEpub(x)
+      knownWords = wordsOfExtracted(x)
+      const blob = await buildEpub(x, signal)
       check()
       epub = new File([blob], file.name.replace(/\.pdf$/i, '') + '.epub', { type: 'application/epub+zip' })
     }
@@ -200,14 +207,18 @@ async function readIntoLibrary(
   if (isTxt(file)) {
     onProgress?.(t('import.converting'))
     const [{ extractTxt }, { buildEpub }] = await Promise.all([import('./txtToBook'), import('./pdfToEpub')])
-    const blob = await buildEpub(await extractTxt(file))
+    const x = await extractTxt(file, signal)
+    knownWords = wordsOfExtracted(x)
+    const blob = await buildEpub(x, signal)
     epub = new File([blob], file.name.replace(/\.txt$/i, '') + '.epub', { type: 'application/epub+zip' })
   }
 
   if (isDocx(file)) {
     onProgress?.(t('import.converting'))
     const [{ extractDocx }, { buildEpub }] = await Promise.all([import('./docxToBook'), import('./pdfToEpub')])
-    const blob = await buildEpub(await extractDocx(file))
+    const x = await extractDocx(file, signal)
+    knownWords = wordsOfExtracted(x)
+    const blob = await buildEpub(x, signal)
     epub = new File([blob], file.name.replace(/\.docx$/i, '') + '.epub', { type: 'application/epub+zip' })
   }
 
@@ -227,6 +238,8 @@ async function readIntoLibrary(
   if (!fromPdf) scripted = isScriptedBook(opened)
   if (largePdf) {
     words = 0 // a PDF shown as it is has no text to count
+  } else if (knownWords !== undefined) {
+    words = knownWords
   } else {
     onProgress?.(t('import.counting'))
     words = await wordsOfBook(opened, signal)

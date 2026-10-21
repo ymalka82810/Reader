@@ -283,7 +283,7 @@ describe('normalizeStreamOrder', () => {
   it('puts a page stored back to front into reading order', () => {
     const backwards = [...reading].reverse()
     expect(text(normalizeStreamOrder(backwards))).toEqual(text(reading))
-    expect(text(normalizeStreamOrder(backwards))[0]).toBe('מילה00מילה01מילה02מילה03')
+    expect(text(normalizeStreamOrder(backwards))[0]).toBe('מילה00 מילה01 מילה02 מילה03')
   })
   it('does not touch a page with too few lines to tell', () => {
     const few = [run('א', 0, 100), run('ב', 0, 120), run('ג', 0, 140)]

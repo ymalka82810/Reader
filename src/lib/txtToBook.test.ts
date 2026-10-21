@@ -55,4 +55,20 @@ describe('extractTxt', () => {
     expect((await extractTxt(txt(hebrew1255))).chapters[0]!.paras.length).toBeGreaterThan(0)
     expect((await extractTxt(txt('a\tb\fc\n\nd'))).chapters[0]!.paras.length).toBeGreaterThan(0)
   })
+  it('stops when cancelled instead of converting the whole file', async () => {
+    const ctrl = new AbortController()
+    ctrl.abort()
+    await expect(extractTxt(txt('a\n\nb'), ctrl.signal)).rejects.toMatchObject({ name: 'AbortError' })
+  })
+  it('stops part way through a long file when cancelled', async () => {
+    const ctrl = new AbortController()
+    const p = extractTxt(txt(Array.from({ length: 30_000 }, (_, i) => `פסקה ${i}`).join('\n\n')), ctrl.signal)
+    setTimeout(() => ctrl.abort(), 0)
+    await expect(p).rejects.toMatchObject({ name: 'AbortError' })
+  })
+  it('tells the language from a sample of a very long text', async () => {
+    const heb = 'שלום עולם, זהו משפט בעברית.\n\n'.repeat(20_000)
+    expect((await extractTxt(txt(heb))).rtl).toBe(true)
+    expect((await extractTxt(txt('Hello world, this is English.\n\n'.repeat(20_000)))).rtl).toBe(false)
+  })
 })

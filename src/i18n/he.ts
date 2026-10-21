@@ -338,6 +338,7 @@ export const he = {
   'import.exists': 'הספר כבר קיים בספרייה.',
   'import.empty': 'הקובץ ריק.',
   'import.notText': 'הקובץ לא נראה כקובץ טקסט, ולכן לא נוסף.',
+  'import.txtTooBig': 'קובץ הטקסט גדול מדי (מעל {mb}MB): זה נראה כמו אוסף ספרים ולא כספר אחד. אפשר לפצל אותו לכמה קבצים.',
   'import.unsupported': 'סוג הקובץ לא נתמך. אפשר להוסיף קובצי EPUB, PDF, MOBI, AZW3, FB2, CBZ, DOCX, TXT או ספר קולי (M4B, MP3).',
   'import.extracting': 'מחלץ טקסט מה-PDF…',
   'import.converting': 'ממיר ל-EPUB…',

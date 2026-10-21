@@ -1,6 +1,7 @@
 import { t } from '../i18n'
 import { ImportError } from './errors'
 import type { ExtractedPdf } from './pdfToBook'
+import { tick } from './wordCount'
 
 const esc = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -29,7 +30,8 @@ figcaption { font-size: 0.8em; opacity: 0.7; }
 `
 
 /** Build a real EPUB 3 file (zip) from text extracted out of a PDF. */
-export async function buildEpub(x: ExtractedPdf): Promise<Blob> {
+export async function buildEpub(x: ExtractedPdf, signal?: AbortSignal): Promise<Blob> {
+  signal?.throwIfAborted()
   const lang = x.rtl ? 'he' : 'en'
   const dir = x.rtl ? 'rtl' : 'ltr'
   const title = clean(x.title) || 'Untitled'
@@ -62,7 +64,13 @@ export async function buildEpub(x: ExtractedPdf): Promise<Blob> {
   zip.file('OEBPS/style.css', CSS)
   if (x.cover) zip.file('OEBPS/cover.jpg', x.cover)
 
+  let built = 0
   for (const c of chapters) {
+    // a long book is built in slices, so a cancel takes effect and the page stays responsive
+    if (++built % 25 === 0) {
+      await tick()
+      signal?.throwIfAborted()
+    }
     for (const im of c.images) zip.file(`OEBPS/${im.file}`, im.image)
     const text = c.paras.map((p) => `<p>${esc(clean(p))}</p>`).join('\n')
     // pages the text conversion handled badly: the original page, so nothing is lost
@@ -139,6 +147,7 @@ ${chapters.map((c) => `<itemref idref="${c.id}"/>`).join('\n')}
 </package>`,
   )
 
+  signal?.throwIfAborted()
   return zip.generateAsync({
     type: 'blob',
     mimeType: 'application/epub+zip',

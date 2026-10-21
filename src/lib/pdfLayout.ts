@@ -45,13 +45,32 @@ export function normalizeStreamOrder(items: RawItem[]): RawItem[] {
   return [...items].reverse().map((it) => ({ ...it, eol: false }))
 }
 
+/** The gap between two runs counts as a word space above this fraction of the text height (a space is about a quarter of it,
+ *  kerning well under a tenth). */
+const WORD_GAP = 0.2
+
+/**
+ * Some PDFs place every word as its own run, with no space character between the runs (typical for layout programs and for
+ * Hebrew books): joined as they are, the words run together. A visible gap between two runs, with no whitespace at either
+ * edge, is a space. Single-letter runs on both sides are left alone: that is letter-spaced text, not words.
+ */
+function needsSpace(a: RawItem, b: RawItem): boolean {
+  if (/\s$/.test(a.str) || /^\s/.test(b.str)) return false
+  if (a.str.length < 2 && b.str.length < 2) return false
+  // text runs right to left in Hebrew PDFs, so the next run may lie on either side of the last one
+  const gap = Math.max(b.x - (a.x + a.w), a.x - (b.x + b.w))
+  return gap > Math.max(a.h, b.h) * WORD_GAP
+}
+
 /** Merge consecutive same-baseline runs into lines, in content-stream order. */
 export function buildLines(items: RawItem[]): Line[] {
   const lines: Line[] = []
   let cur: Line | null = null
+  let last: RawItem | null = null
   for (const it of items) {
     if (!it.str && !it.eol) continue
     if (cur && Math.abs(it.y - cur.y) <= it.h * 0.5) {
+      if (last && needsSpace(last, it)) cur.text += ' '
       cur.text += it.str
       cur.x0 = Math.min(cur.x0, it.x)
       cur.x1 = Math.max(cur.x1, it.x + it.w)
@@ -59,6 +78,7 @@ export function buildLines(items: RawItem[]): Line[] {
       if (cur) lines.push(cur)
       cur = { text: it.str, y: it.y, h: it.h, x0: it.x, x1: it.x + it.w }
     }
+    last = it
     if (it.eol && cur) {
       lines.push(cur)
       cur = null

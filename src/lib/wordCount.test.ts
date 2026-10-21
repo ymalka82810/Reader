@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
-import { countWords, wordsOfBook } from './wordCount'
+import { countWords, wordsOfBook, wordsOfExtracted } from './wordCount'
 
 describe('word count', () => {
   it('counts Hebrew, Latin and numbers', () => {
@@ -19,5 +19,16 @@ describe('word count', () => {
       ],
     })
     expect(n).toBe(5)
+  })
+})
+
+describe('wordsOfExtracted', () => {
+  it('counts the words of every paragraph of every chapter', () => {
+    expect(
+      wordsOfExtracted({ chapters: [{ paras: ['שלום עולם', 'one two three'] }, { paras: [] }, { paras: ['ארבע, חמש.'] }] }),
+    ).toBe(7)
+  })
+  it('is zero for no chapters', () => {
+    expect(wordsOfExtracted({ chapters: [] })).toBe(0)
   })
 })
