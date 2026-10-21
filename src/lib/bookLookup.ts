@@ -127,7 +127,13 @@ const cached = () => {
 /** forgets the answers kept (for tests, and when the device's storage is cleared) */
 export function clearBooksCache() {
   cache = undefined
+  down.clear()
 }
+
+/** Open Library or Wikidata that could not be reached (no answer at all, which in a browser is also what an answer
+ *  without CORS headers looks like) is left alone for a while in this session, instead of failing again for every book */
+const down = new Map<Source, number>()
+const DOWN_MS = 10 * 60 * 1000
 
 function remember(q: string, items: VolumeInfo[]) {
   const c = cached()
@@ -181,6 +187,7 @@ async function ask(
     return new BooksUnavailable(why, message)
   }
   if (Date.now() < blockedUntil(source)) throw fail('quota', `${SITE[source]} refused recently`)
+  if (Date.now() < (down.get(source) ?? 0)) throw new BooksUnavailable('network', `${SITE[source]} did not answer a moment ago`)
   if (budget) {
     if (budget.left <= 0) return []
     budget.left--
@@ -190,6 +197,7 @@ async function ask(
     res = await fetch(url, { signal })
   } catch (e) {
     if (signal?.aborted) throw e
+    if (source !== 'google') down.set(source, Date.now() + DOWN_MS)
     throw fail('network', e instanceof Error ? e.message : String(e), `${e instanceof Error ? e.name : 'Error'}: ${e instanceof Error ? e.message : String(e)}`)
   }
   if (res?.status === 429 || res?.status === 403) {

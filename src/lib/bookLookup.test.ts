@@ -507,4 +507,16 @@ describe('asLibrarySeries / withoutSeries', () => {
     expect(withoutSeries("פרסי ג'קסון חוזר", "פרסי ג'קסון")).toBe("פרסי ג'קסון חוזר")
     expect(withoutSeries('בן נפטון', 'גיבורי האולימפוס')).toBe('בן נפטון')
   })
+
+  it('asks Open Library no more in a while once it could not be reached', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const f = stubCatalogs([], (url) => {
+      if (url.includes('openlibrary')) throw new TypeError('Failed to fetch')
+      return empty
+    })
+    f.mockResolvedValue(answer())
+    await identifyBook({ title: 'ספר אחד', author: 'מחבר', fileName: 'a.epub' }, true)
+    await identifyBook({ title: 'ספר שני', author: 'מחבר', fileName: 'b.epub' }, true)
+    expect(f.all.mock.calls.filter((c) => String(c[0]).includes('openlibrary'))).toHaveLength(1)
+  })
 })
