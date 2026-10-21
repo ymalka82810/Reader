@@ -152,3 +152,22 @@ describe('nameFromOpening', () => {
     expect(candidates).toEqual(['בית האדם'])
   })
 })
+
+describe('very long input', () => {
+  const slow = [
+    ['tidyBookName', (x: string) => tidyBookName(x), '- '.repeat(15_000)],
+    ['guessBookName', (x: string) => guessBookName(x), 'א '.repeat(15_000)],
+    ['splitBookName', (x: string) => splitBookName(x), '1 '.repeat(15_000)],
+    ['withoutAuthor', (x: string) => withoutAuthor(x, 'הולי בלק'), 'א '.repeat(15_000)],
+  ] as const
+  for (const [name, fn, input] of slow) {
+    it(`${name} stays fast on a 30,000-character name`, () => {
+      const t0 = performance.now()
+      fn(input)
+      expect(performance.now() - t0).toBeLessThan(500)
+    })
+  }
+  it('still finds the author at the end of a long name', () => {
+    expect(withoutAuthor(`${'מילה '.repeat(50)}הולי בלק`, 'הולי בלק')).toBe('מילה '.repeat(50).trim())
+  })
+})

@@ -44,4 +44,15 @@ describe('extractTxt', () => {
   it('rejects an empty file', async () => {
     await expect(extractTxt(txt('  \n\n '))).rejects.toThrow()
   })
+  it('rejects a binary file with a .txt name', async () => {
+    const bytes = new Uint8Array(4000)
+    for (let i = 0; i < bytes.length; i++) bytes[i] = (i * 31) % 256
+    await expect(extractTxt(txt(bytes))).rejects.toThrow()
+    await expect(extractTxt(txt(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 13, 73, 72, 68, 82])))).rejects.toThrow()
+  })
+  it('still accepts text in windows-1255 and UTF-8 with tabs and form feeds', async () => {
+    const hebrew1255 = new Uint8Array([0xf9, 0xec, 0xe5, 0xed, 0x0d, 0x0a, 0xf2, 0xe5, 0xec, 0xed])
+    expect((await extractTxt(txt(hebrew1255))).chapters[0]!.paras.length).toBeGreaterThan(0)
+    expect((await extractTxt(txt('a\tb\fc\n\nd'))).chapters[0]!.paras.length).toBeGreaterThan(0)
+  })
 })
