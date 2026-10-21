@@ -326,6 +326,7 @@ export function EditBookDialog({
   name,
   author,
   tags,
+  words,
   knownTags,
   phoneFile,
   identify,
@@ -341,6 +342,8 @@ export function EditBookDialog({
   author: string
   /** the tags field as typed */
   tags: string
+  /** words in the book, shown read-only; undefined while still being counted, null for a book with no text (audio) */
+  words: number | null | undefined
   /** tags already used elsewhere, offered as suggestions */
   knownTags: string[]
   /** the book's file on the phone, when it has one: whether it is renamed along with the book */
@@ -402,6 +405,17 @@ export function EditBookDialog({
             ))}
           </datalist>
         </label>
+        {words !== null && (
+          <label>
+            {t('edit.words')}
+            <input
+              readOnly
+              tabIndex={-1}
+              className="readonly-field"
+              value={words === undefined ? t('edit.wordsCounting') : words > 0 ? words.toLocaleString() : '—'}
+            />
+          </label>
+        )}
         {phoneFile && (
           <label className="check-row">
             <input type="checkbox" checked={phoneFile.sync} onChange={(e) => phoneFile.onSync(e.target.checked)} />

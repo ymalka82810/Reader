@@ -81,6 +81,8 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   /** the book has a file on the phone that can be renamed along with it; undefined = not known (or not an Android app) */
   const [editPhone, setEditPhone] = useState(false)
   const [editSync, setEditSync] = useState(true)
+  /** words counted for a book that had none stored (books from before the count) */
+  const [counted, setCounted] = useState<{ id: string; n: number }>()
   const [tag, setTag] = useState('')
   const [list, setList] = useState(readListView)
   const changeList = (v: boolean) => {
@@ -139,6 +141,27 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   const remind = !dismissed && backupDue(unprotected)
 
   const tags = useMemo(() => listTags(books), [books])
+
+  // the edit dialog shows the book's word count; a book added before words were counted is counted when its dialog opens
+  useEffect(() => {
+    if (!editing || editing.kind === 'audio' || editing.words !== undefined) return
+    let alive = true
+    ;(async () => {
+      let n = 0
+      try {
+        const f = await getFile(editing.id)
+        n = f ? await wordsOfFile(f) : 0
+      } catch (e) {
+        console.error(e)
+      }
+      await setWords(editing.id, n)
+      if (alive) setCounted({ id: editing.id, n })
+      await refresh()
+    })()
+    return () => {
+      alive = false
+    }
+  }, [editing]) // eslint-disable-line react-hooks/exhaustive-deps
   // a tag that no book carries any more stops filtering
   const activeTag = tags.some((x) => x.key === tag) ? tag : ''
 
@@ -472,7 +495,14 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
         <button className="prefs-open quiet" aria-label={t('prefs.open')} title={t('prefs.open')} onClick={() => setSettingsOpen(true)}>
           ☰
         </button>
-        <h1>{t('lib.title')}</h1>
+        <div className="lib-title">
+          <h1>{t('lib.title')}</h1>
+          {books.length > 0 && (
+            <small className="lib-count" role="status">
+              {t('books.count', { n: books.length })}
+            </small>
+          )}
+        </div>
         <button className="primary" onClick={() => input.current?.click()} disabled={!!busy}>
           {t('lib.addBook')}
         </button>
@@ -821,6 +851,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
           name={editName}
           author={editAuthor}
           tags={editTags}
+          words={editing.kind === 'audio' ? null : (editing.words ?? (counted?.id === editing.id ? counted.n : undefined))}
           knownTags={tags.map((x) => x.name)}
           phoneFile={editPhone ? { sync: editSync, onSync: setEditSync } : undefined}
           identify={{ ...editLookup, run: () => void identifyEditing() }}
