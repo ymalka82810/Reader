@@ -62,6 +62,8 @@ export interface Settings {
   autoIdentify: boolean
   /** a sure identification is saved by itself; otherwise every one waits for the user's approval */
   autoIdentifySave: boolean
+  /** the user's own Google Books API key, so identification does not depend on the shared quota of keyless requests */
+  googleBooksKey: string
 }
 
 export type BackupRemind = 'default' | 'week' | 'month' | 'off'
@@ -116,6 +118,7 @@ const DEFAULTS: Settings = {
   phoneRenameSync: true,
   autoIdentify: true,
   autoIdentifySave: true,
+  googleBooksKey: '',
 }
 
 const KEY = 'reader:settings'

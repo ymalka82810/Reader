@@ -24,7 +24,8 @@ export interface Manifest {
   /** reading positions per book id (older backups carry them inside each book instead) */
   progress?: Record<string, Progress>
   /** display settings of the device that made the backup */
-  settings?: Settings
+  /** everything but the Google Books key, which stays on the device */
+  settings?: Omit<Settings, 'googleBooksKey'>
   /** reading-speed stats per book id */
   stats?: Record<string, Stats>
   /** active reading seconds per day ('YYYY-MM-DD'), for reading goals */

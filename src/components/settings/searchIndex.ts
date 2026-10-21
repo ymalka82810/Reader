@@ -28,6 +28,7 @@ const ENTRIES: [PageId, MessageKey, boolean?][] = [
   ['language', 'prefs.privacy'],
   ['language', 'prefs.autoIdentify'],
   ['language', 'prefs.autoIdentifySave'],
+  ['language', 'prefs.googleKey'],
   ['backup', 'backup.title'],
   ['backup', 'menu.restore'],
   ['backup', 'prefs.autoSection'],

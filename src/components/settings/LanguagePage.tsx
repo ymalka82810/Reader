@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { changeLocale, getLocale, LOCALES, t } from '../../i18n'
 import { hasConsent, setConsent, SERVICE_HOST, type Service } from '../../lib/consent'
 import { DICT_LANGS, type Settings } from '../../lib/settings'
+import { testGoogleBooksKey } from '../../lib/bookLookup'
 import type { SetSetting } from '../../hooks/useAppSettings'
 import { Select } from '../Select'
 import { Seg } from '../reader/shared'
@@ -84,7 +85,47 @@ export function LanguagePage({ settings, set }: { settings: Settings; set: SetSe
             onChange={(v) => set('autoIdentifySave', v)}
           />
         )}
+        <GoogleKey value={settings.googleBooksKey} onChange={(v) => set('googleBooksKey', v)} />
       </Section>
     </>
+  )
+}
+
+/** the user's own Google Books key, with a button that tries it */
+function GoogleKey({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [result, setResult] = useState<string>()
+  const [busy, setBusy] = useState(false)
+  return (
+    <Row label={t('prefs.googleKey')} hint={t('prefs.googleKeyHint')}>
+      <input
+        type="text"
+        dir="ltr"
+        autoComplete="off"
+        spellCheck={false}
+        value={value}
+        aria-label={t('prefs.googleKey')}
+        onChange={(e) => {
+          onChange(e.target.value.trim())
+          setResult(undefined)
+        }}
+      />
+      <button
+        disabled={!value.trim() || busy}
+        onClick={() => {
+          setBusy(true)
+          void testGoogleBooksKey(value).then((why) => {
+            setBusy(false)
+            setResult(why ? t('prefs.googleKeyBad', { why }) : t('prefs.googleKeyOk'))
+          })
+        }}
+      >
+        {t('prefs.googleKeyTest')}
+      </button>
+      {result && (
+        <small role="status" className="muted">
+          {result}
+        </small>
+      )}
+    </Row>
   )
 }
