@@ -87,7 +87,7 @@ type Budget = { left: number }
 const PER_BOOK = 6
 
 /** Google Books refused or could not be reached; `why` says which */
-export class BooksUnavailable extends Error {
+class BooksUnavailable extends Error {
   why: 'quota' | 'network'
   constructor(why: 'quota' | 'network', message: string) {
     super(message)
