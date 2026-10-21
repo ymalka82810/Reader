@@ -19,6 +19,8 @@ export interface Identified extends BookName {
   /** Google Books was to be asked but did not answer (offline, or too many requests): what was read from the book's own
    *  names stands, and it is worth asking again later */
   failed?: boolean
+  /** why: 'quota' when Google Books refused for too many requests (403/429), 'network' when it could not be reached */
+  why?: 'quota' | 'network'
   /** whether the name can be saved without asking: the book was found by its ISBN, or Google Books has it under the
    *  same title and author, or the series came from the EPUB's package */
   sure?: boolean
@@ -84,7 +86,57 @@ const API = 'https://www.googleapis.com/books/v1/volumes'
 type Budget = { left: number }
 const PER_BOOK = 6
 
+/** Google Books refused or could not be reached; `why` says which */
+export class BooksUnavailable extends Error {
+  why: 'quota' | 'network'
+  constructor(why: 'quota' | 'network', message: string) {
+    super(message)
+    this.name = 'BooksUnavailable'
+    this.why = why
+  }
+}
+
+// Answers already given, kept on the device: the library is identified again after an update, and asking Google Books
+// the same questions again would use up its daily quota. The most recent ones are kept.
+const CACHE_KEY = 'reader:books-cache'
+const CACHE_MAX = 1500
+let cache: Map<string, VolumeInfo[]> | undefined
+const cached = () => {
+  if (!cache) {
+    try {
+      cache = new Map(Object.entries(JSON.parse(localStorage.getItem(CACHE_KEY) ?? '{}') as Record<string, VolumeInfo[]>))
+    } catch {
+      cache = new Map()
+    }
+  }
+  return cache
+}
+/** forgets the answers kept (for tests, and when the device's storage is cleared) */
+export function clearBooksCache() {
+  cache = undefined
+}
+
+function remember(q: string, items: VolumeInfo[]) {
+  const c = cached()
+  c.delete(q)
+  c.set(q, items.slice(0, 8))
+  while (c.size > CACHE_MAX) c.delete(c.keys().next().value!)
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(Object.fromEntries(c)))
+  } catch {
+    /* storage full or unavailable: the answers are kept for this session only */
+  }
+}
+
+// after a refusal for too many requests, Google Books is not asked again for a while, from anywhere in the app
+const BLOCK_KEY = 'reader:books-blocked-until'
+const BLOCK_MS = 60 * 60 * 1000
+const blockedUntil = () => Number(globalThis.localStorage?.getItem(BLOCK_KEY) ?? 0) || 0
+
 async function search(q: string, signal?: AbortSignal, budget?: Budget): Promise<VolumeInfo[]> {
+  const known = cached().get(q)
+  if (known) return known
+  if (Date.now() < blockedUntil()) throw new BooksUnavailable('quota', 'Google Books refused recently')
   if (budget) {
     if (budget.left <= 0) return []
     budget.left--
@@ -95,10 +147,26 @@ async function search(q: string, signal?: AbortSignal, budget?: Budget): Promise
     printType: 'books',
     fields: 'items(volumeInfo(title,subtitle,authors,language,seriesInfo))',
   })
-  const res = await fetch(`${API}?${params}`, { signal })
-  if (!res.ok) throw new Error(`Google Books answered ${res.status}`)
+  let res: Response
+  try {
+    res = await fetch(`${API}?${params}`, { signal })
+  } catch (e) {
+    if (signal?.aborted) throw e
+    throw new BooksUnavailable('network', e instanceof Error ? e.message : String(e))
+  }
+  if (res.status === 429 || res.status === 403) {
+    try {
+      localStorage.setItem(BLOCK_KEY, String(Date.now() + BLOCK_MS))
+    } catch {
+      /* storage unavailable */
+    }
+    throw new BooksUnavailable('quota', `Google Books answered ${res.status}`)
+  }
+  if (!res.ok) throw new BooksUnavailable('network', `Google Books answered ${res.status}`)
   const data = (await res.json()) as { items?: { volumeInfo?: VolumeInfo }[] }
-  return (data.items ?? []).map((i) => i.volumeInfo ?? {})
+  const items = (data.items ?? []).map((i) => i.volumeInfo ?? {})
+  remember(q, items)
+  return items
 }
 
 /** Google Books' entry for an ISBN; undefined when there is none, or when a Hebrew book's ISBN is the original's (a
@@ -326,6 +394,8 @@ export async function identifyBook(
   }
   if (!online) return mine
   const known = !isJunkTitle(base.title)
+  // a book whose name already has a series, a title and an author has nothing to ask Google Books about
+  if (known && base.series && b.author.trim()) return mine
   const isbns = bookIsbns([...(meta?.identifiers ?? []), ...opening], hebrewBook).slice(0, 2)
   const budget: Budget = { left: PER_BOOK }
   const wants = [...(known ? [base.title] : []), ...read.candidates.filter((c) => norm(c) !== norm(base.title))].slice(0, 4)
@@ -344,7 +414,7 @@ export async function identifyBook(
     } catch (e) {
       if (signal?.aborted) throw e
       console.warn(e)
-      return { ...mine, failed: true }
+      return { ...mine, failed: true, why: e instanceof BooksUnavailable ? e.why : 'network' }
     }
     if (found) {
       thisBook = exact

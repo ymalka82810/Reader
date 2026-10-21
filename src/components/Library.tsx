@@ -361,8 +361,10 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
       setEditName({ series: found.series, number: found.number, title: found.title })
       setEditAuthor(found.author)
     }
-    const note = found?.online
-      ? 'edit.identifiedOnline'
+    const note = found?.failed
+      ? 'edit.identifiedFailed'
+      : found?.online
+        ? 'edit.identifiedOnline'
       : found?.fromText
         ? online
           ? 'edit.identifiedTextLocal'

@@ -83,9 +83,10 @@ export function backfillLeft(allIds: string[]): string[] | undefined {
   loadPending() // drops the old lists first
   try {
     const v = localStorage.getItem(BACKFILL)
-    if (v === 'done') return undefined
+    const again = dueAgain()
+    if (v === 'done' && !again.length) return undefined
     if (!v) return allIds
-    const left = new Set(JSON.parse(v) as string[])
+    const left = new Set([...(v === 'done' ? [] : (JSON.parse(v) as string[])), ...again])
     return allIds.filter((id) => left.has(id))
   } catch {
     return undefined // storage unavailable: better not to identify the whole library on every start
@@ -103,14 +104,30 @@ export function setBackfillLeft(left: string[] | undefined) {
 
 const unmarked = (s: string) => s.replace(/[\u200E\u200F]/g, '')
 
-/** books for the one-time identification to go through (again) at the next start, even after it was done */
-function addToBackfill(ids: string[]) {
+// books whose identification Google Books did not answer about, and when to ask again: a quota of requests is given
+// back after some hours, a lost connection sooner
+const AGAIN = 'reader:identify:again'
+const AGAIN_AFTER = { quota: 6 * 60 * 60 * 1000, network: 30 * 60 * 1000 }
+
+function askAgainLater(ids: string[], why: 'quota' | 'network') {
   try {
-    const v = localStorage.getItem(BACKFILL)
-    const now: string[] = v && v !== 'done' ? (JSON.parse(v) as string[]) : []
-    localStorage.setItem(BACKFILL, JSON.stringify([...new Set([...now, ...ids])]))
+    const v = JSON.parse(localStorage.getItem(AGAIN) ?? 'null') as { ids: string[]; after: number } | null
+    const after = Date.now() + AGAIN_AFTER[why]
+    localStorage.setItem(AGAIN, JSON.stringify({ ids: [...new Set([...(v?.ids ?? []), ...ids])], after: Math.max(after, v?.after ?? 0) }))
   } catch {
     /* storage unavailable */
+  }
+}
+
+/** the books to ask about again, once their time has come (they are then handed over, and the list is cleared) */
+function dueAgain(): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(AGAIN) ?? 'null') as { ids: string[]; after: number } | null
+    if (!v || Date.now() < v.after) return []
+    localStorage.removeItem(AGAIN)
+    return v.ids
+  } catch {
+    return []
   }
 }
 
@@ -133,11 +150,14 @@ export async function identifyNew(
   onLeft?: (left: string[]) => void,
   /** ms between books: a whole library at once would run into Google Books' limit on requests */
   gap = 0,
-): Promise<{ saved: number; pending: number; later?: number }> {
+  /** called once, as soon as Google Books stops answering, with why */
+  onOffline?: (why: 'quota' | 'network') => void,
+): Promise<{ saved: number; pending: number; later?: number; why?: 'quota' | 'network' }> {
   // when Google Books stops answering (too many requests, no network), the rest are identified from their own files and
   // are kept for the one-time identification to ask about again on the next start
   let online = hasConsent('books')
   const again: string[] = []
+  let why: 'quota' | 'network' | undefined
   const saveSure = loadSettings().autoIdentifySave
   // each book's result is kept at once, so a run that is stopped keeps what it found
   let saved = 0
@@ -153,7 +173,11 @@ export async function identifyNew(
       if (!b) continue
       const { opening, meta } = await bookDetails(b, signal)
       const r = await identifyBook(b, online, signal, opening, meta, library)
-      if (r.failed) online = false
+      if (r.failed) {
+        online = false
+        why = r.why ?? 'network'
+        onOffline?.(why)
+      }
       if (r.failed || (hasConsent('books') && !online)) again.push(id)
       const title = formatBookName(r)
       const author = r.author
@@ -180,6 +204,6 @@ export async function identifyNew(
     }
   }
   onProgress?.(ids.length, ids.length)
-  if (again.length) addToBackfill(again)
-  return { saved, pending, ...(again.length && { later: again.length }) }
+  if (again.length) askAgainLater(again, why ?? 'network')
+  return { saved, pending, ...(again.length && { later: again.length, why }) }
 }

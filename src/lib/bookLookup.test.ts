@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { identifyBook, identifyLocally, libraryNames, lookupOnline } from './bookLookup'
+import { clearBooksCache, identifyBook, identifyLocally, libraryNames, lookupOnline } from './bookLookup'
 import { formatBookName, splitBookName } from './bookName'
 
 type Info = { title?: string; subtitle?: string; authors?: string[]; seriesInfo?: { bookDisplayNumber?: string } }
@@ -16,7 +16,12 @@ function stubFetch(...replies: Response[]) {
 
 const queryOf = (fetchMock: ReturnType<typeof vi.fn>, call: number) => new URL(String(fetchMock.mock.calls[call]![0])).searchParams.get('q')
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
+  localStorage.clear()
+  clearBooksCache()
+})
 
 describe('identifyLocally', () => {
   it('reads the series from the title', () => {
@@ -334,5 +339,30 @@ describe('identifyBook: title pages joined into one line, and a busy Google Book
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 429 }))
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     expect(await identifyBook({ title: 'גנב הברק', author: '', fileName: 'x.epub' }, true)).toMatchObject({ online: false, failed: true })
+  })
+})
+
+describe('identifyBook: sparing Google Books', () => {
+  it('asks each question once, and keeps the answer on the device', async () => {
+    const f = stubFetch(answer({ title: 'גנב הברק', authors: ['ריק ריירדן'] }))
+    await identifyBook({ title: 'גנב הברק', author: 'ריק ריירדן', fileName: 'x.epub' }, true)
+    clearBooksCache() // as after a restart: read back from the device
+    expect(await identifyBook({ title: 'גנב הברק', author: 'ריק ריירדן', fileName: 'x.epub' }, true)).toMatchObject({ online: true })
+    expect(f).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not ask about a name that already has a series, a title and an author', async () => {
+    const f = stubFetch()
+    await identifyBook({ title: "פרסי ג'קסון 1 - גנב הברק", author: 'ריק ריירדן', fileName: 'x.epub' }, true)
+    expect(f).not.toHaveBeenCalled()
+  })
+
+  it('stops asking for a while after a refusal for too many requests, and says why', async () => {
+    const f = vi.fn().mockResolvedValue({ ok: false, status: 429 })
+    vi.stubGlobal('fetch', f)
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(await identifyBook({ title: 'גנב הברק', author: '', fileName: 'x.epub' }, true)).toMatchObject({ failed: true, why: 'quota' })
+    expect(await identifyBook({ title: 'ים המפלצות', author: '', fileName: 'x.epub' }, true)).toMatchObject({ failed: true, why: 'quota' })
+    expect(f).toHaveBeenCalledTimes(1)
   })
 })
