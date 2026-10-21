@@ -186,6 +186,7 @@ export const he = {
   'identify.libraryProgress': 'מזהה את פרטי הספרים שכבר בספרייה (פעם אחת)…',
   'identify.libraryBackground': 'אפשר להמשיך להשתמש באפליקציה, הזיהוי ממשיך ברקע. אם האפליקציה תיסגר, הוא ימשיך בפעם הבאה.',
   'identify.libraryCancel': 'ביטול הזיהוי',
+  'identify.libraryLater': { one: 'Google Books לא ענה כרגע, ולכן ספר אחד זוהה מהקובץ בלבד. הוא ייבדק שוב בפתיחה הבאה.', other: 'Google Books לא ענה כרגע, ולכן {n} ספרים זוהו מהקבצים בלבד. הם ייבדקו שוב בפתיחה הבאה.' },
   'identify.libraryDone': 'זיהוי הספרייה הסתיים: {saved} ספרים עודכנו, {pending} ממתינים לאישור.',
   'identify.libraryCancelled': 'זיהוי הספרייה בוטל. מה שכבר זוהה נשמר.',
   'identify.reviewHint': 'השמות האלה נמצאו בזיהוי האוטומטי, אבל לא בוודאות. מה שמסומן יישמר, ומה שלא מסומן יורד מהרשימה.',

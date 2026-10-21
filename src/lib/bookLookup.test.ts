@@ -313,3 +313,26 @@ describe('identifyBook: more of what a real library showed', () => {
     expect(r).toMatchObject({ series: 'המועמדת', number: '4', title: 'היורשת' })
   })
 })
+
+describe('identifyBook: title pages joined into one line, and a busy Google Books', () => {
+  it('finds a title among the words of a joined line by asking with the author, but is not sure of it', async () => {
+    const f = stubFetch(answer(), answer({ title: 'להב הקיץ', subtitle: "מגנוס צ'ייס והאלים של אסגרד", authors: ['ריק ריירדן'], seriesInfo: { bookDisplayNumber: '1' } }))
+    const r = await identifyBook({ title: '1~2402 1', author: 'ריק ריירדן', fileName: 'x.pdf' }, true, undefined, ['והאלים של אוסגרד להב הקיץ'])
+    expect(queryOf(f, 1)).toBe('והאלים של אוסגרד להב הקיץ inauthor:"ריק ריירדן"')
+    expect(r).toMatchObject({ series: "מגנוס צ'ייס והאלים של אסגרד", number: '1', title: 'להב הקיץ', online: true })
+    expect(r.sure).toBeUndefined()
+  })
+
+  it('asks a book at most six times', async () => {
+    const f = stubFetch(...Array.from({ length: 20 }, () => answer()))
+    const opening = ['ISBN 978-965-0-00000-4', 'ISBN 978-0-306-40615-7', 'שורה ראשונה של עמוד', 'שורה שנייה של עמוד', 'שורה שלישית של עמוד']
+    await identifyBook({ title: '1~2402 1', author: 'ריק ריירדן', fileName: 'x.pdf' }, true, undefined, opening)
+    expect(f.mock.calls.length).toBeLessThanOrEqual(6)
+  })
+
+  it('says so when Google Books does not answer', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 429 }))
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(await identifyBook({ title: 'גנב הברק', author: '', fileName: 'x.epub' }, true)).toMatchObject({ online: false, failed: true })
+  })
+})

@@ -27,9 +27,9 @@ export interface PendingName {
 // "3" (and "2" before it): the names found before the identification learned to tell a title from a publisher's address or a review were
 // dropped, and the library is identified once more (BACKFILL); "3" also takes download-site leftovers out of names, "4"
 // splits names by what the library knows and marks a Latin series' number, "5" reads more Anna's Archive names and
-// takes "רבי־המכר" out of a series
-const KEY = 'reader:identify:pending5'
-const OLD_KEYS = ['pending', 'backfill', 'pending2', 'backfill2', 'pending3', 'backfill3', 'pending4', 'backfill4'].map((k) => `reader:identify:${k}`)
+// takes "רבי־המכר" out of a series, "6" finds a title among a joined line's words and asks Google Books less
+const KEY = 'reader:identify:pending6'
+const OLD_KEYS = ['pending', 'backfill', 'pending2', 'backfill2', 'pending3', 'backfill3', 'pending4', 'backfill4', 'pending5', 'backfill5'].map((k) => `reader:identify:${k}`)
 const listeners = new Set<() => void>()
 let cache: PendingName[] | undefined
 
@@ -75,7 +75,7 @@ function addPending(items: PendingName[]) {
   savePending([...loadPending().filter((p) => !ids.has(p.id)), ...items])
 }
 
-const BACKFILL = 'reader:identify:backfill5'
+const BACKFILL = 'reader:identify:backfill6'
 
 /** The books the one-time identification of the library still has to go through: all of `allIds` before it started,
  *  what is left after it was stopped, and undefined once it is done (or was cancelled). */
@@ -103,6 +103,17 @@ export function setBackfillLeft(left: string[] | undefined) {
 
 const unmarked = (s: string) => s.replace(/[\u200E\u200F]/g, '')
 
+/** books for the one-time identification to go through (again) at the next start, even after it was done */
+function addToBackfill(ids: string[]) {
+  try {
+    const v = localStorage.getItem(BACKFILL)
+    const now: string[] = v && v !== 'done' ? (JSON.parse(v) as string[]) : []
+    localStorage.setItem(BACKFILL, JSON.stringify([...new Set([...now, ...ids])]))
+  } catch {
+    /* storage unavailable */
+  }
+}
+
 const pause = (ms: number, signal: AbortSignal) =>
   new Promise<void>((resolve, reject) => {
     const id = setTimeout(resolve, ms)
@@ -122,8 +133,11 @@ export async function identifyNew(
   onLeft?: (left: string[]) => void,
   /** ms between books: a whole library at once would run into Google Books' limit on requests */
   gap = 0,
-): Promise<{ saved: number; pending: number }> {
-  const online = hasConsent('books')
+): Promise<{ saved: number; pending: number; later?: number }> {
+  // when Google Books stops answering (too many requests, no network), the rest are identified from their own files and
+  // are kept for the one-time identification to ask about again on the next start
+  let online = hasConsent('books')
+  const again: string[] = []
   const saveSure = loadSettings().autoIdentifySave
   // each book's result is kept at once, so a run that is stopped keeps what it found
   let saved = 0
@@ -139,6 +153,8 @@ export async function identifyNew(
       if (!b) continue
       const { opening, meta } = await bookDetails(b, signal)
       const r = await identifyBook(b, online, signal, opening, meta, library)
+      if (r.failed) online = false
+      if (r.failed || (hasConsent('books') && !online)) again.push(id)
       const title = formatBookName(r)
       const author = r.author
       // a name that still says nothing ("5E70B~1") is not worth offering
@@ -164,5 +180,6 @@ export async function identifyNew(
     }
   }
   onProgress?.(ids.length, ids.length)
-  return { saved, pending }
+  if (again.length) addToBackfill(again)
+  return { saved, pending, ...(again.length && { later: again.length }) }
 }
