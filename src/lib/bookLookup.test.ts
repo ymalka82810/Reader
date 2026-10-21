@@ -170,3 +170,39 @@ describe('identifyBook: when a name is sure', () => {
     expect((await identifyBook({ title: '1~2402 3', author: 'ריק ריירדן', fileName: 'x.pdf' }, false, undefined, opening)).sure).toBeUndefined()
   })
 })
+
+describe('identifyBook: what a real library showed', () => {
+  const id = (title: string, opening: string[] = [], author = '', fileName = 'x.epub') => identifyBook({ title, author, fileName }, false, undefined, opening)
+
+  it("keeps a good title over a publisher's address, a review or a sentence on the opening pages", async () => {
+    const opening = ['רבקה יארוס', 'האגף הרביעי', '"יצירת מופת אמיתית של פנטזיה רומנטית." - עכשיו!', "רח' אגוז 6, פארק תעשיות חמן, חבל מודיעין 7319900"]
+    expect(await id('האגף הרביעי', opening, 'רבקה יארוס')).toMatchObject({ series: '', title: 'האגף הרביעי' })
+    expect(await id('מלכת האוויר', ['ת.ד. 163, קרית גת, 82022 ישראל'])).toMatchObject({ series: '', title: 'מלכת האוויר' })
+    expect(await id('הבגידה בכס', ['משק 33, מושב בן־שמן, 7311500'])).toMatchObject({ series: '', title: 'הבגידה בכס' })
+    const prose = ['ג\'וליה נגעה לה ביד. "את תתגברי על זה." "בטוח כמו בבית," היא הודיעה.']
+    expect(await id('שם קוד גחלילית', prose)).toMatchObject({ series: '', title: 'שם קוד גחלילית' })
+  })
+
+  it('reads "the first book in the series X" with the title before it', async () => {
+    expect(await id('הסירנה', ['טיפאני רייז', 'הסירנה', 'הספר הראשון בסדרת החוטאים המקוריים'], 'טיפאני רייז')).toMatchObject({
+      series: 'החוטאים המקוריים',
+      number: '1',
+      title: 'הסירנה',
+    })
+    expect(await id('קסם אמצע החיים: מהומה', ['מהומה', 'ספר 1 בסדרת "השלב הבא"'])).toMatchObject({ series: 'השלב הבא', number: '1', title: 'מהומה' })
+  })
+
+  it("reads an Anna's Archive name and a number in the middle, without the author run on at the end", async () => {
+    const annas = 'רוצח מלכותי -- רובין הוב -- הרואים למרחק, 2 -- 1998 -- אסטרולוג -- eff1636bf56d9b30d5e9c7efff6781de -- Anna’s Archive'
+    expect(await id(annas)).toMatchObject({ series: 'הרואים למרחק', number: '2', title: 'רוצח מלכותי' })
+    expect(await id('קלע_הכשף_#5_קוטל_המלכה_סבסטיאן_דה_קסטל', [], 'סבסטיאן דה קסטל')).toMatchObject({
+      series: 'קלע הכשף',
+      number: '5',
+      title: 'קוטל המלכה',
+    })
+  })
+
+  it('takes no e-mail address for an author', async () => {
+    expect(await id('לורה - קורא בטא (8)', [], 'rozushka769@gmail.com')).toMatchObject({ title: 'לורה - קורא בטא', author: '' })
+  })
+})

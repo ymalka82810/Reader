@@ -192,6 +192,8 @@ export const en: Record<keyof typeof he, Message> = {
   'identify.libraryCancelled': 'Identifying the library was cancelled. What was already identified is kept.',
   'identify.reviewHint': 'These names were found automatically, but not for certain. Ticked ones are saved; unticked ones leave the list.',
   'identify.declineAll': 'Save none',
+  'identify.pickAll': 'Tick all',
+  'identify.pickNone': 'Untick all',
   'identify.save': { one: 'Save one book', other: 'Save {n} books' },
   'identify.saved': { one: 'Updated the details of one book', other: 'Updated the details of {n} books' },
   'identify.saveFailed': { one: 'Could not save the details of one book: {msg}', other: 'Could not save the details of {n} books: {msg}' },

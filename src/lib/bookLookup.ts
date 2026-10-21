@@ -34,9 +34,12 @@ const stem = (fileName: string) => fileName.replace(/\.[^.]+$/, '')
 
 /** What the library's own names say: the title, and when that holds no series, the file name it was added under. */
 export function identifyLocally(b: { title: string; author: string; fileName: string }): BookName {
-  const fromTitle = guessBookName(tidyBookName(b.title))
+  // the author's name is taken off both sides of the cleaning: before it, where a dash sets it apart, and after it, where
+  // underscores ran it on to the end ("קלע_הכשף_#5_קוטל_המלכה_סבסטיאן_דה_קסטל")
+  const tidy = (name: string) => guessBookName(withoutAuthor(tidyBookName(withoutAuthor(name, b.author)), b.author))
+  const fromTitle = tidy(b.title)
   if (fromTitle.series) return fromTitle
-  const fromFile = guessBookName(tidyBookName(withoutAuthor(stem(b.fileName), b.author)))
+  const fromFile = tidy(stem(b.fileName))
   // the file name names the same book: its title is the book's title, or holds it ("גנב הברק" in "גנב הברק מהדורה 2")
   if (fromFile.series && norm(fromFile.title).includes(norm(fromTitle.title))) return fromFile
   return fromTitle
@@ -146,6 +149,9 @@ export async function identifyBook(
   opening: string[] = [],
   meta?: EpubMeta,
 ): Promise<Identified> {
+  // an e-mail address in the author field (a file's uploader) is no author
+  const author = /@/.test(b.author) ? '' : b.author.trim()
+  b = { ...b, author }
   const local = identifyLocally(b)
   const own = withMeta(local, meta)
   const fromMeta = own !== local
@@ -154,7 +160,14 @@ export async function identifyBook(
   const read = opening.length ? nameFromOpening(opening, b.author) : { candidates: [] as string[] }
   // a Hebrew book keeps a Hebrew name, rather than the original's name from its copyright page
   const hebrewBook = hebrew(b.title) || opening.some(hebrew)
-  const fromText = !!read.name && (!hebrewBook || hebrew(read.name.title)) && (!own.series || isJunkTitle(own.title))
+  // the opening pages name the book only when its title says nothing, or when they name this very title: otherwise the
+  // line they took may be a publisher's address, a review or another book in the series
+  const sameTitle = (x: string, y: string) => !!norm(x) && !!norm(y) && (norm(x).includes(norm(y)) || norm(y).includes(norm(x)))
+  const fromText =
+    !!read.name &&
+    (!hebrewBook || hebrew(read.name.title)) &&
+    (!own.series || isJunkTitle(own.title)) &&
+    (isJunkTitle(own.title) || sameTitle(read.name.title, own.title))
   const base: BookName = fromText ? read.name! : own
   const mine: Identified = { ...base, author: b.author.trim(), online: false, ...(fromText ? { fromText } : fromMeta && { fromMeta, ...(metaSure && { sure: true }) }) }
   if (!online) return mine

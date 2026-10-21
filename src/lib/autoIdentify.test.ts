@@ -51,6 +51,11 @@ describe('identifyNew', () => {
     expect(loadPending()).toEqual([{ id: 'a', title: "מגנוס צ'ייס 3 - ספינת המתים", author: 'ריק ריירדן', was: '1~2402 3', source: 'text' }])
   })
 
+  it('offers no name that still says nothing', async () => {
+    add('a', 'עותק של 5E70B~1')
+    expect(await identifyNew(['a'], new AbortController().signal)).toEqual({ saved: 0, pending: 0 })
+  })
+
   it('makes even a sure name wait when saving by itself is off', async () => {
     saveSure = false
     add('a', 'גנב הברק')

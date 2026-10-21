@@ -7,7 +7,7 @@
 // "backfill"): what is left of it is kept, so a run stopped by closing the app goes on at the next start.
 
 import { identifyBook } from './bookLookup'
-import { formatBookName } from './bookName'
+import { formatBookName, isJunkTitle } from './bookName'
 import { bookDetails } from './bookText'
 import { hasConsent } from './consent'
 import { getBookMeta, updateMeta } from './db'
@@ -24,13 +24,17 @@ export interface PendingName {
   source: 'web' | 'text' | 'meta' | 'name'
 }
 
-const KEY = 'reader:identify:pending'
+// "2": the names found before the identification learned to tell a title from a publisher's address or a review were
+// dropped, and the library is identified once more (BACKFILL)
+const KEY = 'reader:identify:pending2'
+const OLD_KEYS = ['reader:identify:pending', 'reader:identify:backfill']
 const listeners = new Set<() => void>()
 let cache: PendingName[] | undefined
 
 export function loadPending(): PendingName[] {
   if (!cache) {
     try {
+      for (const k of OLD_KEYS) localStorage.removeItem(k)
       const v: unknown = JSON.parse(localStorage.getItem(KEY) ?? '[]')
       cache = Array.isArray(v) ? (v as PendingName[]) : []
     } catch {
@@ -69,11 +73,12 @@ function addPending(items: PendingName[]) {
   savePending([...loadPending().filter((p) => !ids.has(p.id)), ...items])
 }
 
-const BACKFILL = 'reader:identify:backfill'
+const BACKFILL = 'reader:identify:backfill2'
 
 /** The books the one-time identification of the library still has to go through: all of `allIds` before it started,
  *  what is left after it was stopped, and undefined once it is done (or was cancelled). */
 export function backfillLeft(allIds: string[]): string[] | undefined {
+  loadPending() // drops the old lists first
   try {
     const v = localStorage.getItem(BACKFILL)
     if (v === 'done') return undefined
@@ -130,7 +135,8 @@ export async function identifyNew(
       const r = await identifyBook(b, online, signal, opening, meta)
       const title = formatBookName(r)
       const author = r.author
-      if (!title || (title === b.title && author === (b.author ?? '').trim())) continue
+      // a name that still says nothing ("5E70B~1") is not worth offering
+      if (!title || isJunkTitle(r.title) || (title === b.title && author === (b.author ?? '').trim())) continue
       if (r.sure && saveSure) {
         await updateMeta(id, title, author)
         saved++
