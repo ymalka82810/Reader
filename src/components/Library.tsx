@@ -372,7 +372,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
         : online
           ? 'edit.identifiedLocal'
           : 'edit.identifiedOffline'
-    setEditLookup({ busy: false, note: t(note) })
+    setEditLookup({ busy: false, note: t(note, { site: found?.sites?.join(' + ') || 'Google Books' }) })
   }
 
   const identifySelected = async () => {

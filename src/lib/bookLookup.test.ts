@@ -1,17 +1,25 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { clearBooksCache, identifyBook, identifyLocally, libraryNames, lookupOnline } from './bookLookup'
+import { clearBooksCache, identifyBook, identifyLocally, libraryNames, lookupOnline, openLibrarySeries } from './bookLookup'
 import { formatBookName, splitBookName } from './bookName'
 
 type Info = { title?: string; subtitle?: string; authors?: string[]; seriesInfo?: { bookDisplayNumber?: string } }
 
 const answer = (...items: Info[]) => ({ ok: true, json: async () => ({ items: items.map((volumeInfo) => ({ volumeInfo })) }) }) as Response
 
-/** a fetch that answers each call in turn */
+const empty = { ok: true, json: async () => ({}) } as Response
+
+/** a fetch that answers each call to Google Books in turn (the mock returned), and Open Library and Wikidata with
+ *  `others` (by default: nothing found) */
 function stubFetch(...replies: Response[]) {
+  return stubCatalogs(replies)
+}
+
+function stubCatalogs(replies: Response[], others: (url: string) => Response = () => empty) {
   const fetchMock = vi.fn()
   for (const r of replies) fetchMock.mockResolvedValueOnce(r)
-  vi.stubGlobal('fetch', fetchMock)
-  return fetchMock
+  const all = vi.fn((url: string) => (String(url).includes('googleapis.com') ? fetchMock(url) : Promise.resolve(others(String(url)))))
+  vi.stubGlobal('fetch', all)
+  return Object.assign(fetchMock, { all })
 }
 
 const queryOf = (fetchMock: ReturnType<typeof vi.fn>, call: number) => new URL(String(fetchMock.mock.calls[call]![0])).searchParams.get('q')
@@ -54,6 +62,7 @@ describe('lookupOnline', () => {
       title: 'גנב הברק',
       author: 'ריק ריירדן',
       online: true,
+      sites: ['Google Books'],
       sure: true,
     })
     expect(queryOf(f, 0)).toBe('intitle:"גנב הברק" inauthor:"ריק ריירדן"')
@@ -85,6 +94,7 @@ describe('identifyBook', () => {
       title: 'הארי פוטר ואבן החכמים',
       author: "ג'יי קיי רולינג",
       online: true,
+      sites: ['Google Books'],
     })
   })
 
@@ -363,6 +373,92 @@ describe('identifyBook: sparing Google Books', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     expect(await identifyBook({ title: 'גנב הברק', author: '', fileName: 'x.epub' }, true)).toMatchObject({ failed: true, why: 'quota' })
     expect(await identifyBook({ title: 'ים המפלצות', author: '', fileName: 'x.epub' }, true)).toMatchObject({ failed: true, why: 'quota' })
-    expect(f).toHaveBeenCalledTimes(1)
+    // once to each catalog (Google Books, Open Library, Wikidata), and not again for the second book
+    expect(f).toHaveBeenCalledTimes(3)
+  })
+})
+
+describe('identifyBook: Open Library and Wikidata', () => {
+  const openLibrary = (body: unknown) => ({ ok: true, json: async () => body }) as Response
+  const wikidata = (...rows: { series: string; num?: string; author?: string }[]) =>
+    ({
+      ok: true,
+      json: async () => ({
+        results: {
+          bindings: rows.map((r, i) => ({
+            book: { value: `http://www.wikidata.org/entity/Q${i + 1}` },
+            seriesLabel: { value: r.series },
+            ...(r.num && { num: { value: r.num } }),
+            ...(r.author && { authorLabel: { value: r.author } }),
+          })),
+        },
+      }),
+    }) as Response
+
+  it('reads a series and number out of Open Library\'s series field', () => {
+    expect(openLibrarySeries('Percy Jackson & the Olympians ; bk. 1')).toEqual({ series: 'Percy Jackson & the Olympians', number: '1' })
+    expect(openLibrarySeries('(Discworld -- 3)')).toEqual({ series: 'Discworld', number: '3' })
+    expect(openLibrarySeries("פרסי ג'קסון והאולימפיים ; 2")).toEqual({ series: "פרסי ג'קסון והאולימפיים", number: '2' })
+    expect(openLibrarySeries('Penguin classics')).toBeUndefined()
+  })
+
+  it('asks Open Library when Google Books finds nothing, and names it as the source', async () => {
+    const f = stubCatalogs([], (url) =>
+      url.includes('openlibrary.org/search.json')
+        ? openLibrary({ docs: [{ title: 'גנב הברק', author_name: ['ריק ריירדן'] }] })
+        : url.includes('wikidata') ? wikidata({ series: "פרסי ג'קסון והאולימפיים", num: '1', author: 'ריק ריירדן' }) : empty,
+    )
+    f.mockResolvedValue(answer())
+    const r = await identifyBook({ title: 'גנב הברק', author: 'ריק ריירדן', fileName: 'x.epub' }, true)
+    expect(r).toMatchObject({ series: "פרסי ג'קסון והאולימפיים", number: '1', title: 'גנב הברק', online: true, sites: ['Open Library', 'Wikidata'], sure: true })
+    expect(r.failed).toBeUndefined()
+  })
+
+  it('asks Open Library when Google Books refuses, and then is not "failed"', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const f = stubCatalogs([], (url) => (url.includes('openlibrary.org/search.json') ? openLibrary({ docs: [{ title: 'The Lightning Thief', author_name: ['Rick Riordan'] }] }) : empty))
+    f.mockResolvedValue({ ok: false, status: 429 } as Response)
+    const r = await identifyBook({ title: 'The Lightning Thief', author: 'Rick Riordan', fileName: 'x.epub' }, true)
+    expect(r).toMatchObject({ online: true, sites: ['Open Library'] })
+    expect(r.failed).toBeUndefined()
+  })
+
+  it('takes the series from an Open Library entry found by its ISBN', async () => {
+    const f = stubCatalogs([], (url) =>
+      url.includes('/api/books') ? openLibrary({ 'ISBN:9780306406157': { details: { title: 'The Final Empire', series: ['Mistborn ; 1'], authors: [{ name: 'Brandon Sanderson' }] } } }) : empty,
+    )
+    f.mockResolvedValue(answer())
+    const r = await identifyBook({ title: '1~2402 1', author: '', fileName: 'x.epub' }, true, undefined, ['ISBN 978-0-306-40615-7'])
+    expect(r).toMatchObject({ series: 'Mistborn', number: '1', title: 'The Final Empire', author: 'Brandon Sanderson', sites: ['Open Library'], sure: true })
+  })
+
+  it('completes the series from Wikidata when Google Books has the book without one', async () => {
+    const f = stubCatalogs([answer({ title: 'גנב הברק', authors: ['ריק ריירדן'] })], (url) =>
+      url.includes('wikidata') ? wikidata({ series: "פרסי ג'קסון והאולימפיים", num: '1', author: 'ריק ריירדן' }) : empty,
+    )
+    const r = await identifyBook({ title: 'גנב הברק', author: 'ריק ריירדן', fileName: 'x.epub' }, true)
+    expect(r).toMatchObject({ series: "פרסי ג'קסון והאולימפיים", number: '1', sites: ['Google Books', 'Wikidata'], sure: true })
+    const sparql = new URL(String(f.all.mock.calls.find((c) => String(c[0]).includes('wikidata'))![0])).searchParams.get('query')!
+    expect(sparql).toContain('"גנב הברק"@he')
+  })
+
+  it('is not sure of a Wikidata series by another author, and takes none when two series fit', async () => {
+    stubCatalogs([answer()], (url) => (url.includes('wikidata') ? wikidata({ series: 'סדרה', num: '2', author: 'מישהו אחר' }) : empty))
+    const r = await identifyBook({ title: 'שם הספר', author: 'ריק ריירדן', fileName: 'x.epub' }, true)
+    expect(r).toMatchObject({ series: 'סדרה', number: '2' })
+    expect(r.sure).toBeUndefined()
+    clearBooksCache()
+    localStorage.clear()
+    stubCatalogs([answer()], (url) => (url.includes('wikidata') ? wikidata({ series: 'סדרה', num: '2' }, { series: 'סדרה אחרת', num: '5' }) : empty))
+    expect((await identifyBook({ title: 'שם הספר', author: '', fileName: 'x.epub' }, true)).series).toBe('')
+  })
+
+  it('takes no Wikidata series without a number, or not in Hebrew for a Hebrew book', async () => {
+    stubCatalogs([answer()], (url) => (url.includes('wikidata') ? wikidata({ series: 'סדרה' }) : empty))
+    expect((await identifyBook({ title: 'שם הספר', author: '', fileName: 'x.epub' }, true)).series).toBe('')
+    clearBooksCache()
+    localStorage.clear()
+    stubCatalogs([answer()], (url) => (url.includes('wikidata') ? wikidata({ series: 'Q12345', num: '1' }) : empty))
+    expect((await identifyBook({ title: 'שם הספר', author: '', fileName: 'x.epub' }, true)).series).toBe('')
   })
 })

@@ -22,6 +22,8 @@ export interface PendingName {
   /** the book's name when it was identified: a book renamed since then is not offered any more */
   was: string
   source: 'web' | 'text' | 'meta' | 'name'
+  /** for 'web': the catalogs that gave the name ("Google Books", "Open Library", "Wikidata") */
+  sites?: string[]
 }
 
 // "3" (and "2" before it): the names found before the identification learned to tell a title from a publisher's address or a review were
@@ -192,7 +194,7 @@ export async function identifyNew(
         await autoSyncPhoneNames([id]).catch(() => {})
       } else {
         const source = r.online ? 'web' : r.fromText ? 'text' : r.fromMeta ? 'meta' : 'name'
-        addPending([{ id, title, author, was: b.title, source }])
+        addPending([{ id, title, author, was: b.title, source, ...(r.online && r.sites && { sites: r.sites }) }])
         pending++
       }
     } catch (e) {

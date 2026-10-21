@@ -5,11 +5,12 @@ export type Service = 'translate' | 'dict' | 'books'
 export const SERVICE_HOST: Record<Service, string> = {
   translate: 'api.mymemory.translated.net (MyMemory) / translate.googleapis.com (Google Translate) / lingva.ml (Lingva)',
   dict: 'wiktionary.org',
-  books: 'www.googleapis.com (Google Books)',
+  books: 'www.googleapis.com (Google Books), openlibrary.org (Open Library), query.wikidata.org (Wikidata)',
 }
 
-/** translate is "v3": earlier yeses did not cover Lingva, which can now receive the text too */
-const key = (s: Service) => `reader:consent:${s === 'translate' ? 'translate3' : s}`
+/** translate is "v3": earlier yeses did not cover Lingva, which can now receive the text too; books is "v2": earlier yeses
+ *  covered Google Books alone, not Open Library and Wikidata */
+const key = (s: Service) => `reader:consent:${s === 'translate' ? 'translate3' : s === 'books' ? 'books2' : s}`
 
 export function hasConsent(s: Service): boolean {
   try {

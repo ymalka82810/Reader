@@ -9,7 +9,7 @@ import { t } from '../../i18n'
 
 export type NameChange = { id: string; title: string; author: string }
 
-type Suggestion = NameChange & { was: string; online: boolean; fromText: boolean; fromMeta: boolean; pick: boolean }
+type Suggestion = NameChange & { was: string; online: boolean; sites?: string[]; fromText: boolean; fromMeta: boolean; pick: boolean }
 
 /** Identifies the books one after another and offers the new names; only the ticked ones are saved. With `waiting`,
  *  it offers the names found in the background (lib/autoIdentify) instead, and reports which were turned down. */
@@ -22,7 +22,7 @@ export function IdentifyDialog({
   onCancel,
 }: {
   books: BookMeta[]
-  /** whether Google Books may be asked (the user agreed); otherwise only the library's own names are read */
+  /** whether the catalogs online may be asked (the user agreed); otherwise only the library's own names are read */
   online: boolean
   waiting?: PendingName[]
   /** the library's series and authors (libraryNames) */
@@ -39,6 +39,7 @@ export function IdentifyDialog({
         author: w.author,
         was: w.was,
         online: w.source === 'web',
+        sites: w.sites,
         fromText: w.source === 'text',
         fromMeta: w.source === 'meta',
         pick: true,
@@ -59,7 +60,7 @@ export function IdentifyDialog({
         const title = r && formatBookName(r)
         const author = r?.author ?? ''
         if (r && title && !isJunkTitle(r.title) && (title !== b.title || author !== (b.author ?? '').trim())) {
-          setFound((f) => [...f, { id: b.id, title, author, was: b.title, online: r.online, fromText: !!r.fromText, fromMeta: !!r.fromMeta, pick: true }])
+          setFound((f) => [...f, { id: b.id, title, author, was: b.title, online: r.online, sites: r.sites, fromText: !!r.fromText, fromMeta: !!r.fromMeta, pick: true }])
         }
         setDone((n) => n + 1)
       }
@@ -99,7 +100,7 @@ export function IdentifyDialog({
                   <span className="identify-item">
                     <span>{f.title}</span>
                     <small className="muted">
-                      {[f.author, f.online ? t('identify.fromWeb') : f.fromText ? t('identify.fromText') : f.fromMeta ? t('identify.fromMeta') : t('identify.fromName')].filter(Boolean).join(' · ')}
+                      {[f.author, f.online ? f.sites?.join(' + ') || t('identify.fromWeb') : f.fromText ? t('identify.fromText') : f.fromMeta ? t('identify.fromMeta') : t('identify.fromName')].filter(Boolean).join(' · ')}
                     </small>
                     {f.was !== f.title && <small className="muted identify-was">{f.was}</small>}
                   </span>
