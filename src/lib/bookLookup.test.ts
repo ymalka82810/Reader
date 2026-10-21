@@ -297,3 +297,19 @@ describe('identifyBook: what the library knows, across spellings and endings', (
     expect(await id('סיכוי טוב למות (As Good As Dead) (הולי גקסון) (1)')).toMatchObject({ title: 'סיכוי טוב למות', author: "הולי ג'קסון" })
   })
 })
+
+describe('identifyBook: more of what a real library showed', () => {
+  it("reads an Anna's Archive series with a dot or parentheses after the number, or long dashes between the parts", async () => {
+    const parts = (series: string, sep = ' -- ') =>
+      ['רוצח מלכותי', 'רובין הוב', series, '1998', 'אסטרולוג', 'eff1636bf56d9b30d5e9c7efff6781de', 'Anna’s Archive'].join(sep)
+    for (const title of [parts('הרואים למרחק,2.'), parts('הרואים למרחק (2)'), parts('הרואים למרחק, 2', ' — '), parts('הרואים למרחק,2', ' – ')]) {
+      const r = await identifyBook({ title, author: '', fileName: 'x.epub' }, false)
+      expect(r).toMatchObject({ series: 'הרואים למרחק', number: '2', title: 'רוצח מלכותי', author: 'רובין הוב' })
+    }
+  })
+
+  it('takes "the bestselling series" out of the series\' name', async () => {
+    const r = await identifyBook({ title: 'היורשת', author: 'קיארה קאס', fileName: 'x.pdf' }, false, undefined, ['היורשת', 'קיארה קאס', 'ספר רביעי בסדרת רבי־המכר המועמדת'])
+    expect(r).toMatchObject({ series: 'המועמדת', number: '4', title: 'היורשת' })
+  })
+})

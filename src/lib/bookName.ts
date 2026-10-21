@@ -186,7 +186,8 @@ const latin = (s: string) => /[A-Za-z]/.test(s) && !/[\u0590-\u05FF]/.test(s)
  * ("גורלו של אפולו 1, האורקל הנסתר" -> "גורלו של אפולו 1 - האורקל הנסתר").
  */
 const annasParts = (s: string) => {
-  const parts = s.split(/\s*--\s*/).map(clean)
+  // "--", or a long dash put in its place ("—", "——", " – ")
+  const parts = s.split(/\s*(?:-{2,}|—+|\s–\s)\s*/).map(clean)
   return parts.length >= 3 && /^anna['’]?s archive$/i.test(parts[parts.length - 1]!) ? parts : undefined
 }
 
@@ -197,7 +198,9 @@ function annasArchive(s: string): string | undefined {
   const title = parts[0]!
   for (const p of parts.slice(2, -1)) {
     if (!/\p{L}{2}/u.test(p) || /^[\da-f]{32}$/i.test(p)) continue // the year, the md5
-    const m = /^(.+?)[\s,،#:.]+(?:(?:כרך|ספר|book|vol\.?)\s*)?#?(\d{1,3})$/iu.exec(p) ?? /^#?(\d{1,3})[\s,،:.]+(.+)$/u.exec(p)
+    // "הרואים למרחק, 2", "…,2.", "… (2)", "… #2", "… כרך 2", or the number first: "2, הרואים למרחק"
+    const m =
+      /^(.+?)[\s\p{P}]+(?:(?:כרך|ספר|book|vol\.?)\s*)?#?(\d{1,3})[\s\p{P}]*$/iu.exec(p) ?? /^[\s\p{P}]*#?(\d{1,3})[\s\p{P}]+(.+)$/u.exec(p)
     if (!m) continue
     const [series, n] = /^\d/.test(m[1]!) ? [m[2]!, m[1]!] : [m[1]!, m[2]!]
     return `${clean(series)} ${Number(n)} - ${title}`
@@ -274,6 +277,8 @@ function pieces(line: string, author: string): string[] {
 }
 
 const IN_SERIES = /^(?:מתוך\s+)?(?:ב|מ)?ה?סדר(?:ה|ת)\s+/u
+// "בסדרת רבי־המכר המועמדת": the praise is not the series' name
+const BESTSELLER = /^(?:של\s+)?(?:ה?רבי?[-־\s]?ה?מכר(?:ים)?|ה?מצליחה|ה?אהובה|ה?נודעת)\s+/u
 
 /** "ספר שלישי", "הספר השלישי", "כרך 2", "ספר ראשון: להב הקיץ": the number, and the title when it is on the same line */
 function bookLine(line: string): { number: string; title: string } | undefined {
@@ -303,7 +308,12 @@ export function nameFromOpening(lines: string[], author: string): { name?: BookN
     const inSeries = !b.title && kept[i + 1] ? IN_SERIES.exec(kept[i + 1]!) : null
     if (inSeries) {
       const title = [...kept.slice(Math.max(0, i - 2), i)].reverse().find(short)
-      const series = clean(kept[i + 1]!.slice(inSeries[0].length).replace(/^["״“”„']+|["״“”„']+$/gu, ''))
+      const series = clean(
+        kept[i + 1]!
+          .slice(inSeries[0].length)
+          .replace(BESTSELLER, '')
+          .replace(/^["״“”„']+|["״“”„']+$/gu, ''),
+      )
       if (title && series) name = { series, number: b.number, title }
       continue
     }
