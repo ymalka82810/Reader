@@ -367,8 +367,9 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
     backfillTried.current = true
     const left = backfillLeft(books.map((b) => b.id))
     if (!left) return
-    if (left.length) imp.identifyLibrary(left)
-    else setBackfillLeft(undefined) // an empty library: nothing to go back over
+    if (!left.length) return setBackfillLeft(undefined) // an empty library: nothing to go back over
+    // it runs once, so Google Books is asked about first; on a no it goes by the books' own files only
+    void allowLookup().then(() => imp.identifyLibrary(left))
   }, [loaded, imp, busy, books])
 
   const reviewPending = () => {
