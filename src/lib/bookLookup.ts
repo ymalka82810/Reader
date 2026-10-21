@@ -148,7 +148,7 @@ const blockKey = (source: Source) => (source === 'google' ? BLOCK_KEY : `${BLOCK
 const blockedUntil = (source: Source) => Number(globalThis.localStorage?.getItem(blockKey(source)) ?? 0) || 0
 
 /** How each catalog answered since the last reset: shown after identifying, so a run that found nothing says why */
-export type CatalogStats = Record<Source, { ok: number; quota: number; network: number }>
+export type CatalogStats = Record<Source, { ok: number; quota: number; network: number; /** the last failure, as told */ last?: string }>
 const fresh = (): CatalogStats => ({ google: { ok: 0, quota: 0, network: 0 }, openlibrary: { ok: 0, quota: 0, network: 0 }, wikidata: { ok: 0, quota: 0, network: 0 } })
 let stats = fresh()
 export function resetCatalogStats() {
@@ -175,8 +175,9 @@ async function ask(
     stats[source].ok++
     return known
   }
-  const fail = (why: 'quota' | 'network', message: string) => {
+  const fail = (why: 'quota' | 'network', message: string, last = message) => {
     stats[source][why]++
+    if (why === 'network') stats[source].last = last
     return new BooksUnavailable(why, message)
   }
   if (Date.now() < blockedUntil(source)) throw fail('quota', `${SITE[source]} refused recently`)
@@ -189,7 +190,7 @@ async function ask(
     res = await fetch(url, { signal })
   } catch (e) {
     if (signal?.aborted) throw e
-    throw fail('network', e instanceof Error ? e.message : String(e))
+    throw fail('network', e instanceof Error ? e.message : String(e), `${e instanceof Error ? e.name : 'Error'}: ${e instanceof Error ? e.message : String(e)}`)
   }
   if (res?.status === 429 || res?.status === 403) {
     try {
@@ -199,12 +200,12 @@ async function ask(
     }
     throw fail('quota', `${SITE[source]} answered ${res.status}`)
   }
-  if (!res?.ok) throw fail('network', `${SITE[source]} answered ${res?.status}`)
+  if (!res?.ok) throw fail('network', `${SITE[source]} answered ${res?.status}`, `HTTP ${res?.status}`)
   let items: VolumeInfo[]
   try {
     items = parse(await res.json())
   } catch (e) {
-    throw fail('network', `${SITE[source]} sent an answer that could not be read: ${e instanceof Error ? e.message : String(e)}`)
+    throw fail('network', `${SITE[source]} sent an answer that could not be read: ${e instanceof Error ? e.message : String(e)}`, 'unreadable answer')
   }
   stats[source].ok++
   remember(key, items)
@@ -681,7 +682,7 @@ export async function identifyBook(
     }
     if (found) break
   }
-  if (!found) return withWikidata(down ? { ...mine, failed: true, why: down } : mine, hebrewBook, signal)
+  if (!found) return withWikidata(down ? { ...mine, failed: true, why: down } : mine, hebrewBook, signal, library)
   const sure = found.sure || (metaSure && !fromText) || libSure
   return withWikidata({
     ...(sure && { sure }),
@@ -694,13 +695,13 @@ export async function identifyBook(
     author: mine.author || (hebrew(found.author) === (known ? hebrew(base.title) : hebrewBook) ? found.author : ''),
     online: true,
     ...(found.sites && { sites: found.sites }),
-  }, hebrewBook, signal)
+  }, hebrewBook, signal, library)
 }
 
 /** A name still with no series, completed by Wikidata: the series and number it has for the title, or, for a name that
  *  is a series and a number with no title ("משפחת קיין 1"), the title of the work at that number. Saved without asking
  *  only when it was sure before and the work on Wikidata is by the same author. Wikidata failing leaves the name as it was. */
-async function withWikidata(r: Identified, hebrewBook: boolean, signal?: AbortSignal): Promise<Identified> {
+async function withWikidata(r: Identified, hebrewBook: boolean, signal?: AbortSignal, library?: LibraryNames): Promise<Identified> {
   if (r.series || isJunkTitle(r.title)) return r
   const lang = hebrewBook || hebrew(r.title) ? 'he' : 'en'
   const budget: Budget = { left: WIKIDATA_PER_BOOK }
@@ -711,15 +712,53 @@ async function withWikidata(r: Identified, hebrewBook: boolean, signal?: AbortSi
     if (numbered) {
       const n = await wikidataByNumber(numbered[1]!, String(Number(numbered[2])), r.author, lang, signal, budget)
       if (n && (!hebrewBook || (hebrew(n.series) && hebrew(n.title)))) {
-        return { ...rest, series: n.series, number: String(Number(numbered[2])), title: n.title, author: r.author || (hebrew(n.author) === hebrewBook ? n.author : ''), online: true, sites }
+        const author = r.author || (hebrew(n.author) === hebrewBook ? n.author : '')
+        const series = asLibrarySeries(n.series, author, library)
+        return { ...rest, series, number: String(Number(numbered[2])), title: withoutSeries(n.title, series, n.series), author, online: true, sites }
       }
     }
     const w = await wikidataSeries(r.title, r.author, lang, signal, budget)
     if (!w || (hebrewBook && !hebrew(w.series))) return r
-    return { ...rest, series: w.series, number: w.number, online: true, sites, ...(sure && w.byAuthor && { sure }) }
+    const series = asLibrarySeries(w.series, r.author, library)
+    return { ...rest, series, number: w.number, title: withoutSeries(r.title, series, w.series), online: true, sites, ...(sure && w.byAuthor && { sure }) }
   } catch (e) {
     if (signal?.aborted) throw e
     console.warn(e)
     return r
   }
+}
+
+/** The name the library already has for a catalog's series, so one series is not saved under two names: the same series
+ *  in another spelling, or (for a series of this author's in the library) a shorter or longer form of it — the library's
+ *  "פרסי ג'קסון" for Wikidata's "פרסי ג'קסון והאולימפיים". The longest such name wins; the catalog's name otherwise. */
+export function asLibrarySeries(series: string, author: string, library?: LibraryNames): string {
+  if (!library || !series) return series
+  const key = seriesKey(series)
+  const same = library.series.get(key)
+  if (same) return same.name
+  const a = norm(author)
+  if (!a) return series
+  let best: { key: string; name: string } | undefined
+  for (const [k, s] of library.series) {
+    // two words at least, so a single word ("הארי") does not stand for a series
+    if (!s.authors.has(a) || k.split(' ').length < 2) continue
+    if ((key.startsWith(`${k} `) || k.startsWith(`${key} `)) && (!best || k.length > best.key.length)) best = { key: k, name: s.name }
+  }
+  return best?.name ?? series
+}
+
+/** A title that opens with its series' name, joined by "ו" or a dash ("פרסי ג'קסון ותקוות האולימפוס" in the series
+ *  "פרסי ג'קסון"), without it: "תקוות האולימפוס". Any of the names given may be the one it opens with. */
+export function withoutSeries(title: string, ...series: string[]): string {
+  const words = title.trim().split(/\s+/)
+  for (const name of series) {
+    const n = name.trim().split(/\s+/).length
+    if (!name.trim() || words.length <= n || norm(words.slice(0, n).join(' ')) !== norm(name)) continue
+    const rest = words.slice(n)
+    if (/^[-–—:]$/u.test(rest[0]!)) rest.shift()
+    else if (/^ו\p{L}{2,}/u.test(rest[0]!)) rest[0] = rest[0]!.slice(1)
+    else continue
+    if (rest.length && norm(rest.join(' '))) return rest.join(' ')
+  }
+  return title
 }

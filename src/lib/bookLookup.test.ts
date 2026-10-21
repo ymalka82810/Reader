@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { clearBooksCache, identifyBook, identifyLocally, libraryNames, lookupOnline, openLibrarySeries } from './bookLookup'
+import { asLibrarySeries, clearBooksCache, identifyBook, identifyLocally, libraryNames, lookupOnline, openLibrarySeries, withoutSeries } from './bookLookup'
 import { formatBookName, splitBookName } from './bookName'
 
 type Info = { title?: string; subtitle?: string; authors?: string[]; seriesInfo?: { bookDisplayNumber?: string } }
@@ -478,5 +478,33 @@ describe('identifyBook: Open Library and Wikidata', () => {
   it('does not take an item whose name is only like the title', async () => {
     stubCatalogs([answer()], (url) => (url.includes('wikidata') ? wikidata('שם אחר לגמרי', { series: 'סדרה', num: '2' }) : empty))
     expect((await identifyBook({ title: 'שם הספר', author: '', fileName: 'x.epub' }, true)).series).toBe('')
+  })
+
+  it('names a Wikidata series as the library does, and drops the series from the head of the title', async () => {
+    const library = libraryNames([{ title: "פרסי ג'קסון 7 - זעם האלה המשולשת", author: 'ריק ריירדן' }])
+    stubCatalogs([answer()], (url) =>
+      url.includes('wikidata') ? wikidata("פרסי ג'קסון ותקוות האולימפוס", { series: "פרסי ג'קסון והאולימפיים", num: '5', author: 'ריק ריירדן' }) : empty,
+    )
+    const r = await identifyBook({ title: "פרסי ג'קסון ותקוות האולימפוס", author: 'ריק ריירדן', fileName: 'x.pdf' }, true, undefined, [], undefined, library)
+    expect(r).toMatchObject({ series: "פרסי ג'קסון", number: '5', title: 'תקוות האולימפוס' })
+  })
+})
+
+describe('asLibrarySeries / withoutSeries', () => {
+  const library = libraryNames([
+    { title: "פרסי ג'קסון 7 - זעם האלה המשולשת", author: 'ריק ריירדן' },
+    { title: 'הארי 2 - משהו', author: 'מישהו' },
+  ])
+  it('takes the library\'s name only for the same author\'s series, of two words or more', () => {
+    expect(asLibrarySeries("פרסי ג'קסון והאולימפיים", 'ריק ריירדן', library)).toBe("פרסי ג'קסון")
+    expect(asLibrarySeries("פרסי ג'קסון והאולימפיים", 'סופר אחר', library)).toBe("פרסי ג'קסון והאולימפיים")
+    expect(asLibrarySeries('הארי פוטר', 'מישהו', library)).toBe('הארי פוטר')
+    expect(asLibrarySeries('גיבורי האולימפוס', 'ריק ריירדן', library)).toBe('גיבורי האולימפוס')
+  })
+  it('drops the series only when it is joined to the rest by ו or a dash', () => {
+    expect(withoutSeries("פרסי ג'קסון ויום המפלצות", "פרסי ג'קסון")).toBe('יום המפלצות')
+    expect(withoutSeries("פרסי ג'קסון - הקרב", "פרסי ג'קסון")).toBe('הקרב')
+    expect(withoutSeries("פרסי ג'קסון חוזר", "פרסי ג'קסון")).toBe("פרסי ג'קסון חוזר")
+    expect(withoutSeries('בן נפטון', 'גיבורי האולימפוס')).toBe('בן נפטון')
   })
 })
