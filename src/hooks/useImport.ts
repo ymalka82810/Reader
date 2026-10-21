@@ -4,7 +4,7 @@ import { rememberPhoneFile } from '../lib/phoneFiles'
 import { importFile, isAbort, isAlreadyInLibrary, DeferredDuplicate, type DuplicateChoice } from '../lib/importBook'
 import { onLaunchFiles, takeSharedFiles } from '../lib/inbox'
 import { startImportService, stopImportService, updateImportService } from '../lib/deviceBooks'
-import { identifyNew } from '../lib/autoIdentify'
+import { identifyNew, setBackfillLeft } from '../lib/autoIdentify'
 import { loadSettings } from '../lib/settings'
 import { t } from '../i18n'
 
@@ -50,6 +50,8 @@ type State = {
   dupBatch?: DupBatch
   dupDetail: boolean
   dupAsk?: DupAsk
+  /** the run identifies the books already in the library rather than adding any */
+  identifying?: boolean
 }
 
 /*
@@ -109,6 +111,53 @@ function cancelOne(id: number) {
   e.ctrl?.abort()
   if (current?.activeId === id) state.dupAsk?.answer('skip') // its question, if it is waiting on one
   if (current) setState({ queue: queueOf(current) })
+}
+
+/**
+ * Identifies the books already in the library, once (lib/autoIdentify's backfill), as a run of the queue: in the
+ * background, with its notice, notification and cancel button. What is left is kept after each book, so a run cut short
+ * by closing the app goes on at the next start; cancelling it ends it for good. Files added meanwhile wait and are added
+ * after it. Starts nothing while another run is going.
+ */
+function identifyLibrary(ids: string[]) {
+  if (current || !ids.length) return
+  const ctrl = new AbortController()
+  const run: Run = { entries: [], ctrl, done: Promise.resolve(), processed: 0 }
+  current = run
+  run.done = (async () => {
+    const { signal } = ctrl
+    const started = Date.now()
+    setState({ running: true, identifying: true, message: t('identify.libraryProgress'), batch: { done: 0, total: ids.length }, queue: [] })
+    let kept = false
+    const service = startImportService(t('identify.libraryTitle'), '').then((ok) => (kept = ok))
+    let lastAt = 0
+    const progress = (done: number, total: number) => {
+      const now = Date.now()
+      setState({ batch: { done, total, deadline: done ? now + ((now - started) / done) * (total - done) : undefined } })
+      if (kept && now - lastAt >= 1000) {
+        lastAt = now
+        updateImportService(`${t('identify.libraryTitle')} (${done}/${total})`, '', done, total)
+      }
+    }
+    try {
+      // a pause between books keeps a large library under Google Books' limit on requests
+      const r = await identifyNew(ids, signal, progress, (left) => setBackfillLeft(left), 400)
+      handlers?.showToast?.(t('identify.libraryDone', { saved: r.saved, pending: r.pending }))
+    } catch {
+      setBackfillLeft(undefined) // cancelled: not started again
+      handlers?.showToast?.(t('identify.libraryCancelled'))
+    }
+    void service.then((ok) => ok && stopImportService())
+    setState({ running: false, identifying: false, message: undefined, batch: undefined, queue: [] })
+    await handlers?.refresh()
+    if (run.entries.length) {
+      // files added while it ran waited for it; cancelling the identification does not cancel them
+      run.ctrl = new AbortController()
+      await work(run)
+    }
+  })().finally(() => {
+    current = undefined
+  })
 }
 
 /** stops the queue: the book in progress is dropped without a trace, the ones already added stay, the rest are not read */
@@ -327,6 +376,8 @@ export function useImport(deps: Deps) {
 
   return {
     addFiles,
+    identifyLibrary,
+    identifying: !!s.identifying,
     cancel,
     cancelOne,
     queue: s.queue,

@@ -16,7 +16,7 @@ vi.mock('./bookText', () => ({ bookDetails: async (b: { id: string }) => details
 vi.mock('./consent', () => ({ hasConsent: () => consent }))
 vi.mock('./settings', () => ({ loadSettings: () => ({ autoIdentifySave: saveSure }) }))
 
-const { identifyNew, loadPending, dropPending } = await import('./autoIdentify')
+const { identifyNew, loadPending, dropPending, backfillLeft, setBackfillLeft } = await import('./autoIdentify')
 
 const meta = (m: object) => ({ title: '', authors: [], series: '', number: '', identifiers: [], ...m })
 const add = (id: string, title: string, author = '') => books.set(id, { id, title, author, fileName: `${title}.epub`, kind: 'epub' })
@@ -64,5 +64,33 @@ describe('identifyNew', () => {
     const ac = new AbortController()
     ac.abort()
     await expect(identifyNew(['a'], ac.signal)).rejects.toThrow()
+  })
+})
+
+describe('the one-time identification of the library', () => {
+  it('starts with every book, goes on with what was left, and stops once done', () => {
+    expect(backfillLeft(['a', 'b', 'c'])).toEqual(['a', 'b', 'c'])
+    setBackfillLeft(['b', 'c', 'gone'])
+    expect(backfillLeft(['a', 'b', 'c'])).toEqual(['b', 'c'])
+    setBackfillLeft([])
+    expect(backfillLeft(['a', 'b', 'c'])).toBeUndefined()
+    setBackfillLeft(['x'])
+    setBackfillLeft(undefined)
+    expect(backfillLeft(['x'])).toBeUndefined()
+  })
+
+  it('reports what is left after each book, and keeps a name found before it was stopped', async () => {
+    add('a', '1~2402 3', 'ריק ריירדן')
+    details.set('a', { opening: ['ריק ריירדן', "מגנוס צ'ייס", 'ספר שלישי', 'ספינת המתים'] })
+    add('b', 'שם')
+    const ac = new AbortController()
+    const left: string[][] = []
+    const run = identifyNew(['a', 'b'], ac.signal, undefined, (l) => {
+      left.push(l)
+      ac.abort()
+    }, 10)
+    await expect(run).rejects.toThrow()
+    expect(left).toEqual([['b']])
+    expect(loadPending().map((p) => p.id)).toEqual(['a'])
   })
 })

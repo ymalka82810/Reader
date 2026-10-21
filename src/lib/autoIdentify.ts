@@ -3,6 +3,8 @@
 // author, or a series from the EPUB's package) is saved at once; any other new name waits in a list the library offers
 // for approval. Google Books is asked only when the user already agreed to it; otherwise only the book's own names,
 // package and opening pages are read.
+// The books already in the library are identified the same way once, on the first start after this came in (the
+// "backfill"): what is left of it is kept, so a run stopped by closing the app goes on at the next start.
 
 import { identifyBook } from './bookLookup'
 import { formatBookName } from './bookName'
@@ -67,6 +69,37 @@ function addPending(items: PendingName[]) {
   savePending([...loadPending().filter((p) => !ids.has(p.id)), ...items])
 }
 
+const BACKFILL = 'reader:identify:backfill'
+
+/** The books the one-time identification of the library still has to go through: all of `allIds` before it started,
+ *  what is left after it was stopped, and undefined once it is done (or was cancelled). */
+export function backfillLeft(allIds: string[]): string[] | undefined {
+  try {
+    const v = localStorage.getItem(BACKFILL)
+    if (v === 'done') return undefined
+    if (!v) return allIds
+    const left = new Set(JSON.parse(v) as string[])
+    return allIds.filter((id) => left.has(id))
+  } catch {
+    return undefined // storage unavailable: better not to identify the whole library on every start
+  }
+}
+
+/** keeps what the one-time identification still has to do; an empty list or none marks it done */
+export function setBackfillLeft(left: string[] | undefined) {
+  try {
+    localStorage.setItem(BACKFILL, left?.length ? JSON.stringify(left) : 'done')
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+const pause = (ms: number, signal: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    const id = setTimeout(resolve, ms)
+    signal.addEventListener('abort', () => (clearTimeout(id), reject(signal.reason)), { once: true })
+  })
+
 /**
  * Identifies the given books one after another. A sure new name is saved (and the book's file on the phone follows it,
  * as after any rename); any other new name is put on the waiting list. A book that fails to be identified is skipped.
@@ -76,13 +109,19 @@ export async function identifyNew(
   ids: string[],
   signal: AbortSignal,
   onProgress?: (done: number, total: number) => void,
+  /** called after each book is dealt with (identified, skipped or failed), with the ones still to go */
+  onLeft?: (left: string[]) => void,
+  /** ms between books: a whole library at once would run into Google Books' limit on requests */
+  gap = 0,
 ): Promise<{ saved: number; pending: number }> {
   const online = hasConsent('books')
   const saveSure = loadSettings().autoIdentifySave
-  const saved: string[] = []
-  const waiting: PendingName[] = []
+  // each book's result is kept at once, so a run that is stopped keeps what it found
+  let saved = 0
+  let pending = 0
   for (const [i, id] of ids.entries()) {
     signal.throwIfAborted()
+    if (i && gap) await pause(gap, signal)
     onProgress?.(i, ids.length)
     try {
       const b = await getBookMeta(id)
@@ -94,19 +133,20 @@ export async function identifyNew(
       if (!title || (title === b.title && author === (b.author ?? '').trim())) continue
       if (r.sure && saveSure) {
         await updateMeta(id, title, author)
-        saved.push(id)
+        saved++
+        dropPending([id])
+        await autoSyncPhoneNames([id]).catch(() => {})
       } else {
         const source = r.online ? 'web' : r.fromText ? 'text' : r.fromMeta ? 'meta' : 'name'
-        waiting.push({ id, title, author, was: b.title, source })
+        addPending([{ id, title, author, was: b.title, source }])
+        pending++
       }
     } catch (e) {
       if (signal.aborted) throw e
       console.warn(e) // this book stays as it was; the rest go on
     }
+    onLeft?.(ids.slice(i + 1))
   }
   onProgress?.(ids.length, ids.length)
-  addPending(waiting)
-  dropPending(saved)
-  if (saved.length) await autoSyncPhoneNames(saved).catch(() => {})
-  return { saved: saved.length, pending: waiting.length }
+  return { saved, pending }
 }
