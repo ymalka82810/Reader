@@ -22,6 +22,30 @@ const pdfjsWasm = (): Plugin => ({
   },
 })
 
+// OCR (lib/ocr.ts) runs from files shipped with the app: the content-security policy allows scripts and workers from the app
+// itself only. The worker, the three LSTM builds of the engine (the browser picks the fastest it supports; only that one is
+// fetched) and the Hebrew and English models are copied next to the app.
+const TESSERACT_CORE = ['tesseract-core-lstm', 'tesseract-core-simd-lstm', 'tesseract-core-relaxedsimd-lstm'].flatMap((n) => [`${n}.js`, `${n}.wasm`])
+const TESSERACT_FILES: [string, string][] = [
+  ['tesseract/worker.min.js', 'node_modules/tesseract.js/dist/worker.min.js'],
+  ...TESSERACT_CORE.map((f): [string, string] => [`tesseract/core/${f}`, `node_modules/tesseract.js-core/${f}`]),
+  ...['heb', 'eng'].map((l): [string, string] => [`tesseract/lang/${l}.traineddata.gz`, `node_modules/@tesseract.js-data/${l}/4.0.0_best_int/${l}.traineddata.gz`]),
+]
+const tesseractAssets = (): Plugin => ({
+  name: 'tesseract-assets',
+  configureServer(server) {
+    server.middlewares.use('/tesseract', (req, res, next) => {
+      const file = TESSERACT_FILES.find(([out]) => '/' + out === '/tesseract' + (req.url?.split('?')[0] ?? ''))
+      if (!file) return next()
+      res.setHeader('Content-Type', file[0].endsWith('.js') ? 'text/javascript' : file[0].endsWith('.wasm') ? 'application/wasm' : 'application/octet-stream')
+      res.end(readFileSync(file[1]))
+    })
+  },
+  generateBundle() {
+    for (const [out, from] of TESSERACT_FILES) this.emitFile({ type: 'asset', fileName: out, source: readFileSync(from) })
+  },
+})
+
 // foliate-js shows a PDF it was given as it is (a scan, tables, a very large file) through its own pdf.js, which finds its
 // worker, CSS, cmaps and standard fonts with `new URL(`vendor/pdfjs/${name}`, import.meta.url)`. Vite turns that into an
 // `import.meta.glob` it then leaves unresolved in the bundle, so the module throws when loaded and no such PDF can be added.
@@ -80,6 +104,7 @@ export default defineConfig({
   plugins: [
     react(),
     pdfjsWasm(),
+    tesseractAssets(),
     foliatePdfjs(),
     // `ANALYZE=1 npm run build` writes dist-stats.html (treemap of the bundle).
     !!process.env.ANALYZE && visualizer({ filename: 'dist-stats.html', gzipSize: true }),
@@ -92,7 +117,7 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,mjs,woff2}'],
         // pdf.js (~2 MB with its worker) is only needed when importing a PDF, so keep it out of the
         // install-time precache and cache it on first use instead.
-        globIgnores: ['**/assets/pdf-*', '**/assets/pdf.worker*', '**/assets/face_mesh*'],
+        globIgnores: ['**/assets/pdf-*', '**/assets/pdf.worker*', '**/assets/face_mesh*', '**/assets/tesseract*', '**/tesseract/**'],
         runtimeCaching: [
           {
             urlPattern: ({ url }) => /\/assets\/pdf(\.worker)?[.-]/.test(url.pathname),
@@ -104,6 +129,12 @@ export default defineConfig({
             urlPattern: ({ url }) => /\/pdfjs-vendor\//.test(url.pathname),
             handler: 'CacheFirst',
             options: { cacheName: 'pdfjs-vendor' },
+          },
+          {
+            // OCR (the engine, its worker and the Hebrew and English models, ~10 MB) is only fetched for a book with no text of its own
+            urlPattern: ({ url }) => /\/(?:assets\/tesseract|tesseract\/)/.test(url.pathname),
+            handler: 'CacheFirst',
+            options: { cacheName: 'tesseract' },
           },
           {
             // Face Mesh (eye scrolling, ~17 MB) is only fetched when that mode is switched on
