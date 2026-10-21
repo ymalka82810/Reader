@@ -1,7 +1,9 @@
 // Identifying a book: its series, number, full title and author, read first from what the library has (the title and the
-// file name it was added under), the EPUB's own package and the opening pages, and then completed from Google Books, which
-// needs no key: first by the book's ISBN, which names the edition exactly, then by its title. Only the ISBN, the title and
-// the author are sent, and only after the user agreed (consent 'books').
+// file name it was added under), the EPUB's own package and the opening pages, and then completed from the catalogs online,
+// none of which needs a key: Google Books first, by the book's ISBN, which names the edition exactly, then by its title;
+// Open Library the same way when Google Books found nothing or did not answer; and Wikidata for the series and its number
+// when the name still has no series. Only the ISBN, the title and the author are sent, and only after the user agreed
+// (consent 'books').
 
 import { authorInName, guessBookName, isJunkTitle, nameFromOpening, seriesOf, tidyBookName, withoutAuthor, type BookName } from './bookName'
 import type { EpubMeta } from './bookText'
@@ -10,8 +12,10 @@ import { norm } from './sameBook'
 
 export interface Identified extends BookName {
   author: string
-  /** whether Google Books found the book; otherwise the result is what the library's own names gave */
+  /** whether a catalog online found the book; otherwise the result is what the library's own names gave */
   online: boolean
+  /** the catalogs that gave what was found ("Google Books", "Open Library", "Wikidata") */
+  sites?: string[]
   /** whether the name was read from the book's opening pages rather than from its title or file name */
   fromText?: boolean
   /** whether the series (or the title) came from the EPUB's package rather than from the book's names */
@@ -81,10 +85,19 @@ function score(v: VolumeInfo, name: BookName, want: { title: string; author: str
 }
 
 const API = 'https://www.googleapis.com/books/v1/volumes'
+const OPEN_LIBRARY = 'https://openlibrary.org'
+const WIKIDATA = 'https://query.wikidata.org/sparql'
+
+/** the catalogs asked, and the names they are shown by */
+type Source = 'google' | 'openlibrary' | 'wikidata'
+const SITE: Record<Source, string> = { google: 'Google Books', openlibrary: 'Open Library', wikidata: 'Wikidata' }
 
 /** How many requests one book may still make: a whole library must stay under Google Books' limit on requests. */
 type Budget = { left: number }
 const PER_BOOK = 6
+/** Open Library is asked only when Google Books had nothing, and asks fewer questions: it is slower and its coverage of
+ *  Hebrew books thinner */
+const OPEN_LIBRARY_PER_BOOK = 3
 
 /** Google Books refused or could not be reached; `why` says which */
 class BooksUnavailable extends Error {
@@ -128,53 +141,194 @@ function remember(q: string, items: VolumeInfo[]) {
   }
 }
 
-// after a refusal for too many requests, Google Books is not asked again for a while, from anywhere in the app
+// after a refusal for too many requests, a catalog is not asked again for a while, from anywhere in the app
 const BLOCK_KEY = 'reader:books-blocked-until'
 const BLOCK_MS = 60 * 60 * 1000
-const blockedUntil = () => Number(globalThis.localStorage?.getItem(BLOCK_KEY) ?? 0) || 0
+const blockKey = (source: Source) => (source === 'google' ? BLOCK_KEY : `${BLOCK_KEY}:${source}`)
+const blockedUntil = (source: Source) => Number(globalThis.localStorage?.getItem(blockKey(source)) ?? 0) || 0
 
-async function search(q: string, signal?: AbortSignal, budget?: Budget): Promise<VolumeInfo[]> {
-  const known = cached().get(q)
+/** one question to a catalog: answered from the device when it was asked before, and counted against the book's budget */
+async function ask(
+  source: Source,
+  q: string,
+  url: string,
+  parse: (data: unknown) => VolumeInfo[],
+  signal?: AbortSignal,
+  budget?: Budget,
+): Promise<VolumeInfo[]> {
+  // Google Books' answers keep the keys they had before the other catalogs were added
+  const key = source === 'google' ? q : `${source}:${q}`
+  const known = cached().get(key)
   if (known) return known
-  if (Date.now() < blockedUntil()) throw new BooksUnavailable('quota', 'Google Books refused recently')
+  if (Date.now() < blockedUntil(source)) throw new BooksUnavailable('quota', `${SITE[source]} refused recently`)
   if (budget) {
     if (budget.left <= 0) return []
     budget.left--
   }
+  let res: Response
+  try {
+    res = await fetch(url, { signal })
+  } catch (e) {
+    if (signal?.aborted) throw e
+    throw new BooksUnavailable('network', e instanceof Error ? e.message : String(e))
+  }
+  if (res?.status === 429 || res?.status === 403) {
+    try {
+      localStorage.setItem(blockKey(source), String(Date.now() + BLOCK_MS))
+    } catch {
+      /* storage unavailable */
+    }
+    throw new BooksUnavailable('quota', `${SITE[source]} answered ${res.status}`)
+  }
+  if (!res?.ok) throw new BooksUnavailable('network', `${SITE[source]} answered ${res?.status}`)
+  let items: VolumeInfo[]
+  try {
+    items = parse(await res.json())
+  } catch (e) {
+    throw new BooksUnavailable('network', `${SITE[source]} sent an answer that could not be read: ${e instanceof Error ? e.message : String(e)}`)
+  }
+  remember(key, items)
+  return items
+}
+
+function search(q: string, signal?: AbortSignal, budget?: Budget): Promise<VolumeInfo[]> {
   const params = new URLSearchParams({
     q,
     maxResults: '20',
     printType: 'books',
     fields: 'items(volumeInfo(title,subtitle,authors,language,seriesInfo))',
   })
-  let res: Response
-  try {
-    res = await fetch(`${API}?${params}`, { signal })
-  } catch (e) {
-    if (signal?.aborted) throw e
-    throw new BooksUnavailable('network', e instanceof Error ? e.message : String(e))
-  }
-  if (res.status === 429 || res.status === 403) {
-    try {
-      localStorage.setItem(BLOCK_KEY, String(Date.now() + BLOCK_MS))
-    } catch {
-      /* storage unavailable */
-    }
-    throw new BooksUnavailable('quota', `Google Books answered ${res.status}`)
-  }
-  if (!res.ok) throw new BooksUnavailable('network', `Google Books answered ${res.status}`)
-  const data = (await res.json()) as { items?: { volumeInfo?: VolumeInfo }[] }
-  const items = (data.items ?? []).map((i) => i.volumeInfo ?? {})
-  remember(q, items)
-  return items
+  return ask(
+    'google',
+    q,
+    `${API}?${params}`,
+    (data) => ((data as { items?: { volumeInfo?: VolumeInfo }[] }).items ?? []).map((i) => i.volumeInfo ?? {}),
+    signal,
+    budget,
+  )
 }
 
-/** Google Books' entry for an ISBN; undefined when there is none, or when a Hebrew book's ISBN is the original's (a
+/** Open Library's series field as a series and a number: "Percy Jackson & the Olympians ; bk. 1", "(Discworld -- 3)",
+ *  "פרסי ג'קסון והאולימפיים ; 1". Undefined when it holds no number. */
+export function openLibrarySeries(text: string | undefined): { series: string; number: string } | undefined {
+  const s = (text ?? '').replace(/^[\s(]+|[\s)]+$/g, '').trim()
+  const m = /^(.+?)\s*(?:;|--|—|,|#|\s)\s*(?:(?:bk|book|vol|v|no|ספר|כרך|מס)\.?\s*)?#?(\d{1,3})$/iu.exec(s)
+  if (!m) return undefined
+  const series = m[1]!.replace(/\s*[;:,\-–—]+\s*$/u, '').trim()
+  return series && /\p{L}/u.test(series) ? { series, number: String(Number(m[2])) } : undefined
+}
+
+type OpenLibraryDetails = { title?: string; subtitle?: string; series?: string[]; authors?: { name?: string }[]; languages?: { key?: string }[] }
+
+/** an Open Library entry in Google Books' shape, its series (when it has one) as the subtitle with the number */
+function fromOpenLibrary(d: OpenLibraryDetails & { author_name?: string[]; language?: string[] }): VolumeInfo {
+  const series = d.series?.map(openLibrarySeries).find(Boolean)
+  return {
+    title: d.title,
+    ...(series ? { subtitle: series.series, seriesInfo: { bookDisplayNumber: series.number } } : d.subtitle ? { subtitle: d.subtitle } : {}),
+    authors: d.author_name ?? (d.authors ?? []).map((a) => a.name ?? '').filter(Boolean),
+    language: d.language?.[0] ?? d.languages?.[0]?.key?.split('/').pop(),
+  }
+}
+
+function openLibraryIsbn(isbn: string, signal?: AbortSignal, budget?: Budget): Promise<VolumeInfo[]> {
+  const params = new URLSearchParams({ bibkeys: `ISBN:${isbn}`, format: 'json', jscmd: 'details' })
+  return ask(
+    'openlibrary',
+    `isbn:${isbn}`,
+    `${OPEN_LIBRARY}/api/books?${params}`,
+    (data) => Object.values((data ?? {}) as Record<string, { details?: OpenLibraryDetails }>).map((e) => fromOpenLibrary(e.details ?? {})),
+    signal,
+    budget,
+  )
+}
+
+function openLibrarySearch(title: string, author: string, signal?: AbortSignal, budget?: Budget): Promise<VolumeInfo[]> {
+  const params = new URLSearchParams({ title, ...(author && { author }), fields: 'title,subtitle,author_name,language', limit: '20' })
+  return ask(
+    'openlibrary',
+    `title:${title}|author:${author}`,
+    `${OPEN_LIBRARY}/search.json?${params}`,
+    (data) => ((data as { docs?: (OpenLibraryDetails & { author_name?: string[]; language?: string[] })[] }).docs ?? []).map(fromOpenLibrary),
+    signal,
+    budget,
+  )
+}
+
+/** the spellings a Hebrew title may have on Wikidata: with ' or with ׳ (geresh) */
+const spellings = (title: string) => [...new Set([title, title.replace(/'/g, '׳'), title.replace(/׳/g, "'")])]
+const literal = (s: string, lang: string) => `"${s.replace(/[\\"]/g, ' ').trim()}"@${lang}`
+
+/** Wikidata's works under this very title (their label or another name of theirs) that are part of a series: the series
+ *  and the number in it, with the work's authors, in Google Books' shape (the series as the subtitle) */
+function wikidataWorks(title: string, lang: 'he' | 'en', signal?: AbortSignal): Promise<VolumeInfo[]> {
+  const query = `SELECT ?book ?seriesLabel ?num ?authorLabel WHERE {
+  VALUES ?t { ${spellings(title).map((x) => literal(x, lang)).join(' ')} }
+  { ?book rdfs:label ?t } UNION { ?book skos:altLabel ?t }
+  ?book p:P179 ?st . ?st ps:P179 ?series .
+  OPTIONAL { ?st pq:P1545 ?num }
+  OPTIONAL { ?book wdt:P50 ?author }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "${lang}" . }
+} LIMIT 30`
+  type Row = Record<string, { value?: string } | undefined>
+  return ask(
+    'wikidata',
+    `${lang}:${title}`,
+    `${WIKIDATA}?${new URLSearchParams({ format: 'json', query })}`,
+    (data) => {
+      const works = new Map<string, VolumeInfo>()
+      for (const r of (data as { results?: { bindings?: Row[] } }).results?.bindings ?? []) {
+        const series = r.seriesLabel?.value ?? ''
+        const num = r.num?.value ?? ''
+        // a series with no name in the book's language comes back as its id ("Q123")
+        if (!/^\d{1,3}$/.test(num) || !series || /^Q\d+$/.test(series)) continue
+        const key = `${r.book?.value}|${series}|${num}`
+        const w = works.get(key) ?? { title, subtitle: series, seriesInfo: { bookDisplayNumber: String(Number(num)) }, authors: [] }
+        const a = r.authorLabel?.value
+        if (a && !/^Q\d+$/.test(a) && !w.authors!.includes(a)) w.authors!.push(a)
+        works.set(key, w)
+      }
+      return [...works.values()]
+    },
+    signal,
+  )
+}
+
+/** The series and number Wikidata has for a title: taken when the work is by the book's author, or when there is no doubt
+ *  which series it is. `byAuthor` says whether the author matched. Undefined when it has none. */
+async function wikidataSeries(
+  title: string,
+  author: string,
+  hebrewBook: boolean,
+  signal?: AbortSignal,
+): Promise<{ series: string; number: string; byAuthor: boolean } | undefined> {
+  if (!norm(title)) return undefined
+  const lang = hebrewBook || hebrew(title) ? 'he' : 'en'
+  const works = (await wikidataWorks(title, lang, signal)).filter((w) => norm(w.subtitle ?? '') !== norm(title))
+  if (!works.length) return undefined
+  const a = norm(author)
+  const mine = a ? works.filter((w) => (w.authors ?? []).map(norm).some((x) => x === a || x.includes(a) || a.includes(x))) : []
+  const pick = mine.length ? mine : works
+  // two different series, or two numbers in one, and nothing to tell them apart: better none than the wrong one
+  const kinds = new Set(pick.map((w) => `${norm(w.subtitle ?? '')}|${w.seriesInfo?.bookDisplayNumber}`))
+  if (kinds.size !== 1) return undefined
+  const w = pick[0]!
+  return { series: w.subtitle!, number: w.seriesInfo!.bookDisplayNumber!, byAuthor: mine.length > 0 }
+}
+
+/** A catalog's entry for an ISBN; undefined when there is none, or when a Hebrew book's ISBN is the original's (a
  *  translation's copyright page names it too) and the entry is not in Hebrew. Rejects when the network or the service fails. */
-async function lookupIsbn(isbn: string, hebrewBook: boolean, signal?: AbortSignal, budget?: Budget): Promise<Identified | undefined> {
-  const v = (await search(`isbn:${isbn}`, signal, budget)).find((x) => norm(x.title ?? ''))
+async function lookupIsbn(
+  isbn: string,
+  hebrewBook: boolean,
+  signal?: AbortSignal,
+  budget?: Budget,
+  source: 'google' | 'openlibrary' = 'google',
+): Promise<Identified | undefined> {
+  const entries = source === 'google' ? await search(`isbn:${isbn}`, signal, budget) : await openLibraryIsbn(isbn, signal, budget)
+  const v = entries.find((x) => norm(x.title ?? ''))
   if (!v || (hebrewBook && !hebrew(v.title ?? ''))) return undefined
-  return { ...nameOf(v), author: (v.authors ?? []).join(', '), online: true, sure: true }
+  return { ...nameOf(v), author: (v.authors ?? []).join(', '), online: true, sites: [SITE[source]], sure: true }
 }
 
 /** the library's name completed by the EPUB's package: its title when the library's says nothing, its series when the
@@ -301,9 +455,10 @@ async function lookupSplit(
   author: string,
   signal?: AbortSignal,
   budget?: Budget,
+  source: 'google' | 'openlibrary' = 'google',
 ): Promise<Identified | undefined> {
   for (const title of [`${series} ${rest}`, rest]) {
-    const f = await lookupOnline({ title, author }, signal, budget)
+    const f = await lookupOnline({ title, author }, signal, budget, source)
     if (!f) continue
     const t = norm(f.title)
     if (!t.includes(norm(rest)) || !(t.includes(norm(series)) || norm(f.series).includes(norm(series)))) continue
@@ -314,24 +469,29 @@ async function lookupSplit(
 
 const quoted = (s: string) => `"${s.replace(/"/g, ' ').trim()}"`
 
-/** Google Books' best match for a title (and author, when known); undefined when nothing fits.
+/** A catalog's best match for a title (and author, when known); undefined when nothing fits.
  *  Rejects when the network or the service fails. */
 export async function lookupOnline(
   want: { title: string; author: string },
   signal?: AbortSignal,
   budget?: Budget,
+  source: 'google' | 'openlibrary' = 'google',
 ): Promise<Identified | undefined> {
   if (!norm(want.title)) return undefined
   const author = want.author.trim()
   // a line of several words may hold the title among other words ("והאלים של אוסגרד להב הקיץ", two lines of the title
   // page joined by the conversion): asked by its words and the author, not as one exact title
   const loose = author && norm(want.title).split(' ').length >= 3 ? [`${norm(want.title)} inauthor:${quoted(author)}`] : []
-  const queries = author
-    ? [`intitle:${quoted(want.title)} inauthor:${quoted(author)}`, ...loose, `intitle:${quoted(want.title)}`]
-    : [`intitle:${quoted(want.title)}`]
+  const queries: (() => Promise<VolumeInfo[]>)[] =
+    source === 'openlibrary'
+      ? [...(author ? [() => openLibrarySearch(want.title, author, signal, budget)] : []), () => openLibrarySearch(want.title, '', signal, budget)]
+      : (author
+          ? [`intitle:${quoted(want.title)} inauthor:${quoted(author)}`, ...loose, `intitle:${quoted(want.title)}`]
+          : [`intitle:${quoted(want.title)}`]
+        ).map((q) => () => search(q, signal, budget))
   for (const q of queries) {
     let best: { s: number; v: VolumeInfo; name: BookName } | undefined
-    for (const v of await search(q, signal, budget)) {
+    for (const v of await q()) {
       const name = nameOf(v)
       const s = score(v, name, want)
       if (s && (!best || s > best.s)) best = { s, v, name }
@@ -339,7 +499,7 @@ export async function lookupOnline(
     // the very same title by the same author: no doubt left about which book it is (a title found among a line's
     // words is not that sure)
     const same = best && norm(best.name.title) === norm(want.title) && best.s >= 7
-    if (best) return { ...best.name, author: (best.v.authors ?? []).join(', '), online: true, ...(same && { sure: true }) }
+    if (best) return { ...best.name, author: (best.v.authors ?? []).join(', '), online: true, sites: [SITE[source]], ...(same && { sure: true }) }
   }
   return undefined
 }
@@ -397,33 +557,40 @@ export async function identifyBook(
   // a book whose name already has a series, a title and an author has nothing to ask Google Books about
   if (known && base.series && b.author.trim()) return mine
   const isbns = bookIsbns([...(meta?.identifiers ?? []), ...opening], hebrewBook).slice(0, 2)
-  const budget: Budget = { left: PER_BOOK }
   const wants = [...(known ? [base.title] : []), ...read.candidates.filter((c) => norm(c) !== norm(base.title))].slice(0, 4)
   const middle = !base.series ? MIDDLE.exec(base.title) : null
+  type Ask = [() => Promise<Identified | undefined>, boolean]
   // each ask, and whether what it finds is this very book (so the catalog's title is taken over the library's)
-  const asks: [() => Promise<Identified | undefined>, boolean][] = [
-    ...isbns.map((isbn): [() => Promise<Identified | undefined>, boolean] => [() => lookupIsbn(isbn, hebrewBook, signal, budget), true]),
-    ...(middle ? [[() => lookupSplit(middle[1]!, middle[2]!, middle[3]!, b.author, signal, budget), true] as [() => Promise<Identified | undefined>, boolean]] : []),
-    ...wants.map((title): [() => Promise<Identified | undefined>, boolean] => [() => lookupOnline({ title, author: b.author }, signal, budget), false]),
+  const asksOf = (source: 'google' | 'openlibrary', budget: Budget): Ask[] => [
+    ...isbns.map((isbn): Ask => [() => lookupIsbn(isbn, hebrewBook, signal, budget, source), true]),
+    ...(middle ? [[() => lookupSplit(middle[1]!, middle[2]!, middle[3]!, b.author, signal, budget, source), true] as Ask] : []),
+    ...wants.map((title): Ask => [() => lookupOnline({ title, author: b.author }, signal, budget, source), false]),
   ]
   let found: Identified | undefined
   let thisBook = false
-  for (const [ask, exact] of asks) {
-    try {
-      found = await ask()
-    } catch (e) {
-      if (signal?.aborted) throw e
-      console.warn(e)
-      return { ...mine, failed: true, why: e instanceof BooksUnavailable ? e.why : 'network' }
+  // why Google Books did not answer; Open Library is asked then, and the book is checked again later only when it had
+  // nothing either
+  let down: 'quota' | 'network' | undefined
+  for (const [source, perBook] of [['google', PER_BOOK], ['openlibrary', OPEN_LIBRARY_PER_BOOK]] as const) {
+    for (const [ask, exact] of asksOf(source, { left: perBook })) {
+      try {
+        found = await ask()
+      } catch (e) {
+        if (signal?.aborted) throw e
+        console.warn(e)
+        if (source === 'google') down = e instanceof BooksUnavailable ? e.why : 'network'
+        break
+      }
+      if (found) {
+        thisBook = exact
+        break
+      }
     }
-    if (found) {
-      thisBook = exact
-      break
-    }
+    if (found) break
   }
-  if (!found) return mine
+  if (!found) return withWikidata(down ? { ...mine, failed: true, why: down } : mine, hebrewBook, signal)
   const sure = found.sure || (metaSure && !fromText) || libSure
-  return {
+  return withWikidata({
     ...(sure && { sure }),
     series: base.series || found.series,
     number: base.series ? base.number : found.number,
@@ -433,5 +600,30 @@ export async function identifyBook(
     // a Hebrew book keeps a Hebrew author name, rather than the original's "Rick Riordan"
     author: mine.author || (hebrew(found.author) === (known ? hebrew(base.title) : hebrewBook) ? found.author : ''),
     online: true,
+    ...(found.sites && { sites: found.sites }),
+  }, hebrewBook, signal)
+}
+
+/** A name still with no series, completed by the series and number Wikidata has for its title. Saved without asking only
+ *  when it was sure before and the work on Wikidata is by the same author. Wikidata failing leaves the name as it was. */
+async function withWikidata(r: Identified, hebrewBook: boolean, signal?: AbortSignal): Promise<Identified> {
+  if (r.series || isJunkTitle(r.title)) return r
+  let w: Awaited<ReturnType<typeof wikidataSeries>>
+  try {
+    w = await wikidataSeries(r.title, r.author, hebrewBook, signal)
+  } catch (e) {
+    if (signal?.aborted) throw e
+    console.warn(e)
+    return r
+  }
+  if (!w || (hebrewBook && !hebrew(w.series))) return r
+  const { sure, ...rest } = r
+  return {
+    ...rest,
+    series: w.series,
+    number: w.number,
+    online: true,
+    sites: [...(r.sites ?? []), SITE.wikidata],
+    ...(sure && w.byAuthor && { sure }),
   }
 }

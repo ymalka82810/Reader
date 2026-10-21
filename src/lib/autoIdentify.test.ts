@@ -86,7 +86,8 @@ describe('identifyNew', () => {
     const offline = vi.fn()
     expect(await identifyNew(['a', 'b'], new AbortController().signal, undefined, undefined, 0, offline)).toMatchObject({ later: 2, why: 'quota' })
     expect(offline).toHaveBeenCalledWith('quota')
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    // once to each catalog (Google Books, Open Library, Wikidata), each then left alone for a while
+    expect(fetchMock).toHaveBeenCalledTimes(3)
     // a quota comes back after some hours: not on the next start, but after that
     expect(backfillLeft(['a', 'b', 'c'])).toBeUndefined()
     const now = Date.now()
