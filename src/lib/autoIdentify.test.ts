@@ -75,6 +75,20 @@ describe('identifyNew', () => {
     expect(loadPending()[0]).toMatchObject({ id: 'a', source: 'meta' })
   })
 
+  it('keeps the books Google Books did not answer about for the next start, and asks it no more this run', async () => {
+    consent = true
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 429 })
+    vi.stubGlobal('fetch', fetchMock)
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    add('a', 'גנב הברק')
+    add('b', 'ים המפלצות')
+    setBackfillLeft([])
+    await identifyNew(['a', 'b'], new AbortController().signal)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(backfillLeft(['a', 'b', 'c'])).toEqual(['a', 'b'])
+    vi.unstubAllGlobals()
+  })
+
   it('stops when cancelled', async () => {
     add('a', 'גנב הברק')
     const ac = new AbortController()

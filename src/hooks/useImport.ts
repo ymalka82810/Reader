@@ -142,7 +142,9 @@ function identifyLibrary(ids: string[]) {
     try {
       // a pause between books keeps a large library under Google Books' limit on requests
       const r = await identifyNew(ids, signal, progress, (left) => setBackfillLeft(left), 400)
-      handlers?.showToast?.(t('identify.libraryDone', { saved: r.saved, pending: r.pending }))
+      handlers?.showToast?.(
+        r.later ? t('identify.libraryLater', { n: r.later }) : t('identify.libraryDone', { saved: r.saved, pending: r.pending }),
+      )
     } catch {
       setBackfillLeft(undefined) // cancelled: not started again
       handlers?.showToast?.(t('identify.libraryCancelled'))

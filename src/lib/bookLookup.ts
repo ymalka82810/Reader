@@ -16,6 +16,9 @@ export interface Identified extends BookName {
   fromText?: boolean
   /** whether the series (or the title) came from the EPUB's package rather than from the book's names */
   fromMeta?: boolean
+  /** Google Books was to be asked but did not answer (offline, or too many requests): what was read from the book's own
+   *  names stands, and it is worth asking again later */
+  failed?: boolean
   /** whether the name can be saved without asking: the book was found by its ISBN, or Google Books has it under the
    *  same title and author, or the series came from the EPUB's package */
   sure?: boolean
@@ -77,7 +80,15 @@ function score(v: VolumeInfo, name: BookName, want: { title: string; author: str
 
 const API = 'https://www.googleapis.com/books/v1/volumes'
 
-async function search(q: string, signal?: AbortSignal): Promise<VolumeInfo[]> {
+/** How many requests one book may still make: a whole library must stay under Google Books' limit on requests. */
+type Budget = { left: number }
+const PER_BOOK = 6
+
+async function search(q: string, signal?: AbortSignal, budget?: Budget): Promise<VolumeInfo[]> {
+  if (budget) {
+    if (budget.left <= 0) return []
+    budget.left--
+  }
   const params = new URLSearchParams({
     q,
     maxResults: '20',
@@ -92,8 +103,8 @@ async function search(q: string, signal?: AbortSignal): Promise<VolumeInfo[]> {
 
 /** Google Books' entry for an ISBN; undefined when there is none, or when a Hebrew book's ISBN is the original's (a
  *  translation's copyright page names it too) and the entry is not in Hebrew. Rejects when the network or the service fails. */
-async function lookupIsbn(isbn: string, hebrewBook: boolean, signal?: AbortSignal): Promise<Identified | undefined> {
-  const v = (await search(`isbn:${isbn}`, signal)).find((x) => norm(x.title ?? ''))
+async function lookupIsbn(isbn: string, hebrewBook: boolean, signal?: AbortSignal, budget?: Budget): Promise<Identified | undefined> {
+  const v = (await search(`isbn:${isbn}`, signal, budget)).find((x) => norm(x.title ?? ''))
   if (!v || (hebrewBook && !hebrew(v.title ?? ''))) return undefined
   return { ...nameOf(v), author: (v.authors ?? []).join(', '), online: true, sure: true }
 }
@@ -215,9 +226,16 @@ function byLibrary(name: BookName, author: string, lib?: LibraryNames): { name: 
 /** Google Books asked about a name with its number in the middle, as the series and the title around the number: the
  *  title with the series in it ("הארי פוטר ואבן החכמים"), then the title alone. Taken only when the catalog's entry
  *  names both: the title, and the series in its title or its series. */
-async function lookupSplit(series: string, number: string, rest: string, author: string, signal?: AbortSignal): Promise<Identified | undefined> {
+async function lookupSplit(
+  series: string,
+  number: string,
+  rest: string,
+  author: string,
+  signal?: AbortSignal,
+  budget?: Budget,
+): Promise<Identified | undefined> {
   for (const title of [`${series} ${rest}`, rest]) {
-    const f = await lookupOnline({ title, author }, signal)
+    const f = await lookupOnline({ title, author }, signal, budget)
     if (!f) continue
     const t = norm(f.title)
     if (!t.includes(norm(rest)) || !(t.includes(norm(series)) || norm(f.series).includes(norm(series)))) continue
@@ -230,20 +248,30 @@ const quoted = (s: string) => `"${s.replace(/"/g, ' ').trim()}"`
 
 /** Google Books' best match for a title (and author, when known); undefined when nothing fits.
  *  Rejects when the network or the service fails. */
-export async function lookupOnline(want: { title: string; author: string }, signal?: AbortSignal): Promise<Identified | undefined> {
+export async function lookupOnline(
+  want: { title: string; author: string },
+  signal?: AbortSignal,
+  budget?: Budget,
+): Promise<Identified | undefined> {
   if (!norm(want.title)) return undefined
-  const queries = want.author.trim()
-    ? [`intitle:${quoted(want.title)} inauthor:${quoted(want.author)}`, `intitle:${quoted(want.title)}`]
+  const author = want.author.trim()
+  // a line of several words may hold the title among other words ("והאלים של אוסגרד להב הקיץ", two lines of the title
+  // page joined by the conversion): asked by its words and the author, not as one exact title
+  const loose = author && norm(want.title).split(' ').length >= 3 ? [`${norm(want.title)} inauthor:${quoted(author)}`] : []
+  const queries = author
+    ? [`intitle:${quoted(want.title)} inauthor:${quoted(author)}`, ...loose, `intitle:${quoted(want.title)}`]
     : [`intitle:${quoted(want.title)}`]
   for (const q of queries) {
     let best: { s: number; v: VolumeInfo; name: BookName } | undefined
-    for (const v of await search(q, signal)) {
+    for (const v of await search(q, signal, budget)) {
       const name = nameOf(v)
       const s = score(v, name, want)
       if (s && (!best || s > best.s)) best = { s, v, name }
     }
-    // the same title (4) by the same author (3): no doubt left about which book it is
-    if (best) return { ...best.name, author: (best.v.authors ?? []).join(', '), online: true, ...(best.s >= 7 && { sure: true }) }
+    // the very same title by the same author: no doubt left about which book it is (a title found among a line's
+    // words is not that sure)
+    const same = best && norm(best.name.title) === norm(want.title) && best.s >= 7
+    if (best) return { ...best.name, author: (best.v.authors ?? []).join(', '), online: true, ...(same && { sure: true }) }
   }
   return undefined
 }
@@ -298,14 +326,15 @@ export async function identifyBook(
   }
   if (!online) return mine
   const known = !isJunkTitle(base.title)
-  const isbns = bookIsbns([...(meta?.identifiers ?? []), ...opening], hebrewBook).slice(0, 3)
+  const isbns = bookIsbns([...(meta?.identifiers ?? []), ...opening], hebrewBook).slice(0, 2)
+  const budget: Budget = { left: PER_BOOK }
   const wants = [...(known ? [base.title] : []), ...read.candidates.filter((c) => norm(c) !== norm(base.title))].slice(0, 4)
   const middle = !base.series ? MIDDLE.exec(base.title) : null
   // each ask, and whether what it finds is this very book (so the catalog's title is taken over the library's)
   const asks: [() => Promise<Identified | undefined>, boolean][] = [
-    ...isbns.map((isbn): [() => Promise<Identified | undefined>, boolean] => [() => lookupIsbn(isbn, hebrewBook, signal), true]),
-    ...(middle ? [[() => lookupSplit(middle[1]!, middle[2]!, middle[3]!, b.author, signal), true] as [() => Promise<Identified | undefined>, boolean]] : []),
-    ...wants.map((title): [() => Promise<Identified | undefined>, boolean] => [() => lookupOnline({ title, author: b.author }, signal), false]),
+    ...isbns.map((isbn): [() => Promise<Identified | undefined>, boolean] => [() => lookupIsbn(isbn, hebrewBook, signal, budget), true]),
+    ...(middle ? [[() => lookupSplit(middle[1]!, middle[2]!, middle[3]!, b.author, signal, budget), true] as [() => Promise<Identified | undefined>, boolean]] : []),
+    ...wants.map((title): [() => Promise<Identified | undefined>, boolean] => [() => lookupOnline({ title, author: b.author }, signal, budget), false]),
   ]
   let found: Identified | undefined
   let thisBook = false
@@ -315,7 +344,7 @@ export async function identifyBook(
     } catch (e) {
       if (signal?.aborted) throw e
       console.warn(e)
-      break
+      return { ...mine, failed: true }
     }
     if (found) {
       thisBook = exact

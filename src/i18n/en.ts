@@ -188,6 +188,7 @@ export const en: Record<keyof typeof he, Message> = {
   'identify.libraryProgress': 'Identifying the books already in the library (once)…',
   'identify.libraryBackground': 'You can keep using the app; identifying goes on in the background. If the app closes, it carries on next time.',
   'identify.libraryCancel': 'Cancel identifying',
+  'identify.libraryLater': { one: 'Google Books did not answer, so one book was identified from its file only. It will be checked again next time.', other: 'Google Books did not answer, so {n} books were identified from their files only. They will be checked again next time.' },
   'identify.libraryDone': 'Identifying the library finished: {saved} books updated, {pending} waiting for approval.',
   'identify.libraryCancelled': 'Identifying the library was cancelled. What was already identified is kept.',
   'identify.reviewHint': 'These names were found automatically, but not for certain. Ticked ones are saved; unticked ones leave the list.',
