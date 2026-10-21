@@ -3,7 +3,7 @@
 // needs no key: first by the book's ISBN, which names the edition exactly, then by its title. Only the ISBN, the title and
 // the author are sent, and only after the user agreed (consent 'books').
 
-import { guessBookName, isJunkTitle, nameFromOpening, seriesOf, tidyBookName, withoutAuthor, type BookName } from './bookName'
+import { authorInName, guessBookName, isJunkTitle, nameFromOpening, seriesOf, tidyBookName, withoutAuthor, type BookName } from './bookName'
 import type { EpubMeta } from './bookText'
 import { bookIsbns } from './isbn'
 import { norm } from './sameBook'
@@ -150,7 +150,8 @@ export async function identifyBook(
   meta?: EpubMeta,
 ): Promise<Identified> {
   // an e-mail address in the author field (a file's uploader) is no author
-  const author = /@/.test(b.author) ? '' : b.author.trim()
+  // and an Anna's Archive name carries its author
+  const author = (/@/.test(b.author) ? '' : b.author.trim()) || authorInName(b.title) || authorInName(stem(b.fileName))
   b = { ...b, author }
   const local = identifyLocally(b)
   const own = withMeta(local, meta)
