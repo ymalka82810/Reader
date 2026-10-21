@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { identifyBook, identifyLocally, libraryNames, lookupOnline } from './bookLookup'
+import { formatBookName, splitBookName } from './bookName'
 
 type Info = { title?: string; subtitle?: string; authors?: string[]; seriesInfo?: { bookDisplayNumber?: string } }
 
@@ -262,5 +263,37 @@ describe('identifyBook: a name with its number in the middle', () => {
   it('does not split by an entry that names only part of it', async () => {
     stubFetch(answer({ title: 'קיארה קאס' }), answer({ title: 'קיארה קאס' }), answer())
     expect(await id('הנסיכה 1 קיארה קאס', '', true)).toMatchObject({ series: '' })
+  })
+})
+
+describe('identifyBook: what the library knows, across spellings and endings', () => {
+  const library = libraryNames([
+    { title: 'פרויקט X #01 - פרויקט X', author: 'גרג הורביץ' },
+    { title: 'פרויקט X #03 - קליע מהעבר', author: 'גרג הורביץ' },
+    { title: 'הצבע של הקסם עולם הדיסק 1', author: 'טרי פראצט' },
+    { title: 'מורט עולם הדיסק 2', author: 'טרי פראצט' },
+    { title: 'סופת החרבות חלק 1' },
+    { title: 'השיבה חלק 2' },
+    { title: "אחת שהיא טובה (הולי ג'קסון)", author: "הולי ג'קסון" },
+  ])
+  const id = (title: string, author = '', fileName = 'x.epub') => identifyBook({ title, author, fileName }, false, undefined, [], undefined, library)
+
+  it('spells a series as most of its books in the library do ("איקס" is "X"), with a mark that keeps the number after it', async () => {
+    const r = await id('נמסיס', 'גרג הורביץ', 'פרויקט איקס 2 - נמסיס.epub')
+    expect(r).toMatchObject({ series: 'פרויקט X', number: '2', title: 'נמסיס', sure: true })
+    expect(formatBookName(r)).toBe('פרויקט X\u200F 2 - נמסיס')
+    expect(splitBookName(formatBookName(r))).toEqual({ series: 'פרויקט X', number: '2', title: 'נמסיס' })
+    expect(formatBookName({ series: 'הארי פוטר', number: '1', title: 'x' })).toBe('הארי פוטר 1 - x')
+  })
+
+  it("takes a series the library's books end with, and an author in Hebrew and English out of the name", async () => {
+    const r = await id('פולחני כשף עולם הדיסק 3 (Equal Rites) (טרי פראצט; Terry Pratchett) (z-library.sk, 1lib.sk, z-lib.sk)')
+    expect(r).toMatchObject({ series: 'עולם הדיסק', number: '3', title: 'פולחני כשף', author: 'טרי פראצט', sure: true })
+    expect(await id('תרועת מוות (טרי פראצט) עולם הדיסק 4')).toMatchObject({ series: 'עולם הדיסק', number: '4', title: 'תרועת מוות' })
+    expect(library.series.has('חלק')).toBe(false)
+  })
+
+  it('takes a known author out of parentheses, also without the geresh', async () => {
+    expect(await id('סיכוי טוב למות (As Good As Dead) (הולי גקסון) (1)')).toMatchObject({ title: 'סיכוי טוב למות', author: "הולי ג'קסון" })
   })
 })

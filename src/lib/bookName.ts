@@ -9,20 +9,24 @@ export interface BookName {
   title: string
 }
 
-const clean = (s: string) => s.replace(/\s+/g, ' ').trim()
+// the right-to-left mark formatBookName puts between a series that ends in a Latin letter and its number
+const RLM = '\u200F'
+const clean = (s: string) => s.replace(/[\u200E\u200F]/g, '').replace(/\s+/g, ' ').trim()
 
 /** No real book name comes close to this; a longer text (a corrupt title, a pasted paragraph) is cut before it is parsed,
  *  because some of the patterns below slow down sharply on very long input. */
 const MAX_NAME = 500
 const cap = (s: string) => (s.length > MAX_NAME ? s.slice(0, MAX_NAME) : s)
 
-/** the name in the template */
+/** the name in the template. In a Hebrew name, a series that ends in a Latin letter ("פרויקט X") gets a right-to-left
+ *  mark before its number, or the screen shows "פרויקט 5 X": the "X 5" would read as one left-to-right run. */
 export function formatBookName({ series, number, title }: BookName): string {
   const s = clean(series)
   const n = clean(number)
   const name = clean(title)
   if (!s) return name
-  const head = n ? `${s} ${n}` : s
+  const mark = /[A-Za-z]$/.test(s) && /[\u0590-\u05FF]/.test(s + name) ? RLM : ''
+  const head = n ? `${s}${mark} ${n}` : s
   return name ? `${head} - ${name}` : head
 }
 
@@ -147,7 +151,11 @@ const fold = (s: string) =>
 
 /** a file name without the author it may carry ("גנב הברק - ריק ריירדן", "ריק ריירדן - גנב הברק") */
 /** a name of people folded for comparing: "הולי בלק & קסנדרה קלייר" is "הולי בלק וקסנדרה קלייר" ("and" is "ו") */
-const people = (s: string) => fold(s.replace(/\s+(?:&|and)\s+/giu, ' ו')).replace(/(^| )ו(?=\p{L}{2})/gu, '$1')
+const people = (s: string) =>
+  fold(s.replace(/\s+(?:&|and)\s+/giu, ' ו').replace(/['׳"״]/gu, '')).replace(/(^| )ו(?=\p{L}{2})/gu, '$1')
+
+/** "(טרי פראצט; Terry Pratchett)", "(טרי פראצט, Terry Pratchett)": an author's name in Hebrew and in English */
+const AUTHOR_PAIR = /\s*\(\s*([^()]*[\u0590-\u05FF][^();,]*?)\s*[;,]\s*([A-Za-z][^()]*?)\s*\)/u
 
 const MAX_AUTHOR_WORDS = 8
 
@@ -199,8 +207,10 @@ function annasArchive(s: string): string | undefined {
 
 /** the author an Anna's Archive name carries (its second part); '' for any other name */
 export function authorInName(s: string): string {
-  const a = annasParts(clean(s.replace(/_+/g, ' ')))?.[1] ?? ''
-  return /\p{L}{2}/u.test(a) ? a : ''
+  // also the Hebrew of "(טרי פראצט; Terry Pratchett)"
+  const name = clean(s.replace(/_+/g, ' '))
+  const a = annasParts(name)?.[1] || AUTHOR_PAIR.exec(name)?.[1] || ''
+  return /\p{L}{2}/u.test(a) ? clean(a) : ''
 }
 
 export function tidyBookName(text: string): string {
@@ -216,6 +226,7 @@ export function tidyBookName(text: string): string {
     // who uploaded or typed it: "נמסיס - הועלה על ידי …"
     .replace(/\s+[-–—]\s+(?:הועל(?:ה|תה)|הוקלד|נסרק|סרק|הוכן|הוקלדה)(?=\s)[\s\S]*$/u, '')
     .replace(/\s*[|•·]+\s*$/u, '')
+    .replace(AUTHOR_PAIR, ' ')
   s = clean(s)
   // "קלע הכשף #5 קוטל המלכה": the number in the middle, with no dash before the title
   const hash = /^(.+?)\s+#(\d{1,3})\s+([^-–—].*)$/u.exec(s)

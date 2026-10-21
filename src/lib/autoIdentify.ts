@@ -25,9 +25,10 @@ export interface PendingName {
 }
 
 // "3" (and "2" before it): the names found before the identification learned to tell a title from a publisher's address or a review were
-// dropped, and the library is identified once more (BACKFILL); "3" also takes download-site leftovers out of names
-const KEY = 'reader:identify:pending3'
-const OLD_KEYS = ['reader:identify:pending', 'reader:identify:backfill', 'reader:identify:pending2', 'reader:identify:backfill2']
+// dropped, and the library is identified once more (BACKFILL); "3" also takes download-site leftovers out of names, "4"
+// splits names by what the library knows and marks a Latin series' number
+const KEY = 'reader:identify:pending4'
+const OLD_KEYS = ['pending', 'backfill', 'pending2', 'backfill2', 'pending3', 'backfill3'].map((k) => `reader:identify:${k}`)
 const listeners = new Set<() => void>()
 let cache: PendingName[] | undefined
 
@@ -73,7 +74,7 @@ function addPending(items: PendingName[]) {
   savePending([...loadPending().filter((p) => !ids.has(p.id)), ...items])
 }
 
-const BACKFILL = 'reader:identify:backfill3'
+const BACKFILL = 'reader:identify:backfill4'
 
 /** The books the one-time identification of the library still has to go through: all of `allIds` before it started,
  *  what is left after it was stopped, and undefined once it is done (or was cancelled). */
@@ -98,6 +99,8 @@ export function setBackfillLeft(left: string[] | undefined) {
     /* storage unavailable */
   }
 }
+
+const unmarked = (s: string) => s.replace(/[\u200E\u200F]/g, '')
 
 const pause = (ms: number, signal: AbortSignal) =>
   new Promise<void>((resolve, reject) => {
@@ -139,7 +142,9 @@ export async function identifyNew(
       const author = r.author
       // a name that still says nothing ("5E70B~1") is not worth offering
       if (!title || isJunkTitle(r.title) || (title === b.title && author === (b.author ?? '').trim())) continue
-      if (r.sure && saveSure) {
+      // only the mark that keeps "פרויקט X 5" from showing as "פרויקט 5 X" is new: nothing to ask about
+      const marksOnly = unmarked(title) === unmarked(b.title) && author === (b.author ?? '').trim()
+      if ((r.sure && saveSure) || marksOnly) {
         await updateMeta(id, title, author)
         saved++
         dropPending([id])
