@@ -1,6 +1,9 @@
 import JSZip from 'jszip'
-import { describe, expect, it } from 'vitest'
-import { epubDetails, epubOpening, htmlLines, opfMeta } from './bookText'
+import { describe, expect, it, vi } from 'vitest'
+import { coverHref, epubDetails, epubOpening, htmlLines, opfMeta } from './bookText'
+
+const ocr = vi.hoisted(() => ({ ocrLines: vi.fn() }))
+vi.mock('./ocr', () => ocr)
 
 describe('htmlLines', () => {
   it('gives one line per block, with entities read', () => {
@@ -67,5 +70,43 @@ describe('epubDetails', () => {
     const got = await epubDetails(await zip.generateAsync({ type: 'blob' }))
     expect(got.opening).toEqual(['שורה'])
     expect(got.meta?.title).toBe('שם')
+  })
+})
+
+describe('coverHref', () => {
+  it("finds EPUB 3's cover-image, EPUB 2's cover meta, and an image named cover, in that order", () => {
+    const item = (id: string, href: string, extra = '') => `<item id="${id}" href="${href}" media-type="image/jpeg" ${extra}/>`
+    expect(coverHref(`<package><manifest>${item('a', 'old.jpg')}${item('b', 'new.jpg', 'properties="cover-image"')}</manifest></package>`)).toBe('new.jpg')
+    expect(coverHref(`<package><meta name="cover" content="a"/><manifest>${item('a', 'front.jpg')}${item('c', 'cover2.jpg')}</manifest></package>`)).toBe('front.jpg')
+    expect(coverHref(`<package><manifest>${item('p1', 'page1.jpg')}${item('p2', 'images/Cover.jpg')}</manifest></package>`)).toBe('images/Cover.jpg')
+    expect(coverHref('<package><manifest><item id="t" href="cover.xhtml" media-type="application/xhtml+xml"/></manifest></package>')).toBeUndefined()
+  })
+})
+
+describe('epubDetails of a book with no text', () => {
+  const build = async () => {
+    const zip = new JSZip()
+    zip.file('META-INF/container.xml', '<container><rootfiles><rootfile full-path="content.opf"/></rootfiles></container>')
+    zip.file(
+      'content.opf',
+      '<package><manifest><item id="p" href="p.xhtml" media-type="application/xhtml+xml"/><item id="c" href="cover.jpg" media-type="image/jpeg" properties="cover-image"/></manifest><spine><itemref idref="p"/></spine></package>',
+    )
+    zip.file('p.xhtml', '<html><body><img src="cover.jpg"/></body></html>')
+    zip.file('cover.jpg', new Uint8Array([1, 2, 3]))
+    return zip.generateAsync({ type: 'blob' })
+  }
+
+  it("reads the cover image by OCR when the sections hold no text", async () => {
+    ocr.ocrLines.mockResolvedValueOnce([['גנב הברק', 'ריק ריירדן']])
+    const { opening } = await epubDetails(await build())
+    expect(opening).toEqual(['גנב הברק', 'ריק ריירדן'])
+    expect(ocr.ocrLines).toHaveBeenCalledOnce()
+  })
+
+  it('goes on with no opening when OCR cannot run', async () => {
+    ocr.ocrLines.mockRejectedValueOnce(new Error('no wasm'))
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect((await epubDetails(await build())).opening).toEqual([])
+    warn.mockRestore()
   })
 })

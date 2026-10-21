@@ -9,6 +9,13 @@ import { getFile } from './db'
 const SECTIONS = 6
 const PAGES = 6
 const MAX_LINES = 150
+/** a book whose opening holds fewer letters than this has no text of its own to be identified by (a scan, a picture book) */
+const MIN_LETTERS = 40
+/** the pages read by OCR (the cover, the title page, the copyright page) and the width they are drawn at for it */
+const OCR_PAGES = 3
+const OCR_WIDTH = 1600
+
+const letters = (lines: string[]) => lines.reduce((n, l) => n + (l.match(/[א-תA-Za-z]/g)?.length ?? 0), 0)
 
 const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' }
 
@@ -81,8 +88,35 @@ export function opfMeta(opf: string): EpubMeta {
   }
 }
 
+/** the package's cover image (EPUB 3's `cover-image` property, EPUB 2's `<meta name="cover">`, or an image named cover), as a path in the EPUB */
+export function coverHref(opf: string): string | undefined {
+  const items = (opf.match(/<item\b[^>]*>/gi) ?? []).map((i) => ({ id: attr(i, 'id'), href: attr(i, 'href'), type: attr(i, 'media-type') ?? '', props: attr(i, 'properties') ?? '' }))
+  const images = items.filter((i) => i.href && /^image\//i.test(i.type))
+  const metaId = (opf.match(/<(?:opf:)?meta\b[^>]*>/gi) ?? []).map((m) => (attr(m, 'name') === 'cover' ? attr(m, 'content') : undefined)).find(Boolean)
+  return (
+    images.find((i) => /(?:^|\s)cover-image(?:\s|$)/.test(i.props)) ??
+    images.find((i) => metaId && i.id === metaId) ??
+    images.find((i) => /cover/i.test(`${i.id ?? ''} ${i.href}`))
+  )?.href
+}
+
+/** what OCR reads from the EPUB's cover image; empty when there is none, it cannot be read, or OCR cannot run */
+async function coverLines(zip: { file(path: string): { async(type: 'blob'): Promise<Blob> } | null }, opf: string, base: string, signal?: AbortSignal): Promise<string[]> {
+  const href = coverHref(opf)
+  const entry = href ? zip.file(base + decodeURIComponent(href.split('#')[0]!)) : null
+  if (!entry) return []
+  try {
+    const { ocrLines } = await import('./ocr')
+    return (await ocrLines([await entry.async('blob')], signal))[0] ?? []
+  } catch (e) {
+    if (signal?.aborted) throw e
+    console.warn('OCR of the cover failed', e)
+    return []
+  }
+}
+
 /** the EPUB's first sections in reading order, and what its package says about it */
-export async function epubDetails(file: Blob): Promise<{ opening: string[]; meta?: EpubMeta }> {
+export async function epubDetails(file: Blob, signal?: AbortSignal): Promise<{ opening: string[]; meta?: EpubMeta }> {
   const { default: JSZip } = await import('jszip')
   const zip = await JSZip.loadAsync(file)
   const container = (await zip.file('META-INF/container.xml')?.async('string')) ?? ''
@@ -105,12 +139,43 @@ export async function epubDetails(file: Blob): Promise<{ opening: string[]; meta
     if (html) lines.push(...htmlLines(html))
     if (lines.length >= MAX_LINES) break
   }
+  // a book of pictures (a scan made into an EPUB) names itself on its cover only: read that
+  if (letters(lines) < MIN_LETTERS) lines.push(...(await coverLines(zip, opf, base, signal)))
   return { opening: lines.slice(0, MAX_LINES), meta: opfMeta(opf) }
 }
 
 /** the EPUB's first sections in reading order */
 export async function epubOpening(file: Blob): Promise<string[]> {
   return (await epubDetails(file)).opening
+}
+
+type PdfDoc = { numPages: number; getPage(n: number): Promise<import('pdfjs-dist/types/src/display/api').PDFPageProxy> }
+
+/** the first pages of a PDF with no text layer, read by OCR; empty when OCR cannot run */
+async function scannedOpening(pdf: PdfDoc, signal?: AbortSignal): Promise<string[]> {
+  const draw = (n: number) => async () => {
+    const page = await pdf.getPage(n)
+    try {
+      const base = page.getViewport({ scale: 1 })
+      const viewport = page.getViewport({ scale: OCR_WIDTH / base.width })
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(viewport.width)
+      canvas.height = Math.round(viewport.height)
+      await page.render({ canvas, viewport }).promise
+      return canvas
+    } finally {
+      page.cleanup()
+    }
+  }
+  try {
+    const { ocrLines } = await import('./ocr')
+    const pages = Array.from({ length: Math.min(OCR_PAGES, pdf.numPages) }, (_, i) => draw(i + 1))
+    return (await ocrLines(pages, signal)).flat().slice(0, MAX_LINES)
+  } catch (e) {
+    if (signal?.aborted) throw e
+    console.warn('OCR of the first pages failed', e)
+    return []
+  }
 }
 
 /** a PDF's first pages, with Hebrew stored in visual order turned back */
@@ -133,7 +198,9 @@ async function pdfOpening(file: Blob, signal?: AbortSignal): Promise<string[]> {
       p.cleanup()
     }
     const order = visualOrder(pages)
-    return pages.flat().map((l) => fixLine(l.text, order)).slice(0, MAX_LINES)
+    const lines = pages.flat().map((l) => fixLine(l.text, order)).slice(0, MAX_LINES)
+    // a scan has no text layer: the first pages are drawn and read by OCR
+    return letters(lines) < MIN_LETTERS ? await scannedOpening(pdf, signal) : lines
   } finally {
     void task.destroy().catch(() => {})
   }
@@ -146,7 +213,7 @@ export async function bookDetails(b: Pick<BookMeta, 'id' | 'kind'>, signal?: Abo
   try {
     const file = await getFile(b.id)
     if (!file) return { opening: [] }
-    return b.kind === 'epub' ? await epubDetails(file) : { opening: await pdfOpening(file, signal) }
+    return b.kind === 'epub' ? await epubDetails(file, signal) : { opening: await pdfOpening(file, signal) }
   } catch (e) {
     if (signal?.aborted) throw e
     console.warn(e)
