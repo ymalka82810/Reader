@@ -105,6 +105,14 @@ describe('Library', () => {
     expect(onOpen).toHaveBeenCalledWith('b1')
   })
 
+  it('has nothing to identify once for a library that was empty when it first loaded', async () => {
+    localStorage.removeItem('reader:identify:backfill')
+    render(<Library onOpen={() => {}} />)
+    await waitFor(() => expect(localStorage.getItem('reader:identify:backfill')).toBe('done'))
+    await saveBook(book('b1', 'Dune', 'Herbert'))
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+  })
+
   it('identifies the books already in the library once, after asking about Google Books', async () => {
     localStorage.removeItem('reader:identify:backfill')
     await saveBook(book('b1', 'Dune', 'Herbert'))

@@ -361,15 +361,23 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
     return pendingAll.filter((p) => byId.get(p.id)?.title === p.was)
   }, [pendingAll, books])
 
-  // the books already in the library are identified once, on the first start after automatic identification came in
-  const backfillTried = useRef(false)
+  // The books already in the library are identified once, on the first start after automatic identification came in.
+  // Which books that means is fixed when the library first loads, before anything added meanwhile shows up in it: a
+  // book added now is identified as a new one, at the end of its own import.
+  const backfill = useRef<string[] | undefined | null>(null) // null: not read yet
   const askLookup = useLatest(allowLookup)
   useEffect(() => {
-    if (!loaded || backfillTried.current || imp.running || busy || !loadSettings().autoIdentify) return
-    backfillTried.current = true
-    const left = backfillLeft(books.map((b) => b.id))
-    if (!left) return
-    if (!left.length) return setBackfillLeft(undefined) // an empty library: nothing to go back over
+    if (!loaded) return
+    if (backfill.current === null) {
+      const left = backfillLeft(books.map((b) => b.id))
+      if (left) setBackfillLeft(left) // an empty library is done at once: nothing to go back over
+      backfill.current = left?.length ? left : undefined
+    }
+    if (!backfill.current || imp.running || busy || !loadSettings().autoIdentify) return
+    // read again: a run that was going on when this library opened may have finished it meanwhile
+    const left = backfillLeft(backfill.current)
+    backfill.current = undefined
+    if (!left?.length) return
     // it runs once, so Google Books is asked about first; on a no it goes by the books' own files only
     void askLookup.current().then(() => imp.identifyLibrary(left))
   }, [loaded, imp, busy, books, askLookup])
