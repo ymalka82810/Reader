@@ -85,7 +85,8 @@ async function buildPlain(onProgress?: (done: number, total: number) => void): P
     books: manifestBooks,
     notes,
     progress: await getAllProgress(),
-    settings: loadSettings(),
+    // the Google Books key stays on the device: a backup may be shared or synced
+    settings: withoutKey(loadSettings()),
     stats: Object.fromEntries(
       (await Promise.all(books.map(async (b) => [b.id, await loadStats(b.id)] as const))).filter(([, s]) => s.secs > 0),
     ),
@@ -103,4 +104,9 @@ async function buildPlain(onProgress?: (done: number, total: number) => void): P
   return new Blob([lenPrefix, headerBytes, ...parts], {
     type: 'application/octet-stream',
   })
+}
+
+function withoutKey(s: ReturnType<typeof loadSettings>) {
+  const { googleBooksKey: _key, ...rest } = s
+  return rest
 }

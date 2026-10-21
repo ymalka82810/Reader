@@ -9,6 +9,7 @@ import { authorInName, guessBookName, isJunkTitle, nameFromOpening, seriesOf, ti
 import type { EpubMeta } from './bookText'
 import { bookIsbns } from './isbn'
 import { norm } from './sameBook'
+import { loadSettings } from './settings'
 
 export interface Identified extends BookName {
   author: string
@@ -150,7 +151,9 @@ function remember(q: string, items: VolumeInfo[]) {
 // after a refusal for too many requests, a catalog is not asked again for a while, from anywhere in the app
 const BLOCK_KEY = 'reader:books-blocked-until'
 const BLOCK_MS = 60 * 60 * 1000
-const blockKey = (source: Source) => (source === 'google' ? BLOCK_KEY : `${BLOCK_KEY}:${source}`)
+/** the user's Google Books key, when there is one: its quota is its own, so a refusal without it does not stop it */
+const googleKey = () => (loadSettings().googleBooksKey ?? '').trim()
+const blockKey = (source: Source) => (source === 'google' ? (googleKey() ? `${BLOCK_KEY}:key` : BLOCK_KEY) : `${BLOCK_KEY}:${source}`)
 const blockedUntil = (source: Source) => Number(globalThis.localStorage?.getItem(blockKey(source)) ?? 0) || 0
 
 /** How each catalog answered since the last reset: shown after identifying, so a run that found nothing says why */
@@ -206,7 +209,12 @@ async function ask(
     } catch {
       /* storage unavailable */
     }
+    // with the user's own key a refusal may be the key's fault (the Books API not enabled for it): its reason is told
+    if (source === 'google' && googleKey()) stats[source].last = `HTTP ${res.status}${await errorOf(res)}`
     throw fail('quota', `${SITE[source]} answered ${res.status}`)
+  }
+  if (source === 'google' && res?.status === 400 && googleKey()) {
+    throw fail('network', `${SITE[source]} answered 400`, `HTTP 400${await errorOf(res)}`)
   }
   if (!res?.ok) throw fail('network', `${SITE[source]} answered ${res?.status}`, `HTTP ${res?.status}`)
   let items: VolumeInfo[]
@@ -220,12 +228,44 @@ async function ask(
   return items
 }
 
+/** Google's reason for an error answer (": API key not valid"), or nothing when it gave none */
+async function errorOf(res: Response): Promise<string> {
+  try {
+    const m = ((await res.clone().json()) as { error?: { message?: string } }).error?.message
+    return m ? `: ${m.slice(0, 120)}` : ''
+  } catch {
+    return ''
+  }
+}
+
+/** Whether a Google Books key works: undefined when it does, otherwise what Google said */
+export async function testGoogleBooksKey(key: string): Promise<string | undefined> {
+  const params = new URLSearchParams({ q: 'isbn:9780306406157', maxResults: '1', fields: 'totalItems', key: key.trim() })
+  try {
+    const res = await fetch(`${API}?${params}`)
+    if (res.ok) {
+      // a key that works starts with a fresh quota of its own
+      try {
+        localStorage.removeItem(`${BLOCK_KEY}:key`)
+      } catch {
+        /* storage unavailable */
+      }
+      return undefined
+    }
+    return `HTTP ${res.status}${await errorOf(res)}`
+  } catch (e) {
+    return e instanceof Error ? e.message : String(e)
+  }
+}
+
 function search(q: string, signal?: AbortSignal, budget?: Budget): Promise<VolumeInfo[]> {
+  const key = googleKey()
   const params = new URLSearchParams({
     q,
     maxResults: '20',
     printType: 'books',
     fields: 'items(volumeInfo(title,subtitle,authors,language,seriesInfo))',
+    ...(key && { key }),
   })
   return ask(
     'google',

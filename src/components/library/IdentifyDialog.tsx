@@ -149,8 +149,9 @@ function CatalogAnswers({ stats }: { stats: CatalogStats }) {
       const parts = [
         s.ok && t('identify.statOk', { n: s.ok }),
         s.quota && t('identify.statQuota', { n: s.quota }),
-        s.network && `${t('identify.statNetwork', { n: s.network })}${s.last ? ` (${s.last})` : ''}`,
+        s.network && t('identify.statNetwork', { n: s.network }),
       ].filter(Boolean)
+      if (s.last && (s.quota || s.network)) parts[parts.length - 1] += ` (${s.last})`
       return parts.length ? `${CATALOG_NAMES[k]}: ${parts.join(', ')}` : ''
     })
     .filter(Boolean)

@@ -519,4 +519,12 @@ describe('asLibrarySeries / withoutSeries', () => {
     await identifyBook({ title: 'ספר שני', author: 'מחבר', fileName: 'b.epub' }, true)
     expect(f.all.mock.calls.filter((c) => String(c[0]).includes('openlibrary'))).toHaveLength(1)
   })
+
+  it('sends the user\'s Google Books key, whose quota a refusal without it does not stop', async () => {
+    localStorage.setItem('reader:books-blocked-until', String(Date.now() + 60_000))
+    localStorage.setItem('reader:settings', JSON.stringify({ googleBooksKey: 'my-key' }))
+    const f = stubFetch(answer({ title: 'גנב הברק', authors: ['ריק ריירדן'] }))
+    await identifyBook({ title: 'גנב הברק', author: 'ריק ריירדן', fileName: 'x.epub' }, true)
+    expect(new URL(String(f.mock.calls[0]![0])).searchParams.get('key')).toBe('my-key')
+  })
 })
