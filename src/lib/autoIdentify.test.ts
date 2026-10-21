@@ -10,7 +10,11 @@ const details = new Map<string, { opening: string[]; meta?: unknown }>()
 let consent = false
 let saveSure = true
 
-vi.mock('./db', () => ({ getBookMeta: async (id: string) => books.get(id), updateMeta: (...a: [string, string, string]) => updateMeta(...a) }))
+vi.mock('./db', () => ({
+  getBookMeta: async (id: string) => books.get(id),
+  listBooks: async () => [...books.values()],
+  updateMeta: (...a: [string, string, string]) => updateMeta(...a),
+}))
 vi.mock('./phoneFiles', () => ({ autoSyncPhoneNames: (ids: string[]) => autoSyncPhoneNames(ids) }))
 vi.mock('./bookText', () => ({ bookDetails: async (b: { id: string }) => details.get(b.id) ?? { opening: [] } }))
 vi.mock('./consent', () => ({ hasConsent: () => consent }))
