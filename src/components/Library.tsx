@@ -19,7 +19,7 @@ import { identifyBook } from '../lib/bookLookup'
 import { bookDetails } from '../lib/bookText'
 import { hasConsent, setConsent, SERVICE_HOST } from '../lib/consent'
 import { IdentifyDialog, type NameChange } from './library/IdentifyDialog'
-import { dropPending, loadPending, subscribePending, type PendingName } from '../lib/autoIdentify'
+import { backfillLeft, dropPending, loadPending, setBackfillLeft, subscribePending, type PendingName } from '../lib/autoIdentify'
 import { loadSettings } from '../lib/settings'
 import { exitApp, useBackGesture } from '../hooks/useBackGesture'
 import { useConfirm } from '../hooks/useConfirm'
@@ -360,6 +360,17 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
     return pendingAll.filter((p) => byId.get(p.id)?.title === p.was)
   }, [pendingAll, books])
 
+  // the books already in the library are identified once, on the first start after automatic identification came in
+  const backfillTried = useRef(false)
+  useEffect(() => {
+    if (!loaded || backfillTried.current || imp.running || busy || !loadSettings().autoIdentify) return
+    backfillTried.current = true
+    const left = backfillLeft(books.map((b) => b.id))
+    if (!left) return
+    if (left.length) imp.identifyLibrary(left)
+    else setBackfillLeft(undefined) // an empty library: nothing to go back over
+  }, [loaded, imp, busy, books])
+
   const reviewPending = () => {
     if (loaded) dropPending(pendingAll.filter((p) => !pending.includes(p)).map((p) => p.id))
     const ids = new Set(pending.map((p) => p.id))
@@ -622,9 +633,9 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
           )}
           {(
             <div className="import-actions">
-              <small>{t('import.background')}</small>
+              <small>{t(imp.identifying ? 'identify.libraryBackground' : 'import.background')}</small>
               <button className="danger" onClick={imp.cancel}>
-                {imp.queue.length > 1 ? t('import.cancelAll') : t('import.cancel')}
+                {imp.identifying ? t('identify.libraryCancel') : imp.queue.length > 1 ? t('import.cancelAll') : t('import.cancel')}
               </button>
             </div>
           )}
