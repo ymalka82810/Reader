@@ -150,6 +150,8 @@ export const he = {
   'edit.bookName': 'שם הספר',
   'edit.author': 'מחבר',
   'edit.tags': 'תגיות',
+  'edit.words': 'מספר מילים',
+  'edit.wordsCounting': 'סופר…',
   'edit.syncPhone': 'שנה גם את שם הקובץ בטלפון',
   'edit.phoneRenamed': 'שם הקובץ בטלפון עודכן',
   'edit.phoneFailed': 'הפרטים נשמרו, אבל לא הצלחתי לשנות את שם הקובץ בטלפון (אולי הוא הועבר או נמחק)',

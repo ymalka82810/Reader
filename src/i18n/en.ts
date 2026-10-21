@@ -152,6 +152,8 @@ export const en: Record<keyof typeof he, Message> = {
   'edit.bookName': 'Title',
   'edit.author': 'Author',
   'edit.tags': 'Tags',
+  'edit.words': 'Word count',
+  'edit.wordsCounting': 'Counting…',
   'edit.syncPhone': 'Also rename the file on the phone',
   'edit.phoneRenamed': 'The file on the phone was renamed',
   'edit.phoneFailed': 'Details saved, but the file on the phone could not be renamed (it may have been moved or deleted)',
