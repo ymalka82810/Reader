@@ -8,7 +8,7 @@ const SNIFF_BYTES = 65536
 
 /** a file that is not text (a renamed image, an executable, an archive) has NUL bytes or many other control characters
  *  in its first bytes; real text, in UTF-8 or Windows-1255, has none */
-export function looksBinary(buf: ArrayBuffer): boolean {
+function looksBinary(buf: ArrayBuffer): boolean {
   const b = new Uint8Array(buf, 0, Math.min(buf.byteLength, SNIFF_BYTES))
   let control = 0
   for (const c of b) {
