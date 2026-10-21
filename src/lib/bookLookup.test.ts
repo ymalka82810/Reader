@@ -118,3 +118,38 @@ describe('identifyBook from the opening pages', () => {
     expect(r).toMatchObject({ series: 'גיבורי האולימפוס', number: '4', title: 'בית האדם', author: 'ריק ריירדן', online: true })
   })
 })
+
+describe('identifyBook by the ISBN and the package', () => {
+  const meta = (m: Partial<import('./bookText').EpubMeta>) => ({ title: '', authors: [], series: '', number: '', identifiers: [], ...m })
+
+  it('asks by the ISBN on the copyright page first, and takes the catalog title', async () => {
+    const f = stubFetch(answer({ title: 'גנב הברק', subtitle: "פרסי ג'קסון והאולימפיים, ספר 1", authors: ['ריק ריירדן'] }))
+    const r = await identifyBook({ title: 'גנב', author: '', fileName: 'x.pdf' }, true, undefined, ['כל הזכויות שמורות', 'מסת"ב 978-965-0-00000-4'])
+    expect(queryOf(f, 0)).toBe('isbn:9789650000004')
+    expect(r).toMatchObject({ series: "פרסי ג'קסון והאולימפיים", number: '1', title: 'גנב הברק', author: 'ריק ריירדן', online: true })
+  })
+
+  it("skips the original's ISBN in a Hebrew book and goes on by the title", async () => {
+    const f = stubFetch(answer({ title: 'The Lightning Thief', authors: ['Rick Riordan'] }), answer({ title: 'גנב הברק', authors: ['ריק ריירדן'] }))
+    const r = await identifyBook({ title: 'גנב הברק', author: '', fileName: 'x.epub' }, true, undefined, [], meta({ identifiers: ['9780306406157'] }))
+    expect(queryOf(f, 0)).toBe('isbn:9780306406157')
+    expect(queryOf(f, 1)).toBe('intitle:"גנב הברק"')
+    expect(r).toMatchObject({ title: 'גנב הברק', author: 'ריק ריירדן' })
+  })
+
+  it("takes the package's series when the names hold none, without going online", async () => {
+    const r = await identifyBook({ title: 'גנב הברק', author: 'ריק ריירדן', fileName: 'x.epub' }, false, undefined, [], meta({ series: "פרסי ג'קסון", number: '1' }))
+    expect(r).toMatchObject({ series: "פרסי ג'קסון", number: '1', title: 'גנב הברק', fromMeta: true, online: false })
+  })
+
+  it("keeps a series the names already have over the package's", async () => {
+    const r = await identifyBook({ title: 'סדרה 2 - שם', author: '', fileName: 'x.epub' }, false, undefined, [], meta({ series: 'אחרת', number: '5' }))
+    expect(r).toMatchObject({ series: 'סדרה', number: '2', title: 'שם' })
+    expect(r.fromMeta).toBeUndefined()
+  })
+
+  it("takes the package's title when the library's says nothing", async () => {
+    const r = await identifyBook({ title: '1~2402 1', author: '', fileName: '1~2402 1.epub' }, false, undefined, [], meta({ title: 'בית האדם' }))
+    expect(r).toMatchObject({ title: 'בית האדם', fromMeta: true })
+  })
+})

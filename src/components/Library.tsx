@@ -16,7 +16,7 @@ import { deviceBooksSupported } from '../lib/deviceBooks'
 import { autoSyncPhoneNames, openDownloadsFolder, phoneFileOf, saveBookToPhone, syncPhoneNames } from '../lib/phoneFiles'
 import { formatBookName, splitBookName, type BookName } from '../lib/bookName'
 import { identifyBook } from '../lib/bookLookup'
-import { openingLines } from '../lib/bookText'
+import { bookDetails } from '../lib/bookText'
 import { hasConsent, setConsent, SERVICE_HOST } from '../lib/consent'
 import { IdentifyDialog, type NameChange } from './library/IdentifyDialog'
 import { loadSettings } from '../lib/settings'
@@ -320,13 +320,14 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
     const online = await allowLookup()
     if (run !== editRun.current) return
     setEditLookup({ busy: true })
-    const opening = await openingLines(editing)
+    const { opening, meta } = await bookDetails(editing)
     if (run !== editRun.current) return
     const found = await identifyBook(
       { title: formatBookName(editName), author: editAuthor, fileName: editing.fileName },
       online,
       undefined,
       opening,
+      meta,
     ).catch(() => undefined)
     if (run !== editRun.current) return
     if (found) {
