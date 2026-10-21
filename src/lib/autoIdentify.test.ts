@@ -79,6 +79,13 @@ describe('the one-time identification of the library', () => {
     expect(backfillLeft(['x'])).toBeUndefined()
   })
 
+  it('counts a book whose name stays as it was, or that is gone, as done', async () => {
+    add('a', 'שם רגיל')
+    const left: string[][] = []
+    await identifyNew(['a', 'gone'], new AbortController().signal, undefined, (l) => left.push(l))
+    expect(left).toEqual([['gone'], []])
+  })
+
   it('reports what is left after each book, and keeps a name found before it was stopped', async () => {
     add('a', '1~2402 3', 'ריק ריירדן')
     details.set('a', { opening: ['ריק ריירדן', "מגנוס צ'ייס", 'ספר שלישי', 'ספינת המתים'] })

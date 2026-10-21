@@ -144,8 +144,10 @@ export async function identifyNew(
     } catch (e) {
       if (signal.aborted) throw e
       console.warn(e) // this book stays as it was; the rest go on
+    } finally {
+      // also for a book skipped or unchanged; one stopped half-way is still to do
+      if (!signal.aborted) onLeft?.(ids.slice(i + 1))
     }
-    onLeft?.(ids.slice(i + 1))
   }
   onProgress?.(ids.length, ids.length)
   return { saved, pending }
