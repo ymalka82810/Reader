@@ -380,16 +380,19 @@ describe('identifyBook: sparing Google Books', () => {
 
 describe('identifyBook: Open Library and Wikidata', () => {
   const openLibrary = (body: unknown) => ({ ok: true, json: async () => body }) as Response
-  const wikidata = (...rows: { series: string; num?: string; author?: string }[]) =>
+  /** Wikidata answering both its search (items named `name`) and its SPARQL endpoint (`rows`) */
+  const wikidata = (name: string, ...rows: { series: string; num?: string; author?: string; title?: string }[]) =>
     ({
       ok: true,
       json: async () => ({
+        search: rows.map((_, i) => ({ id: `Q${i + 1}`, label: name })),
         results: {
           bindings: rows.map((r, i) => ({
             book: { value: `http://www.wikidata.org/entity/Q${i + 1}` },
             seriesLabel: { value: r.series },
             ...(r.num && { num: { value: r.num } }),
             ...(r.author && { authorLabel: { value: r.author } }),
+            ...(r.title && { bookLabel: { value: r.title } }),
           })),
         },
       }),
@@ -406,7 +409,7 @@ describe('identifyBook: Open Library and Wikidata', () => {
     const f = stubCatalogs([], (url) =>
       url.includes('openlibrary.org/search.json')
         ? openLibrary({ docs: [{ title: 'גנב הברק', author_name: ['ריק ריירדן'] }] })
-        : url.includes('wikidata') ? wikidata({ series: "פרסי ג'קסון והאולימפיים", num: '1', author: 'ריק ריירדן' }) : empty,
+        : url.includes('wikidata') ? wikidata('גנב הברק', { series: "פרסי ג'קסון והאולימפיים", num: '1', author: 'ריק ריירדן' }) : empty,
     )
     f.mockResolvedValue(answer())
     const r = await identifyBook({ title: 'גנב הברק', author: 'ריק ריירדן', fileName: 'x.epub' }, true)
@@ -434,31 +437,46 @@ describe('identifyBook: Open Library and Wikidata', () => {
 
   it('completes the series from Wikidata when Google Books has the book without one', async () => {
     const f = stubCatalogs([answer({ title: 'גנב הברק', authors: ['ריק ריירדן'] })], (url) =>
-      url.includes('wikidata') ? wikidata({ series: "פרסי ג'קסון והאולימפיים", num: '1', author: 'ריק ריירדן' }) : empty,
+      url.includes('wikidata') ? wikidata('גנב הברק', { series: "פרסי ג'קסון והאולימפיים", num: '1', author: 'ריק ריירדן' }) : empty,
     )
     const r = await identifyBook({ title: 'גנב הברק', author: 'ריק ריירדן', fileName: 'x.epub' }, true)
     expect(r).toMatchObject({ series: "פרסי ג'קסון והאולימפיים", number: '1', sites: ['Google Books', 'Wikidata'], sure: true })
-    const sparql = new URL(String(f.all.mock.calls.find((c) => String(c[0]).includes('wikidata'))![0])).searchParams.get('query')!
-    expect(sparql).toContain('"גנב הברק"@he')
+    const urls = f.all.mock.calls.map((c) => new URL(String(c[0]))).filter((u) => u.host.includes('wikidata'))
+    expect(urls[0]!.searchParams.get('search')).toBe('גנב הברק')
+    expect(urls[1]!.searchParams.get('query')).toContain('wd:Q1')
   })
 
   it('is not sure of a Wikidata series by another author, and takes none when two series fit', async () => {
-    stubCatalogs([answer()], (url) => (url.includes('wikidata') ? wikidata({ series: 'סדרה', num: '2', author: 'מישהו אחר' }) : empty))
+    stubCatalogs([answer()], (url) => (url.includes('wikidata') ? wikidata('שם הספר', { series: 'סדרה', num: '2', author: 'מישהו אחר' }) : empty))
     const r = await identifyBook({ title: 'שם הספר', author: 'ריק ריירדן', fileName: 'x.epub' }, true)
     expect(r).toMatchObject({ series: 'סדרה', number: '2' })
     expect(r.sure).toBeUndefined()
     clearBooksCache()
     localStorage.clear()
-    stubCatalogs([answer()], (url) => (url.includes('wikidata') ? wikidata({ series: 'סדרה', num: '2' }, { series: 'סדרה אחרת', num: '5' }) : empty))
+    stubCatalogs([answer()], (url) => (url.includes('wikidata') ? wikidata('שם הספר', { series: 'סדרה', num: '2' }, { series: 'סדרה אחרת', num: '5' }) : empty))
     expect((await identifyBook({ title: 'שם הספר', author: '', fileName: 'x.epub' }, true)).series).toBe('')
   })
 
   it('takes no Wikidata series without a number, or not in Hebrew for a Hebrew book', async () => {
-    stubCatalogs([answer()], (url) => (url.includes('wikidata') ? wikidata({ series: 'סדרה' }) : empty))
+    stubCatalogs([answer()], (url) => (url.includes('wikidata') ? wikidata('שם הספר', { series: 'סדרה' }) : empty))
     expect((await identifyBook({ title: 'שם הספר', author: '', fileName: 'x.epub' }, true)).series).toBe('')
     clearBooksCache()
     localStorage.clear()
-    stubCatalogs([answer()], (url) => (url.includes('wikidata') ? wikidata({ series: 'Q12345', num: '1' }) : empty))
+    stubCatalogs([answer()], (url) => (url.includes('wikidata') ? wikidata('שם הספר', { series: 'Q12345', num: '1' }) : empty))
+    expect((await identifyBook({ title: 'שם הספר', author: '', fileName: 'x.epub' }, true)).series).toBe('')
+  })
+
+  it('finds the title of a name that is only a series and a number, waiting for approval', async () => {
+    stubCatalogs([answer()], (url) =>
+      url.includes('wikidata') ? wikidata('משפחת קיין', { series: 'משפחת קיין והאלים המצריים', title: 'הפירמידה האדומה', author: 'ריק ריירדן' }) : empty,
+    )
+    const r = await identifyBook({ title: 'משפחת קיין 1', author: 'ריק ריירדן', fileName: 'x.pdf' }, true)
+    expect(r).toMatchObject({ series: 'משפחת קיין והאלים המצריים', number: '1', title: 'הפירמידה האדומה', sites: ['Wikidata'] })
+    expect(r.sure).toBeUndefined()
+  })
+
+  it('does not take an item whose name is only like the title', async () => {
+    stubCatalogs([answer()], (url) => (url.includes('wikidata') ? wikidata('שם אחר לגמרי', { series: 'סדרה', num: '2' }) : empty))
     expect((await identifyBook({ title: 'שם הספר', author: '', fileName: 'x.epub' }, true)).series).toBe('')
   })
 })
