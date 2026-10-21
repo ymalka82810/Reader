@@ -83,10 +83,17 @@ describe('identifyNew', () => {
     add('a', 'גנב הברק')
     add('b', 'ים המפלצות')
     setBackfillLeft([])
-    await identifyNew(['a', 'b'], new AbortController().signal)
+    const offline = vi.fn()
+    expect(await identifyNew(['a', 'b'], new AbortController().signal, undefined, undefined, 0, offline)).toMatchObject({ later: 2, why: 'quota' })
+    expect(offline).toHaveBeenCalledWith('quota')
     expect(fetchMock).toHaveBeenCalledTimes(1)
+    // a quota comes back after some hours: not on the next start, but after that
+    expect(backfillLeft(['a', 'b', 'c'])).toBeUndefined()
+    const now = Date.now()
+    vi.spyOn(Date, 'now').mockReturnValue(now + 7 * 60 * 60 * 1000)
     expect(backfillLeft(['a', 'b', 'c'])).toEqual(['a', 'b'])
     vi.unstubAllGlobals()
+    vi.restoreAllMocks()
   })
 
   it('stops when cancelled', async () => {

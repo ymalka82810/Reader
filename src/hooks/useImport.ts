@@ -141,9 +141,14 @@ function identifyLibrary(ids: string[]) {
     }
     try {
       // a pause between books keeps a large library under Google Books' limit on requests
-      const r = await identifyNew(ids, signal, progress, (left) => setBackfillLeft(left), 400)
+      const r = await identifyNew(ids, signal, progress, (left) => setBackfillLeft(left), 400, (why) =>
+        // said at once, not only at the end: what goes on now is read from the files alone
+        setState({ message: t(why === 'quota' ? 'identify.offlineQuota' : 'identify.offlineNetwork') }),
+      )
       handlers?.showToast?.(
-        r.later ? t('identify.libraryLater', { n: r.later }) : t('identify.libraryDone', { saved: r.saved, pending: r.pending }),
+        r.later
+          ? t(r.why === 'quota' ? 'identify.libraryLaterQuota' : 'identify.libraryLater', { n: r.later })
+          : t('identify.libraryDone', { saved: r.saved, pending: r.pending }),
       )
     } catch {
       setBackfillLeft(undefined) // cancelled: not started again
@@ -317,8 +322,15 @@ async function work(run: Run) {
   if (added.length && !signal.aborted && loadSettings().autoIdentify) {
     setState({ batch: undefined, queue: [], dupAsk: undefined, message: t('identify.autoProgress', { done: 1, total: added.length }) })
     try {
-      const { saved, pending } = await identifyNew(added, signal, (done, total) =>
-        setState({ message: t('identify.autoProgress', { done: Math.min(done + 1, total), total }) }),
+      let offline: string | undefined
+      const { saved, pending } = await identifyNew(
+        added,
+        signal,
+        (done, total) =>
+          setState({ message: offline ?? t('identify.autoProgress', { done: Math.min(done + 1, total), total }) }),
+        undefined,
+        0,
+        (why) => setState({ message: (offline = t(why === 'quota' ? 'identify.offlineQuota' : 'identify.offlineNetwork')) }),
       )
       if (saved) handlers?.showToast?.(t('identify.autoSaved', { n: saved }))
       else if (pending) handlers?.showToast?.(t('identify.autoPending', { n: pending }))
