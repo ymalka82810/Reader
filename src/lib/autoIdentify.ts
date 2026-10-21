@@ -184,7 +184,7 @@ export async function identifyNew(
       const title = formatBookName(r)
       const author = r.author
       // a name that still says nothing ("5E70B~1") is not worth offering
-      if (!title || isJunkTitle(r.title) || (title === b.title && author === (b.author ?? '').trim())) continue
+      if (!title || (isJunkTitle(r.title) && !(r.series && r.number)) || (title === b.title && author === (b.author ?? '').trim())) continue
       // only the mark that keeps "פרויקט X 5" from showing as "פרויקט 5 X" is new: nothing to ask about
       const marksOnly = unmarked(title) === unmarked(b.title) && author === (b.author ?? '').trim()
       if ((r.sure && saveSure) || marksOnly) {

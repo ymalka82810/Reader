@@ -62,7 +62,7 @@ export function IdentifyDialog({
         if (ac.signal.aborted) return
         const title = r && formatBookName(r)
         const author = r?.author ?? ''
-        if (r && title && !isJunkTitle(r.title) && (title !== b.title || author !== (b.author ?? '').trim())) {
+        if (r && title && (!isJunkTitle(r.title) || (r.series && r.number)) && (title !== b.title || author !== (b.author ?? '').trim())) {
           setFound((f) => [...f, { id: b.id, title, author, was: b.title, online: r.online, sites: r.sites, fromText: !!r.fromText, fromMeta: !!r.fromMeta, pick: true }])
         }
         setAnswers(structuredClone(catalogStats()))
