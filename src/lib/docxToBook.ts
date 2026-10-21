@@ -31,7 +31,8 @@ const headingLevel = (p: Element): number => {
 }
 
 /** Turn a .docx into the same shape the PDF importer produces, so it goes through buildEpub. */
-export async function extractDocx(file: File): Promise<ExtractedPdf> {
+export async function extractDocx(file: File, signal?: AbortSignal): Promise<ExtractedPdf> {
+  signal?.throwIfAborted()
   const { default: JSZip } = await import('jszip')
   let zip: Awaited<ReturnType<typeof JSZip.loadAsync>>
   try {
@@ -39,7 +40,9 @@ export async function extractDocx(file: File): Promise<ExtractedPdf> {
   } catch {
     throw new ImportError(t('docx.corrupt'))
   }
+  signal?.throwIfAborted()
   const body = await zip.file('word/document.xml')?.async('string')
+  signal?.throwIfAborted()
   if (!body) throw new ImportError(t('docx.corrupt'))
   const doc = xml(body)
   if (doc.getElementsByTagName('parsererror').length) throw new ImportError(t('docx.corrupt'))

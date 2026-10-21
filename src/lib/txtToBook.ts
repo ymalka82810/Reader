@@ -1,6 +1,7 @@
 import { ImportError } from './errors'
 import type { ExtractedPdf } from './pdfToBook'
 import { t } from '../i18n'
+import { tick } from './wordCount'
 
 const CHAPTER_CHARS = 20000
 
@@ -27,11 +28,23 @@ function decode(buf: ArrayBuffer): string {
   }
 }
 
+const SAMPLE_CHARS = 60_000
+
+/** the start, the middle and the end of a text: enough to tell its language, whatever its length */
+function sample(text: string): string {
+  if (text.length <= SAMPLE_CHARS * 3) return text
+  const mid = Math.floor(text.length / 2)
+  return text.slice(0, SAMPLE_CHARS) + text.slice(mid, mid + SAMPLE_CHARS) + text.slice(-SAMPLE_CHARS)
+}
+
 /** Turn a plain-text file into the same shape the PDF importer produces, so it goes through buildEpub. */
-export async function extractTxt(file: File): Promise<ExtractedPdf> {
+export async function extractTxt(file: File, signal?: AbortSignal): Promise<ExtractedPdf> {
+  signal?.throwIfAborted()
   const buf = await file.arrayBuffer()
   if (looksBinary(buf)) throw new ImportError(t('import.notText'))
   const text = decode(buf).replace(/^﻿/, '').replace(/\r\n?/g, '\n')
+  await tick()
+  signal?.throwIfAborted()
   const blocks = text.split(/\n\s*\n/)
   // files with one line per paragraph and no blank lines
   const raw = blocks.length > 1 ? blocks : text.split('\n')
@@ -40,14 +53,20 @@ export async function extractTxt(file: File): Promise<ExtractedPdf> {
     .filter(Boolean)
   if (!paras.length) throw new ImportError(t('import.empty'))
 
-  const letters = text.match(/\p{L}/gu) ?? []
+  // the direction is decided on a sample: every letter of a long book as a separate string would take hundreds of MB
+  const letters = sample(text).match(/\p{L}/gu) ?? []
   const hebrew = letters.filter((c) => /[֐-׿]/.test(c)).length
   const title = file.name.replace(/\.[^.]+$/, '')
 
   const chapters: ExtractedPdf['chapters'] = []
   let cur: string[] = []
   let size = 0
+  let n = 0
   for (const p of paras) {
+    if (++n % 5000 === 0) {
+      await tick()
+      signal?.throwIfAborted()
+    }
     cur.push(p)
     size += p.length
     if (size >= CHAPTER_CHARS) {

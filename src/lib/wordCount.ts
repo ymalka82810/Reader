@@ -1,6 +1,14 @@
 /** words in a piece of text: runs of letters or digits, so Hebrew, Latin and punctuation-glued text all count alike */
 export const countWords = (text: string) => text.match(/[\p{L}\p{N}]+/gu)?.length ?? 0
 
+/** words in a book that was just converted (PDF, TXT, DOCX): counted from the text the converter already has,
+ *  instead of opening the finished book again and walking every chapter */
+export const wordsOfExtracted = (x: { chapters: { paras: string[] }[] }) =>
+  x.chapters.reduce((n, c) => n + c.paras.reduce((m, p) => m + countWords(p), 0), 0)
+
+/** lets the page draw and handle a tap between two heavy steps of a long conversion */
+export const tick = () => new Promise<void>((r) => setTimeout(r, 0))
+
 interface Countable {
   sections?: { linear?: string; createDocument?: () => Document | Promise<Document> }[]
 }

@@ -16,7 +16,7 @@ vi.mock('foliate-js/view.js', () => ({ makeBook }))
 const extractPdf = vi.fn()
 vi.mock('./pdfToBook', () => ({ extractPdf }))
 
-import { importFile, LARGE_PDF_BYTES } from './importBook'
+import { importFile, LARGE_PDF_BYTES, MAX_TXT_BYTES } from './importBook'
 
 const pdf = (size: number) => {
   const f = new File(['%PDF-1.4'], 'big.pdf', { type: 'application/pdf' })
@@ -40,5 +40,11 @@ describe('importFile: large PDFs and cancelling', () => {
     const p = importFile(pdf(LARGE_PDF_BYTES + 1), undefined, undefined, ctrl.signal)
     setTimeout(() => ctrl.abort(), 10)
     await expect(p).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
+  it('refuses a text file over the limit without reading it', async () => {
+    const f = new File(['hello'], 'collection.txt', { type: 'text/plain' })
+    Object.defineProperty(f, 'size', { value: MAX_TXT_BYTES + 1 })
+    await expect(importFile(f)).rejects.toThrow(/גדול מדי/)
   })
 })
