@@ -340,6 +340,7 @@ export const en: Record<keyof typeof he, Message> = {
   'import.adding': 'Adding {name}…',
   'import.exists': 'This book is already in the library.',
   'import.empty': 'The file is empty.',
+  'import.notText': 'The file does not look like a text file, so it was not added.',
   'import.unsupported': 'This file type is not supported. You can add EPUB, PDF, MOBI, AZW3, FB2, CBZ, DOCX, TXT or audiobook (M4B, MP3) files.',
   'import.extracting': 'Extracting text from the PDF…',
   'import.converting': 'Converting to EPUB…',

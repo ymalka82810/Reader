@@ -11,6 +11,11 @@ export interface BookName {
 
 const clean = (s: string) => s.replace(/\s+/g, ' ').trim()
 
+/** No real book name comes close to this; a longer text (a corrupt title, a pasted paragraph) is cut before it is parsed,
+ *  because some of the patterns below slow down sharply on very long input. */
+const MAX_NAME = 500
+const cap = (s: string) => (s.length > MAX_NAME ? s.slice(0, MAX_NAME) : s)
+
 /** the name in the template */
 export function formatBookName({ series, number, title }: BookName): string {
   const s = clean(series)
@@ -26,6 +31,7 @@ const TEMPLATE = /^(.+?)\s+(\d{1,3}(?:\s+[^\s\-–—][^\-–—]*?)?)\s+[-–�
 
 /** A name already in the template, split into its parts; any other name is all title. formatBookName undoes it. */
 export function splitBookName(name: string): BookName {
+  name = cap(name)
   const m = TEMPLATE.exec(clean(name))
   if (m) return { series: m[1]!, number: m[2]!, title: m[3]! }
   return { series: '', number: '', title: clean(name) }
@@ -102,7 +108,7 @@ export function seriesOf(text: string): { series: string; number: string } | und
  * "פרסי ג'קסון - ספר ראשון - גנב הברק", "Mistborn 1: The Final Empire", with "_" for spaces. What it cannot read is the title.
  */
 export function guessBookName(text: string): BookName {
-  const s = clean(text.replace(/_+/g, ' '))
+  const s = clean(cap(text).replace(/_+/g, ' '))
   const plain = { series: '', number: '', title: s }
   if (!s) return plain
 
@@ -143,9 +149,12 @@ const fold = (s: string) =>
 /** a name of people folded for comparing: "הולי בלק & קסנדרה קלייר" is "הולי בלק וקסנדרה קלייר" ("and" is "ו") */
 const people = (s: string) => fold(s.replace(/\s+(?:&|and)\s+/giu, ' ו')).replace(/(^| )ו(?=\p{L}{2})/gu, '$1')
 
+const MAX_AUTHOR_WORDS = 8
+
 export function withoutAuthor(name: string, author: string): string {
   const a = people(author)
   if (!a) return name
+  name = cap(name)
   // in parentheses: "המלך דוד (שרון חיון גינת)"
   name = clean(name.replace(/\s*\(([^()]+)\)/gu, (m, inner: string) => (people(inner) === a ? ' ' : m)))
   const parts = name.split(/\s+[-–—]\s+/)
@@ -155,7 +164,8 @@ export function withoutAuthor(name: string, author: string): string {
   }
   // the author's name run on at the end with no dash, as in a file name with underscores ("קוטל_המלכה_סבסטיאן_דה_קסטל")
   const words = clean(name).split(' ')
-  for (let k = 1; k < words.length; k++) if (people(words.slice(-k).join(' ')) === a) return words.slice(0, -k).join(' ')
+  // an author has a few words at most, so there is no need to try every suffix of a long name
+  for (let k = 1; k < Math.min(words.length, MAX_AUTHOR_WORDS + 1); k++) if (people(words.slice(-k).join(' ')) === a) return words.slice(0, -k).join(' ')
   return name
 }
 
@@ -194,7 +204,7 @@ export function authorInName(s: string): string {
 }
 
 export function tidyBookName(text: string): string {
-  let s = clean(text.replace(/_+/g, ' '))
+  let s = clean(cap(text).replace(/_+/g, ' '))
   s = annasArchive(s) ?? s
   s = s
     .replace(/^(?:(?:עותק של|copy of)\s+)+/iu, '') // also "עותק של עותק של"

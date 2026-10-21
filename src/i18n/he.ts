@@ -337,6 +337,7 @@ export const he = {
   'import.adding': 'מוסיף את {name}…',
   'import.exists': 'הספר כבר קיים בספרייה.',
   'import.empty': 'הקובץ ריק.',
+  'import.notText': 'הקובץ לא נראה כקובץ טקסט, ולכן לא נוסף.',
   'import.unsupported': 'סוג הקובץ לא נתמך. אפשר להוסיף קובצי EPUB, PDF, MOBI, AZW3, FB2, CBZ, DOCX, TXT או ספר קולי (M4B, MP3).',
   'import.extracting': 'מחלץ טקסט מה-PDF…',
   'import.converting': 'ממיר ל-EPUB…',
