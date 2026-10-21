@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Dialog } from '../Dialog'
 import type { BookMeta } from '../../lib/db'
+import type { PendingName } from '../../lib/autoIdentify'
 import { formatBookName } from '../../lib/bookName'
 import { identifyBook } from '../../lib/bookLookup'
 import { bookDetails } from '../../lib/bookText'
@@ -10,23 +11,40 @@ export type NameChange = { id: string; title: string; author: string }
 
 type Suggestion = NameChange & { was: string; online: boolean; fromText: boolean; fromMeta: boolean; pick: boolean }
 
-/** Identifies the books one after another and offers the new names; only the ticked ones are saved. */
+/** Identifies the books one after another and offers the new names; only the ticked ones are saved. With `waiting`,
+ *  it offers the names found in the background (lib/autoIdentify) instead, and reports which were turned down. */
 export function IdentifyDialog({
   books,
   online,
+  waiting,
   onSave,
   onCancel,
 }: {
   books: BookMeta[]
   /** whether Google Books may be asked (the user agreed); otherwise only the library's own names are read */
   online: boolean
-  onSave: (changes: NameChange[]) => void
+  waiting?: PendingName[]
+  /** `declined`: the books whose offered name was not ticked */
+  onSave: (changes: NameChange[], declined: string[]) => void
   onCancel: () => void
 }) {
-  const [found, setFound] = useState<Suggestion[]>([])
-  const [done, setDone] = useState(0)
+  const [found, setFound] = useState<Suggestion[]>(
+    () =>
+      waiting?.map((w) => ({
+        id: w.id,
+        title: w.title,
+        author: w.author,
+        was: w.was,
+        online: w.source === 'web',
+        fromText: w.source === 'text',
+        fromMeta: w.source === 'meta',
+        pick: true,
+      })) ?? [],
+  )
+  const [done, setDone] = useState(() => (waiting ? books.length : 0))
 
   useEffect(() => {
+    if (waiting) return
     const ac = new AbortController()
     void (async () => {
       for (const b of books) {
@@ -44,7 +62,7 @@ export function IdentifyDialog({
       }
     })()
     return () => ac.abort()
-  }, [books, online])
+  }, [books, online, waiting])
 
   const running = done < books.length
   const picked = found.filter((f) => f.pick)
@@ -62,7 +80,7 @@ export function IdentifyDialog({
         onKeyDown={(e) => e.key === 'Escape' && onCancel()}
       >
         <h2>{t('identify.title')}</h2>
-        {found.length > 0 && <small className="muted">{t('identify.hint')}</small>}
+        {found.length > 0 && <small className="muted">{t(waiting ? 'identify.reviewHint' : 'identify.hint')}</small>}
         {found.length > 0 && (
           <ul className="dup-list">
             {found.map((f) => (
@@ -91,10 +109,15 @@ export function IdentifyDialog({
         <div className="modal-actions">
           <button
             className="primary"
-            disabled={running || !picked.length}
-            onClick={() => onSave(picked.map(({ id, title, author }) => ({ id, title, author })))}
+            disabled={running || (!picked.length && !waiting)}
+            onClick={() =>
+              onSave(
+                picked.map(({ id, title, author }) => ({ id, title, author })),
+                found.filter((f) => !f.pick).map((f) => f.id),
+              )
+            }
           >
-            {t('identify.save', { n: picked.length })}
+            {waiting && !picked.length ? t('identify.declineAll') : t('identify.save', { n: picked.length })}
           </button>
           <button onClick={onCancel}>{t('common.cancel')}</button>
         </div>

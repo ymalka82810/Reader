@@ -5,7 +5,7 @@ import { DICT_LANGS, type Settings } from '../../lib/settings'
 import type { SetSetting } from '../../hooks/useAppSettings'
 import { Select } from '../Select'
 import { Seg } from '../reader/shared'
-import { Row, Section } from './parts'
+import { Row, Section, Toggle } from './parts'
 
 /** the services that receive what the user selects */
 const SERVICES: Service[] = ['translate', 'dict', 'books']
@@ -68,6 +68,22 @@ export function LanguagePage({ settings, set }: { settings: Settings; set: SetSe
             </Row>
           )
         })}
+      </Section>
+      <Section title={t('prefs.identifySection')}>
+        <Toggle
+          label={t('prefs.autoIdentify')}
+          hint={t('prefs.autoIdentifyHint')}
+          checked={settings.autoIdentify}
+          onChange={(v) => set('autoIdentify', v)}
+        />
+        {settings.autoIdentify && (
+          <Toggle
+            label={t('prefs.autoIdentifySave')}
+            hint={t('prefs.autoIdentifySaveHint')}
+            checked={settings.autoIdentifySave}
+            onChange={(v) => set('autoIdentifySave', v)}
+          />
+        )}
       </Section>
     </>
   )
