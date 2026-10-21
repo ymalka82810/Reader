@@ -15,7 +15,7 @@ import { useDeviceScan } from '../hooks/useDeviceScan'
 import { deviceBooksSupported } from '../lib/deviceBooks'
 import { autoSyncPhoneNames, openDownloadsFolder, phoneFileOf, saveBookToPhone, syncPhoneNames } from '../lib/phoneFiles'
 import { formatBookName, splitBookName, type BookName } from '../lib/bookName'
-import { identifyBook } from '../lib/bookLookup'
+import { identifyBook, libraryNames, type LibraryNames } from '../lib/bookLookup'
 import { bookDetails } from '../lib/bookText'
 import { hasConsent, setConsent, SERVICE_HOST } from '../lib/consent'
 import { IdentifyDialog, type NameChange } from './library/IdentifyDialog'
@@ -75,7 +75,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   const [editError, setEditError] = useState<string>()
   /** counts the edit dialogs opened, so a lookup that ends after its dialog closed changes nothing */
   const editRun = useRef(0)
-  const [identifying, setIdentifying] = useState<{ books: BookMeta[]; online: boolean; waiting?: PendingName[] }>()
+  const [identifying, setIdentifying] = useState<{ books: BookMeta[]; online: boolean; waiting?: PendingName[]; library?: LibraryNames }>()
   const [editAuthor, setEditAuthor] = useState('')
   const [editTags, setEditTags] = useState('')
   /** the book has a file on the phone that can be renamed along with it; undefined = not known (or not an Android app) */
@@ -353,6 +353,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
       undefined,
       opening,
       meta,
+      libraryNames(books),
     ).catch(() => undefined)
     if (run !== editRun.current) return
     if (found) {
@@ -374,7 +375,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   const identifySelected = async () => {
     const list = books.filter((b) => selected.has(b.id))
     if (!list.length) return
-    setIdentifying({ books: list, online: await allowLookup() })
+    setIdentifying({ books: list, online: await allowLookup(), library: libraryNames(books) })
   }
 
   // names found in the background that wait for approval: only for books still in the library under the same name
@@ -871,6 +872,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
           books={identifying.books}
           online={identifying.online}
           waiting={identifying.waiting}
+          library={identifying.library}
           onSave={(c, declined) => void saveIdentified(c, declined)}
           onCancel={() => setIdentifying(undefined)}
         />

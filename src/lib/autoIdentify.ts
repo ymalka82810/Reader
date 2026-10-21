@@ -6,11 +6,11 @@
 // The books already in the library are identified the same way once, on the first start after this came in (the
 // "backfill"): what is left of it is kept, so a run stopped by closing the app goes on at the next start.
 
-import { identifyBook } from './bookLookup'
+import { identifyBook, libraryNames } from './bookLookup'
 import { formatBookName, isJunkTitle } from './bookName'
 import { bookDetails } from './bookText'
 import { hasConsent } from './consent'
-import { getBookMeta, updateMeta } from './db'
+import { getBookMeta, listBooks, updateMeta } from './db'
 import { autoSyncPhoneNames } from './phoneFiles'
 import { loadSettings } from './settings'
 
@@ -124,6 +124,8 @@ export async function identifyNew(
   // each book's result is kept at once, so a run that is stopped keeps what it found
   let saved = 0
   let pending = 0
+  // the series and authors the library already has, which split a name that has no dash
+  const library = libraryNames(await listBooks().catch(() => []))
   for (const [i, id] of ids.entries()) {
     signal.throwIfAborted()
     if (i && gap) await pause(gap, signal)
@@ -132,7 +134,7 @@ export async function identifyNew(
       const b = await getBookMeta(id)
       if (!b) continue
       const { opening, meta } = await bookDetails(b, signal)
-      const r = await identifyBook(b, online, signal, opening, meta)
+      const r = await identifyBook(b, online, signal, opening, meta, library)
       const title = formatBookName(r)
       const author = r.author
       // a name that still says nothing ("5E70B~1") is not worth offering

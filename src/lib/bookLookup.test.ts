@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { identifyBook, identifyLocally, lookupOnline } from './bookLookup'
+import { identifyBook, identifyLocally, libraryNames, lookupOnline } from './bookLookup'
 
 type Info = { title?: string; subtitle?: string; authors?: string[]; seriesInfo?: { bookDisplayNumber?: string } }
 
@@ -227,5 +227,40 @@ describe('identifyBook: names from download sites', () => {
     expect(await id('נמסיס', 'גרג הורביץ', [], 'פרויקט איקס 2 - נמסיס - הועלה על ידי קישקע נייעס.epub')).toMatchObject({ series: 'פרויקט איקס', number: '2', title: 'נמסיס' })
     const annas = 'רוצח מלכותי -- רובין הוב -- הרואים למרחק,2 -- 1998 --אסטרולוג -- eff1636bf56d9b30d5e9c7efff6781de -- Anna’s Archive'
     expect(await id(annas)).toMatchObject({ series: 'הרואים למרחק', number: '2', title: 'רוצח מלכותי', author: 'רובין הוב' })
+  })
+})
+
+describe('identifyBook: a name with its number in the middle', () => {
+  const library = libraryNames([
+    { title: 'שיר של אש ושל קרח 3 - סופת החרבות', author: "ג'ורג' ר ר מרטין" },
+    { title: 'המועמדת 2 - העילית', author: 'קיארה קאס' },
+  ])
+  const id = (title: string, author = '', online = false) => identifyBook({ title, author, fileName: 'x.epub' }, online, undefined, [], undefined, library)
+
+  it('splits it at a series the library has, and takes off an author it has; sure when the series is the same author\'s', async () => {
+    const r = await id("שיר_של_אש_ושל_קרח_1_משחקי_הכס_ג'ורג'_ר_ר_מרטין")
+    expect(r).toMatchObject({ series: 'שיר של אש ושל קרח', number: '1', title: 'משחקי הכס', author: "ג'ורג' ר ר מרטין", sure: true })
+    expect(await id('המועמדת 1 קיארה קאס')).toMatchObject({ series: '', title: 'המועמדת 1', author: 'קיארה קאס' })
+  })
+
+  it('leaves it whole when the library knows neither the series nor the author', async () => {
+    expect(await id('הארי פוטר 1 ואבן החכמים')).toMatchObject({ series: '', title: 'הארי פוטר 1 ואבן החכמים' })
+  })
+
+  it('splits it by Google Books when the catalog has the series in the title', async () => {
+    const f = stubFetch(answer({ title: 'הארי פוטר ואבן החכמים', authors: ["ג'יי קיי רולינג"] }))
+    expect(await id('הארי פוטר 1 ואבן החכמים', '', true)).toMatchObject({
+      series: 'הארי פוטר',
+      number: '1',
+      title: 'הארי פוטר ואבן החכמים',
+      author: "ג'יי קיי רולינג",
+      online: true,
+    })
+    expect(queryOf(f, 0)).toBe('intitle:"הארי פוטר ואבן החכמים"')
+  })
+
+  it('does not split by an entry that names only part of it', async () => {
+    stubFetch(answer({ title: 'קיארה קאס' }), answer({ title: 'קיארה קאס' }), answer())
+    expect(await id('הנסיכה 1 קיארה קאס', '', true)).toMatchObject({ series: '' })
   })
 })

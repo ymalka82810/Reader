@@ -3,7 +3,7 @@
 // needs no key: first by the book's ISBN, which names the edition exactly, then by its title. Only the ISBN, the title and
 // the author are sent, and only after the user agreed (consent 'books').
 
-import { authorInName, guessBookName, isJunkTitle, nameFromOpening, seriesOf, tidyBookName, withoutAuthor, type BookName } from './bookName'
+import { authorInName, guessBookName, isJunkTitle, splitBookName, nameFromOpening, seriesOf, tidyBookName, withoutAuthor, type BookName } from './bookName'
 import type { EpubMeta } from './bookText'
 import { bookIsbns } from './isbn'
 import { norm } from './sameBook'
@@ -111,6 +111,73 @@ function withMeta(local: BookName, meta?: EpubMeta): BookName {
   return name
 }
 
+/** What the library already knows: the series its books are named in (with who wrote them), and its authors. */
+export interface LibraryNames {
+  series: Map<string, { name: string; authors: Set<string> }>
+  /** longest first, so "ג'ורג' ר ר מרטין" is tried before "מרטין" */
+  authors: string[]
+}
+
+export function libraryNames(books: { title: string; author?: string }[]): LibraryNames {
+  const series = new Map<string, { name: string; authors: Set<string> }>()
+  const authors = new Set<string>()
+  for (const b of books) {
+    const a = (b.author ?? '').trim()
+    if (a && !/@/.test(a)) authors.add(a)
+    const name = splitBookName(b.title).series
+    if (!name || !norm(name)) continue
+    const entry = series.get(norm(name)) ?? { name, authors: new Set<string>() }
+    if (a) entry.authors.add(norm(a))
+    series.set(norm(name), entry)
+  }
+  return { series, authors: [...authors].sort((x, y) => y.length - x.length) }
+}
+
+/** a name with its number in the middle and no dash: "שיר של אש ושל קרח 1 משחקי הכס" */
+const MIDDLE = /^(.+?)\s+#?(\d{1,3})\s+(.+)$/u
+
+/**
+ * A name with no series, split by what the library knows: an author it has, run on at the end, comes off (and becomes
+ * the book's author when it has none); a series it has, before a number in the middle, is the series ("שיר של אש ושל
+ * קרח 1 משחקי הכס" when the library has "שיר של אש ושל קרח 3 - סופת החרבות"). Sure when that series is the same
+ * author's. Undefined when the library tells nothing new.
+ */
+function byLibrary(name: BookName, author: string, lib?: LibraryNames): { name: BookName; author: string; sure: boolean } | undefined {
+  if (!lib || name.series) return undefined
+  let title = name.title
+  let who = author
+  if (!who)
+    for (const a of lib.authors) {
+      const t = withoutAuthor(title, a)
+      if (t !== title && norm(t)) {
+        title = t
+        who = a
+        break
+      }
+    }
+  const m = MIDDLE.exec(title)
+  const known = m ? lib.series.get(norm(m[1]!)) : undefined
+  if (m && known) {
+    const sure = !!who && known.authors.has(norm(who))
+    return { name: { series: known.name, number: String(Number(m[2])), title: m[3]! }, author: who, sure }
+  }
+  return title !== name.title ? { name: { ...name, title }, author: who, sure: false } : undefined
+}
+
+/** Google Books asked about a name with its number in the middle, as the series and the title around the number: the
+ *  title with the series in it ("הארי פוטר ואבן החכמים"), then the title alone. Taken only when the catalog's entry
+ *  names both: the title, and the series in its title or its series. */
+async function lookupSplit(series: string, number: string, rest: string, author: string, signal?: AbortSignal): Promise<Identified | undefined> {
+  for (const title of [`${series} ${rest}`, rest]) {
+    const f = await lookupOnline({ title, author }, signal)
+    if (!f) continue
+    const t = norm(f.title)
+    if (!t.includes(norm(rest)) || !(t.includes(norm(series)) || norm(f.series).includes(norm(series)))) continue
+    return { ...f, series: f.series || series, number: f.series ? f.number : String(Number(number)) }
+  }
+  return undefined
+}
+
 const quoted = (s: string) => `"${s.replace(/"/g, ' ').trim()}"`
 
 /** Google Books' best match for a title (and author, when known); undefined when nothing fits.
@@ -148,12 +215,15 @@ export async function identifyBook(
   signal?: AbortSignal,
   opening: string[] = [],
   meta?: EpubMeta,
+  /** the library's series and authors (libraryNames), which split a name that has no dash */
+  library?: LibraryNames,
 ): Promise<Identified> {
   // an e-mail address in the author field (a file's uploader) is no author
   // and an Anna's Archive name carries its author
   const author = (/@/.test(b.author) ? '' : b.author.trim()) || authorInName(b.title) || authorInName(stem(b.fileName))
-  b = { ...b, author }
-  const local = identifyLocally(b)
+  const lib = byLibrary(identifyLocally({ ...b, author }), author, library)
+  b = { ...b, author: lib?.author ?? author }
+  const local = lib?.name ?? identifyLocally(b)
   const own = withMeta(local, meta)
   const fromMeta = own !== local
   // a series in the EPUB's package was put there by whoever made the book: sure enough to save without asking
@@ -170,18 +240,28 @@ export async function identifyBook(
     (!own.series || isJunkTitle(own.title)) &&
     (isJunkTitle(own.title) || sameTitle(read.name.title, own.title))
   const base: BookName = fromText ? read.name! : own
-  const mine: Identified = { ...base, author: b.author.trim(), online: false, ...(fromText ? { fromText } : fromMeta && { fromMeta, ...(metaSure && { sure: true }) }) }
+  const libSure = !!lib?.sure && base === local
+  const mine: Identified = {
+    ...base,
+    author: b.author.trim(),
+    online: false,
+    ...(fromText ? { fromText } : fromMeta && { fromMeta, ...(metaSure && { sure: true }) }),
+    ...(libSure && { sure: true }),
+  }
   if (!online) return mine
   const known = !isJunkTitle(base.title)
   const isbns = bookIsbns([...(meta?.identifiers ?? []), ...opening], hebrewBook).slice(0, 3)
   const wants = [...(known ? [base.title] : []), ...read.candidates.filter((c) => norm(c) !== norm(base.title))].slice(0, 4)
-  const asks = [
-    ...isbns.map((isbn) => () => lookupIsbn(isbn, hebrewBook, signal)),
-    ...wants.map((title) => () => lookupOnline({ title, author: b.author }, signal)),
+  const middle = !base.series ? MIDDLE.exec(base.title) : null
+  // each ask, and whether what it finds is this very book (so the catalog's title is taken over the library's)
+  const asks: [() => Promise<Identified | undefined>, boolean][] = [
+    ...isbns.map((isbn): [() => Promise<Identified | undefined>, boolean] => [() => lookupIsbn(isbn, hebrewBook, signal), true]),
+    ...(middle ? [[() => lookupSplit(middle[1]!, middle[2]!, middle[3]!, b.author, signal), true] as [() => Promise<Identified | undefined>, boolean]] : []),
+    ...wants.map((title): [() => Promise<Identified | undefined>, boolean] => [() => lookupOnline({ title, author: b.author }, signal), false]),
   ]
   let found: Identified | undefined
-  let byIsbn = false
-  for (const [i, ask] of asks.entries()) {
+  let thisBook = false
+  for (const [ask, exact] of asks) {
     try {
       found = await ask()
     } catch (e) {
@@ -190,19 +270,19 @@ export async function identifyBook(
       break
     }
     if (found) {
-      byIsbn = i < isbns.length
+      thisBook = exact
       break
     }
   }
   if (!found) return mine
-  const sure = found.sure || (metaSure && !fromText)
+  const sure = found.sure || (metaSure && !fromText) || libSure
   return {
     ...(sure && { sure }),
     series: base.series || found.series,
     number: base.series ? base.number : found.number,
     // a fuller title ("הארי פוטר ואבן" -> "הארי פוטר ואבן החכמים"), never a shorter one; any title over one that says
     // nothing; and the catalog's title for a book found by its ISBN, which is that very book
-    title: !known || byIsbn || norm(found.title).includes(norm(base.title)) ? found.title : base.title,
+    title: !known || thisBook || norm(found.title).includes(norm(base.title)) ? found.title : base.title,
     // a Hebrew book keeps a Hebrew author name, rather than the original's "Rick Riordan"
     author: mine.author || (hebrew(found.author) === (known ? hebrew(base.title) : hebrewBook) ? found.author : ''),
     online: true,

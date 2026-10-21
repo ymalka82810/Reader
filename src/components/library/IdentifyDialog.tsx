@@ -3,7 +3,7 @@ import { Dialog } from '../Dialog'
 import type { BookMeta } from '../../lib/db'
 import type { PendingName } from '../../lib/autoIdentify'
 import { formatBookName, isJunkTitle } from '../../lib/bookName'
-import { identifyBook } from '../../lib/bookLookup'
+import { identifyBook, type LibraryNames } from '../../lib/bookLookup'
 import { bookDetails } from '../../lib/bookText'
 import { t } from '../../i18n'
 
@@ -17,6 +17,7 @@ export function IdentifyDialog({
   books,
   online,
   waiting,
+  library,
   onSave,
   onCancel,
 }: {
@@ -24,6 +25,8 @@ export function IdentifyDialog({
   /** whether Google Books may be asked (the user agreed); otherwise only the library's own names are read */
   online: boolean
   waiting?: PendingName[]
+  /** the library's series and authors (libraryNames) */
+  library?: LibraryNames
   /** `declined`: the books whose offered name was not ticked */
   onSave: (changes: NameChange[], declined: string[]) => void
   onCancel: () => void
@@ -51,7 +54,7 @@ export function IdentifyDialog({
         // the opening pages and the EPUB's package are read too: they name the book when its file name does not
         const { opening, meta } = await bookDetails(b, ac.signal).catch(() => ({ opening: [], meta: undefined }))
         if (ac.signal.aborted) return
-        const r = await identifyBook(b, online, ac.signal, opening, meta).catch(() => undefined)
+        const r = await identifyBook(b, online, ac.signal, opening, meta, library).catch(() => undefined)
         if (ac.signal.aborted) return
         const title = r && formatBookName(r)
         const author = r?.author ?? ''
@@ -62,7 +65,7 @@ export function IdentifyDialog({
       }
     })()
     return () => ac.abort()
-  }, [books, online, waiting])
+  }, [books, online, waiting, library])
 
   const running = done < books.length
   const picked = found.filter((f) => f.pick)
