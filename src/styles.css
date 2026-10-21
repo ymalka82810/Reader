@@ -486,3 +486,8 @@ i.lv4 { background: var(--accent) !important; }
 .pinch-preview { position: fixed; z-index: 200; pointer-events: none; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); white-space: nowrap; }
 .pinch-preview-word { display: inline-block; padding: 0 .15em; border-radius: var(--radius-md); background: inherit; box-shadow: var(--shadow-md), 0 0 0 1px var(--border); transform-origin: center; }
 .pinch-preview-label { position: absolute; bottom: 100%; margin-bottom: 6px; padding: .1rem .5rem; border-radius: var(--radius-pill); background: var(--fg); color: var(--bg); font: 600 12px/1.5 system-ui, sans-serif; box-shadow: var(--shadow-sm); }
+
+/* identify dialog: how each catalog answered, one per line */
+.identify-catalogs span {
+  display: block;
+}

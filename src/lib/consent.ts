@@ -5,7 +5,7 @@ export type Service = 'translate' | 'dict' | 'books'
 export const SERVICE_HOST: Record<Service, string> = {
   translate: 'api.mymemory.translated.net (MyMemory) / translate.googleapis.com (Google Translate) / lingva.ml (Lingva)',
   dict: 'wiktionary.org',
-  books: 'www.googleapis.com (Google Books), openlibrary.org (Open Library), query.wikidata.org (Wikidata)',
+  books: 'www.googleapis.com (Google Books), openlibrary.org (Open Library), query.wikidata.org / www.wikidata.org (Wikidata)',
 }
 
 /** translate is "v3": earlier yeses did not cover Lingva, which can now receive the text too; books is "v2": earlier yeses

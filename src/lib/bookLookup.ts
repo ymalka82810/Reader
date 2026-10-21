@@ -147,6 +147,18 @@ const BLOCK_MS = 60 * 60 * 1000
 const blockKey = (source: Source) => (source === 'google' ? BLOCK_KEY : `${BLOCK_KEY}:${source}`)
 const blockedUntil = (source: Source) => Number(globalThis.localStorage?.getItem(blockKey(source)) ?? 0) || 0
 
+/** How each catalog answered since the last reset: shown after identifying, so a run that found nothing says why */
+export type CatalogStats = Record<Source, { ok: number; quota: number; network: number }>
+const fresh = (): CatalogStats => ({ google: { ok: 0, quota: 0, network: 0 }, openlibrary: { ok: 0, quota: 0, network: 0 }, wikidata: { ok: 0, quota: 0, network: 0 } })
+let stats = fresh()
+export function resetCatalogStats() {
+  stats = fresh()
+}
+export function catalogStats(): CatalogStats {
+  return stats
+}
+export const CATALOG_NAMES = SITE
+
 /** one question to a catalog: answered from the device when it was asked before, and counted against the book's budget */
 async function ask(
   source: Source,
@@ -159,8 +171,15 @@ async function ask(
   // Google Books' answers keep the keys they had before the other catalogs were added
   const key = source === 'google' ? q : `${source}:${q}`
   const known = cached().get(key)
-  if (known) return known
-  if (Date.now() < blockedUntil(source)) throw new BooksUnavailable('quota', `${SITE[source]} refused recently`)
+  if (known) {
+    stats[source].ok++
+    return known
+  }
+  const fail = (why: 'quota' | 'network', message: string) => {
+    stats[source][why]++
+    return new BooksUnavailable(why, message)
+  }
+  if (Date.now() < blockedUntil(source)) throw fail('quota', `${SITE[source]} refused recently`)
   if (budget) {
     if (budget.left <= 0) return []
     budget.left--
@@ -170,7 +189,7 @@ async function ask(
     res = await fetch(url, { signal })
   } catch (e) {
     if (signal?.aborted) throw e
-    throw new BooksUnavailable('network', e instanceof Error ? e.message : String(e))
+    throw fail('network', e instanceof Error ? e.message : String(e))
   }
   if (res?.status === 429 || res?.status === 403) {
     try {
@@ -178,15 +197,16 @@ async function ask(
     } catch {
       /* storage unavailable */
     }
-    throw new BooksUnavailable('quota', `${SITE[source]} answered ${res.status}`)
+    throw fail('quota', `${SITE[source]} answered ${res.status}`)
   }
-  if (!res?.ok) throw new BooksUnavailable('network', `${SITE[source]} answered ${res?.status}`)
+  if (!res?.ok) throw fail('network', `${SITE[source]} answered ${res?.status}`)
   let items: VolumeInfo[]
   try {
     items = parse(await res.json())
   } catch (e) {
-    throw new BooksUnavailable('network', `${SITE[source]} sent an answer that could not be read: ${e instanceof Error ? e.message : String(e)}`)
+    throw fail('network', `${SITE[source]} sent an answer that could not be read: ${e instanceof Error ? e.message : String(e)}`)
   }
+  stats[source].ok++
   remember(key, items)
   return items
 }
@@ -255,65 +275,138 @@ function openLibrarySearch(title: string, author: string, signal?: AbortSignal, 
   )
 }
 
-/** the spellings a Hebrew title may have on Wikidata: with ' or with ׳ (geresh) */
-const spellings = (title: string) => [...new Set([title, title.replace(/'/g, '׳'), title.replace(/׳/g, "'")])]
-const literal = (s: string, lang: string) => `"${s.replace(/[\\"]/g, ' ').trim()}"@${lang}`
+const WIKIDATA_SEARCH = 'https://www.wikidata.org/w/api.php'
+const WIKIDATA_PER_BOOK = 4
+type Row = Record<string, { value?: string } | undefined>
+const qid = (uri: string | undefined) => /Q\d+$/.exec(uri ?? '')?.[0] ?? ''
+const noLabel = (s: string) => !s || /^Q\d+$/.test(s)
 
-/** Wikidata's works under this very title (their label or another name of theirs) that are part of a series: the series
- *  and the number in it, with the work's authors, in Google Books' shape (the series as the subtitle) */
-function wikidataWorks(title: string, lang: 'he' | 'en', signal?: AbortSignal): Promise<VolumeInfo[]> {
+/** The Wikidata items named so (in their label or another of their names, compared without punctuation, so ' and ׳
+ *  or a dash do not matter), found by Wikidata's own search. Kept as entries whose title is the item's id. */
+function wikidataItems(text: string, lang: 'he' | 'en', signal?: AbortSignal, budget?: Budget): Promise<VolumeInfo[]> {
+  const params = new URLSearchParams({ action: 'wbsearchentities', search: text, language: lang, uselang: lang, type: 'item', limit: '10', format: 'json', origin: '*' })
+  type Hit = { id?: string; label?: string; aliases?: string[]; match?: { text?: string } }
+  return ask(
+    'wikidata',
+    `search:${lang}:${text}`,
+    `${WIKIDATA_SEARCH}?${params}`,
+    (data) =>
+      ((data as { search?: Hit[] }).search ?? [])
+        .filter((h) => h.id && [h.match?.text, h.label, ...(h.aliases ?? [])].some((x) => !!x && norm(x) === norm(text)))
+        .map((h) => ({ title: h.id })),
+    signal,
+    budget,
+  )
+}
+
+function sparql(key: string, query: string, parse: (rows: Row[]) => VolumeInfo[], signal?: AbortSignal, budget?: Budget) {
+  return ask('wikidata', key, `${WIKIDATA}?${new URLSearchParams({ format: 'json', query })}`, (data) => parse((data as { results?: { bindings?: Row[] } }).results?.bindings ?? []), signal, budget)
+}
+
+/** these works' series and their number in it, with their authors, in Google Books' shape (the series as the subtitle) */
+function wikidataWorks(ids: string[], title: string, lang: 'he' | 'en', signal?: AbortSignal, budget?: Budget): Promise<VolumeInfo[]> {
   const query = `SELECT ?book ?seriesLabel ?num ?authorLabel WHERE {
-  VALUES ?t { ${spellings(title).map((x) => literal(x, lang)).join(' ')} }
-  { ?book rdfs:label ?t } UNION { ?book skos:altLabel ?t }
+  VALUES ?book { ${ids.map((i) => `wd:${i}`).join(' ')} }
   ?book p:P179 ?st . ?st ps:P179 ?series .
   OPTIONAL { ?st pq:P1545 ?num }
   OPTIONAL { ?book wdt:P50 ?author }
   SERVICE wikibase:label { bd:serviceParam wikibase:language "${lang}" . }
-} LIMIT 30`
-  type Row = Record<string, { value?: string } | undefined>
-  return ask(
-    'wikidata',
-    `${lang}:${title}`,
-    `${WIKIDATA}?${new URLSearchParams({ format: 'json', query })}`,
-    (data) => {
+} LIMIT 50`
+  return sparql(
+    `works:${lang}:${ids.join(',')}`,
+    query,
+    (rows) => {
       const works = new Map<string, VolumeInfo>()
-      for (const r of (data as { results?: { bindings?: Row[] } }).results?.bindings ?? []) {
+      for (const r of rows) {
         const series = r.seriesLabel?.value ?? ''
         const num = r.num?.value ?? ''
         // a series with no name in the book's language comes back as its id ("Q123")
-        if (!/^\d{1,3}$/.test(num) || !series || /^Q\d+$/.test(series)) continue
-        const key = `${r.book?.value}|${series}|${num}`
+        if (!/^\d{1,3}$/.test(num) || noLabel(series)) continue
+        const key = `${qid(r.book?.value)}|${series}|${num}`
         const w = works.get(key) ?? { title, subtitle: series, seriesInfo: { bookDisplayNumber: String(Number(num)) }, authors: [] }
-        const a = r.authorLabel?.value
-        if (a && !/^Q\d+$/.test(a) && !w.authors!.includes(a)) w.authors!.push(a)
+        const a = r.authorLabel?.value ?? ''
+        if (!noLabel(a) && !w.authors!.includes(a)) w.authors!.push(a)
         works.set(key, w)
       }
       return [...works.values()]
     },
     signal,
+    budget,
   )
 }
 
-/** The series and number Wikidata has for a title: taken when the work is by the book's author, or when there is no doubt
- *  which series it is. `byAuthor` says whether the author matched. Undefined when it has none. */
+/** the works numbered so in these series: their title, the series and their authors */
+function wikidataNumbered(ids: string[], number: string, lang: 'he' | 'en', signal?: AbortSignal, budget?: Budget): Promise<VolumeInfo[]> {
+  const query = `SELECT ?book ?bookLabel ?seriesLabel ?authorLabel WHERE {
+  VALUES ?series { ${ids.map((i) => `wd:${i}`).join(' ')} }
+  ?book p:P179 ?st . ?st ps:P179 ?series ; pq:P1545 "${number}" .
+  OPTIONAL { ?book wdt:P50 ?author }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "${lang}" . }
+} LIMIT 20`
+  return sparql(
+    `numbered:${lang}:${ids.join(',')}:${number}`,
+    query,
+    (rows) => {
+      const works = new Map<string, VolumeInfo>()
+      for (const r of rows) {
+        const title = r.bookLabel?.value ?? ''
+        const series = r.seriesLabel?.value ?? ''
+        if (noLabel(title) || noLabel(series)) continue
+        const key = qid(r.book?.value)
+        const w = works.get(key) ?? { title, subtitle: series, seriesInfo: { bookDisplayNumber: number }, authors: [] }
+        const a = r.authorLabel?.value ?? ''
+        if (!noLabel(a) && !w.authors!.includes(a)) w.authors!.push(a)
+        works.set(key, w)
+      }
+      return [...works.values()]
+    },
+    signal,
+    budget,
+  )
+}
+
+const byAuthor = (w: VolumeInfo, author: string) => {
+  const a = norm(author)
+  return !!a && (w.authors ?? []).map(norm).some((x) => x === a || x.includes(a) || a.includes(x))
+}
+
+/** One work out of several that may fit: the author's when that tells them apart; none when two different ones are left */
+function onlyOne(works: VolumeInfo[], author: string): { work: VolumeInfo; byAuthor: boolean } | undefined {
+  if (!works.length) return undefined
+  const mine = works.filter((w) => byAuthor(w, author))
+  const pick = mine.length ? mine : works
+  const kinds = new Set(pick.map((w) => `${norm(w.title ?? '')}|${norm(w.subtitle ?? '')}|${w.seriesInfo?.bookDisplayNumber}`))
+  return kinds.size === 1 ? { work: pick[0]!, byAuthor: mine.length > 0 } : undefined
+}
+
+/** The series and number Wikidata has for a title. Undefined when it has none, or cannot tell which. */
 async function wikidataSeries(
   title: string,
   author: string,
-  hebrewBook: boolean,
+  lang: 'he' | 'en',
   signal?: AbortSignal,
+  budget?: Budget,
 ): Promise<{ series: string; number: string; byAuthor: boolean } | undefined> {
-  if (!norm(title)) return undefined
-  const lang = hebrewBook || hebrew(title) ? 'he' : 'en'
-  const works = (await wikidataWorks(title, lang, signal)).filter((w) => norm(w.subtitle ?? '') !== norm(title))
-  if (!works.length) return undefined
-  const a = norm(author)
-  const mine = a ? works.filter((w) => (w.authors ?? []).map(norm).some((x) => x === a || x.includes(a) || a.includes(x))) : []
-  const pick = mine.length ? mine : works
-  // two different series, or two numbers in one, and nothing to tell them apart: better none than the wrong one
-  const kinds = new Set(pick.map((w) => `${norm(w.subtitle ?? '')}|${w.seriesInfo?.bookDisplayNumber}`))
-  if (kinds.size !== 1) return undefined
-  const w = pick[0]!
-  return { series: w.subtitle!, number: w.seriesInfo!.bookDisplayNumber!, byAuthor: mine.length > 0 }
+  const ids = (await wikidataItems(title, lang, signal, budget)).map((i) => i.title!).slice(0, 8)
+  if (!ids.length) return undefined
+  const works = (await wikidataWorks(ids, title, lang, signal, budget)).filter((w) => norm(w.subtitle ?? '') !== norm(title))
+  const one = onlyOne(works, author)
+  return one && { series: one.work.subtitle!, number: one.work.seriesInfo!.bookDisplayNumber!, byAuthor: one.byAuthor }
+}
+
+/** A name that is a series and a number with no title ("משפחת קיין 1"): the work Wikidata has at that number. */
+async function wikidataByNumber(
+  series: string,
+  number: string,
+  author: string,
+  lang: 'he' | 'en',
+  signal?: AbortSignal,
+  budget?: Budget,
+): Promise<{ series: string; title: string; author: string; byAuthor: boolean } | undefined> {
+  const ids = (await wikidataItems(series, lang, signal, budget)).map((i) => i.title!).slice(0, 8)
+  if (!ids.length) return undefined
+  const one = onlyOne(await wikidataNumbered(ids, number, lang, signal, budget), author)
+  return one && { series: one.work.subtitle!, title: one.work.title!, author: (one.work.authors ?? []).join(', '), byAuthor: one.byAuthor }
 }
 
 /** A catalog's entry for an ISBN; undefined when there is none, or when a Hebrew book's ISBN is the original's (a
@@ -604,26 +697,29 @@ export async function identifyBook(
   }, hebrewBook, signal)
 }
 
-/** A name still with no series, completed by the series and number Wikidata has for its title. Saved without asking only
- *  when it was sure before and the work on Wikidata is by the same author. Wikidata failing leaves the name as it was. */
+/** A name still with no series, completed by Wikidata: the series and number it has for the title, or, for a name that
+ *  is a series and a number with no title ("משפחת קיין 1"), the title of the work at that number. Saved without asking
+ *  only when it was sure before and the work on Wikidata is by the same author. Wikidata failing leaves the name as it was. */
 async function withWikidata(r: Identified, hebrewBook: boolean, signal?: AbortSignal): Promise<Identified> {
   if (r.series || isJunkTitle(r.title)) return r
-  let w: Awaited<ReturnType<typeof wikidataSeries>>
+  const lang = hebrewBook || hebrew(r.title) ? 'he' : 'en'
+  const budget: Budget = { left: WIKIDATA_PER_BOOK }
+  const { sure, ...rest } = r
+  const sites = [...(r.sites ?? []), SITE.wikidata]
   try {
-    w = await wikidataSeries(r.title, r.author, hebrewBook, signal)
+    const numbered = /^(.+?)\s+#?(\d{1,3})$/u.exec(r.title)
+    if (numbered) {
+      const n = await wikidataByNumber(numbered[1]!, String(Number(numbered[2])), r.author, lang, signal, budget)
+      if (n && (!hebrewBook || (hebrew(n.series) && hebrew(n.title)))) {
+        return { ...rest, series: n.series, number: String(Number(numbered[2])), title: n.title, author: r.author || (hebrew(n.author) === hebrewBook ? n.author : ''), online: true, sites }
+      }
+    }
+    const w = await wikidataSeries(r.title, r.author, lang, signal, budget)
+    if (!w || (hebrewBook && !hebrew(w.series))) return r
+    return { ...rest, series: w.series, number: w.number, online: true, sites, ...(sure && w.byAuthor && { sure }) }
   } catch (e) {
     if (signal?.aborted) throw e
     console.warn(e)
     return r
-  }
-  if (!w || (hebrewBook && !hebrew(w.series))) return r
-  const { sure, ...rest } = r
-  return {
-    ...rest,
-    series: w.series,
-    number: w.number,
-    online: true,
-    sites: [...(r.sites ?? []), SITE.wikidata],
-    ...(sure && w.byAuthor && { sure }),
   }
 }

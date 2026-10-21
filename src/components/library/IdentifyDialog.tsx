@@ -3,7 +3,7 @@ import { Dialog } from '../Dialog'
 import type { BookMeta } from '../../lib/db'
 import type { PendingName } from '../../lib/autoIdentify'
 import { formatBookName, isJunkTitle } from '../../lib/bookName'
-import { identifyBook, type LibraryNames } from '../../lib/bookLookup'
+import { CATALOG_NAMES, catalogStats, identifyBook, resetCatalogStats, type CatalogStats, type LibraryNames } from '../../lib/bookLookup'
 import { bookDetails } from '../../lib/bookText'
 import { t } from '../../i18n'
 
@@ -46,10 +46,13 @@ export function IdentifyDialog({
       })) ?? [],
   )
   const [done, setDone] = useState(() => (waiting ? books.length : 0))
+  // how the catalogs answered this run, so a run that found nothing says why
+  const [answers, setAnswers] = useState<CatalogStats>()
 
   useEffect(() => {
     if (waiting) return
     const ac = new AbortController()
+    resetCatalogStats()
     void (async () => {
       for (const b of books) {
         // the opening pages and the EPUB's package are read too: they name the book when its file name does not
@@ -62,6 +65,7 @@ export function IdentifyDialog({
         if (r && title && !isJunkTitle(r.title) && (title !== b.title || author !== (b.author ?? '').trim())) {
           setFound((f) => [...f, { id: b.id, title, author, was: b.title, online: r.online, sites: r.sites, fromText: !!r.fromText, fromMeta: !!r.fromMeta, pick: true }])
         }
+        setAnswers(structuredClone(catalogStats()))
         setDone((n) => n + 1)
       }
     })()
@@ -116,6 +120,7 @@ export function IdentifyDialog({
               ? unchanged > 0 && t('identify.unchanged', { n: unchanged })
               : t('identify.nothing')}
         </small>
+        {!running && online && answers && <CatalogAnswers stats={answers} />}
         <div className="modal-actions">
           <button
             className="primary"
@@ -133,5 +138,31 @@ export function IdentifyDialog({
         </div>
       </Dialog>
     </div>
+  )
+}
+
+/** one line per catalog asked: how many answers, refusals for quota and failures to answer */
+function CatalogAnswers({ stats }: { stats: CatalogStats }) {
+  const lines = (Object.keys(stats) as (keyof CatalogStats)[])
+    .map((k) => {
+      const s = stats[k]
+      const parts = [
+        s.ok && t('identify.statOk', { n: s.ok }),
+        s.quota && t('identify.statQuota', { n: s.quota }),
+        s.network && t('identify.statNetwork', { n: s.network }),
+      ].filter(Boolean)
+      return parts.length ? `${CATALOG_NAMES[k]}: ${parts.join(', ')}` : ''
+    })
+    .filter(Boolean)
+  if (!lines.length) return null
+  return (
+    <small className="muted identify-catalogs">
+      {t('identify.catalogs')}:
+      {lines.map((l) => (
+        <span key={l}>
+          {l}
+        </span>
+      ))}
+    </small>
   )
 }
