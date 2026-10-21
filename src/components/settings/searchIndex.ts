@@ -26,6 +26,8 @@ const ENTRIES: [PageId, MessageKey, boolean?][] = [
   ['language', 'settings.dictLang'],
   ['language', 'settings.translateLang'],
   ['language', 'prefs.privacy'],
+  ['language', 'prefs.autoIdentify'],
+  ['language', 'prefs.autoIdentifySave'],
   ['backup', 'backup.title'],
   ['backup', 'menu.restore'],
   ['backup', 'prefs.autoSection'],

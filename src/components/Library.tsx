@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { getAllNotes, getFile, hideFromResume, isFinished, setWords, updateMeta, type Annotation, type BookMeta } from '../lib/db'
 import { searchNotes } from '../lib/noteSearch'
 import { backupDue } from '../lib/backupReminder'
@@ -19,6 +19,7 @@ import { identifyBook } from '../lib/bookLookup'
 import { bookDetails } from '../lib/bookText'
 import { hasConsent, setConsent, SERVICE_HOST } from '../lib/consent'
 import { IdentifyDialog, type NameChange } from './library/IdentifyDialog'
+import { dropPending, loadPending, subscribePending, type PendingName } from '../lib/autoIdentify'
 import { loadSettings } from '../lib/settings'
 import { exitApp, useBackGesture } from '../hooks/useBackGesture'
 import { useConfirm } from '../hooks/useConfirm'
@@ -73,7 +74,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   const [editError, setEditError] = useState<string>()
   /** counts the edit dialogs opened, so a lookup that ends after its dialog closed changes nothing */
   const editRun = useRef(0)
-  const [identifying, setIdentifying] = useState<{ books: BookMeta[]; online: boolean }>()
+  const [identifying, setIdentifying] = useState<{ books: BookMeta[]; online: boolean; waiting?: PendingName[] }>()
   const [editAuthor, setEditAuthor] = useState('')
   const [editTags, setEditTags] = useState('')
   /** the book has a file on the phone that can be renamed along with it; undefined = not known (or not an Android app) */
@@ -352,8 +353,23 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
     setIdentifying({ books: list, online: await allowLookup() })
   }
 
-  const saveIdentified = async (changes: NameChange[]) => {
+  // names found in the background that wait for approval: only for books still in the library under the same name
+  const pendingAll = useSyncExternalStore(subscribePending, loadPending)
+  const pending = useMemo(() => {
+    const byId = new Map(books.map((b) => [b.id, b]))
+    return pendingAll.filter((p) => byId.get(p.id)?.title === p.was)
+  }, [pendingAll, books])
+
+  const reviewPending = () => {
+    if (loaded) dropPending(pendingAll.filter((p) => !pending.includes(p)).map((p) => p.id))
+    const ids = new Set(pending.map((p) => p.id))
+    setIdentifying({ books: books.filter((b) => ids.has(b.id)), online: false, waiting: pending })
+  }
+
+  const saveIdentified = async (changes: NameChange[], declined: string[] = []) => {
+    const reviewed = identifying?.waiting
     setIdentifying(undefined)
+    if (reviewed) dropPending([...declined, ...changes.map((c) => c.id)])
     // each book is saved on its own, so one that fails does not stop the rest
     const saved: string[] = []
     let failure: unknown
@@ -614,6 +630,12 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
           )}
         </div>
       )}
+      {pending.length > 0 && !imp.running && !busy && (
+        <div className="notice closable" role="status">
+          <span>{t('identify.pendingNotice', { n: pending.length })}</span>
+          <button onClick={reviewPending}>{t('identify.review')}</button>
+        </div>
+      )}
       {error && (
         <div className="notice error closable" role="alert">
           <span>{error}</span>
@@ -795,7 +817,8 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
         <IdentifyDialog
           books={identifying.books}
           online={identifying.online}
-          onSave={(c) => void saveIdentified(c)}
+          waiting={identifying.waiting}
+          onSave={(c, declined) => void saveIdentified(c, declined)}
           onCancel={() => setIdentifying(undefined)}
         />
       )}

@@ -48,6 +48,7 @@ describe('lookupOnline', () => {
       title: 'גנב הברק',
       author: 'ריק ריירדן',
       online: true,
+      sure: true,
     })
     expect(queryOf(f, 0)).toBe('intitle:"גנב הברק" inauthor:"ריק ריירדן"')
   })
@@ -151,5 +152,21 @@ describe('identifyBook by the ISBN and the package', () => {
   it("takes the package's title when the library's says nothing", async () => {
     const r = await identifyBook({ title: '1~2402 1', author: '', fileName: '1~2402 1.epub' }, false, undefined, [], meta({ title: 'בית האדם' }))
     expect(r).toMatchObject({ title: 'בית האדם', fromMeta: true })
+  })
+})
+
+describe('identifyBook: when a name is sure', () => {
+  it('is sure of a book found by its ISBN, and of one found by the same title and author', async () => {
+    stubFetch(answer({ title: 'גנב הברק', authors: ['ריק ריירדן'] }))
+    expect((await identifyBook({ title: 'x', author: '', fileName: 'x.pdf' }, true, undefined, ['ISBN 978-965-0-00000-4'])).sure).toBe(true)
+    stubFetch(answer({ title: 'גנב הברק', subtitle: "פרסי ג'קסון 1", authors: ['ריק ריירדן'] }))
+    expect((await identifyBook({ title: 'גנב הברק', author: 'ריק ריירדן', fileName: 'x.epub' }, true)).sure).toBe(true)
+  })
+
+  it('is not sure of a fuller title by a partial match, nor of a name read from the opening pages alone', async () => {
+    stubFetch(answer({ title: 'הארי פוטר ואבן החכמים', authors: ['רולינג'] }))
+    expect((await identifyBook({ title: 'הארי פוטר ואבן', author: '', fileName: 'x.epub' }, true)).sure).toBeUndefined()
+    const opening = ['ריק ריירדן', "מגנוס צ'ייס", 'ספר שלישי', 'ספינת המתים']
+    expect((await identifyBook({ title: '1~2402 3', author: 'ריק ריירדן', fileName: 'x.pdf' }, false, undefined, opening)).sure).toBeUndefined()
   })
 })

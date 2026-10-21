@@ -58,6 +58,10 @@ export interface Settings {
   deviceFolders: string[]
   /** Android app: when a book's title or author changes, its file on the phone is renamed to match */
   phoneRenameSync: boolean
+  /** books just added are identified (series, number, title, author) in the background, at the end of the import queue */
+  autoIdentify: boolean
+  /** a sure identification is saved by itself; otherwise every one waits for the user's approval */
+  autoIdentifySave: boolean
 }
 
 export type BackupRemind = 'default' | 'week' | 'month' | 'off'
@@ -110,6 +114,8 @@ const DEFAULTS: Settings = {
   deviceBackgroundScan: true,
   deviceFolders: ['Documents', 'Download'],
   phoneRenameSync: true,
+  autoIdentify: true,
+  autoIdentifySave: true,
 }
 
 const KEY = 'reader:settings'

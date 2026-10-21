@@ -4,6 +4,8 @@ import { rememberPhoneFile } from '../lib/phoneFiles'
 import { importFile, isAbort, isAlreadyInLibrary, DeferredDuplicate, type DuplicateChoice } from '../lib/importBook'
 import { onLaunchFiles, takeSharedFiles } from '../lib/inbox'
 import { startImportService, stopImportService, updateImportService } from '../lib/deviceBooks'
+import { identifyNew } from '../lib/autoIdentify'
+import { loadSettings } from '../lib/settings'
 import { t } from '../i18n'
 
 export type DupBatch = {
@@ -159,6 +161,8 @@ async function work(run: Run) {
   const warn = (e: BeforeUnloadEvent) => e.preventDefault()
   window.addEventListener('beforeunload', warn)
   const deferred: { name: string; err: DeferredDuplicate }[] = []
+  /** the books added by this run, identified at its end */
+  const added: string[] = []
   // entries can be added while this loop runs
   for (let i = 0; i < entries.length && !signal.aborted; i++) {
     const entry = entries[i]!
@@ -207,6 +211,7 @@ async function work(run: Run) {
         own.signal,
       )
       if ('devicePath' in item && item.devicePath) await rememberPhoneFile(rec.id, item.devicePath).catch(() => {})
+      added.push(rec.id)
       await handlers?.refresh() // show each book as soon as it's done
     } catch (e) {
       if (signal.aborted) break // the whole queue was cancelled: not a failure, and not worth reporting per file
@@ -249,11 +254,25 @@ async function work(run: Run) {
       if (choice !== 'skip') setState({ message: t('import.adding', { name: d.name }) })
       try {
         // a converted book is converted again here (it isn't kept while waiting), so it reports progress and can be cancelled
-        await d.err.commit(choice, (message) => setState({ message }), signal)
+        const rec = await d.err.commit(choice, (message) => setState({ message }), signal)
+        if (rec) added.push(rec.id)
       } catch (e) {
         if (signal.aborted) break
         errors.push(`${d.name}: ${e instanceof Error ? e.message : String(e)}`)
       }
+    }
+  }
+  // the new books are identified while the queue still holds the app (and its notification) in the background
+  if (added.length && !signal.aborted && loadSettings().autoIdentify) {
+    setState({ batch: undefined, queue: [], dupAsk: undefined, message: t('identify.autoProgress', { done: 1, total: added.length }) })
+    try {
+      const { saved, pending } = await identifyNew(added, signal, (done, total) =>
+        setState({ message: t('identify.autoProgress', { done: Math.min(done + 1, total), total }) }),
+      )
+      if (saved) handlers?.showToast?.(t('identify.autoSaved', { n: saved }))
+      else if (pending) handlers?.showToast?.(t('identify.autoPending', { n: pending }))
+    } catch {
+      /* cancelled with the queue: the books stay as they were added */
     }
   }
   const cancelled = signal.aborted // also while the duplicates were being asked about or added

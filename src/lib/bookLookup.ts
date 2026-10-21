@@ -16,6 +16,9 @@ export interface Identified extends BookName {
   fromText?: boolean
   /** whether the series (or the title) came from the EPUB's package rather than from the book's names */
   fromMeta?: boolean
+  /** whether the name can be saved without asking: the book was found by its ISBN, or Google Books has it under the
+   *  same title and author, or the series came from the EPUB's package */
+  sure?: boolean
 }
 
 type VolumeInfo = {
@@ -89,7 +92,7 @@ async function search(q: string, signal?: AbortSignal): Promise<VolumeInfo[]> {
 async function lookupIsbn(isbn: string, hebrewBook: boolean, signal?: AbortSignal): Promise<Identified | undefined> {
   const v = (await search(`isbn:${isbn}`, signal)).find((x) => norm(x.title ?? ''))
   if (!v || (hebrewBook && !hebrew(v.title ?? ''))) return undefined
-  return { ...nameOf(v), author: (v.authors ?? []).join(', '), online: true }
+  return { ...nameOf(v), author: (v.authors ?? []).join(', '), online: true, sure: true }
 }
 
 /** the library's name completed by the EPUB's package: its title when the library's says nothing, its series when the
@@ -121,7 +124,8 @@ export async function lookupOnline(want: { title: string; author: string }, sign
       const s = score(v, name, want)
       if (s && (!best || s > best.s)) best = { s, v, name }
     }
-    if (best) return { ...best.name, author: (best.v.authors ?? []).join(', '), online: true }
+    // the same title (4) by the same author (3): no doubt left about which book it is
+    if (best) return { ...best.name, author: (best.v.authors ?? []).join(', '), online: true, ...(best.s >= 7 && { sure: true }) }
   }
   return undefined
 }
@@ -145,12 +149,14 @@ export async function identifyBook(
   const local = identifyLocally(b)
   const own = withMeta(local, meta)
   const fromMeta = own !== local
+  // a series in the EPUB's package was put there by whoever made the book: sure enough to save without asking
+  const metaSure = fromMeta && !!own.series && !local.series
   const read = opening.length ? nameFromOpening(opening, b.author) : { candidates: [] as string[] }
   // a Hebrew book keeps a Hebrew name, rather than the original's name from its copyright page
   const hebrewBook = hebrew(b.title) || opening.some(hebrew)
   const fromText = !!read.name && (!hebrewBook || hebrew(read.name.title)) && (!own.series || isJunkTitle(own.title))
   const base: BookName = fromText ? read.name! : own
-  const mine: Identified = { ...base, author: b.author.trim(), online: false, ...(fromText ? { fromText } : fromMeta && { fromMeta }) }
+  const mine: Identified = { ...base, author: b.author.trim(), online: false, ...(fromText ? { fromText } : fromMeta && { fromMeta, ...(metaSure && { sure: true }) }) }
   if (!online) return mine
   const known = !isJunkTitle(base.title)
   const isbns = bookIsbns([...(meta?.identifiers ?? []), ...opening], hebrewBook).slice(0, 3)
@@ -175,7 +181,9 @@ export async function identifyBook(
     }
   }
   if (!found) return mine
+  const sure = found.sure || (metaSure && !fromText)
   return {
+    ...(sure && { sure }),
     series: base.series || found.series,
     number: base.series ? base.number : found.number,
     // a fuller title ("הארי פוטר ואבן" -> "הארי פוטר ואבן החכמים"), never a shorter one; any title over one that says
