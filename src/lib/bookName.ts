@@ -140,21 +140,22 @@ const fold = (s: string) =>
     .toLowerCase()
 
 /** a file name without the author it may carry ("גנב הברק - ריק ריירדן", "ריק ריירדן - גנב הברק") */
+/** a name of people folded for comparing: "הולי בלק & קסנדרה קלייר" is "הולי בלק וקסנדרה קלייר" ("and" is "ו") */
+const people = (s: string) => fold(s.replace(/\s+(?:&|and)\s+/giu, ' ו')).replace(/(^| )ו(?=\p{L}{2})/gu, '$1')
+
 export function withoutAuthor(name: string, author: string): string {
-  const a = fold(author)
+  const a = people(author)
   if (!a) return name
+  // in parentheses: "המלך דוד (שרון חיון גינת)"
+  name = clean(name.replace(/\s*\(([^()]+)\)/gu, (m, inner: string) => (people(inner) === a ? ' ' : m)))
   const parts = name.split(/\s+[-–—]\s+/)
   if (parts.length >= 2) {
-    if (fold(parts[parts.length - 1]!) === a) return parts.slice(0, -1).join(' - ')
-    if (fold(parts[0]!) === a) return parts.slice(1).join(' - ')
+    if (people(parts[parts.length - 1]!) === a) return parts.slice(0, -1).join(' - ')
+    if (people(parts[0]!) === a) return parts.slice(1).join(' - ')
   }
   // the author's name run on at the end with no dash, as in a file name with underscores ("קוטל_המלכה_סבסטיאן_דה_קסטל")
-  const f = fold(name)
-  if (f.endsWith(` ${a}`)) {
-    const words = clean(name).split(' ')
-    const n = a.split(' ').length
-    if (words.length > n) return words.slice(0, -n).join(' ')
-  }
+  const words = clean(name).split(' ')
+  for (let k = 1; k < words.length; k++) if (people(words.slice(-k).join(' ')) === a) return words.slice(0, -k).join(' ')
   return name
 }
 
@@ -166,24 +167,51 @@ const latin = (s: string) => /[A-Za-z]/.test(s) && !/[\u0590-\u05FF]/.test(s)
  * ("The Trials of Apollo 4 - גורלו של אפולו 4, ..."), and the comma between the number and the title
  * ("גורלו של אפולו 1, האורקל הנסתר" -> "גורלו של אפולו 1 - האורקל הנסתר").
  */
+const annasParts = (s: string) => {
+  const parts = s.split(/\s*--\s*/).map(clean)
+  return parts.length >= 3 && /^anna['’]?s archive$/i.test(parts[parts.length - 1]!) ? parts : undefined
+}
+
 /** "title -- author -- series, n -- year -- publisher -- md5 -- Anna’s Archive" as the template ("series n - title") */
 function annasArchive(s: string): string | undefined {
-  const parts = s.split(/\s+--\s+/).map(clean)
-  if (parts.length < 3 || !/^anna['’]?s archive$/i.test(parts[parts.length - 1]!)) return undefined
+  const parts = annasParts(s)
+  if (!parts) return undefined
   const title = parts[0]!
-  const series = parts.slice(2, -1).map((p) => /^(.+?),\s*(\d{1,3})$/u.exec(p)).find(Boolean)
-  return series ? `${clean(series[1]!)} ${series[2]} - ${title}` : title
+  for (const p of parts.slice(2, -1)) {
+    if (!/\p{L}{2}/u.test(p) || /^[\da-f]{32}$/i.test(p)) continue // the year, the md5
+    const m = /^(.+?)[\s,،#:.]+(?:(?:כרך|ספר|book|vol\.?)\s*)?#?(\d{1,3})$/iu.exec(p) ?? /^#?(\d{1,3})[\s,،:.]+(.+)$/u.exec(p)
+    if (!m) continue
+    const [series, n] = /^\d/.test(m[1]!) ? [m[2]!, m[1]!] : [m[1]!, m[2]!]
+    return `${clean(series)} ${Number(n)} - ${title}`
+  }
+  return title
+}
+
+/** the author an Anna's Archive name carries (its second part); '' for any other name */
+export function authorInName(s: string): string {
+  const a = annasParts(clean(s.replace(/_+/g, ' ')))?.[1] ?? ''
+  return /\p{L}{2}/u.test(a) ? a : ''
 }
 
 export function tidyBookName(text: string): string {
   let s = clean(text.replace(/_+/g, ' '))
   s = annasArchive(s) ?? s
-  s = s.replace(/^(?:עותק של|copy of)\s+/iu, '').replace(/\s*\(\d{1,2}\)$/u, '')
+  s = s
+    .replace(/^(?:(?:עותק של|copy of)\s+)+/iu, '') // also "עותק של עותק של"
+    .replace(/\.(?:md|txt|epub|pdf|docx?|fb2|mobi|azw3?)$/iu, '')
+    // what a download site adds: "(Z-Library)", "(z-library.sk, 1lib.sk, z-lib.sk)", and a date and time stamp
+    .replace(/\s*\((?:[^()]*\b(?:z-?library|z-?lib|1lib)\b[^()]*)\)?/giu, ' ')
+    .replace(/\s*\(\d{1,2}\)/gu, ' ')
+    .replace(/(?:[\s-]+\d{1,2})?(?:[\s-]+\d{6}){2}\s*$/u, '')
+    // who uploaded or typed it: "נמסיס - הועלה על ידי …"
+    .replace(/\s+[-–—]\s+(?:הועל(?:ה|תה)|הוקלד|נסרק|סרק|הוכן|הוקלדה)(?=\s)[\s\S]*$/u, '')
+    .replace(/\s*[|•·]+\s*$/u, '')
+  s = clean(s)
   // "קלע הכשף #5 קוטל המלכה": the number in the middle, with no dash before the title
   const hash = /^(.+?)\s+#(\d{1,3})\s+([^-–—].*)$/u.exec(s)
   if (hash) s = `${hash[1]} ${hash[2]} - ${hash[3]}`
-  const paren = /^(.+?)\s*\(([^()]+)\)$/u.exec(s)
-  if (paren && latin(paren[2]!) && /[\u0590-\u05FF]/.test(paren[1]!)) s = clean(paren[1]!)
+  // an English translation of a Hebrew name, in parentheses anywhere: "סיכוי טוב למות (As Good As Dead)"
+  if (/[\u0590-\u05FF]/.test(s.replace(/\([^()]*\)/g, ''))) s = clean(s.replace(/\s*\(([^()]+)\)/gu, (m, inner: string) => (latin(inner) ? ' ' : m)))
   const dash = /^(.+?)\s+[-–—]\s+(.+)$/u.exec(s)
   if (dash && latin(dash[1]!) && /[\u0590-\u05FF]/.test(dash[2]!)) s = clean(dash[2]!)
   const comma = /^(.+?\s\d{1,3}),\s+(.+)$/u.exec(s)
@@ -220,7 +248,7 @@ function pieces(line: string, author: string): string[] {
   const a = clean(author)
   return (a ? line.split(a) : [line])
     .flatMap((p) => p.split(BOOK_PHRASE))
-    .map((p) => clean(p.replace(CREDIT_TAIL, '').replace(/^(?:מאת|by)\s+/iu, '')))
+    .map((p) => clean(p.replace(CREDIT_TAIL, '').replace(/^(?:מאת|by)\s+/iu, '').replace(/^\s*[|•·]+|[|•·]+\s*$/gu, '')))
     .filter(Boolean)
 }
 

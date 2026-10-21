@@ -206,3 +206,26 @@ describe('identifyBook: what a real library showed', () => {
     expect(await id('לורה - קורא בטא (8)', [], 'rozushka769@gmail.com')).toMatchObject({ title: 'לורה - קורא בטא', author: '' })
   })
 })
+
+describe('identifyBook: names from download sites', () => {
+  const id = (title: string, author = '', opening: string[] = [], fileName = 'x.epub') => identifyBook({ title, author, fileName }, false, undefined, opening)
+
+  it('drops a bar after a title-page name, and an author pair joined by "&"', async () => {
+    expect(await id('משחקים מעוותים', 'אנה האנג', ['אנה האנג', 'טוויסט', 'ספר שני', 'משחקים מעוותים |'])).toMatchObject({ series: 'טוויסט', number: '2', title: 'משחקים מעוותים' })
+    expect(await id('מגיסטריום_#3_מפתח_הארד_הולי_בלק_&_קסנדרה_קלייר', 'הולי בלק וקסנדרה קלייר')).toMatchObject({ series: 'מגיסטריום', number: '3', title: 'מפתח הארד' })
+  })
+
+  it("drops Z-Library's marks, the author in parentheses, the date stamp, repeated copies and the extension", async () => {
+    expect((await id('המלך דוד (שרון חיון גינת) (Z-Library) 1_241026_195826 (1)', 'שרון חיון גינת')).title).toBe('המלך דוד')
+    expect((await id('תרועת מוות (טרי פראצט) עולם הדיסק 4 (z-library.sk, 1lib.sk, z-lib.sk)', 'טרי פראצט')).title).toBe('תרועת מוות עולם הדיסק 4')
+    expect((await id('סיכוי טוב למות (As Good As Dead) (הולי גקסון) (z-library.sk, 1lib.sk, z-lib.sk) (1)')).title).toBe('סיכוי טוב למות (הולי גקסון)')
+    expect((await id('עותק של עותק של הארי פוטר 1 ואבן החכמים')).title).toBe('הארי פוטר 1 ואבן החכמים')
+    expect((await id('arkanos_vol5_glossary.md')).title).toBe('arkanos vol5 glossary')
+  })
+
+  it("drops an uploader's credit, and takes the author and series of an Anna's Archive name", async () => {
+    expect(await id('נמסיס', 'גרג הורביץ', [], 'פרויקט איקס 2 - נמסיס - הועלה על ידי קישקע נייעס.epub')).toMatchObject({ series: 'פרויקט איקס', number: '2', title: 'נמסיס' })
+    const annas = 'רוצח מלכותי -- רובין הוב -- הרואים למרחק,2 -- 1998 --אסטרולוג -- eff1636bf56d9b30d5e9c7efff6781de -- Anna’s Archive'
+    expect(await id(annas)).toMatchObject({ series: 'הרואים למרחק', number: '2', title: 'רוצח מלכותי', author: 'רובין הוב' })
+  })
+})

@@ -24,10 +24,10 @@ export interface PendingName {
   source: 'web' | 'text' | 'meta' | 'name'
 }
 
-// "2": the names found before the identification learned to tell a title from a publisher's address or a review were
-// dropped, and the library is identified once more (BACKFILL)
-const KEY = 'reader:identify:pending2'
-const OLD_KEYS = ['reader:identify:pending', 'reader:identify:backfill']
+// "3" (and "2" before it): the names found before the identification learned to tell a title from a publisher's address or a review were
+// dropped, and the library is identified once more (BACKFILL); "3" also takes download-site leftovers out of names
+const KEY = 'reader:identify:pending3'
+const OLD_KEYS = ['reader:identify:pending', 'reader:identify:backfill', 'reader:identify:pending2', 'reader:identify:backfill2']
 const listeners = new Set<() => void>()
 let cache: PendingName[] | undefined
 
@@ -73,7 +73,7 @@ function addPending(items: PendingName[]) {
   savePending([...loadPending().filter((p) => !ids.has(p.id)), ...items])
 }
 
-const BACKFILL = 'reader:identify:backfill2'
+const BACKFILL = 'reader:identify:backfill3'
 
 /** The books the one-time identification of the library still has to go through: all of `allIds` before it started,
  *  what is left after it was stopped, and undefined once it is done (or was cancelled). */
