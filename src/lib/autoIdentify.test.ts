@@ -55,6 +55,13 @@ describe('identifyNew', () => {
     expect(loadPending()).toEqual([{ id: 'a', title: "מגנוס צ'ייס 3 - ספינת המתים", author: 'ריק ריירדן', was: '1~2402 3', source: 'text' }])
   })
 
+  it('saves by itself a name that only gains the mark keeping a Latin series before its number', async () => {
+    saveSure = false
+    add('a', 'פרויקט X 5 - אל תוך האש', 'גרג הורביץ')
+    expect(await identifyNew(['a'], new AbortController().signal)).toEqual({ saved: 1, pending: 0 })
+    expect(updateMeta).toHaveBeenCalledWith('a', 'פרויקט X\u200F 5 - אל תוך האש', 'גרג הורביץ')
+  })
+
   it('offers no name that still says nothing', async () => {
     add('a', 'עותק של 5E70B~1')
     expect(await identifyNew(['a'], new AbortController().signal)).toEqual({ saved: 0, pending: 0 })

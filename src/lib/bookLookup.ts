@@ -3,7 +3,7 @@
 // needs no key: first by the book's ISBN, which names the edition exactly, then by its title. Only the ISBN, the title and
 // the author are sent, and only after the user agreed (consent 'books').
 
-import { authorInName, guessBookName, isJunkTitle, splitBookName, nameFromOpening, seriesOf, tidyBookName, withoutAuthor, type BookName } from './bookName'
+import { authorInName, guessBookName, isJunkTitle, nameFromOpening, seriesOf, tidyBookName, withoutAuthor, type BookName } from './bookName'
 import type { EpubMeta } from './bookText'
 import { bookIsbns } from './isbn'
 import { norm } from './sameBook'
@@ -118,18 +118,53 @@ export interface LibraryNames {
   authors: string[]
 }
 
+/** a series compared across spellings: "פרויקט איקס" is "פרויקט X" */
+const seriesKey = (s: string) => norm(s.replace(/איקס/gu, 'x'))
+
 export function libraryNames(books: { title: string; author?: string }[]): LibraryNames {
   const series = new Map<string, { name: string; authors: Set<string> }>()
+  const spellings = new Map<string, Map<string, number>>()
   const authors = new Set<string>()
   for (const b of books) {
     const a = (b.author ?? '').trim()
     if (a && !/@/.test(a)) authors.add(a)
-    const name = splitBookName(b.title).series
-    if (!name || !norm(name)) continue
-    const entry = series.get(norm(name)) ?? { name, authors: new Set<string>() }
+    // as the identification reads it, so "פרויקט X #01 - פרויקט X" counts before it is renamed
+    const name = guessBookName(tidyBookName(b.title)).series
+    const key = name && seriesKey(name)
+    if (!key) continue
+    const entry = series.get(key) ?? { name, authors: new Set<string>() }
     if (a) entry.authors.add(norm(a))
-    series.set(norm(name), entry)
+    series.set(key, entry)
+    const count = spellings.get(key) ?? new Map<string, number>()
+    count.set(name, (count.get(name) ?? 0) + 1)
+    spellings.set(key, count)
   }
+  // a series named after the title, with no dash: the same words before a number at the end of two books or more
+  // ("הצבע של הקסם עולם הדיסק 1", "מורט עולם הדיסק 4")
+  const tails = new Map<string, { name: string; titles: Set<string>; authors: Set<string> }>()
+  for (const b of books) {
+    const m = /^(.+?)\s+#?(\d{1,3})$/u.exec(tidyBookName(b.title))
+    if (!m || guessBookName(tidyBookName(b.title)).series) continue
+    const words = m[1]!.split(' ')
+    for (let k = 1; k <= Math.min(4, words.length - 1); k++) {
+      const name = words.slice(-k).join(' ')
+      const key = seriesKey(name)
+      // "חלק 2", "כרך 3" are parts of a book, not a series
+      if (!/\p{L}{2}/u.test(name) || series.has(key) || /^(?:ה?חלק|ה?כרך|ה?ספר|part|vol\.?|volume|book)$/iu.test(name)) continue
+      const t = tails.get(key) ?? { name, titles: new Set<string>(), authors: new Set<string>() }
+      t.titles.add(norm(words.slice(0, -k).join(' ')))
+      if (b.author?.trim()) t.authors.add(norm(b.author))
+      tails.set(key, t)
+    }
+  }
+  for (const [key, t] of tails) {
+    if (t.titles.size < 2) continue
+    // the longest ending the books share: "עולם הדיסק" rather than "הדיסק"
+    const longer = [...tails].some(([k, o]) => k !== key && k.endsWith(` ${key}`) && o.titles.size >= 2)
+    if (!longer) series.set(key, { name: t.name, authors: t.authors })
+  }
+  // the spelling most of the series' books have
+  for (const [key, count] of spellings) series.get(key)!.name = [...count].sort((x, y) => y[1] - x[1])[0]![0]
   return { series, authors: [...authors].sort((x, y) => y.length - x.length) }
 }
 
@@ -143,25 +178,38 @@ const MIDDLE = /^(.+?)\s+#?(\d{1,3})\s+(.+)$/u
  * author's. Undefined when the library tells nothing new.
  */
 function byLibrary(name: BookName, author: string, lib?: LibraryNames): { name: BookName; author: string; sure: boolean } | undefined {
-  if (!lib || name.series) return undefined
+  if (!lib) return undefined
+  if (name.series) {
+    // the spelling the library has for the same series ("פרויקט איקס" when its books are "פרויקט X")
+    const known = lib.series.get(seriesKey(name.series))
+    if (!known || known.name === name.series) return undefined
+    return { name: { ...name, series: known.name }, author, sure: !!author && known.authors.has(norm(author)) }
+  }
   let title = name.title
   let who = author
-  if (!who)
-    for (const a of lib.authors) {
-      const t = withoutAuthor(title, a)
-      if (t !== title && norm(t)) {
-        title = t
-        who = a
-        break
-      }
+  // an author the library has: run on at the end, or in parentheses ("סיכוי טוב למות (הולי גקסון)")
+  for (const a of who ? [who] : lib.authors) {
+    const t = withoutAuthor(title, a)
+    if (t !== title && norm(t)) {
+      title = t
+      who = a
+      break
     }
-  const m = MIDDLE.exec(title)
-  const known = m ? lib.series.get(norm(m[1]!)) : undefined
-  if (m && known) {
-    const sure = !!who && known.authors.has(norm(who))
-    return { name: { series: known.name, number: String(Number(m[2])), title: m[3]! }, author: who, sure }
   }
-  return title !== name.title ? { name: { ...name, title }, author: who, sure: false } : undefined
+  const sureOf = (s: { authors: Set<string> }) => !!who && s.authors.has(norm(who))
+  const m = MIDDLE.exec(title)
+  const known = m ? lib.series.get(seriesKey(m[1]!)) : undefined
+  if (m && known) return { name: { series: known.name, number: String(Number(m[2])), title: m[3]! }, author: who, sure: sureOf(known) }
+  // a series the library has at the end, after the title: "תרועת מוות עולם הדיסק 4"
+  const end = /^(.+?)\s+#?(\d{1,3})$/u.exec(title)
+  if (end) {
+    const words = end[1]!.split(' ')
+    for (let k = 1; k < words.length; k++) {
+      const s = lib.series.get(seriesKey(words.slice(-k).join(' ')))
+      if (s) return { name: { series: s.name, number: String(Number(end[2])), title: words.slice(0, -k).join(' ') }, author: who, sure: sureOf(s) }
+    }
+  }
+  return title !== name.title || who !== author ? { name: { ...name, title }, author: who, sure: false } : undefined
 }
 
 /** Google Books asked about a name with its number in the middle, as the series and the title around the number: the

@@ -214,7 +214,8 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
     const q = query.trim().toLowerCase()
     const list = scoped.filter(
       (b) =>
-        (!q || `${b.title} ${b.author} ${b.fileName} ${(b.tags ?? []).join(' ')}`.toLowerCase().includes(q)),
+        // the direction marks in a name (formatBookName) are not typed in a search
+        (!q || `${b.title} ${b.author} ${b.fileName} ${(b.tags ?? []).join(' ')}`.replace(/[\u200E\u200F]/g, '').toLowerCase().includes(q)),
     )
     const by = (f: (b: BookMeta) => string) => (a: BookMeta, b: BookMeta) =>
       f(a).localeCompare(f(b), localeTag())
