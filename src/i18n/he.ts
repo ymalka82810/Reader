@@ -190,6 +190,8 @@ export const he = {
   'identify.libraryCancelled': 'זיהוי הספרייה בוטל. מה שכבר זוהה נשמר.',
   'identify.reviewHint': 'השמות האלה נמצאו בזיהוי האוטומטי, אבל לא בוודאות. מה שמסומן יישמר, ומה שלא מסומן יורד מהרשימה.',
   'identify.declineAll': 'לא לשמור אף אחד',
+  'identify.pickAll': 'סמן הכל',
+  'identify.pickNone': 'בטל סימון בהכל',
   'identify.save': { one: 'שמור ספר אחד', other: 'שמור {n} ספרים' },
   'identify.saved': { one: 'הפרטים של ספר אחד עודכנו', other: 'הפרטים של {n} ספרים עודכנו' },
   'identify.saveFailed': { one: 'לא הצלחתי לשמור את הפרטים של ספר אחד: {msg}', other: 'לא הצלחתי לשמור את הפרטים של {n} ספרים: {msg}' },

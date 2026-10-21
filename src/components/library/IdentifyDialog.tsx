@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Dialog } from '../Dialog'
 import type { BookMeta } from '../../lib/db'
 import type { PendingName } from '../../lib/autoIdentify'
-import { formatBookName } from '../../lib/bookName'
+import { formatBookName, isJunkTitle } from '../../lib/bookName'
 import { identifyBook } from '../../lib/bookLookup'
 import { bookDetails } from '../../lib/bookText'
 import { t } from '../../i18n'
@@ -55,7 +55,7 @@ export function IdentifyDialog({
         if (ac.signal.aborted) return
         const title = r && formatBookName(r)
         const author = r?.author ?? ''
-        if (r && title && (title !== b.title || author !== (b.author ?? '').trim())) {
+        if (r && title && !isJunkTitle(r.title) && (title !== b.title || author !== (b.author ?? '').trim())) {
           setFound((f) => [...f, { id: b.id, title, author, was: b.title, online: r.online, fromText: !!r.fromText, fromMeta: !!r.fromMeta, pick: true }])
         }
         setDone((n) => n + 1)
@@ -66,6 +66,7 @@ export function IdentifyDialog({
 
   const running = done < books.length
   const picked = found.filter((f) => f.pick)
+  const allPicked = picked.length === found.length
   const toggle = (id: string) => setFound((f) => f.map((x) => (x.id === id ? { ...x, pick: !x.pick } : x)))
   const unchanged = done - found.length
 
@@ -81,6 +82,11 @@ export function IdentifyDialog({
       >
         <h2>{t('identify.title')}</h2>
         {found.length > 0 && <small className="muted">{t(waiting ? 'identify.reviewHint' : 'identify.hint')}</small>}
+        {found.length > 1 && (
+          <button className="quiet" onClick={() => setFound((f) => f.map((x) => ({ ...x, pick: !allPicked })))}>
+            {allPicked ? t('identify.pickNone') : t('identify.pickAll')}
+          </button>
+        )}
         {found.length > 0 && (
           <ul className="dup-list">
             {found.map((f) => (

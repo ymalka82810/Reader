@@ -144,9 +144,17 @@ export function withoutAuthor(name: string, author: string): string {
   const a = fold(author)
   if (!a) return name
   const parts = name.split(/\s+[-–—]\s+/)
-  if (parts.length < 2) return name
-  if (fold(parts[parts.length - 1]!) === a) return parts.slice(0, -1).join(' - ')
-  if (fold(parts[0]!) === a) return parts.slice(1).join(' - ')
+  if (parts.length >= 2) {
+    if (fold(parts[parts.length - 1]!) === a) return parts.slice(0, -1).join(' - ')
+    if (fold(parts[0]!) === a) return parts.slice(1).join(' - ')
+  }
+  // the author's name run on at the end with no dash, as in a file name with underscores ("קוטל_המלכה_סבסטיאן_דה_קסטל")
+  const f = fold(name)
+  if (f.endsWith(` ${a}`)) {
+    const words = clean(name).split(' ')
+    const n = a.split(' ').length
+    if (words.length > n) return words.slice(0, -n).join(' ')
+  }
   return name
 }
 
@@ -158,9 +166,22 @@ const latin = (s: string) => /[A-Za-z]/.test(s) && !/[\u0590-\u05FF]/.test(s)
  * ("The Trials of Apollo 4 - גורלו של אפולו 4, ..."), and the comma between the number and the title
  * ("גורלו של אפולו 1, האורקל הנסתר" -> "גורלו של אפולו 1 - האורקל הנסתר").
  */
+/** "title -- author -- series, n -- year -- publisher -- md5 -- Anna’s Archive" as the template ("series n - title") */
+function annasArchive(s: string): string | undefined {
+  const parts = s.split(/\s+--\s+/).map(clean)
+  if (parts.length < 3 || !/^anna['’]?s archive$/i.test(parts[parts.length - 1]!)) return undefined
+  const title = parts[0]!
+  const series = parts.slice(2, -1).map((p) => /^(.+?),\s*(\d{1,3})$/u.exec(p)).find(Boolean)
+  return series ? `${clean(series[1]!)} ${series[2]} - ${title}` : title
+}
+
 export function tidyBookName(text: string): string {
   let s = clean(text.replace(/_+/g, ' '))
+  s = annasArchive(s) ?? s
   s = s.replace(/^(?:עותק של|copy of)\s+/iu, '').replace(/\s*\(\d{1,2}\)$/u, '')
+  // "קלע הכשף #5 קוטל המלכה": the number in the middle, with no dash before the title
+  const hash = /^(.+?)\s+#(\d{1,3})\s+([^-–—].*)$/u.exec(s)
+  if (hash) s = `${hash[1]} ${hash[2]} - ${hash[3]}`
   const paren = /^(.+?)\s*\(([^()]+)\)$/u.exec(s)
   if (paren && latin(paren[2]!) && /[\u0590-\u05FF]/.test(paren[1]!)) s = clean(paren[1]!)
   const dash = /^(.+?)\s+[-–—]\s+(.+)$/u.exec(s)
@@ -182,6 +203,11 @@ export function isJunkTitle(title: string): boolean {
 const CREDIT =
   /מרגנית|הוצא(?:ת|ה)|תרגו?ם|תרגמ|מאנגלית|מצרפתית|מגרמנית|עריכ|עורכ|עיצוב|עטיפ|איור|הגהה|כל הזכויות|©|isbn|copyright|all rights|printed|published|translated|edition|מהדורה|נדפס|מודפס|דפוס|www\.|https?:|@|טל[׳']|^מאת\b|^מחבר|^מחברת|^מאותו|^ספרים נוספים|^עוד ספרים|^רב[-־ ]?המכר|^בסדרה|^תוכן|^contents|^chapter|^פרק\b/iu
 
+// a publisher's address or phone ("רח' אגוז 6, פארק תעשיות חמן", "ת.ד. 163, קרית גת", "משק 33, מושב בן־שמן", a postal code or
+// phone number of five digits or more), a quoted line from a review on the cover ("יצירת מופת…"), or a sentence of the text
+const NOT_A_NAME =
+  /^(?:רח['׳']|רחוב\s|ת\.\s?ד\.?|ת["״]ד|משק\s+\d|מושב\s|קיבוץ\s|מיקוד|פקס|tel\b|fax\b)|\d{5,}|\d{2,3}-\d{6,7}|^["״“”„']|[.!]["״”']?\s*$|[.!]\s+\S/iu
+
 const HEBREW = /[\u05D0-\u05EA]/
 
 const ORDINAL_WORD = String.raw`(?:ה?(?:ראשו(?:ן|נה)|שני(?:ה|יה)?|שלישי(?:ת)?|רביעי(?:ת)?|חמישי(?:ת)?|שישי(?:ת)?|שביעי(?:ת)?|שמיני(?:ת)?|תשיעי(?:ת)?|עשירי(?:ת)?)|\d{1,3})`
@@ -197,6 +223,8 @@ function pieces(line: string, author: string): string[] {
     .map((p) => clean(p.replace(CREDIT_TAIL, '').replace(/^(?:מאת|by)\s+/iu, '')))
     .filter(Boolean)
 }
+
+const IN_SERIES = /^(?:מתוך\s+)?(?:ב|מ)?ה?סדר(?:ה|ת)\s+/u
 
 /** "ספר שלישי", "הספר השלישי", "כרך 2", "ספר ראשון: להב הקיץ": the number, and the title when it is on the same line */
 function bookLine(line: string): { number: string; title: string } | undefined {
@@ -214,7 +242,7 @@ export function nameFromOpening(lines: string[], author: string): { name?: BookN
   const a = fold(author)
   const kept = lines
     .flatMap((l) => pieces(clean(l.replace(/_+/g, ' ')), author))
-    .filter((l) => l && l.length <= 70 && /\p{L}{2}/u.test(l) && !CREDIT.test(l))
+    .filter((l) => l && l.length <= 70 && /\p{L}{2}/u.test(l) && !CREDIT.test(l) && !NOT_A_NAME.test(l))
     .filter((l) => !a || (fold(l) !== a && !fold(l).includes(a)))
   const short = (l: string) => l.length <= 45 && l.split(' ').length <= 8 && !bookLine(l)
 
@@ -222,6 +250,14 @@ export function nameFromOpening(lines: string[], author: string): { name?: BookN
   for (let i = 0; i < kept.length && !name; i++) {
     const b = bookLine(kept[i]!)
     if (!b) continue
+    // "הסירנה / הספר הראשון / בסדרת החוטאים המקוריים": the series comes after, and the title before
+    const inSeries = !b.title && kept[i + 1] ? IN_SERIES.exec(kept[i + 1]!) : null
+    if (inSeries) {
+      const title = [...kept.slice(Math.max(0, i - 2), i)].reverse().find(short)
+      const series = clean(kept[i + 1]!.slice(inSeries[0].length).replace(/^["״“”„']+|["״“”„']+$/gu, ''))
+      if (title && series) name = { series, number: b.number, title }
+      continue
+    }
     const series = [...kept.slice(Math.max(0, i - 3), i)].reverse().find((l) => short(l) && HEBREW.test(l) === HEBREW.test(kept[i]!))
     const title = b.title || kept.slice(i + 1, i + 3).find(short) || ''
     if (series && title && fold(series) !== fold(title)) name = { series: clean(series.replace(/^(?:מתוך )?(?:ה?סדר(?:ה|ת))\s+/u, '')), number: b.number, title }
