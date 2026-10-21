@@ -21,7 +21,7 @@ export function cleanLines(lines: OcrLine[]): string[] {
     .filter(Boolean)
 }
 
-export type OcrSource = HTMLCanvasElement | Blob
+type OcrSource = HTMLCanvasElement | Blob
 
 /** The text lines of each image (a canvas or an image file), Hebrew and English together, one list per image. An image
  *  may be given as a function, which is called only when its turn comes (a PDF page is drawn then, not all at once).
