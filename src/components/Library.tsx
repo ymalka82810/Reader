@@ -23,6 +23,7 @@ import { backfillLeft, dropPending, loadPending, setBackfillLeft, subscribePendi
 import { loadSettings } from '../lib/settings'
 import { exitApp, useBackGesture } from '../hooks/useBackGesture'
 import { useConfirm } from '../hooks/useConfirm'
+import { useLatest } from '../hooks/useLatest'
 import { hasTag, listTags, parseTags } from '../lib/tags'
 import { localeTag, t } from '../i18n'
 import { GoalsDialog } from './library/GoalsDialog'
@@ -362,6 +363,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
 
   // the books already in the library are identified once, on the first start after automatic identification came in
   const backfillTried = useRef(false)
+  const askLookup = useLatest(allowLookup)
   useEffect(() => {
     if (!loaded || backfillTried.current || imp.running || busy || !loadSettings().autoIdentify) return
     backfillTried.current = true
@@ -369,8 +371,8 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
     if (!left) return
     if (!left.length) return setBackfillLeft(undefined) // an empty library: nothing to go back over
     // it runs once, so Google Books is asked about first; on a no it goes by the books' own files only
-    void allowLookup().then(() => imp.identifyLibrary(left))
-  }, [loaded, imp, busy, books])
+    void askLookup.current().then(() => imp.identifyLibrary(left))
+  }, [loaded, imp, busy, books, askLookup])
 
   const reviewPending = () => {
     if (loaded) dropPending(pendingAll.filter((p) => !pending.includes(p)).map((p) => p.id))

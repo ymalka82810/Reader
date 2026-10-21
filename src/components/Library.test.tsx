@@ -22,6 +22,8 @@ async function resetLibrary() {
 
 beforeEach(async () => {
   localStorage.clear()
+  // the one-time identification of the library would ask about Google Books on every first render
+  localStorage.setItem('reader:identify:backfill', 'done')
   await resetLibrary()
 })
 afterEach(cleanup)
@@ -101,6 +103,23 @@ describe('Library', () => {
     render(<Library onOpen={onOpen} />)
     fireEvent.click(await screen.findByText('המשך לקרוא'))
     expect(onOpen).toHaveBeenCalledWith('b1')
+  })
+
+  it('identifies the books already in the library once, after asking about Google Books', async () => {
+    localStorage.removeItem('reader:identify:backfill')
+    await saveBook(book('b1', 'Dune', 'Herbert'))
+    render(<Library onOpen={() => {}} />)
+    const ask = await screen.findByRole('alertdialog')
+    expect(ask.textContent).toContain('ISBN')
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) })
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      fireEvent.click(within(ask).getByRole('button', { name: 'אפשר' }))
+      await waitFor(() => expect(localStorage.getItem('reader:identify:backfill')).toBe('done'))
+      expect(String(fetchMock.mock.calls[0]?.[0])).toContain('googleapis.com/books')
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it('deleting a book can be undone', async () => {
