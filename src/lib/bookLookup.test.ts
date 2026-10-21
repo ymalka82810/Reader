@@ -527,4 +527,15 @@ describe('asLibrarySeries / withoutSeries', () => {
     await identifyBook({ title: 'גנב הברק', author: 'ריק ריירדן', fileName: 'x.epub' }, true)
     expect(new URL(String(f.mock.calls[0]![0])).searchParams.get('key')).toBe('my-key')
   })
+
+  it('infers the series and number from the original series on the copyright page, as the library names it', async () => {
+    const library = libraryNames([
+      { title: 'מגיסטריום 1 - מבחן הברזל', author: 'הולי בלק וקסנדרה קלייר' },
+      { title: 'מגיסטריום 4 - מסכת הכסף', author: 'הולי בלק וקסנדרה קלייר' },
+    ])
+    const opening = ['Holly Black and Cassandra Clare', 'THE GOLDEN TOWER', 'MAGISTERIUM V', 'Copyright © 2018 by Holly Black and Cassandra Clare LLC', 'כל הזכויות שמורות']
+    const r = await identifyBook({ title: '1~___#5_', author: 'הולי בלק וקסנדרה קלייר', fileName: '__5____1.pdf' }, false, undefined, opening, undefined, library)
+    expect(r).toMatchObject({ series: 'מגיסטריום', number: '5', fromText: true })
+    expect(r.sure).toBeUndefined()
+  })
 })

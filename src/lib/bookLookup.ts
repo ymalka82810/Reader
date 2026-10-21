@@ -7,6 +7,7 @@
 
 import { authorInName, guessBookName, isJunkTitle, nameFromOpening, seriesOf, tidyBookName, withoutAuthor, type BookName } from './bookName'
 import type { EpubMeta } from './bookText'
+import { librarySeriesFor, originalSeries } from './bookInference'
 import { bookIsbns } from './isbn'
 import { norm } from './sameBook'
 import { loadSettings } from './settings'
@@ -685,13 +686,19 @@ export async function identifyBook(
     (!hebrewBook || hebrew(read.name.title)) &&
     (!own.series || isJunkTitle(own.title)) &&
     (isJunkTitle(own.title) || sameTitle(read.name.title, own.title))
-  const base: BookName = fromText ? read.name! : own
+  let base: BookName = fromText ? read.name! : own
+  // a translated book whose copyright page names the original series and number ("MAGISTERIUM V"), when the library
+  // has that series in Hebrew: the library's series and the number, the title kept when it is one
+  const original = !base.series && library ? originalSeries(opening) : undefined
+  const fromSeries = original && librarySeriesFor(original.series, b.author, library!.series.values(), norm)
+  const fromOriginal = !!fromSeries
+  if (fromSeries) base = { series: fromSeries, number: original!.number, title: isJunkTitle(base.title) ? '' : base.title }
   const libSure = !!lib?.sure && base === local
   const mine: Identified = {
     ...base,
     author: b.author.trim(),
     online: false,
-    ...(fromText ? { fromText } : fromMeta && { fromMeta, ...(metaSure && { sure: true }) }),
+    ...(fromText || fromOriginal ? { fromText: true } : fromMeta && { fromMeta, ...(metaSure && { sure: true }) }),
     ...(libSure && { sure: true }),
   }
   if (!online) return mine
@@ -750,6 +757,18 @@ export async function identifyBook(
  *  is a series and a number with no title ("משפחת קיין 1"), the title of the work at that number. Saved without asking
  *  only when it was sure before and the work on Wikidata is by the same author. Wikidata failing leaves the name as it was. */
 async function withWikidata(r: Identified, hebrewBook: boolean, signal?: AbortSignal, library?: LibraryNames): Promise<Identified> {
+  // a series and a number with no title (inferred from the copyright page): the title of the work at that number
+  if (r.series && r.number && isJunkTitle(r.title)) {
+    try {
+      const lang = hebrewBook || hebrew(r.series) ? 'he' : 'en'
+      const n = await wikidataByNumber(r.series, r.number, r.author, lang, signal, { left: WIKIDATA_PER_BOOK })
+      if (n && (!hebrewBook || hebrew(n.title))) return { ...r, title: n.title, online: true, sites: [...(r.sites ?? []), SITE.wikidata] }
+    } catch (e) {
+      if (signal?.aborted) throw e
+      console.warn(e)
+    }
+    return r
+  }
   if (r.series || isJunkTitle(r.title)) return r
   const lang = hebrewBook || hebrew(r.title) ? 'he' : 'en'
   const budget: Budget = { left: WIKIDATA_PER_BOOK }
