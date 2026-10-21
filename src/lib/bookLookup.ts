@@ -86,7 +86,7 @@ async function search(q: string, signal?: AbortSignal): Promise<VolumeInfo[]> {
 
 /** Google Books' entry for an ISBN; undefined when there is none, or when a Hebrew book's ISBN is the original's (a
  *  translation's copyright page names it too) and the entry is not in Hebrew. Rejects when the network or the service fails. */
-export async function lookupIsbn(isbn: string, hebrewBook: boolean, signal?: AbortSignal): Promise<Identified | undefined> {
+async function lookupIsbn(isbn: string, hebrewBook: boolean, signal?: AbortSignal): Promise<Identified | undefined> {
   const v = (await search(`isbn:${isbn}`, signal)).find((x) => norm(x.title ?? ''))
   if (!v || (hebrewBook && !hebrew(v.title ?? ''))) return undefined
   return { ...nameOf(v), author: (v.authors ?? []).join(', '), online: true }
