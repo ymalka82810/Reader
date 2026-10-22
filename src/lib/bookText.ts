@@ -81,6 +81,23 @@ const text = (s: string) => decode(s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1'
 const elements = (opf: string, tag: string) =>
   [...opf.matchAll(new RegExp(String.raw`<${tag}\b([^>]*?)(?<!/)>([\s\S]*?)</${tag}>`, 'gi'))].map((m) => ({ attrs: m[1]!, text: text(m[2]!) }))
 
+// a publisher or an imprint some books put among their creators ("Helicon Books", "הוצאת כנרת")
+const PUBLISHER = /(?:^|[\s,])(?:books?|press|publish\w*|publications?|editions?|הוצא\w*|ספרי\s+\S+)(?=$|[\s,])/iu
+
+/** the package's authors: its creators, but not those of another role (translator, editor, publisher: EPUB 2's
+ *  `opf:role`, or EPUB 3's `role` refining the creator) nor a name that is a publisher's */
+function authorsOf(opf: string): string[] {
+  const roles = elements(opf, 'meta').filter((m) => /property\s*=\s*["']role["']/i.test(m.attrs))
+  return elements(opf, 'dc:creator')
+    .filter((c) => {
+      const id = /\bid\s*=\s*["']([^"']+)["']/i.exec(c.attrs)?.[1]
+      const role = /\bopf:role\s*=\s*["']([^"']+)["']/i.exec(c.attrs)?.[1] ?? roles.find((m) => id && m.attrs.includes(`#${id}`))?.text
+      return !role || role.trim().toLowerCase() === 'aut'
+    })
+    .map((c) => c.text)
+    .filter((a) => a && !PUBLISHER.test(a))
+}
+
 /** "1", "1.0" or "01" as "1"; a fraction or anything else (a novella between books, "2.5") as '' */
 function wholeNumber(s: string | undefined): string {
   const n = Number(s?.trim())
@@ -108,7 +125,7 @@ export function opfMeta(opf: string): EpubMeta {
   }
   return {
     title: elements(opf, 'dc:title')[0]?.text ?? '',
-    authors: elements(opf, 'dc:creator').map((e) => e.text).filter(Boolean),
+    authors: authorsOf(opf),
     series,
     number,
     identifiers: elements(opf, 'dc:identifier').map((e) => e.text).filter(Boolean),
