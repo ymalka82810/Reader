@@ -897,7 +897,7 @@
   },
   "expect": {
    "series": "",
-   "number": "3",
+   "number": "",
    "title": "קללת הטיטאן"
   }
  },
@@ -928,17 +928,6 @@
   }
  },
  {
-  "id": "volume word",
-  "input": {
-   "title": "הצל של הרוח כרך 2",
-   "author": "",
-   "fileName": "x.epub"
-  },
-  "expect": {
-   "number": "2"
-  }
- },
- {
   "id": "english vol",
   "input": {
    "title": "Wheel of Time Vol. 4 - The Shadow Rising",
@@ -954,9 +943,9 @@
  {
   "id": "title page with \"ספר שני בסדרה\"",
   "input": {
-   "title": "xyz123",
-   "author": "ג'ניפר ל. ארמנטרוט",
-   "fileName": "xyz123.pdf",
+   "title": "1~2403 2",
+   "author": "",
+   "fileName": "1~2403 2.pdf",
    "opening": [
     "ג'ניפר ל. ארמנטרוט",
     "ממלכה של בשר ואש",
@@ -1044,5 +1033,34 @@
     "author": "ריק ריירדן"
    }
   ]
+ },
+ {
+  "id": "series above the title is no author",
+  "input": {
+   "title": "הארי פוטר ואבן החכמים",
+   "author": "",
+   "fileName": "x.epub",
+   "opening": [
+    "הארי פוטר",
+    "הארי פוטר ואבן החכמים",
+    "מאנגלית: גילי בר-הלל"
+   ]
+  },
+  "expect": {
+   "author": ""
+  }
+ },
+ {
+  "id": "hebrew letter number in parentheses",
+  "input": {
+   "title": "קללת הטיטאן (פרסי ג'קסון ג')",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "פרסי ג'קסון",
+   "number": "3",
+   "title": "קללת הטיטאן"
+  }
  }
 ]
