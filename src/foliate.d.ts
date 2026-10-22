@@ -27,6 +27,8 @@ declare module 'foliate-js/view.js' {
     /** on the last page of the last section */
     atEnd: boolean
     setStyles?(css: string): void
+    /** lays the book out again (the fixed-layout renderer pairs its pages into spreads here) */
+    open?(book: object): void
     prev(distance?: number): Promise<unknown>
     next(distance?: number): Promise<unknown>
     scrollToAnchor?(anchor: Range | Element | number): Promise<unknown>
@@ -52,6 +54,8 @@ declare module 'foliate-js/view.js' {
     renderer: FoliateRenderer
     book: {
       dir?: string
+      /** 'pre-paginated' for a PDF shown as is and a fixed-layout EPUB */
+      rendition?: { layout?: string }
       metadata?: { language?: string | string[] }
       toc?: FoliateTocItem[]
       sections: FoliateSection[]
