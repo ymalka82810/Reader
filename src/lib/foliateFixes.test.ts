@@ -41,6 +41,14 @@ describe('alignDocDir', () => {
     expect(doc.documentElement.dir).toBe('rtl')
   })
 
+  it('never changes the direction of a fixed-layout page (a PDF shown as is)', () => {
+    const { view } = fakeView({ dir: 'rtl' })
+    ;(view.book as { rendition?: object }).rendition = { layout: 'pre-paginated' }
+    const doc = docOf('', 'ltr')
+    alignDocDir(view, doc)
+    expect(doc.documentElement.dir).toBe('')
+  })
+
   it('leaves left-to-right books alone', () => {
     const { view } = fakeView({})
     const doc = docOf('', 'ltr')
@@ -63,6 +71,16 @@ describe('fixBookDir', () => {
     const { view } = fakeView({})
     fixBookDir(view, '', 'ספר בדיקה')
     expect(view.book.dir).toBe('rtl')
+  })
+
+  it('pairs the pages of a fixed-layout Hebrew book again once it becomes right-to-left', () => {
+    const { view } = fakeView({})
+    const open = vi.fn()
+    ;(view.book as { rendition?: object }).rendition = { layout: 'pre-paginated' }
+    ;(view.renderer as { open?: unknown }).open = open
+    fixBookDir(view, 'he', 'ספר')
+    expect(view.book.dir).toBe('rtl')
+    expect(open).toHaveBeenCalledWith(view.book)
   })
 
   it('keeps an explicit direction and leaves other languages alone', () => {

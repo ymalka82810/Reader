@@ -3,6 +3,9 @@ import type { FoliateView } from 'foliate-js/view.js'
 const RTL_LANGS = new Set(['he', 'iw', 'yi', 'ar', 'fa', 'ur', 'ps', 'dv', 'ckb', 'sd', 'ug', 'heb', 'ara', 'fas', 'per', 'urd'])
 const RTL_SCRIPT = /[\p{Script=Hebrew}\p{Script=Arabic}]/u
 
+/** PDF shown page by page, or a pre-paginated EPUB: every page is a picture laid out at fixed coordinates */
+const isFixedLayout = (view: FoliateView) => view.book.rendition?.layout === 'pre-paginated'
+
 /**
  * foliate takes the page direction only from the EPUB's page-progression-direction, which many
  * Hebrew/Arabic books leave out. Without it goLeft/goRight treat the book as left-to-right, so a
@@ -10,7 +13,11 @@ const RTL_SCRIPT = /[\p{Script=Hebrew}\p{Script=Arabic}]/u
  */
 export function fixBookDir(view: FoliateView, lang: string, title: string) {
   if (view.book.dir) return
-  if (RTL_LANGS.has(lang) || (!lang && RTL_SCRIPT.test(title))) view.book.dir = 'rtl'
+  if (!(RTL_LANGS.has(lang) || (!lang && RTL_SCRIPT.test(title)))) return
+  view.book.dir = 'rtl'
+  // a fixed-layout renderer (PDF shown as is, pre-paginated EPUB) pairs its pages into spreads in open(), which
+  // already ran with no direction: pair them again right-to-left, so a tablet spread puts the earlier page on the right
+  if (isFixedLayout(view)) view.renderer.open?.(view.book)
 }
 
 /**
@@ -21,6 +28,10 @@ export function fixBookDir(view: FoliateView, lang: string, title: string) {
  * the direction.
  */
 export function alignDocDir(view: FoliateView, doc: Document) {
+  // a fixed-layout page is positioned in absolute coordinates (a PDF page is a canvas drawn at the device's pixel
+  // ratio and scaled down from the top-left corner): an RTL page would anchor that canvas to the right and show
+  // only its right part squeezed into the left of the screen, so its direction is never touched
+  if (isFixedLayout(view)) return
   const root = doc.documentElement
   const docRtl =
     root.dir === 'rtl' || doc.body?.dir === 'rtl' || doc.defaultView?.getComputedStyle(doc.body).direction === 'rtl'
