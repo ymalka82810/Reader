@@ -193,6 +193,7 @@ export const en: Record<keyof typeof he, Message> = {
   'identify.clue.catalog': 'a catalog',
   'identify.clue.order': 'the series numbering in the library',
   'identify.clue.running': 'the running head',
+  'identify.clue.cover': 'the cover',
   'identify.fromText': 'From the book',
   'identify.fromName': 'From the file name',
   'identify.fromMeta': 'From the file’s details',

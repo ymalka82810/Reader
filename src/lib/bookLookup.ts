@@ -1200,7 +1200,7 @@ function bySequels(meta: EpubMeta | undefined, author: string, library?: Library
 
 /** where a clue comes from: the file's or library's name, the file's package, the copyright page, a list of the series'
  *  books, the names its story shares with the series, a catalog, the numbers the library leaves free, a running head */
-export type Clue = 'name' | 'meta' | 'copyright' | 'list' | 'names' | 'words' | 'sequel' | 'catalog' | 'order' | 'running'
+export type Clue = 'name' | 'meta' | 'copyright' | 'list' | 'names' | 'words' | 'sequel' | 'catalog' | 'order' | 'running' | 'cover'
 
 /** two titles that are one: the same words, or one the other's start ("דם האולימפוס" and "דם האולימפוס V") */
 function sameTitle(x: string, y: string): boolean {

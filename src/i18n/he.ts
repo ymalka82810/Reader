@@ -192,6 +192,7 @@ export const he = {
   'identify.clue.catalog': 'קטלוג',
   'identify.clue.order': 'מספור הסדרה בספרייה',
   'identify.clue.running': 'כותרת רצה',
+  'identify.clue.cover': 'הכריכה',
   'identify.fromName': 'משם הקובץ',
   'identify.fromMeta': 'מפרטי הקובץ',
   'identify.autoProgress': 'מזהה פרטי ספרים חדשים {done}/{total}…',

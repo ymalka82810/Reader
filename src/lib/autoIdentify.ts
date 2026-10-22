@@ -7,7 +7,8 @@
 // "backfill"): what is left of it is kept, so a run stopped by closing the app goes on at the next start.
 
 import { rememberName, rememberSequels } from './bookKnowledge'
-import { identifyBook, keepFacts, libraryNames, type Clue } from './bookLookup'
+import { keepFacts, libraryNames, type Clue } from './bookLookup'
+import { identifyWithCover } from './coverIdentify'
 import { formatBookName, guessBookName, isJunkTitle, tidyBookName } from './bookName'
 import { bookDetails } from './bookText'
 import { hasConsent } from './consent'
@@ -260,7 +261,8 @@ export async function identifyNew(
         rememberSequels(b.title, b.author, meta?.next, meta?.prev)
         // a name the user gave stays as it is
         if (isConfirmed(id, b.title)) continue
-        const r = await identifyBook(b, online, signal, opening, meta, library)
+        // a name that still says nothing is read once more with the cover's lines
+        const r = await identifyWithCover(b, online, signal, opening, meta, library)
         if (r.failed) {
           online = false
           why = r.why ?? 'network'
