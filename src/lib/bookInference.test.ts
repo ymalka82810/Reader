@@ -69,9 +69,13 @@ describe('copyrightYear', () => {
 })
 
 describe('numberByGaps', () => {
-  it('takes the one number missing, or the next', () => {
-    expect(numberByGaps([{ number: 1 }, { number: 3 }])).toBeUndefined() // 2 or 4
-    expect(numberByGaps([{ number: 1 }, { number: 2 }, { number: 3 }])).toBe(4)
+  it('guesses no number without the book\'s year', () => {
+    expect(numberByGaps([{ number: 1 }, { number: 3 }])).toBeUndefined()
+    expect(numberByGaps([{ number: 1 }, { number: 2 }, { number: 3 }])).toBeUndefined()
+  })
+  it('takes the next number only when a book before it has a year', () => {
+    expect(numberByGaps([{ number: 1 }, { number: 2 }], 2020)).toBeUndefined()
+    expect(numberByGaps([{ number: 1, year: 2014 }, { number: 2, year: 2015 }], 2020)).toBe(3)
   })
   it('decides between the gaps by the years', () => {
     const series = [
@@ -155,5 +159,18 @@ describe('inLists', () => {
   })
   it('takes none when lists disagree on the number', () => {
     expect(inLists('יד הנחושת', [...lists, { series: '', books: [{ title: 'יד הנחושת', number: '4' }, { title: 'x', number: '5' }] }], norm)).toBeUndefined()
+  })
+})
+
+describe('tuning from a real library', () => {
+  it('takes no series for an author\'s book that shares her style but not the series\' heroes', () => {
+    const style = ['מותק', 'בחורה', 'נשיקה', 'מכונית', 'מסיבה', 'טלפון']
+    // a story says its heroes' names far more than any word of style
+    const book: [string, number][] = [...['ליאם', 'אווה', "ג'ייק"].map((w): [string, number] => [w, 80]), ...style.map((w): [string, number] => [w, 12])]
+    const series = { name: 'הפרי האסור', books: [[...['קאלי', 'נוח', 'מייסון'].map((w): [string, number] => [w, 80]), ...style.map((w): [string, number] => [w, 12])]] }
+    expect(seriesByNames(book, [series])).toBeUndefined()
+  })
+  it('cuts what a list heading adds after a dash off the series\' name', () => {
+    expect(seriesLists(['סדרת התנגשות — מארז פשע חושני:', '1. התמכרות', '2. התלקחות'])[0]!.series).toBe('התנגשות')
   })
 })
