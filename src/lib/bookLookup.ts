@@ -790,7 +790,7 @@ async function findName(
   }
   // a title that says nothing, from the PDF's running head: the line printed on many pages that is neither its series
   // nor its author (and in Hebrew for a Hebrew book)
-  const running = isJunkTitle(base.title)
+  const running = noTitle(base)
     ? meta?.running?.find(
         (r) => !isJunkTitle(r) && (!hebrewBook || hebrew(r)) && !sameTitle(r, base.series) && !sameTitle(r, b.author) && !sameTitle(r, own.series),
       )
@@ -801,8 +801,9 @@ async function findName(
     base = base.series ? { ...base, title: head.series && sameTitle(head.series, base.series) ? head.title : running } : head
   }
   // still no title, for a series inferred from the copyright page: the original title there, translated
-  if (fromSeries && isJunkTitle(base.title) && original!.title && online && hasConsent('translate')) {
-    const he = await translatedTitle(original!.title, signal)
+  const originalName = original?.title ?? originalTitle(opening)
+  if (base.series && noTitle(base) && originalName && online && hasConsent('translate')) {
+    const he = await translatedTitle(originalName, signal)
     if (he) base = { ...base, title: he }
   }
   const libSure = !!lib?.sure && base === local
@@ -817,7 +818,7 @@ async function findName(
   if (!online) return mine
   const known = !isJunkTitle(base.title)
   // a book whose name already has a series, a title and an author has nothing to ask Google Books about
-  if (known && base.series && b.author.trim()) return mine
+  if (known && base.series && b.author.trim() && !noTitle(base)) return mine
   const isbns = bookIsbns([...(meta?.identifiers ?? []), ...opening], hebrewBook).slice(0, 2)
   const wants = [...(known ? [base.title] : []), ...read.candidates.filter((c) => norm(c) !== norm(base.title))].slice(0, 4)
   const middle = !base.series ? MIDDLE.exec(base.title) : null
@@ -871,7 +872,7 @@ async function findName(
  *  only when it was sure before and the work on Wikidata is by the same author. Wikidata failing leaves the name as it was. */
 async function withWikidata(r: Identified, hebrewBook: boolean, signal?: AbortSignal, library?: LibraryNames): Promise<Identified> {
   // a series and a number with no title (inferred from the copyright page): the title of the work at that number
-  if (r.series && r.number && isJunkTitle(r.title)) {
+  if (r.series && r.number && noTitle(r)) {
     try {
       const lang = hebrewBook || hebrew(r.series) ? 'he' : 'en'
       const n = await wikidataByNumber(r.series, r.number, r.author, lang, signal, { left: WIKIDATA_PER_BOOK })
@@ -1167,6 +1168,13 @@ export function tidyName<T extends BookName>(r: T): T {
   }
   if (isJunkTitle(title) || isSeriesName(title, r.series)) title = ''
   return title === r.title ? r : { ...r, title }
+}
+
+/** A name with no title of its own: a title that says nothing, or one that only repeats the series and the number
+ *  ("משפחת קיין 1" of "משפחת קיין והאלים המצריים 1"). Its real title is still to be found: in the book, by its
+ *  number on Wikidata, by translating the original's. */
+function noTitle(r: BookName): boolean {
+  return isJunkTitle(r.title) || (!!r.series && !!r.number && !tidyName(r).title)
 }
 
 /** a title that is the series' name, or a shorter form of it ("משפחת קיין" of "משפחת קיין והאלים המצריים"), not one that
