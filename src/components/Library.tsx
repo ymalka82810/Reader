@@ -855,6 +855,8 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
             setSettingsPage(undefined)
             setSettingsOpen(false)
             onSettingsClosed?.()
+            // the settings may have changed books (the check-up merges an author's spellings)
+            void refresh()
           }}
           onCheckUpdate={checkUpdate}
           onScanDevice={scanDevice}

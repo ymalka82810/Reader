@@ -520,6 +520,13 @@ i.lv4 { background: var(--accent) !important; }
   text-align: start;
   white-space: nowrap;
 }
+.library-health ul {
+  margin: 0.4em 0;
+  padding-inline-start: 1.2em;
+}
+.library-health li {
+  margin-bottom: 0.5em;
+}
 .identify-stats-table thead {
   background: var(--fill);
 }
