@@ -20,7 +20,7 @@ import { bookDetails } from '../lib/bookText'
 import { hasConsent, setConsent, SERVICE_HOST } from '../lib/consent'
 import { IdentifyDialog, type NameChange } from './library/IdentifyDialog'
 import { backfillLeft, dropPending, loadPending, setBackfillLeft, subscribePending, type PendingName } from '../lib/autoIdentify'
-import { confirmName, declineName, learnFromEdit, recordOutcome, samePlace } from '../lib/identifyLearning'
+import { confirmName, countOutcome, declineName, learnFromEdit, recordOutcome, samePlace } from '../lib/identifyLearning'
 import { loadSettings } from '../lib/settings'
 import { exitApp, useBackGesture } from '../hooks/useBackGesture'
 import { useConfirm } from '../hooks/useConfirm'
@@ -425,9 +425,13 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
       const no = new Set(declined)
       for (const p of reviewed) {
         const kept = said.get(p.id)
-        if (kept !== undefined) recordOutcome(p.evidence, p.conflicts, samePlace(p.title, kept))
-        else if (no.has(p.id)) {
+        if (kept !== undefined) {
+          const same = samePlace(p.title, kept)
+          recordOutcome(p.evidence, p.conflicts, same)
+          countOutcome(same ? 'approved' : 'corrected')
+        } else if (no.has(p.id)) {
           recordOutcome(p.evidence, p.conflicts, false)
+          countOutcome('declined')
           declineName(p.id, p.title)
         }
       }

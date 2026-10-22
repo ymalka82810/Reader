@@ -17,6 +17,7 @@ const CONFIRMED_KEY = 'reader:identify:confirmed'
 const DECLINED_KEY = 'reader:identify:declined'
 const AUTO_KEY = 'reader:identify:auto'
 const CLUES_KEY = 'reader:identify:clues'
+const OUTCOMES_KEY = 'reader:identify:outcomes'
 const MAX = 3000
 
 type Tally = { right: number; wrong: number }
@@ -87,6 +88,7 @@ export function wasDeclined(id: string, offered: string): boolean {
 /** a sure name the identification saved by itself, and the clues that made it sure */
 export function rememberAuto(id: string, title: string, evidence: Clue[] = [], conflicts: Clue[] = []) {
   put(AUTO_KEY, id, { title, evidence, conflicts })
+  countOutcome('autoSaved')
 }
 
 /** the place in a series a name gives: its series and number, compared without spelling */
@@ -106,7 +108,11 @@ export function samePlace(a: string, b: string): boolean {
  */
 export function learnFromEdit(id: string, title: string, author = '') {
   const auto = read<Record<string, { title: string; evidence: Clue[]; conflicts: Clue[] }>>(AUTO_KEY, {})[id]
-  if (auto) recordOutcome(auto.evidence, auto.conflicts, samePlace(auto.title, title))
+  if (auto) {
+    const kept = samePlace(auto.title, title)
+    recordOutcome(auto.evidence, auto.conflicts, kept)
+    if (!kept) countOutcome('autoCorrected')
+  }
   confirmName(id, title, author)
 }
 
@@ -151,4 +157,48 @@ export function trusted(c: Clue, stats: ClueStats = clueStats()): boolean {
 /** a clue that speaks against keeps the name from being saved without asking, unless it mostly proved wrong */
 export function blocks(c: Clue, stats: ClueStats = clueStats()): boolean {
   return trust(c, 'against', stats) >= 0.5
+}
+
+// ---- how well the identification does, by the user's answers
+
+/** approved: a suggestion saved in the place offered; corrected: saved in another place; declined: turned down;
+ *  autoSaved: a name saved without asking; autoCorrected: one of those the user then moved to another place */
+export type Outcome = 'approved' | 'corrected' | 'declined' | 'autoSaved' | 'autoCorrected'
+export type Outcomes = Record<Outcome, number>
+
+export function outcomes(): Outcomes {
+  return { approved: 0, corrected: 0, declined: 0, autoSaved: 0, autoCorrected: 0, ...read<Partial<Outcomes>>(OUTCOMES_KEY, {}) }
+}
+
+export function countOutcome(o: Outcome) {
+  const all = outcomes()
+  all[o]++
+  write(OUTCOMES_KEY, all)
+}
+
+/** each clue's record: how often it was right when it agreed and when it spoke against, and how much it counts now */
+export function clueReport(): { clue: Clue; agreed: Tally; against: Tally; trust: number; counts: boolean; blocks: boolean }[] {
+  const stats = clueStats()
+  const all: Clue[] = ['name', 'meta', 'copyright', 'list', 'names', 'words', 'sequel', 'catalog', 'order', 'running']
+  return all.map((c) => ({
+    clue: c,
+    agreed: stats[c]?.for ?? { right: 0, wrong: 0 },
+    against: stats[c]?.against ?? { right: 0, wrong: 0 },
+    trust: trust(c, 'for', stats),
+    counts: trusted(c, stats),
+    blocks: blocks(c, stats),
+  }))
+}
+
+/** where the library's books stand: with a series and a number, a series alone, or none; and how many the user named */
+export function coverage(books: { id: string; title: string }[]) {
+  let numbered = 0
+  let seriesOnly = 0
+  for (const b of books) {
+    const g = guessBookName(tidyBookName(b.title))
+    if (g.series && g.number) numbered++
+    else if (g.series) seriesOnly++
+  }
+  const confirmed = books.filter((b) => isConfirmed(b.id, b.title)).length
+  return { total: books.length, numbered, seriesOnly, none: books.length - numbered - seriesOnly, confirmed }
 }

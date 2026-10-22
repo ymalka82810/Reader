@@ -6,6 +6,7 @@ import { testGoogleBooksKey } from '../../lib/bookLookup'
 import type { SetSetting } from '../../hooks/useAppSettings'
 import { Select } from '../Select'
 import { Seg } from '../reader/shared'
+import { IdentifyStats } from './IdentifyStats'
 import { Row, Section, Toggle } from './parts'
 
 /** the services that receive what the user selects */
@@ -86,6 +87,7 @@ export function LanguagePage({ settings, set }: { settings: Settings; set: SetSe
           />
         )}
         <GoogleKey value={settings.googleBooksKey} onChange={(v) => set('googleBooksKey', v)} />
+        <IdentifyStats />
       </Section>
     </>
   )

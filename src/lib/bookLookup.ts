@@ -1038,6 +1038,11 @@ function facts(): Record<string, Facts> {
     return {}
   }
 }
+/** how many books' vocabulary is kept: the fingerprints' material */
+export function fingerprintBooks(): number {
+  return Object.values(facts()).filter((f) => f.words?.length).length
+}
+
 /** a book's main names: the head of its vocabulary, or the names kept before the vocabulary was */
 const namesOf = (f: Facts | undefined) => (f?.words?.length ? f.words.slice(0, 20) : (f?.names ?? []))
 
