@@ -7,7 +7,7 @@
 
 import { authorInName, guessBookName, isJunkTitle, nameFromOpening, seriesOf, tidyBookName, withoutAuthor, type BookName } from './bookName'
 import type { EpubMeta } from './bookText'
-import { copyrightYear, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, titleCase } from './bookInference'
+import { copyrightYear, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, seriesByNames, titleCase } from './bookInference'
 import { hasConsent } from './consent'
 import { bookIsbns } from './isbn'
 import { norm } from './sameBook'
@@ -702,6 +702,14 @@ export async function identifyBook(
   let fromOriginal = !!fromSeries || !!nameOnly
   if (fromSeries) base = { series: fromSeries, number: original!.number, title: isJunkTitle(base.title) ? '' : base.title }
   else if (nameOnly) base = { series: nameOnly, number: '', title: isJunkTitle(base.title) ? '' : base.title }
+  // still no series: the author's series in the library whose books share the most names with this one (its characters)
+  if (!base.series && library && b.author.trim() && meta?.names?.length) {
+    const s = await seriesOfNames(meta.names, b.author, library, signal)
+    if (s) {
+      base = { ...base, series: s, number: '' }
+      fromOriginal = true
+    }
+  }
   // a series with no number: the number the library's books of the series leave for it, by their years when need be
   if (base.series && !base.number && library) {
     const n = await numberInLibrary(base.series, copyrightYear(opening), library, signal)
@@ -878,34 +886,53 @@ async function translatedTitle(title: string, signal?: AbortSignal): Promise<str
   }
 }
 
-// the year each library book was first published, read from its copyright page once and kept on the device
-const YEARS_KEY = 'reader:copyright-years'
-function years(): Record<string, number | null> {
+// what each library book's file says of it that other books are compared with: the year it was first published (its
+// copyright page) and the names its story repeats; read once and kept on the device
+const FACTS_KEY = 'reader:book-facts'
+type Facts = { year: number | null; names: [string, number][] }
+function facts(): Record<string, Facts> {
   try {
-    return JSON.parse(localStorage.getItem(YEARS_KEY) ?? '{}') as Record<string, number | null>
+    return JSON.parse(localStorage.getItem(FACTS_KEY) ?? '{}') as Record<string, Facts>
   } catch {
     return {}
   }
 }
 
-async function yearOf(m: { id?: string; kind?: string }, signal?: AbortSignal): Promise<number | undefined> {
+async function factsOf(m: { id?: string; kind?: string }, signal?: AbortSignal): Promise<Facts | undefined> {
   if (!m.id || (m.kind !== 'epub' && m.kind !== 'pdf')) return undefined
-  const known = years()
-  if (m.id in known) return known[m.id] ?? undefined
+  const known = facts()[m.id]
+  if (known) return known
   const { bookDetails } = await import('./bookText')
-  const y = copyrightYear((await bookDetails({ id: m.id, kind: m.kind }, signal)).opening)
+  const d = await bookDetails({ id: m.id, kind: m.kind }, signal)
+  const f: Facts = { year: copyrightYear(d.opening) ?? null, names: d.meta?.names ?? [] }
   try {
-    localStorage.setItem(YEARS_KEY, JSON.stringify({ ...years(), [m.id]: y ?? null }))
+    localStorage.setItem(FACTS_KEY, JSON.stringify({ ...facts(), [m.id]: f }))
   } catch {
     /* storage unavailable */
   }
-  return y
+  return f
+}
+
+/** The author's series (in the library) that this book's names point to; its books are compared, six of each at most */
+async function seriesOfNames(names: [string, number][], author: string, library: LibraryNames, signal?: AbortSignal): Promise<string | undefined> {
+  const a = norm(author)
+  const mine = [...library.series.values()].filter(
+    (s) => s.members?.length && [...s.authors].some((x) => x === a || x.includes(a) || a.includes(x)),
+  )
+  if (!mine.length) return undefined
+  const series = await Promise.all(
+    mine.map(async (s) => ({
+      name: s.name,
+      books: (await Promise.all(s.members!.slice(0, 6).map((m) => factsOf(m, signal)))).map((f) => f?.names ?? []).filter((n) => n.length),
+    })),
+  )
+  return seriesByNames(names, series)
 }
 
 /** The number a book of this series has, from the numbers its other books in the library have and their years */
 async function numberInLibrary(series: string, year: number | undefined, library: LibraryNames, signal?: AbortSignal): Promise<number | undefined> {
   const members = library.series.get(seriesKey(series))?.members ?? []
   if (!members.length) return undefined
-  const dated = year ? await Promise.all(members.map(async (m) => ({ number: m.number, year: await yearOf(m, signal) }))) : members
+  const dated = year ? await Promise.all(members.map(async (m) => ({ number: m.number, year: (await factsOf(m, signal))?.year ?? undefined }))) : members
   return numberByGaps(dated, year)
 }

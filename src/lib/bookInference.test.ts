@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bookNumber, copyrightYear, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, soundOf, titleCase } from './bookInference'
+import { bookNumber, copyrightYear, namesIn, seriesByNames, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, soundOf, titleCase } from './bookInference'
 import { norm } from './sameBook'
 
 describe('soundOf', () => {
@@ -91,5 +91,35 @@ describe('originalSeriesName', () => {
     expect(originalSeriesName(['THE GOLDEN TOWER', 'MAGISTERIUM'], 'הולי בלק וקסנדרה קלייר', series, norm)).toBe('מגיסטריום')
     expect(originalSeriesName(['מגיסטריום', 'מגדל הזהב'], 'הולי בלק וקסנדרה קלייר', series, norm)).toBe('מגיסטריום')
     expect(originalSeriesName(['מגיסטריון חדש'], 'הולי בלק וקסנדרה קלייר', series, norm)).toBeUndefined()
+  })
+})
+
+describe('namesIn', () => {
+  it('counts the names a story repeats, with their prefixed forms, and leaves common words and the credits out', () => {
+    const lines = [
+      'קאל הלך עם ארון אל המגיסטריום והוא אמר שזה בסדר',
+      'וקאל חשב על טמרה ועל ארון כל הדרך אל החדר שלו',
+      'לקאל לא היה מה לומר לטמרה והוא שתק עוד רגע ארוך',
+      '© כל הזכויות שמורות לכנרת זמורה דביר מוציאים לאור בעמ',
+    ]
+    const names = Object.fromEntries(namesIn(lines))
+    expect(names).toMatchObject({ קאל: 3, ארון: 2, טמרה: 2 })
+    expect(names).not.toHaveProperty('אמר')
+    expect(names).not.toHaveProperty('כנרת')
+  })
+})
+
+describe('seriesByNames', () => {
+  const book: [string, number][] = ['קאל', 'ארון', 'טמרה', "ג'ספר", 'רופוס', 'קוסם'].map((w) => [w, 10])
+  it('takes the series that shares four names or more, clearly more than another', () => {
+    const magisterium = { name: 'מגיסטריום', books: [['קאל', 'ארון', 'טמרה', "ג'ספר", 'מאסטר'].map((w): [string, number] => [w, 5])] }
+    const other = { name: 'סדרה אחרת', books: [['קוסם', 'דרקון', 'מלך'].map((w): [string, number] => [w, 5])] }
+    expect(seriesByNames(book, [magisterium, other])).toBe('מגיסטריום')
+    expect(seriesByNames(book, [other])).toBeUndefined()
+  })
+  it('takes none when two series share about as many (one world, two series)', () => {
+    const a = { name: 'א', books: [['קאל', 'ארון', 'טמרה', "ג'ספר"].map((w): [string, number] => [w, 5])] }
+    const b = { name: 'ב', books: [['קאל', 'ארון', 'טמרה', 'רופוס'].map((w): [string, number] => [w, 5])] }
+    expect(seriesByNames(book, [a, b])).toBeUndefined()
   })
 })
