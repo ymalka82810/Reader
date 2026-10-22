@@ -1031,9 +1031,17 @@ async function translatedTitle(title: string, signal?: AbortSignal): Promise<str
 // device, and kept for every book the identification reads, so the fingerprints grow with the library
 const FACTS_KEY = 'reader:book-facts'
 type Facts = { year: number | null; names?: [string, number][]; words?: [string, number][] }
+// read many times for each book identified, so parsed once for as long as the stored text stays the same
+let factsRaw: string | null | undefined
+let factsParsed: Record<string, Facts> = {}
 function facts(): Record<string, Facts> {
   try {
-    return JSON.parse(localStorage.getItem(FACTS_KEY) ?? '{}') as Record<string, Facts>
+    const raw = localStorage.getItem(FACTS_KEY)
+    if (raw !== factsRaw) {
+      factsParsed = JSON.parse(raw ?? '{}') as Record<string, Facts>
+      factsRaw = raw
+    }
+    return factsParsed
   } catch {
     return {}
   }
@@ -1044,10 +1052,11 @@ export function fingerprintBooks(): number {
 }
 
 /** a book's main names: the head of its vocabulary, or the names kept before the vocabulary was */
-const namesOf = (f: Facts | undefined) => (f?.words?.length ? f.words.slice(0, 20) : (f?.names ?? []))
+const namesOf = (f: Facts | undefined) => (f?.words ? f.words.slice(0, 20) : (f?.names ?? []))
 
 function factsFrom(opening: string[], meta?: EpubMeta): Facts {
-  return { year: copyrightYear(opening) ?? null, ...(meta?.words?.length ? { words: meta.words } : { names: meta?.names ?? [] }) }
+  // `words` is kept even when empty (a scan, a book with no text of its own), so the book is not read again for it
+  return { year: copyrightYear(opening) ?? null, words: meta?.words ?? [] }
 }
 
 function keepFactsOf(id: string, f: Facts) {
@@ -1060,8 +1069,7 @@ function keepFactsOf(id: string, f: Facts) {
 
 /** keeps what a book the identification just read says of it, for the books compared with it later */
 export function keepFacts(id: string, opening: string[], meta?: EpubMeta) {
-  const known = facts()[id]
-  if (known?.words || (!meta?.words?.length && known)) return
+  if (facts()[id]?.words) return
   keepFactsOf(id, factsFrom(opening, meta))
 }
 
@@ -1090,6 +1098,8 @@ async function seriesOfWords(
   library: LibraryNames,
   self?: string,
   signal?: AbortSignal,
+  /** read the author's series' books whose vocabulary is not kept yet; without it, only what is kept is compared */
+  read = true,
 ): Promise<string | undefined> {
   const kept = facts()
   const a = norm(author)
@@ -1104,7 +1114,7 @@ async function seriesOfWords(
             s.members!
               .filter((m) => m.id !== self)
               .slice(0, 6)
-              .map((m) => (mine(s) ? factsOf(m, signal, true) : Promise.resolve(m.id ? kept[m.id] : undefined))),
+              .map((m) => (read && mine(s) ? factsOf(m, signal, true) : Promise.resolve(m.id ? kept[m.id] : undefined))),
           )
         ).map((f) => f?.words ?? []),
       })),
@@ -1253,7 +1263,8 @@ async function weigh(
   // to speak against)
   if (meta?.words?.length && library) {
     try {
-      const s = await seriesOfWords(meta.words, b.author, library, (b as { id?: string }).id, signal)
+      // only against what is kept: a confirmation is not worth reading the series' books for
+      const s = await seriesOfWords(meta.words, b.author, library, (b as { id?: string }).id, signal, false)
       if (s && sameSeries(s, r.series)) evidence.push('words')
     } catch (e) {
       if (signal?.aborted) throw e
