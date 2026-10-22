@@ -836,3 +836,17 @@ describe('identifyBook: the book before and the book after', () => {
     expect(r.evidence).toEqual(['sequel'])
   })
 })
+
+describe('identifyBook: the number the library already has', () => {
+  it('does not speak against a book with its own number, under another title', async () => {
+    const library = libraryNames([
+      { id: 'k1', title: 'קלע הכשף 1 - קֶלַע הכֶּשֶׁף', author: 'סבסטיאן דה קסטל' },
+      { id: 'k2', title: 'קלע הכשף 2 - הכישוף השני', author: 'סבסטיאן דה קסטל' },
+    ])
+    const meta = { title: '', authors: [], series: 'קלע הכשף', number: '1', identifiers: [] }
+    const mine = await identifyBook({ id: 'k1', title: 'קלע הכשף 1 - קֶלַע הכֶּשֶׁף', author: 'סבסטיאן דה קסטל', fileName: 'x.epub' } as never, false, undefined, [], meta, library)
+    expect(mine.conflicts ?? []).not.toContain('order')
+    const other = await identifyBook({ id: 'k9', title: 'ספר אחר', author: 'סבסטיאן דה קסטל', fileName: 'y.epub' } as never, false, undefined, [], meta, library)
+    expect(other.conflicts ?? []).toContain('order')
+  })
+})
