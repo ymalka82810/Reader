@@ -403,6 +403,15 @@ describe('identifyBook: Open Library and Wikidata', () => {
       }),
     }) as Response
 
+  it('finds the title of a series\' book whose title only repeats the series and its number', async () => {
+    stubCatalogs([answer()], (url) =>
+      url.includes('wikidata') ? wikidata('משפחת קיין והאלים המצריים', { series: 'משפחת קיין והאלים המצריים', title: 'הפירמידה האדומה', author: 'ריק ריירדן' }) : empty,
+    )
+    const meta = { series: 'משפחת קיין והאלים המצריים', number: '1', title: '', authors: [], identifiers: [] }
+    const r = await identifyBook({ title: 'משפחת קיין 1', author: 'ריק ריירדן', fileName: 'x.epub' }, true, undefined, [], meta)
+    expect(formatBookName(r)).toBe('משפחת קיין והאלים המצריים 1 - הפירמידה האדומה')
+  })
+
   it('reads a series and number out of Open Library\'s series field', () => {
     expect(openLibrarySeries('Percy Jackson & the Olympians ; bk. 1')).toEqual({ series: 'Percy Jackson & the Olympians', number: '1' })
     expect(openLibrarySeries('(Discworld -- 3)')).toEqual({ series: 'Discworld', number: '3' })

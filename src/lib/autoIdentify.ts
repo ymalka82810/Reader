@@ -37,9 +37,10 @@ export interface PendingName {
 // and weighs the clues, "8" asks a series by its characters to share its main ones and no more guesses the next number, "9"
 // keeps a title's own number after a joining word ("לחלום על 10") and lets a second copy of a book hold its number, "10"
 // places a book by its series' cast (not one book's characters) and numbers a series with none by its years, "11"
-// mends names broken at a joining word, places a book by the years of all its series' books and tidies the titles
-const KEY = 'reader:identify:pending11'
-const OLD_KEYS = ['pending', 'backfill', 'pending2', 'backfill2', 'pending3', 'backfill3', 'pending4', 'backfill4', 'pending5', 'backfill5', 'pending6', 'backfill6', 'pending7', 'backfill7', 'pending8', 'backfill8', 'pending9', 'backfill9', 'pending10', 'backfill10'].map(
+// mends names broken at a joining word, places a book by the years of all its series' books and tidies the titles, "12"
+// looks for the real title of a book whose title only repeats its series and number
+const KEY = 'reader:identify:pending12'
+const OLD_KEYS = ['pending', 'backfill', 'pending2', 'backfill2', 'pending3', 'backfill3', 'pending4', 'backfill4', 'pending5', 'backfill5', 'pending6', 'backfill6', 'pending7', 'backfill7', 'pending8', 'backfill8', 'pending9', 'backfill9', 'pending10', 'backfill10', 'pending11', 'backfill11'].map(
   (k) => `reader:identify:${k}`,
 )
 const listeners = new Set<() => void>()
@@ -87,7 +88,7 @@ function addPending(items: PendingName[]) {
   savePending([...loadPending().filter((p) => !ids.has(p.id)), ...items])
 }
 
-const BACKFILL = 'reader:identify:backfill11'
+const BACKFILL = 'reader:identify:backfill12'
 
 /** The books the one-time identification of the library still has to go through: all of `allIds` before it started,
  *  what is left after it was stopped, and undefined once it is done (or was cancelled). */
