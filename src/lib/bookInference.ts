@@ -21,6 +21,8 @@ export function soundOf(name: string): string {
       .replace(/ph/g, 'f')
       .replace(/ck/g, 'k')
       .replace(/c(?=[eiy])/g, 's')
+      // "tch" is written צ' ("Pratchett", "פראצט")
+      .replace(/tch/g, 's')
       .replace(/(?:sh|ch|th|tz|ts)/g, (m) => ({ sh: 's', ch: 'k', th: 't', tz: 's', ts: 's' })[m]!)
     const LA: Record<string, string> = {
       b: 'b', v: 'b', c: 'k', d: 'd', f: 'p', g: 'g', j: 'g', k: 'k', q: 'k', l: 'l', m: 'm', n: 'n', p: 'p', r: 'r',

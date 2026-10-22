@@ -5,6 +5,7 @@
 // when the books that taught it are gone.
 
 import type { SeriesList } from './bookInference'
+import { sameAuthor as bySound } from './authorName'
 import { guessBookName, tidyBookName } from './bookName'
 import { norm } from './sameBook'
 
@@ -41,10 +42,11 @@ function keep(lists: KeptList[]) {
   }
 }
 
+// one author under another spelling or script counts too ("J.K. Rowling", "ג'יי קיי רולינג")
 const sameAuthor = (x = '', y = '') => {
   const a = norm(x)
   const b = norm(y)
-  return !a || !b || a === b || a.includes(b) || b.includes(a)
+  return !a || !b || a === b || a.includes(b) || b.includes(a) || bySound(x, y)
 }
 
 /** keeps lists of a series' books, each once, with the author they were read with */

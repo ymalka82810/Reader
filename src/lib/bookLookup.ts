@@ -6,6 +6,7 @@
 // (consent 'books').
 
 import { authorInName, guessBookName, isJunkTitle, nameFromOpening, seriesOf, tidyBookName, withoutAuthor, type BookName } from './bookName'
+import { libraryAuthor } from './authorName'
 import type { EpubMeta } from './bookText'
 import { bookNumber, copyrightYear, seriesByWords, inLists, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, originalTitle, seriesByNames, soundOf, titleCase } from './bookInference'
 import { listsOf, rememberLists } from './bookKnowledge'
@@ -735,7 +736,10 @@ export async function identifyBook(
   library?: LibraryNames,
 ): Promise<Identified> {
   const r = tidyName(await findName(b, online, signal, opening, meta, library))
-  return weigh(r, b, opening, meta, library, signal)
+  const weighed = await weigh(r, b, opening, meta, library, signal)
+  // a catalog's spelling of an author the library has under another ("Rick Riordan", "ריק ריירדן")
+  const author = library && weighed.author ? libraryAuthor(weighed.author, library.authors) : undefined
+  return author ? { ...weighed, author } : weighed
 }
 
 async function findName(
@@ -748,7 +752,9 @@ async function findName(
 ): Promise<Identified> {
   // an e-mail address in the author field (a file's uploader) is no author
   // and an Anna's Archive name carries its author
-  const author = (/@/.test(b.author) ? '' : b.author.trim()) || authorInName(b.title) || authorInName(stem(b.fileName))
+  const given = (/@/.test(b.author) ? '' : b.author.trim()) || authorInName(b.title) || authorInName(stem(b.fileName))
+  // the name the library has for the same author ("J.K. Rowling" when its books are by "ג'יי קיי רולינג")
+  const author = (library && libraryAuthor(given, library.authors)) || given
   const lib = byLibrary(identifyLocally({ ...b, author }), author, library)
   b = { ...b, author: lib?.author ?? author }
   const local = lib?.name ?? identifyLocally(b)
