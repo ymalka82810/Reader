@@ -20,6 +20,7 @@ import { bookDetails } from '../lib/bookText'
 import { hasConsent, setConsent, SERVICE_HOST } from '../lib/consent'
 import { IdentifyDialog, type NameChange } from './library/IdentifyDialog'
 import { backfillLeft, dropPending, loadPending, setBackfillLeft, subscribePending, type PendingName } from '../lib/autoIdentify'
+import { confirmName, declineName, learnFromEdit, recordOutcome, samePlace } from '../lib/identifyLearning'
 import { loadSettings } from '../lib/settings'
 import { exitApp, useBackGesture } from '../hooks/useBackGesture'
 import { useConfirm } from '../hooks/useConfirm'
@@ -418,13 +419,27 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   const saveIdentified = async (changes: NameChange[], declined: string[] = []) => {
     const reviewed = identifying?.waiting
     setIdentifying(undefined)
-    if (reviewed) dropPending([...declined, ...changes.map((c) => c.id)])
+    if (reviewed) {
+      // the user's answer about each name found in the background teaches which clues were right
+      const said = new Map(changes.map((c) => [c.id, c.title]))
+      const no = new Set(declined)
+      for (const p of reviewed) {
+        const kept = said.get(p.id)
+        if (kept !== undefined) recordOutcome(p.evidence, p.conflicts, samePlace(p.title, kept))
+        else if (no.has(p.id)) {
+          recordOutcome(p.evidence, p.conflicts, false)
+          declineName(p.id, p.title)
+        }
+      }
+      dropPending([...declined, ...changes.map((c) => c.id)])
+    }
     // each book is saved on its own, so one that fails does not stop the rest
     const saved: string[] = []
     let failure: unknown
     for (const c of changes) {
       try {
         await updateMeta(c.id, c.title, c.author)
+        confirmName(c.id, c.title)
         saved.push(c.id)
       } catch (e) {
         failure = e
@@ -439,6 +454,8 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
     }
     if (saved.length) {
       showToast(t('identify.saved', { n: saved.length }), undefined, 4000)
+      // what the user approved is a clue for the books around them
+      imp.identifyAround(saved)
       const { failed } = await autoSyncPhoneNames(saved).catch(() => ({ renamed: 0, failed: 1 }))
       if (failed) errors.push(t('edit.phoneFailed'))
     }
@@ -459,9 +476,14 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
     }
     const syncPhone = editPhone && editSync
     const id = editing.id
+    const nameChanged = title !== editing.title || editAuthor.trim() !== (editing.author ?? '').trim()
+    // a name the user typed is the book's own: it judges a name saved for it by itself, and it is a clue for the books
+    // around it
+    if (nameChanged) learnFromEdit(id, title)
     editRun.current++
     setEditing(undefined)
     await refresh()
+    if (nameChanged) imp.identifyAround([id])
     if (syncPhone) {
       const { renamed, failed } = await syncPhoneNames([id]).catch(() => ({ renamed: 0, failed: 1 }))
       if (failed) setError(t('edit.phoneFailed'))

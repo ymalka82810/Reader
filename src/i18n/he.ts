@@ -205,6 +205,8 @@ export const he = {
   'identify.offlineNetwork': 'אין חיבור ל-Google Books. ממשיך לזהות מהקבצים בלבד…',
   'identify.libraryLaterQuota': { one: 'מכסת הבקשות של Google Books להיום נגמרה, ולכן ספר אחד זוהה מהקובץ בלבד. הוא ייבדק שוב בעוד כמה שעות.', other: 'מכסת הבקשות של Google Books להיום נגמרה, ולכן {n} ספרים זוהו מהקבצים בלבד. הם ייבדקו שוב בעוד כמה שעות.' },
   'identify.libraryLater': { one: 'אין חיבור ל-Google Books, ולכן ספר אחד זוהה מהקובץ בלבד. הוא ייבדק שוב בקרוב.', other: 'אין חיבור ל-Google Books, ולכן {n} ספרים זוהו מהקבצים בלבד. הם ייבדקו שוב בקרוב.' },
+  'identify.aroundProgress': 'מזהה מחדש ספרים קשורים לפי השמות שאישרת…',
+  'identify.aroundDone': 'זיהוי הספרים הקשורים: {saved} עודכנו, {pending} ממתינים לאישור.',
   'identify.libraryDone': 'זיהוי הספרייה הסתיים: {saved} ספרים עודכנו, {pending} ממתינים לאישור.',
   'identify.libraryCancelled': 'זיהוי הספרייה בוטל. מה שכבר זוהה נשמר.',
   'identify.reviewHint': 'השמות האלה נמצאו בזיהוי האוטומטי, אבל לא בוודאות. מה שמסומן יישמר, ומה שלא מסומן יורד מהרשימה.',

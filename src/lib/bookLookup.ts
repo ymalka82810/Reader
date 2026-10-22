@@ -9,6 +9,7 @@ import { authorInName, guessBookName, isJunkTitle, nameFromOpening, seriesOf, ti
 import type { EpubMeta } from './bookText'
 import { bookNumber, copyrightYear, inLists, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, originalTitle, seriesByNames, soundOf, titleCase, type SeriesList } from './bookInference'
 import { hasConsent } from './consent'
+import { blocks, clueStats, trusted } from './identifyLearning'
 import { bookIsbns } from './isbn'
 import { norm } from './sameBook'
 import { loadSettings } from './settings'
@@ -1055,7 +1056,6 @@ function listsOf(author: string): SeriesList[] {
 /** where a clue comes from: the file's or library's name, the file's package, the copyright page, a list of the series'
  *  books, the names its story shares with the series, a catalog, the numbers the library leaves free, a running head */
 export type Clue = 'name' | 'meta' | 'copyright' | 'list' | 'names' | 'catalog' | 'order' | 'running'
-const STRONG: Clue[] = ['name', 'meta', 'copyright', 'list', 'names', 'catalog']
 
 /** two titles that are one: the same words, or one the other's start ("דם האולימפוס" and "דם האולימפוס V") */
 function sameTitle(x: string, y: string): boolean {
@@ -1129,9 +1129,12 @@ async function weigh(
     if (taken) conflicts.push('order')
   }
   if (meta?.running?.some((h) => norm(h) === norm(r.title))) evidence.push('running')
-  const strong = evidence.filter((c) => STRONG.includes(c)).length
+  // how much each clue counts is what the user's answers taught (identifyLearning): before any, the strong clues count
+  // and every clue against blocks
+  const stats = clueStats()
+  const strong = evidence.filter((c) => trusted(c, stats)).length
   const out: Identified = { ...r, ...(evidence.length && { evidence }), ...(conflicts.length && { conflicts }) }
-  if (conflicts.length) delete out.sure
+  if (conflicts.some((c) => blocks(c, stats))) delete out.sure
   else if (strong >= 2) out.sure = true
   return out
 }

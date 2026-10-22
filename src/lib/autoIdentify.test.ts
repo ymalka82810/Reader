@@ -139,3 +139,50 @@ describe('the one-time identification of the library', () => {
     expect(loadPending().map((p) => p.id)).toEqual(['a'])
   })
 })
+
+describe('identifyNew: the cascade', () => {
+  const setup = () => {
+    // "ב" names its series only by a number in the middle, which the library can split once it knows the series
+    add('b', "פרסי ג'קסון 2 ים המפלצות", 'ריק ריירדן')
+    add('a', 'גנב הברק', 'ריק ריירדן')
+    details.set('a', { opening: [], meta: meta({ series: "פרסי ג'קסון", number: '1' }) })
+  }
+
+  it('identifies again the books around a saved name, with what it tells', async () => {
+    setup()
+    expect(await identifyNew(['b', 'a'], new AbortController().signal)).toEqual({ saved: 2, pending: 0 })
+    expect(books.get('b')!.title).toBe("פרסי ג'קסון 2 - ים המפלצות")
+  })
+
+  it('does not without the cascade', async () => {
+    setup()
+    expect(await identifyNew(['b', 'a'], new AbortController().signal, undefined, undefined, 0, undefined, { cascade: false })).toEqual({ saved: 1, pending: 0 })
+    expect(books.get('b')!.title).toBe("פרסי ג'קסון 2 ים המפלצות")
+  })
+
+  it("leaves a name the user gave alone, and does not offer again a name the user turned down", async () => {
+    const { confirmName, declineName } = await import('./identifyLearning')
+    add('a', 'גנב הברק', 'ריק ריירדן')
+    details.set('a', { opening: [], meta: meta({ series: "פרסי ג'קסון", number: '1' }) })
+    confirmName('a', 'גנב הברק')
+    add('c', '1~2402 3', 'ריק ריירדן')
+    details.set('c', { opening: ['ריק ריירדן', "מגנוס צ'ייס", 'ספר שלישי', 'ספינת המתים'] })
+    declineName('c', "מגנוס צ'ייס 3 - ספינת המתים")
+    expect(await identifyNew(['a', 'c'], new AbortController().signal)).toEqual({ saved: 0, pending: 0 })
+    expect(updateMeta).not.toHaveBeenCalled()
+  })
+})
+
+describe('neighbours', () => {
+  it('ranks the series first, then the author’s books with no clear name, and leaves the rest', async () => {
+    const { neighbours } = await import('./autoIdentify')
+    const all = [
+      { id: 'x', title: "פרסי ג'קסון 1 - גנב הברק", author: 'ריק ריירדן' },
+      { id: 'y', title: 'ספינת המתים', author: 'ריק ריירדן' },
+      { id: 'z', title: "פרסי ג'קסון 3 - קללת הטיטאן", author: 'ריק ריירדן' },
+      { id: 'w', title: "מגנוס צ'ייס 1 - חרב הקיץ", author: 'ריק ריירדן' },
+      { id: 'v', title: 'ספר אחר', author: 'מישהו אחר' },
+    ]
+    expect(neighbours([all[0]!], all)).toEqual(['z', 'y'])
+  })
+})

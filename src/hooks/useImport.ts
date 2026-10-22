@@ -4,7 +4,7 @@ import { rememberPhoneFile } from '../lib/phoneFiles'
 import { importFile, isAbort, isAlreadyInLibrary, DeferredDuplicate, type DuplicateChoice } from '../lib/importBook'
 import { onLaunchFiles, takeSharedFiles } from '../lib/inbox'
 import { startImportService, stopImportService, updateImportService } from '../lib/deviceBooks'
-import { identifyNew, setBackfillLeft } from '../lib/autoIdentify'
+import { identifyAround as aroundOf, identifyNew, setBackfillLeft } from '../lib/autoIdentify'
 import { loadSettings } from '../lib/settings'
 import { t } from '../i18n'
 
@@ -99,6 +99,7 @@ function enqueue(files: FileList | (File | LazyFile)[], { skipDuplicates, onEach
   current = run
   run.done = work(run).finally(() => {
     current = undefined
+    afterRun()
   })
   return run.done
 }
@@ -164,6 +165,53 @@ function identifyLibrary(ids: string[]) {
     }
   })().finally(() => {
     current = undefined
+    afterRun()
+  })
+}
+
+/** the books whose names the user gave while another run was going: the books around them are identified after it */
+const aroundLater = new Set<string>()
+
+function afterRun() {
+  if (!aroundLater.size) return
+  const ids = [...aroundLater]
+  aroundLater.clear()
+  setTimeout(() => identifyAround(ids), 0)
+}
+
+/**
+ * The user just gave these books their names: the books around them (their series, their author's books with no clear
+ * name) are identified again with what that tells, as a run of the queue in the background. Nothing shows when there
+ * are none; during another run it waits for it to end.
+ */
+function identifyAround(ids: string[]) {
+  if (!ids.length || !loadSettings().autoIdentify) return
+  if (current) {
+    for (const id of ids) aroundLater.add(id)
+    return
+  }
+  const ctrl = new AbortController()
+  const run: Run = { entries: [], ctrl, done: Promise.resolve(), processed: 0 }
+  current = run
+  run.done = (async () => {
+    const { signal } = ctrl
+    try {
+      const r = await aroundOf(ids, signal, (done, total) =>
+        setState({ running: true, identifying: true, message: t('identify.aroundProgress'), batch: { done, total }, queue: [] }),
+      )
+      if (r && (r.saved || r.pending)) handlers?.showToast?.(t('identify.aroundDone', { saved: r.saved, pending: r.pending }))
+    } catch {
+      /* cancelled: the books stay as they were */
+    }
+    setState({ running: false, identifying: false, message: undefined, batch: undefined, queue: [] })
+    await handlers?.refresh()
+    if (run.entries.length) {
+      run.ctrl = new AbortController()
+      await work(run)
+    }
+  })().finally(() => {
+    current = undefined
+    afterRun()
   })
 }
 
@@ -391,6 +439,7 @@ export function useImport(deps: Deps) {
   return {
     addFiles,
     identifyLibrary,
+    identifyAround,
     identifying: !!s.identifying,
     cancel,
     cancelOne,
