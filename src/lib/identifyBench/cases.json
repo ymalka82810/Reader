@@ -986,5 +986,63 @@
   "expect": {
    "author": "ג'ניפר ל. ארמנטרוט"
   }
+ },
+ {
+  "id": "author surname only",
+  "input": {
+   "title": "הארי פוטר וחצי הנסיך",
+   "author": "Rowling",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "author": "ג'יי קיי רולינג"
+  },
+  "library": [
+   {
+    "title": "הארי פוטר 1 - הארי פוטר ואבן החכמים",
+    "author": "ג'יי קיי רולינג"
+   }
+  ]
+ },
+ {
+  "id": "author tch as tsadi",
+  "input": {
+   "title": "עולם הדיסק 3 - פולחני כשף",
+   "author": "Terry Pratchett",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "עולם הדיסק",
+   "number": "3",
+   "title": "פולחני כשף",
+   "author": "טרי פראצט"
+  },
+  "library": [
+   {
+    "title": "עולם הדיסק 1 - הצבע של הקסם",
+    "author": "טרי פראצט"
+   },
+   {
+    "title": "עולם הדיסק 2 - האור המופלא",
+    "author": "טרי פראצט"
+   }
+  ]
+ },
+ {
+  "id": "different author not merged",
+  "input": {
+   "title": "עין העולם",
+   "author": "רוברט ג'ורדן",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "author": "רוברט ג'ורדן"
+  },
+  "library": [
+   {
+    "title": "פרסי ג'קסון 1 - גנב הברק",
+    "author": "ריק ריירדן"
+   }
+  ]
  }
 ]
