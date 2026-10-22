@@ -1,0 +1,990 @@
+[
+ {
+  "id": "template",
+  "input": {
+   "title": "פרסי ג'קסון 1 - גנב הברק",
+   "author": "ריק ריירדן",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "פרסי ג'קסון",
+   "number": "1",
+   "title": "גנב הברק",
+   "author": "ריק ריירדן"
+  }
+ },
+ {
+  "id": "series in parentheses with #",
+  "input": {
+   "title": "גנב הברק (פרסי ג'קסון #1)",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "פרסי ג'קסון",
+   "number": "1",
+   "title": "גנב הברק"
+  }
+ },
+ {
+  "id": "file name with author",
+  "input": {
+   "title": "גנב הברק",
+   "author": "ריק ריירדן",
+   "fileName": "פרסי ג'קסון 1 - גנב הברק - ריק ריירדן.epub"
+  },
+  "expect": {
+   "series": "פרסי ג'קסון",
+   "number": "1",
+   "title": "גנב הברק",
+   "author": "ריק ריירדן"
+  }
+ },
+ {
+  "id": "file name about another book",
+  "input": {
+   "title": "גנב הברק",
+   "author": "",
+   "fileName": "סדרה 2 - משהו אחר.epub"
+  },
+  "expect": {
+   "series": "",
+   "number": "",
+   "title": "גנב הברק"
+  }
+ },
+ {
+  "id": "number with words",
+  "input": {
+   "title": "הערפילאים 2 העידן הראשון - האימפריה האחרונה",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "הערפילאים",
+   "number": "2 העידן הראשון",
+   "title": "האימפריה האחרונה"
+  }
+ },
+ {
+  "id": "title with a dash of its own",
+  "input": {
+   "title": "שיר של אש ושל קרח 3 - סופת החרבות, חלק ראשון - פלדה ושלג",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "שיר של אש ושל קרח",
+   "number": "3",
+   "title": "סופת החרבות, חלק ראשון - פלדה ושלג"
+  }
+ },
+ {
+  "id": "year in title is no number",
+  "input": {
+   "title": "1984",
+   "author": "ג'ורג' אורוול",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "",
+   "number": "",
+   "title": "1984",
+   "author": "ג'ורג' אורוול"
+  }
+ },
+ {
+  "id": "year at the end of a title",
+  "input": {
+   "title": "מלחמת 1948",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "",
+   "number": "",
+   "title": "מלחמת 1948"
+  }
+ },
+ {
+  "id": "standalone",
+  "input": {
+   "title": "האגף הרביעי",
+   "author": "רבקה יארוס",
+   "fileName": "x.epub",
+   "opening": [
+    "רבקה יארוס",
+    "האגף הרביעי",
+    "\"יצירת מופת אמיתית של פנטזיה רומנטית.\" - עכשיו!",
+    "רח' אגוז 6, פארק תעשיות חמן, חבל מודיעין 7319900"
+   ]
+  },
+  "expect": {
+   "series": "",
+   "number": "",
+   "title": "האגף הרביעי",
+   "author": "רבקה יארוס"
+  }
+ },
+ {
+  "id": "publisher address PO box",
+  "input": {
+   "title": "מלכת האוויר",
+   "author": "",
+   "fileName": "x.epub",
+   "opening": [
+    "ת.ד. 163, קרית גת, 82022 ישראל"
+   ]
+  },
+  "expect": {
+   "series": "",
+   "number": "",
+   "title": "מלכת האוויר"
+  }
+ },
+ {
+  "id": "publisher address moshav",
+  "input": {
+   "title": "הבגידה בכס",
+   "author": "",
+   "fileName": "x.epub",
+   "opening": [
+    "משק 33, מושב בן־שמן, 7311500"
+   ]
+  },
+  "expect": {
+   "series": "",
+   "number": "",
+   "title": "הבגידה בכס"
+  }
+ },
+ {
+  "id": "prose on opening",
+  "input": {
+   "title": "שם קוד גחלילית",
+   "author": "",
+   "fileName": "x.epub",
+   "opening": [
+    "ג'וליה נגעה לה ביד. \"את תתגברי על זה.\" \"בטוח כמו בבית,\" היא הודיעה."
+   ]
+  },
+  "expect": {
+   "series": "",
+   "number": "",
+   "title": "שם קוד גחלילית"
+  }
+ },
+ {
+  "id": "first book in the series X",
+  "input": {
+   "title": "הסירנה",
+   "author": "טיפאני רייז",
+   "fileName": "x.epub",
+   "opening": [
+    "טיפאני רייז",
+    "הסירנה",
+    "הספר הראשון בסדרת החוטאים המקוריים"
+   ]
+  },
+  "expect": {
+   "series": "החוטאים המקוריים",
+   "number": "1",
+   "title": "הסירנה",
+   "author": "טיפאני רייז"
+  }
+ },
+ {
+  "id": "book 1 in series \"X\"",
+  "input": {
+   "title": "קסם אמצע החיים: מהומה",
+   "author": "",
+   "fileName": "x.epub",
+   "opening": [
+    "מהומה",
+    "ספר 1 בסדרת \"השלב הבא\""
+   ]
+  },
+  "expect": {
+   "series": "השלב הבא",
+   "number": "1",
+   "title": "מהומה"
+  }
+ },
+ {
+  "id": "bestselling series",
+  "input": {
+   "title": "היורשת",
+   "author": "קיארה קאס",
+   "fileName": "x.pdf",
+   "opening": [
+    "היורשת",
+    "קיארה קאס",
+    "ספר רביעי בסדרת רבי־המכר המועמדת"
+   ]
+  },
+  "expect": {
+   "series": "המועמדת",
+   "number": "4",
+   "title": "היורשת",
+   "author": "קיארה קאס"
+  }
+ },
+ {
+  "id": "series, ordinal and title on separate lines",
+  "input": {
+   "title": "משחקים מעוותים",
+   "author": "אנה האנג",
+   "fileName": "x.epub",
+   "opening": [
+    "אנה האנג",
+    "טוויסט",
+    "ספר שני",
+    "משחקים מעוותים |"
+   ]
+  },
+  "expect": {
+   "series": "טוויסט",
+   "number": "2",
+   "title": "משחקים מעוותים",
+   "author": "אנה האנג"
+  }
+ },
+ {
+  "id": "junk file name, title page",
+  "input": {
+   "title": "1~2402 3",
+   "author": "ריק ריירדן",
+   "fileName": "עותק של 1~2402 3.pdf",
+   "opening": [
+    "ריק ריירדן",
+    "מגנוס צ'ייס",
+    "ספר שלישי",
+    "ספינת המתים"
+   ]
+  },
+  "expect": {
+   "series": "מגנוס צ'ייס",
+   "number": "3",
+   "title": "ספינת המתים",
+   "author": "ריק ריירדן"
+  }
+ },
+ {
+  "id": "junk file name, title only",
+  "input": {
+   "title": "1~2402 1",
+   "author": "",
+   "fileName": "1~2402 1.epub",
+   "meta": {
+    "title": "בית האדם",
+    "authors": [],
+    "series": "",
+    "number": "",
+    "identifiers": []
+   }
+  },
+  "expect": {
+   "series": "",
+   "number": "",
+   "title": "בית האדם"
+  }
+ },
+ {
+  "id": "Anna's Archive",
+  "input": {
+   "title": "רוצח מלכותי -- רובין הוב -- הרואים למרחק, 2 -- 1998 -- אסטרולוג -- eff1636bf56d9b30d5e9c7efff6781de -- Anna’s Archive",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "הרואים למרחק",
+   "number": "2",
+   "title": "רוצח מלכותי",
+   "author": "רובין הוב"
+  }
+ },
+ {
+  "id": "Anna's Archive, dot after number",
+  "input": {
+   "title": "רוצח מלכותי -- רובין הוב -- הרואים למרחק,2. -- 1998 -- אסטרולוג -- eff1636bf56d9b30d5e9c7efff6781de -- Anna’s Archive",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "הרואים למרחק",
+   "number": "2",
+   "title": "רוצח מלכותי",
+   "author": "רובין הוב"
+  }
+ },
+ {
+  "id": "Anna's Archive, long dashes",
+  "input": {
+   "title": "רוצח מלכותי — רובין הוב — הרואים למרחק, 2 — 1998 — אסטרולוג — eff1636bf56d9b30d5e9c7efff6781de — Anna’s Archive",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "הרואים למרחק",
+   "number": "2",
+   "title": "רוצח מלכותי",
+   "author": "רובין הוב"
+  }
+ },
+ {
+  "id": "underscores and # with author",
+  "input": {
+   "title": "קלע_הכשף_#5_קוטל_המלכה_סבסטיאן_דה_קסטל",
+   "author": "סבסטיאן דה קסטל",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "קלע הכשף",
+   "number": "5",
+   "title": "קוטל המלכה"
+  }
+ },
+ {
+  "id": "underscores, author pair with &",
+  "input": {
+   "title": "מגיסטריום_#3_מפתח_הארד_הולי_בלק_&_קסנדרה_קלייר",
+   "author": "הולי בלק וקסנדרה קלייר",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "מגיסטריום",
+   "number": "3",
+   "title": "מפתח הארד"
+  }
+ },
+ {
+  "id": "Z-Library marks and date stamp",
+  "input": {
+   "title": "המלך דוד (שרון חיון גינת) (Z-Library) 1_241026_195826 (1)",
+   "author": "שרון חיון גינת",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "",
+   "number": "",
+   "title": "המלך דוד"
+  }
+ },
+ {
+  "id": "copy of copy",
+  "input": {
+   "title": "עותק של עותק של אבן החכמים",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "",
+   "number": "",
+   "title": "אבן החכמים"
+  }
+ },
+ {
+  "id": "uploader credit",
+  "input": {
+   "title": "נמסיס",
+   "author": "גרג הורביץ",
+   "fileName": "פרויקט איקס 2 - נמסיס - הועלה על ידי קישקע נייעס.epub"
+  },
+  "expect": {
+   "series": "פרויקט איקס",
+   "number": "2",
+   "title": "נמסיס"
+  }
+ },
+ {
+  "id": "e-mail as author",
+  "input": {
+   "title": "לורה - קורא בטא (8)",
+   "author": "rozushka769@gmail.com",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "",
+   "number": "",
+   "title": "לורה - קורא בטא",
+   "author": ""
+  }
+ },
+ {
+  "id": "english template",
+  "input": {
+   "title": "Percy Jackson 1 - The Lightning Thief",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "Percy Jackson",
+   "number": "1",
+   "title": "The Lightning Thief"
+  }
+ },
+ {
+  "id": "english series in parentheses",
+  "input": {
+   "title": "The Way of Kings (The Stormlight Archive, #1)",
+   "author": "Brandon Sanderson",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "The Stormlight Archive",
+   "number": "1",
+   "title": "The Way of Kings"
+  }
+ },
+ {
+  "id": "english series book N",
+  "input": {
+   "title": "Mistborn Book 2 - The Well of Ascension",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "Mistborn",
+   "number": "2",
+   "title": "The Well of Ascension"
+  }
+ },
+ {
+  "id": "series in package",
+  "input": {
+   "title": "גנב הברק",
+   "author": "ריק ריירדן",
+   "fileName": "x.epub",
+   "meta": {
+    "title": "",
+    "authors": [],
+    "series": "פרסי ג'קסון",
+    "number": "1",
+    "identifiers": []
+   }
+  },
+  "expect": {
+   "series": "פרסי ג'קסון",
+   "number": "1",
+   "title": "גנב הברק"
+  }
+ },
+ {
+  "id": "package series ignored when name has one",
+  "input": {
+   "title": "סדרה 2 - שם",
+   "author": "",
+   "fileName": "x.epub",
+   "meta": {
+    "title": "",
+    "authors": [],
+    "series": "אחרת",
+    "number": "5",
+    "identifiers": []
+   }
+  },
+  "expect": {
+   "series": "סדרה",
+   "number": "2",
+   "title": "שם"
+  }
+ },
+ {
+  "id": "split at a known series, author out",
+  "input": {
+   "title": "שיר_של_אש_ושל_קרח_1_משחקי_הכס_ג'ורג'_ר_ר_מרטין",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "שיר של אש ושל קרח",
+   "number": "1",
+   "title": "משחקי הכס",
+   "author": "ג'ורג' ר ר מרטין"
+  },
+  "library": [
+   {
+    "title": "שיר של אש ושל קרח 3 - סופת החרבות",
+    "author": "ג'ורג' ר ר מרטין"
+   },
+   {
+    "title": "המועמדת 2 - העילית",
+    "author": "קיארה קאס"
+   }
+  ]
+ },
+ {
+  "id": "known author out of name",
+  "input": {
+   "title": "המועמדת 1 קיארה קאס",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "",
+   "number": "",
+   "title": "המועמדת 1",
+   "author": "קיארה קאס"
+  },
+  "library": [
+   {
+    "title": "שיר של אש ושל קרח 3 - סופת החרבות",
+    "author": "ג'ורג' ר ר מרטין"
+   },
+   {
+    "title": "המועמדת 2 - העילית",
+    "author": "קיארה קאס"
+   }
+  ]
+ },
+ {
+  "id": "unknown series stays whole",
+  "input": {
+   "title": "הארי פוטר 1 ואבן החכמים",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "",
+   "number": "",
+   "title": "הארי פוטר 1 ואבן החכמים"
+  },
+  "library": [
+   {
+    "title": "שיר של אש ושל קרח 3 - סופת החרבות",
+    "author": "ג'ורג' ר ר מרטין"
+   },
+   {
+    "title": "המועמדת 2 - העילית",
+    "author": "קיארה קאס"
+   }
+  ]
+ },
+ {
+  "id": "library spelling of series",
+  "input": {
+   "title": "נמסיס",
+   "author": "גרג הורביץ",
+   "fileName": "פרויקט איקס 2 - נמסיס.epub"
+  },
+  "expect": {
+   "series": "פרויקט X",
+   "number": "2",
+   "title": "נמסיס"
+  },
+  "library": [
+   {
+    "title": "פרויקט X #01 - פרויקט X",
+    "author": "גרג הורביץ"
+   },
+   {
+    "title": "פרויקט X #03 - קליע מהעבר",
+    "author": "גרג הורביץ"
+   },
+   {
+    "title": "הצבע של הקסם עולם הדיסק 1",
+    "author": "טרי פראצט"
+   },
+   {
+    "title": "מורט עולם הדיסק 2",
+    "author": "טרי פראצט"
+   },
+   {
+    "title": "אחת שהיא טובה (הולי ג'קסון)",
+    "author": "הולי ג'קסון"
+   }
+  ]
+ },
+ {
+  "id": "series at the end, author both languages",
+  "input": {
+   "title": "פולחני כשף עולם הדיסק 3 (Equal Rites) (טרי פראצט; Terry Pratchett) (z-library.sk, 1lib.sk, z-lib.sk)",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "עולם הדיסק",
+   "number": "3",
+   "title": "פולחני כשף",
+   "author": "טרי פראצט"
+  },
+  "library": [
+   {
+    "title": "פרויקט X #01 - פרויקט X",
+    "author": "גרג הורביץ"
+   },
+   {
+    "title": "פרויקט X #03 - קליע מהעבר",
+    "author": "גרג הורביץ"
+   },
+   {
+    "title": "הצבע של הקסם עולם הדיסק 1",
+    "author": "טרי פראצט"
+   },
+   {
+    "title": "מורט עולם הדיסק 2",
+    "author": "טרי פראצט"
+   },
+   {
+    "title": "אחת שהיא טובה (הולי ג'קסון)",
+    "author": "הולי ג'קסון"
+   }
+  ]
+ },
+ {
+  "id": "author in parentheses before series",
+  "input": {
+   "title": "תרועת מוות (טרי פראצט) עולם הדיסק 4",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "עולם הדיסק",
+   "number": "4",
+   "title": "תרועת מוות"
+  },
+  "library": [
+   {
+    "title": "פרויקט X #01 - פרויקט X",
+    "author": "גרג הורביץ"
+   },
+   {
+    "title": "פרויקט X #03 - קליע מהעבר",
+    "author": "גרג הורביץ"
+   },
+   {
+    "title": "הצבע של הקסם עולם הדיסק 1",
+    "author": "טרי פראצט"
+   },
+   {
+    "title": "מורט עולם הדיסק 2",
+    "author": "טרי פראצט"
+   },
+   {
+    "title": "אחת שהיא טובה (הולי ג'קסון)",
+    "author": "הולי ג'קסון"
+   }
+  ]
+ },
+ {
+  "id": "author without geresh",
+  "input": {
+   "title": "סיכוי טוב למות (As Good As Dead) (הולי גקסון) (1)",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "",
+   "number": "",
+   "title": "סיכוי טוב למות",
+   "author": "הולי ג'קסון"
+  },
+  "library": [
+   {
+    "title": "פרויקט X #01 - פרויקט X",
+    "author": "גרג הורביץ"
+   },
+   {
+    "title": "פרויקט X #03 - קליע מהעבר",
+    "author": "גרג הורביץ"
+   },
+   {
+    "title": "הצבע של הקסם עולם הדיסק 1",
+    "author": "טרי פראצט"
+   },
+   {
+    "title": "מורט עולם הדיסק 2",
+    "author": "טרי פראצט"
+   },
+   {
+    "title": "אחת שהיא טובה (הולי ג'קסון)",
+    "author": "הולי ג'קסון"
+   }
+  ]
+ },
+ {
+  "id": "original series on copyright page",
+  "input": {
+   "title": "1~___#5_",
+   "author": "הולי בלק וקסנדרה קלייר",
+   "fileName": "__5____1.pdf",
+   "opening": [
+    "Holly Black and Cassandra Clare",
+    "THE GOLDEN TOWER",
+    "MAGISTERIUM V",
+    "Copyright © 2018 by Holly Black and Cassandra Clare LLC",
+    "כל הזכויות שמורות"
+   ]
+  },
+  "expect": {
+   "series": "מגיסטריום",
+   "number": "5",
+   "title": ""
+  },
+  "library": [
+   {
+    "title": "מגיסטריום 1 - מבחן הברזל",
+    "author": "הולי בלק וקסנדרה קלייר"
+   },
+   {
+    "title": "מגיסטריום 4 - מסכת הכסף",
+    "author": "הולי בלק וקסנדרה קלייר"
+   }
+  ]
+ },
+ {
+  "id": "running head gives title",
+  "input": {
+   "title": "1~___#5_",
+   "author": "הולי בלק וקסנדרה קלייר",
+   "fileName": "__5____1.pdf",
+   "opening": [
+    "Holly Black and Cassandra Clare",
+    "THE GOLDEN TOWER",
+    "MAGISTERIUM V",
+    "Copyright © 2018 by Holly Black and Cassandra Clare LLC",
+    "כל הזכויות שמורות"
+   ],
+   "meta": {
+    "title": "",
+    "authors": [],
+    "series": "",
+    "number": "",
+    "identifiers": [],
+    "running": [
+     "הולי בלק וקסנדרה קלייר",
+     "מגדל הזהב"
+    ]
+   }
+  },
+  "expect": {
+   "series": "מגיסטריום",
+   "number": "5",
+   "title": "מגדל הזהב"
+  },
+  "library": [
+   {
+    "title": "מגיסטריום 1 - מבחן הברזל",
+    "author": "הולי בלק וקסנדרה קלייר"
+   },
+   {
+    "title": "מגיסטריום 4 - מסכת הכסף",
+    "author": "הולי בלק וקסנדרה קלייר"
+   }
+  ]
+ },
+ {
+  "id": "printed list names the title",
+  "input": {
+   "title": "ים המפלצות",
+   "author": "ריק ריירדן",
+   "fileName": "x.epub",
+   "meta": {
+    "title": "",
+    "authors": [],
+    "series": "",
+    "number": "",
+    "identifiers": [],
+    "lists": [
+     {
+      "series": "פרסי ג'קסון",
+      "books": [
+       {
+        "number": "1",
+        "title": "גנב הברק"
+       },
+       {
+        "number": "2",
+        "title": "ים המפלצות"
+       },
+       {
+        "number": "3",
+        "title": "קללת הטיטאן"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "series": "פרסי ג'קסון",
+   "number": "2",
+   "title": "ים המפלצות"
+  }
+ },
+ {
+  "id": "author in English, library has Hebrew",
+  "input": {
+   "title": "הארי פוטר ואסיר מאזקבאן",
+   "author": "J.K. Rowling",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "author": "ג'יי קיי רולינג"
+  },
+  "library": [
+   {
+    "title": "הארי פוטר 1 - הארי פוטר ואבן החכמים",
+    "author": "ג'יי קיי רולינג"
+   },
+   {
+    "title": "הארי פוטר 2 - הארי פוטר וחדר הסודות",
+    "author": "ג'יי קיי רולינג"
+   }
+  ]
+ },
+ {
+  "id": "author with initials and dots",
+  "input": {
+   "title": "הארי פוטר וגביע האש",
+   "author": "ג'. ק. רולינג",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "author": "ג'יי קיי רולינג"
+  },
+  "library": [
+   {
+    "title": "הארי פוטר 1 - הארי פוטר ואבן החכמים",
+    "author": "ג'יי קיי רולינג"
+   },
+   {
+    "title": "הארי פוטר 2 - הארי פוטר וחדר הסודות",
+    "author": "ג'יי קיי רולינג"
+   }
+  ]
+ },
+ {
+  "id": "author last name first",
+  "input": {
+   "title": "הארי פוטר ומסדר עוף החול",
+   "author": "רולינג, ג'יי קיי",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "author": "ג'יי קיי רולינג"
+  },
+  "library": [
+   {
+    "title": "הארי פוטר 1 - הארי פוטר ואבן החכמים",
+    "author": "ג'יי קיי רולינג"
+   },
+   {
+    "title": "הארי פוטר 2 - הארי פוטר וחדר הסודות",
+    "author": "ג'יי קיי רולינג"
+   }
+  ]
+ },
+ {
+  "id": "series dash number dash title",
+  "input": {
+   "title": "עולם הדיסק - 5 - קוסמות",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "עולם הדיסק",
+   "number": "5",
+   "title": "קוסמות"
+  }
+ },
+ {
+  "id": "number before series word \"ספר\"",
+  "input": {
+   "title": "ספר 3 - קללת הטיטאן",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "",
+   "number": "3",
+   "title": "קללת הטיטאן"
+  }
+ },
+ {
+  "id": "hebrew letter number",
+  "input": {
+   "title": "פרסי ג'קסון ג' - קללת הטיטאן",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "פרסי ג'קסון",
+   "number": "3",
+   "title": "קללת הטיטאן"
+  }
+ },
+ {
+  "id": "series in brackets",
+  "input": {
+   "title": "קללת הטיטאן [פרסי ג'קסון 3]",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "פרסי ג'קסון",
+   "number": "3",
+   "title": "קללת הטיטאן"
+  }
+ },
+ {
+  "id": "volume word",
+  "input": {
+   "title": "הצל של הרוח כרך 2",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "number": "2"
+  }
+ },
+ {
+  "id": "english vol",
+  "input": {
+   "title": "Wheel of Time Vol. 4 - The Shadow Rising",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "Wheel of Time",
+   "number": "4",
+   "title": "The Shadow Rising"
+  }
+ },
+ {
+  "id": "title page with \"ספר שני בסדרה\"",
+  "input": {
+   "title": "xyz123",
+   "author": "ג'ניפר ל. ארמנטרוט",
+   "fileName": "xyz123.pdf",
+   "opening": [
+    "ג'ניפר ל. ארמנטרוט",
+    "ממלכה של בשר ואש",
+    "ספר שני בסדרה הדם והאפר",
+    "תרגום: מיכל אלפרוביץ"
+   ]
+  },
+  "expect": {
+   "series": "הדם והאפר",
+   "number": "2",
+   "title": "ממלכה של בשר ואש",
+   "author": "ג'ניפר ל. ארמנטרוט"
+  }
+ },
+ {
+  "id": "translator not author",
+  "input": {
+   "title": "ממלכה של בשר ואש",
+   "author": "",
+   "fileName": "x.epub",
+   "opening": [
+    "ג'ניפר ל. ארמנטרוט",
+    "ממלכה של בשר ואש",
+    "מאנגלית: מיכל אלפרוביץ"
+   ]
+  },
+  "expect": {
+   "author": "ג'ניפר ל. ארמנטרוט"
+  }
+ }
+]
