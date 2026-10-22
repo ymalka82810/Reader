@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bookNumber, copyrightYear, inLists, namesIn, seriesByNames, seriesLists, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, soundOf, titleCase } from './bookInference'
+import { bookNumber, copyrightYear, inLists, namesIn, originalTitle, seriesByNames, seriesLists, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, soundOf, titleCase } from './bookInference'
 import { norm } from './sameBook'
 
 describe('soundOf', () => {
@@ -172,5 +172,37 @@ describe('tuning from a real library', () => {
   })
   it('cuts what a list heading adds after a dash off the series\' name', () => {
     expect(seriesLists(['סדרת התנגשות — מארז פשע חושני:', '1. התמכרות', '2. התלקחות'])[0]!.series).toBe('התנגשות')
+  })
+})
+
+describe('a series\' characters', () => {
+  const n = (ws: string[]): [string, number][] => ws.map((w, i) => [w, 100 - i])
+  const percy = { name: "פרסי ג'קסון", books: [n(['פרסי', "אנבת'", 'גרובר', 'לוק', 'חירון']), n(['פרסי', "אנבת'", 'טייסון', 'גרובר', 'לוק'])] }
+  const apollo = { name: 'גורלו של אפולו', books: [n(['לסטר', 'מג', 'אפולו', 'פרסי', 'ליאו']), n(['לסטר', 'מג', 'אפולו', 'ליאו', 'קליפסו'])] }
+  it('places a book whose guest is another series\' hero in its own series', () => {
+    // Apollo's book with Percy as a guest: Percy is in Percy's cast, Lester and Meg only in Apollo's
+    expect(seriesByNames(n(['לסטר', 'פרסי', 'מג', 'אפולו', "אנבת'"]), [percy, apollo])).toBe('גורלו של אפולו')
+  })
+  it('takes a series\' cast, not one book\'s hero', () => {
+    // a hero of one Percy book only ("טייסון") is not Percy's cast
+    expect(seriesByNames(n(['טייסון', 'זאוס', 'הרה', 'דיוניסוס']), [percy, apollo])).toBeUndefined()
+  })
+})
+
+describe('originalTitle', () => {
+  it('reads the original title over the copyright notice', () => {
+    expect(originalTitle(['Holly Black and Cassandra Clare', 'THE GOLDEN TOWER', 'MAGISTERIUM V', 'Copyright © 2018 by Holly Black'])).toBe('THE GOLDEN TOWER')
+    expect(originalTitle(['GREGG HURWITZ', 'THE NOWHERE MAN', 'Copyright © 2017 by Gregg Hurwitz'])).toBe('THE NOWHERE MAN')
+    expect(originalTitle(['כל הזכויות שמורות', '© 2015 כנרת'])).toBeUndefined()
+  })
+})
+
+describe('numberByGaps with no numbers yet', () => {
+  it('orders a series\' unnumbered books by their years', () => {
+    const books = [{ number: 0, year: 2016 }, { number: 0, year: 2018 }, { number: 0, year: 2019 }]
+    expect(numberByGaps(books, 2017)).toBe(2)
+    expect(numberByGaps(books, 2015)).toBe(1)
+    expect(numberByGaps([...books, { number: 0 }], 2017)).toBeUndefined() // one with no year
+    expect(numberByGaps(books, 2018)).toBeUndefined() // a year two books share
   })
 })

@@ -138,6 +138,13 @@ export function originalSeriesName(
  *  after the others comes after them. Undefined without the book's year, or when the years do not decide it. */
 export function numberByGaps(members: { number: number; year?: number }[], year?: number): number | undefined {
   if (!members.length) return undefined
+  // books of the series the library has with no number at all ("פרויקט X - הבן האובד"): the order of their years is the
+  // order of the series, when every one of them has a year and none shares this book's
+  if (members.every((m) => !m.number)) {
+    if (!year || members.some((m) => m.year === undefined || m.year === year)) return undefined
+    return 1 + members.filter((m) => m.year! < year).length
+  }
+  members = members.filter((m) => m.number)
   const have = new Set(members.map((m) => m.number))
   const max = Math.max(...have)
   const gaps: number[] = []
@@ -200,27 +207,56 @@ export function namesIn(lines: string[]): [string, number][] {
     .slice(0, 20)
 }
 
-/** The series whose books share this one's main characters (two of its four most said names at least, among theirs)
- *  and four names in all, clearly more than any other series (half as many again), so two series of one world (Percy
- *  Jackson's and its sequel's) are not mixed up, and an author's books that share only her style are not a series. */
+/** The series this book's characters belong to. Characters are a series' and not a single book's: a series' cast is
+ *  the names most of its books have among their main ones, so the hero of one book of it, or a guest from another series,
+ *  is not in it. A character in the cast of several series (Percy Jackson, a guest in Apollo's) counts the less, the more
+ *  series have it. The series is the one whose cast has two of this book's four main characters at least, and clearly
+ *  more of its characters than any other series (half as much again); an author's books that share only her style, and
+ *  two series of one world that share their cast, give none. */
 export function seriesByNames(book: [string, number][], series: { name: string; books: [string, number][][] }[]): string | undefined {
-  const mine = new Set(book.map(([w]) => w))
-  // the main characters: the names a book says most. Books of one author share words of her style, not her heroes
-  const core = new Set(book.slice(0, CORE).map(([w]) => w))
-  const scored = series
-    .map((s) => {
-      const theirs = new Set(s.books.flatMap((b) => b.map(([w]) => w)))
-      const theirCore = new Set(s.books.flatMap((b) => b.slice(0, CORE).map(([w]) => w)))
-      return { name: s.name, shared: [...mine].filter((w) => theirs.has(w)).length, heroes: [...core].filter((w) => theirCore.has(w)).length }
+  const casts = series.map((s) => {
+    const counts = new Map<string, number>()
+    for (const b of s.books) for (const [w] of b.slice(0, CAST)) counts.set(w, (counts.get(w) ?? 0) + 1)
+    const need = Math.max(1, Math.ceil(s.books.length / 2))
+    return { name: s.name, cast: new Set([...counts].filter(([, n]) => n >= need).map(([w]) => w)) }
+  })
+  const inSeries = new Map<string, number>()
+  for (const c of casts) for (const w of c.cast) inSeries.set(w, (inSeries.get(w) ?? 0) + 1)
+  const scored = casts
+    .map((c) => {
+      let score = 0
+      let heroes = 0
+      book.slice(0, CAST).forEach(([w], i) => {
+        if (!c.cast.has(w)) return
+        const weight = 1 / inSeries.get(w)!
+        score += i < CORE ? 2 * weight : weight
+        if (i < CORE) heroes++
+      })
+      return { name: c.name, score, heroes }
     })
-    .sort((x, y) => y.heroes - x.heroes || y.shared - x.shared)
+    .sort((x, y) => y.score - x.score)
   const [best, next] = scored
-  if (!best || best.shared < 4 || best.heroes < 2) return undefined
-  return !next || (best.heroes >= next.heroes * 1.5 && best.shared >= next.shared) ? best.name : undefined
+  if (!best || best.heroes < 2 || best.score < 4) return undefined
+  return !next || best.score >= next.score * 1.5 ? best.name : undefined
 }
 
-/** how many of a book's most said names are its main characters */
+/** how many of a book's most said names are its main characters, and how many make a series' cast */
 const CORE = 4
+const CAST = 10
+
+/** The original title on a translation's copyright page: the line in Latin letters over its copyright notice that is
+ *  neither the authors ("Holly Black and Cassandra Clare") nor the series' line ("MAGISTERIUM V") */
+export function originalTitle(opening: string[]): string | undefined {
+  const lines = opening.map(bare)
+  const at = lines.findIndex((l) => /copyright|©/i.test(l) && !/[\u0590-\u05FF]/u.test(l) && !/hebrew/i.test(l))
+  if (at < 1) return undefined
+  for (let i = at - 1; i >= Math.max(0, at - 4); i--) {
+    const l = lines[i]!
+    if (!latinOnly(l) || BYLINE.test(l) || SERIES_LINE.test(l) || !/[A-Za-z]{3}/.test(l) || /^(?:a novel|novel|original title)/i.test(l)) continue
+    return l
+  }
+  return undefined
+}
 
 /** a list of a series' books as a book prints it (\"ספרים נוספים בסדרה\", \"סדרת כס הזכוכית:\"), each title with its number */
 export interface SeriesList {
