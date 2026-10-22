@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { asLibrarySeries, clearBooksCache, identifyBook, identifyLocally, libraryNames, lookupOnline, openLibrarySeries, withoutSeries } from './bookLookup'
+import { asLibrarySeries, clearBooksCache, tidyName, identifyBook, identifyLocally, libraryNames, lookupOnline, openLibrarySeries, withoutSeries } from './bookLookup'
 import { formatBookName, splitBookName } from './bookName'
 import { setConsent } from './consent'
 
@@ -702,5 +702,20 @@ describe('asLibrarySeries / withoutSeries', () => {
     const r = await identifyBook({ title: 'הבן האובד', author: 'גרג הורביץ', fileName: 'x.epub' }, true, undefined, opening, meta, library)
     expect(formatBookName(r).replace(/\u200f/g, '')).toBe('פרויקט X 2 - הבן האובד')
     expect(r.sites).toEqual(['Wikidata'])
+  })
+
+  it('mends a name an earlier version broke at a joining word, and learns no series from it', async () => {
+    expect(identifyLocally({ title: 'על 10 - לחלום', author: '', fileName: 'x.epub' })).toEqual({ series: '', number: '', title: 'לחלום על 10' })
+    const lib = libraryNames([{ title: 'על 9 - לרקוד', author: 'קלואי וולש' }])
+    expect([...lib.series.values()].map((s) => s.name)).toEqual([])
+  })
+
+  it('leaves a series\' book no title that only repeats its place', () => {
+    const n = (series: string, number: string, title: string) => tidyName({ series, number, title })
+    expect(n('משפחת קיין והאלים המצריים', '1', 'משפחת קיין 1').title).toBe('')
+    expect(n('גיבורי האולימפוס', '5', 'דם האולימפוס V').title).toBe('דם האולימפוס')
+    expect(n('שומרת הערים האבודות', '8', '8 1~2403').title).toBe('')
+    expect(n('הארי פוטר', '1', 'הארי פוטר ואבן החכמים').title).toBe('הארי פוטר ואבן החכמים')
+    expect(n('הבחורים של טומן', '10', 'לחלום על 10').title).toBe('לחלום על 10')
   })
 })

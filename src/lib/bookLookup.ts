@@ -7,7 +7,7 @@
 
 import { authorInName, guessBookName, isJunkTitle, nameFromOpening, seriesOf, tidyBookName, withoutAuthor, type BookName } from './bookName'
 import type { EpubMeta } from './bookText'
-import { copyrightYear, inLists, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, originalTitle, seriesByNames, soundOf, titleCase, type SeriesList } from './bookInference'
+import { bookNumber, copyrightYear, inLists, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, originalTitle, seriesByNames, soundOf, titleCase, type SeriesList } from './bookInference'
 import { hasConsent } from './consent'
 import { bookIsbns } from './isbn'
 import { norm } from './sameBook'
@@ -52,7 +52,7 @@ const stem = (fileName: string) => fileName.replace(/\.[^.]+$/, '')
 export function identifyLocally(b: { title: string; author: string; fileName: string }): BookName {
   // the author's name is taken off both sides of the cleaning: before it, where a dash sets it apart, and after it, where
   // underscores ran it on to the end ("קלע_הכשף_#5_קוטל_המלכה_סבסטיאן_דה_קסטל")
-  const tidy = (name: string) => guessBookName(withoutAuthor(tidyBookName(withoutAuthor(name, b.author)), b.author))
+  const tidy = (name: string) => unjoined(guessBookName(withoutAuthor(tidyBookName(withoutAuthor(name, b.author)), b.author)))
   const fromTitle = tidy(b.title)
   if (fromTitle.series) return fromTitle
   const fromFile = tidy(stem(b.fileName))
@@ -514,7 +514,7 @@ export function libraryNames(books: { title: string; author?: string; id?: strin
     const a = (b.author ?? '').trim()
     if (a && !/@/.test(a)) authors.add(a)
     // as the identification reads it, so "פרויקט X #01 - פרויקט X" counts before it is renamed
-    const guess = guessBookName(tidyBookName(b.title))
+    const guess = unjoined(guessBookName(tidyBookName(b.title)))
     const name = guess.series
     const key = name && seriesKey(name)
     if (!key) continue
@@ -568,6 +568,12 @@ const MIDDLE = /^(.+?)\s+#?(\d{1,3})\s+(.+)$/u
  * קרח 1 משחקי הכס" when the library has "שיר של אש ושל קרח 3 - סופת החרבות"). Sure when that series is the same
  * author's. Undefined when the library tells nothing new.
  */
+/** A name whose series is a joining word ("על 10 - לחלום", saved by a mistake of an earlier version) is the title it was
+ *  made of: "לחלום על 10" */
+function unjoined(n: BookName): BookName {
+  return n.series && joining(n.series) ? { series: '', number: '', title: [n.title, n.series, n.number].filter(Boolean).join(' ') } : n
+}
+
 /** A word that only joins a title to the number it ends with ("לחלום על 10", "לשחרר את 10", "Dreaming of 10"): the
  *  number is the title's own, and the word names no series. Compared without marks or punctuation. */
 function joining(name: string): boolean {
@@ -686,7 +692,7 @@ export async function identifyBook(
   /** the library's series and authors (libraryNames), which split a name that has no dash */
   library?: LibraryNames,
 ): Promise<Identified> {
-  const r = await findName(b, online, signal, opening, meta, library)
+  const r = tidyName(await findName(b, online, signal, opening, meta, library))
   return weigh(r, b, opening, meta, library, signal)
 }
 
@@ -1145,4 +1151,28 @@ async function originalNumber(title: string, holder: string, signal?: AbortSigna
     console.warn(e)
     return undefined
   }
+}
+
+/** A series' book whose title says nothing more than its place: a title that is junk ("8 1~2403") or the series and the
+ *  number again ("משפחת קיין 1" as "משפחת קיין והאלים המצריים 1") is none, and a number the title ends with that is the
+ *  book's own number ("דם האולימפוס V" as book 5) is left out of it, unless a joining word ties it to the title. */
+export function tidyName<T extends BookName>(r: T): T {
+  if (!r.series || !r.number) return r
+  let title = r.title.trim()
+  const end = /^(.*?)\s+([IVXLivxl]{1,6}|\d{1,3})$/u.exec(title)
+  if (end && bookNumber(end[2]!) === Number(r.number)) {
+    const head = end[1]!.trim()
+    if (!head || isSeriesName(head, r.series)) title = ''
+    else if (!joining(head.split(/\s+/).pop()!)) title = head
+  }
+  if (isJunkTitle(title) || isSeriesName(title, r.series)) title = ''
+  return title === r.title ? r : { ...r, title }
+}
+
+/** a title that is the series' name, or a shorter form of it ("משפחת קיין" of "משפחת קיין והאלים המצריים"), not one that
+ *  starts with it ("הארי פוטר ואבן החכמים") */
+function isSeriesName(title: string, series: string): boolean {
+  const t = seriesKey(title)
+  const s = seriesKey(series)
+  return !!t && (t === s || s.startsWith(`${t} `))
 }

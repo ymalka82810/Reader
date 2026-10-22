@@ -140,11 +140,16 @@ export function numberByGaps(members: { number: number; year?: number }[], year?
   if (!members.length) return undefined
   // books of the series the library has with no number at all ("פרויקט X - הבן האובד"): the order of their years is the
   // order of the series, when every one of them has a year and none shares this book's
-  if (members.every((m) => !m.number)) {
-    if (!year || members.some((m) => m.year === undefined || m.year === year)) return undefined
-    return 1 + members.filter((m) => m.year! < year).length
+  if (!year) return undefined
+  // when every book of the series the library has, numbered or not, has a year, and none shares this book's: its place
+  // among them by year, if the numbered ones are at their own places too (no book of the series missing before them)
+  if (members.every((m) => m.year !== undefined && m.year !== year)) {
+    const place = 1 + members.filter((m) => m.year! < year).length
+    const at = (m: { year?: number }) => 1 + members.filter((o) => o.year! < m.year!).length + (m.year! > year ? 1 : 0)
+    if (members.every((m) => !m.number || m.number === at(m))) return place
   }
-  members = members.filter((m) => m.number)
+  // unnumbered books whose order is unknown leave the numbers open
+  if (members.some((m) => !m.number)) return undefined
   const have = new Set(members.map((m) => m.number))
   const max = Math.max(...have)
   const gaps: number[] = []
