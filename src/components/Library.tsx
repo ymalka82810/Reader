@@ -15,7 +15,8 @@ import { useDeviceScan } from '../hooks/useDeviceScan'
 import { deviceBooksSupported } from '../lib/deviceBooks'
 import { autoSyncPhoneNames, openDownloadsFolder, phoneFileOf, saveBookToPhone, syncPhoneNames } from '../lib/phoneFiles'
 import { formatBookName, splitBookName, type BookName } from '../lib/bookName'
-import { identifyBook, libraryNames, type LibraryNames } from '../lib/bookLookup'
+import { libraryNames, type LibraryNames } from '../lib/bookLookup'
+import { identifyWithCover } from '../lib/coverIdentify'
 import { bookDetails } from '../lib/bookText'
 import { hasConsent, setConsent, SERVICE_HOST } from '../lib/consent'
 import { IdentifyDialog, type NameChange } from './library/IdentifyDialog'
@@ -349,8 +350,8 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
     setEditLookup({ busy: true })
     const { opening, meta } = await bookDetails(editing)
     if (run !== editRun.current) return
-    const found = await identifyBook(
-      { title: formatBookName(editName), author: editAuthor, fileName: editing.fileName },
+    const found = await identifyWithCover(
+      { id: editing.id, cover: editing.cover, title: formatBookName(editName), author: editAuthor, fileName: editing.fileName },
       online,
       undefined,
       opening,
