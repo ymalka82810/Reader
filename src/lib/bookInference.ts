@@ -397,3 +397,61 @@ export function inLists(
   if (names.size > 1) return undefined
   return named[0] ?? all[0]
 }
+
+
+// ---- the book before and the book after: what a book says of its neighbours in the series. Its last pages often open
+// the next book ("הספר הבא בסדרה: …", "פרק ראשון מתוך …", "המשך יבוא ב״…״"), and its opening may name the one it
+// follows ("ההמשך ל״…״", "בספר הקודם, ״…״"). A title named so is a book of the same series, one number after or before.
+
+const QUOTED = /["״“”]([^"״“”]{2,60})["״“”]/u
+const NEXT_LINE: RegExp[] = [
+  /^(?:ה)?ספר הבא(?:\s+בסדרה)?\s*[:\-–—]\s*(.+)$/u,
+  /^(?:פרק\s+(?:ראשון|1|א['׳]?)|קטע|טעימה|הצצה|פרק)\s+(?:מתוך|מ)\s*(?:ה?ספר(?:\s+הבא)?\s*)?[:\-–—]?\s*(.+)$/u,
+  /^(?:בקרוב|יצא בקרוב|המשך יבוא|המשך הסיפור)\s*(?:ב(?:ספר)?\s*)?[:\-–—]?\s*(.+)$/u,
+  /^(?:coming (?:next|soon)|look for|next in the series)\s*:?\s*(.+)$/iu,
+  /(?:an excerpt|a sneak peek|a preview|the first chapter)\s+(?:from|of)\s+(.+?)$/iu,
+]
+const NEXT_QUOTED = /(?:בספר הבא|המשך יבוא ב|ההמשך ב|בקרוב ב)[,\s]*(?:ספר\s+)?["״“”]([^"״“”]{2,60})["״“”]/u
+const PREV_LINE: RegExp[] = [
+  /^(?:ספר\s+)?ה?המשך\s+(?:ל|של\s+)(?:ה?ספר\s+)?(.+)$/u,
+  /^(?:ה)?ספר הקודם(?:\s+בסדרה)?\s*[:\-–—]\s*(.+)$/u,
+  /^(?:the\s+)?sequel to\s+(.+)$/iu,
+  /^(?:the\s+)?(?:follow-up|companion) to\s+(.+)$/iu,
+]
+const PREV_QUOTED = /(?:בספר הקודם|ההמשך ל|המשך ל|ספר ההמשך ל)[,\s]*(?:ספר\s+)?["״“”]([^"״“”]{2,60})["״“”]/u
+
+/** a title as a line names it: without its quotes, a trailing period or comma, and the author after "מאת" or "by" */
+function titleIn(raw: string): string | undefined {
+  const q = QUOTED.exec(raw)
+  let t = (q ? q[1]! : raw).replace(/\s+(?:מאת|by)\s+.+$/iu, '').replace(/[.,:;!?…]+$/u, '').trim()
+  t = t.replace(/^["״“”']|["״“”']$/gu, '').trim()
+  const words = t.split(/\s+/).length
+  if (!/\p{L}{2}/u.test(t) || words > 8 || /^(?:ה?ספר|הסדרה|בסדרה|יבוא|chapter|book)$/iu.test(t)) return undefined
+  return t
+}
+
+function titlesBy(lines: string[], line: RegExp[], quoted: RegExp): string[] {
+  const out: string[] = []
+  for (const l of lines.map(bare)) {
+    if (!l || l.split(/\s+/).length > 30) continue
+    const q = quoted.exec(l)
+    if (q) out.push(q[1]!.trim())
+    else if (l.split(/\s+/).length <= 12)
+      for (const re of line) {
+        const m = re.exec(l)
+        const t = m && titleIn(m[1]!)
+        if (t) {
+          out.push(t)
+          // "ההמשך ללחלום על 10": the ל taken as the joining one may be the title's own
+          if (re === PREV_LINE[0]) out.push(`ל${t}`)
+          break
+        }
+      }
+  }
+  return [...new Set(out)].slice(0, 4)
+}
+
+/** the titles a book names as the next one of its series (in its last pages) and as the one before (in its opening) */
+export function sequels(opening: string[], end: string[]): { next: string[]; prev: string[] } {
+  return { next: titlesBy(end, NEXT_LINE, NEXT_QUOTED), prev: titlesBy(opening, PREV_LINE, PREV_QUOTED) }
+}

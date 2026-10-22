@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bookNumber, copyrightYear, inLists, namesIn, originalTitle, seriesByNames, seriesByWords, seriesLists, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, soundOf, titleCase } from './bookInference'
+import { bookNumber, copyrightYear, inLists, namesIn, originalTitle, seriesByNames, seriesByWords, sequels, seriesLists, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, soundOf, titleCase } from './bookInference'
 import { norm } from './sameBook'
 
 describe('soundOf', () => {
@@ -241,5 +241,21 @@ describe('seriesByWords', () => {
   it('finds none for a book that shares only the style, or with too few books to tell', () => {
     expect(seriesByWords(doc(...style, 'ים', 'ספינה', 'מפרש', 'גל', 'רב-חובל'), series, library)).toBeUndefined()
     expect(seriesByWords(a1, series, [a1, b1])).toBeUndefined()
+  })
+})
+
+describe('sequels', () => {
+  it('reads the next book a book ends with, and the one its opening says it follows', () => {
+    const end = ['והוא חייך.', 'סוף', 'הספר הבא בסדרה: ים המפלצות', 'פרק ראשון מתוך ״קללת הטיטאן״', 'המשך יבוא ב״הקרב על המבוך״']
+    const opening = ['ריק ריירדן', 'ים המפלצות', 'ההמשך ל״גנב הברק״', 'The sequel to The Lightning Thief']
+    expect(sequels(opening, end)).toEqual({
+      next: ['ים המפלצות', 'קללת הטיטאן', 'הקרב על המבוך'],
+      prev: ['גנב הברק', 'The Lightning Thief'],
+    })
+  })
+
+  it('finds a title quoted in a sentence, and takes nothing from the story itself', () => {
+    expect(sequels(['בספר הקודם, ״גנב הברק״, פרסי גילה מי אביו.'], ['ובספר הבא, ״ים המפלצות״, הוא יפליג.']).next).toEqual(['ים המפלצות'])
+    expect(sequels(['ההמשך היה ארוך ומייגע, והוא הלך הביתה לאט לאט בלי לומר מילה לאיש.'], ['הוא הביט בספר הבא שעל המדף והניח אותו בצד.'])).toEqual({ next: [], prev: [] })
   })
 })

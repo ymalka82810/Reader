@@ -188,6 +188,7 @@ export const he = {
   'identify.clue.list': 'רשימת הסדרה',
   'identify.clue.names': 'הדמויות',
   'identify.clue.words': 'אוצר המילים של הסדרה',
+  'identify.clue.sequel': 'הספר הקודם או הבא',
   'identify.clue.catalog': 'קטלוג',
   'identify.clue.order': 'מספור הסדרה בספרייה',
   'identify.clue.running': 'כותרת רצה',

@@ -798,3 +798,31 @@ describe("identifyBook: the series' fingerprint", () => {
     expect(r.sure).toBeUndefined()
   })
 })
+
+describe('identifyBook: the book before and the book after', () => {
+  const meta = (m: object) => ({ title: '', authors: [], series: '', number: '', identifiers: [], ...m })
+  const library = () =>
+    libraryNames([
+      { id: 'a1', title: "פרסי ג'קסון 1 - גנב הברק", author: 'ריק ריירדן' },
+      { id: 'a3', title: "פרסי ג'קסון 3 - קללת הטיטאן", author: 'ריק ריירדן' },
+    ])
+
+  it('places a book one after the book it says it follows, and one before the book it says is next', async () => {
+    const r = await identifyBook({ title: 'ים המפלצות', author: 'ריק ריירדן', fileName: 'x.epub' }, false, undefined, [], meta({ prev: ['גנב הברק'], next: ['קללת הטיטאן'] }), library())
+    expect(r).toMatchObject({ series: "פרסי ג'קסון", number: '2', title: 'ים המפלצות', fromText: true })
+    expect(r.evidence).toContain('sequel')
+  })
+
+  it('takes nothing when its neighbours do not agree', async () => {
+    const r = await identifyBook({ title: 'ים המפלצות', author: 'ריק ריירדן', fileName: 'x.epub' }, false, undefined, [], meta({ prev: ['קללת הטיטאן'], next: ['קללת הטיטאן'] }), library())
+    expect(r.series).toBe('')
+  })
+
+  it('names a book by what the book before it said of it, kept on the device', async () => {
+    const { rememberSequels } = await import('./bookKnowledge')
+    rememberSequels("פרסי ג'קסון 1 - גנב הברק", 'ריק ריירדן', ['ים המפלצות'])
+    const r = await identifyBook({ title: 'ים המפלצות', author: 'ריק ריירדן', fileName: 'x.epub' }, false)
+    expect(r).toMatchObject({ series: "פרסי ג'קסון", number: '2' })
+    expect(r.evidence).toEqual(['sequel'])
+  })
+})

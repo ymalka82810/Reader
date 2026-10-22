@@ -793,6 +793,14 @@ async function findName(
       fromOriginal = true
     }
   }
+  // the book it says it follows, or the one it says comes next, when the library knows where that one stands
+  if (!base.number && (meta?.prev?.length || meta?.next?.length)) {
+    const q = bySequels(meta, b.author, library)
+    if (q && (!base.series || sameSeries(q.series, base.series))) {
+      base = { ...base, series: base.series || q.series, number: q.number }
+      fromOriginal = true
+    }
+  }
   // still no series: the author's series in the library whose books share the most names with this one (its characters)
   if (!base.series && library && b.author.trim() && meta?.names?.length) {
     const s = await seriesOfNames(meta.names, b.author, library, signal)
@@ -1133,13 +1141,36 @@ async function numberInLibrary(
   return n
 }
 
+/** where a title stands in its series, by what the library has under that title or the lists kept (bookKnowledge) */
+function placeOfTitle(title: string, author: string, library?: LibraryNames): { series: string; number: number } | undefined {
+  const t = norm(title)
+  if (!t) return undefined
+  for (const s of library?.series.values() ?? [])
+    for (const m of s.members ?? []) if (m.number && m.title && norm(m.title) === t) return { series: s.name, number: m.number }
+  const listed = inLists(title, listsOf(author), norm)
+  const n = Number(listed?.number)
+  return listed?.series && n ? { series: asLibrarySeries(listed.series, author, library), number: n } : undefined
+}
+
+/** The place the book's neighbours give it: one after the book it names as the one before, one before the book it names
+ *  as the next. Undefined when they name none the library knows, or do not agree. */
+function bySequels(meta: EpubMeta | undefined, author: string, library?: LibraryNames): { series: string; number: string } | undefined {
+  const places = [
+    ...(meta?.prev ?? []).map((t) => placeOfTitle(t, author, library)).map((p) => p && { series: p.series, number: p.number + 1 }),
+    ...(meta?.next ?? []).map((t) => placeOfTitle(t, author, library)).map((p) => p && p.number > 1 && { series: p.series, number: p.number - 1 }),
+  ].filter((p): p is { series: string; number: number } => !!p)
+  const [first] = places
+  if (!first || places.some((p) => p.number !== first.number || !sameSeries(p.series, first.series))) return undefined
+  return { series: first.series, number: String(first.number) }
+}
+
 // ---- weighing: every clue the book gives is checked against the name found, the way a reader would check a guess.
 // A name two independent clues agree on, and none speaks against, is sure enough to save without asking; a clue that
 // speaks against it keeps it for the user to approve, saying which.
 
 /** where a clue comes from: the file's or library's name, the file's package, the copyright page, a list of the series'
  *  books, the names its story shares with the series, a catalog, the numbers the library leaves free, a running head */
-export type Clue = 'name' | 'meta' | 'copyright' | 'list' | 'names' | 'words' | 'catalog' | 'order' | 'running'
+export type Clue = 'name' | 'meta' | 'copyright' | 'list' | 'names' | 'words' | 'sequel' | 'catalog' | 'order' | 'running'
 
 /** two titles that are one: the same words, or one the other's start ("דם האולימפוס" and "דם האולימפוס V") */
 function sameTitle(x: string, y: string): boolean {
@@ -1195,6 +1226,9 @@ async function weigh(
     // names saved in the library may be this book's own
     const listed = inLists(r.title, [...(meta?.lists ?? []), ...listsOf(b.author, [undefined])], norm)
     if (listed) count('list', verdict(r, listed.series || r.series, listed.number))
+    // what the books before and after it in the library said of it
+    const said = inLists(r.title, listsOf(b.author, ['sequel']), norm)
+    if (said) count('sequel', verdict(r, said.series || r.series, said.number))
     const known = !r.online && inLists(r.title, listsOf(b.author, ['wikidata']), norm)
     if (known && verdict(r, known.series, known.number) === 'agree') evidence.push('catalog')
   }
@@ -1207,6 +1241,9 @@ async function weigh(
       if (signal?.aborted) throw e
     }
   }
+  // the books it names as the one before and the next
+  const q = bySequels(meta, b.author, library)
+  if (q && !evidence.includes('sequel') && !conflicts.includes('sequel')) count('sequel', verdict(r, q.series, q.number))
   // the series' fingerprint in the book's vocabulary: it only agrees (a vocabulary near another series' says too little
   // to speak against)
   if (meta?.words?.length && library) {

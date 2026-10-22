@@ -4,7 +4,7 @@
 
 import type { BookMeta } from './db'
 import { getFile } from './db'
-import { seriesLists, wordsIn, type SeriesList } from './bookInference'
+import { seriesLists, sequels, wordsIn, type SeriesList } from './bookInference'
 
 /** how much of the book is read: enough for the half-title, the title page and the copyright page */
 const SECTIONS = 6
@@ -25,6 +25,9 @@ const NAME_LINES = 2500
 const END_SECTIONS = 2
 const END_PAGES = 3
 const END_LINES = 120
+/** the last sections whose head is read for the next book's chapter a book ends with ("פרק ראשון מתוך …"), and how much */
+const TEASER_SECTIONS = 4
+const TEASER_LINES = 30
 
 const letters = (lines: string[]) => lines.reduce((n, l) => n + (l.match(/[א-תA-Za-z]/g)?.length ?? 0), 0)
 
@@ -61,6 +64,9 @@ export interface EpubMeta {
   names?: [string, number][]
   /** the words the story repeats past the common ones, more than its names (wordsIn): its series' fingerprint */
   words?: [string, number][]
+  /** the titles it names as the next book of its series (in its last pages) and as the one before (in its opening) */
+  next?: string[]
+  prev?: string[]
   /** the lists of its series' books it prints ("ספרים נוספים בסדרה"), in its opening or its last pages */
   lists?: SeriesList[]
   title: string
@@ -174,12 +180,27 @@ export async function epubDetails(file: Blob, signal?: AbortSignal): Promise<{ o
   const names = words.slice(0, 20)
   // the last sections, where the other books of the series are often listed
   const end: string[] = []
-  for (const id of spine.slice(Math.max(SECTIONS, spine.length - END_SECTIONS))) {
+  const heads: string[] = []
+  const last = spine.slice(Math.max(SECTIONS, spine.length - Math.max(END_SECTIONS, TEASER_SECTIONS)))
+  for (const [i, id] of last.entries()) {
     const html = await zip.file(base + decodeURIComponent(hrefs.get(id)!.split('#')[0]!))?.async('string')
-    if (html) end.push(...htmlLines(html).slice(-END_LINES))
+    if (!html) continue
+    const text = htmlLines(html)
+    heads.push(...text.slice(0, TEASER_LINES))
+    if (i >= last.length - END_SECTIONS) end.push(...text.slice(-END_LINES))
   }
   const lists = seriesLists([...lines, ...end])
-  return { opening: lines.slice(0, MAX_LINES), meta: { ...opfMeta(opf), ...(names.length && { names, words }), ...(lists.length && { lists }) } }
+  const { next, prev } = sequels(lines, [...heads, ...end])
+  return {
+    opening: lines.slice(0, MAX_LINES),
+    meta: {
+      ...opfMeta(opf),
+      ...(names.length && { names, words }),
+      ...(lists.length && { lists }),
+      ...(next.length && { next }),
+      ...(prev.length && { prev }),
+    },
+  }
 }
 
 /** the EPUB's first sections in reading order */
@@ -220,7 +241,15 @@ async function scannedOpening(pdf: PdfDoc, signal?: AbortSignal): Promise<string
 async function pdfOpening(
   file: Blob,
   signal?: AbortSignal,
-): Promise<{ opening: string[]; running?: string[]; names?: [string, number][]; words?: [string, number][]; lists?: SeriesList[] }> {
+): Promise<{
+  opening: string[]
+  running?: string[]
+  names?: [string, number][]
+  words?: [string, number][]
+  lists?: SeriesList[]
+  next?: string[]
+  prev?: string[]
+}> {
   const [pdfjs, { default: workerUrl }, layout, { visualOrder, fixLine }] = await Promise.all([
     import('pdfjs-dist/legacy/build/pdf.mjs'),
     import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'),
@@ -262,7 +291,16 @@ async function pdfOpening(
       p.cleanup()
     }
     const words = wordsIn([...lines, ...story])
-    return { opening: lines, running: runningHeads(ends), names: words.slice(0, 20), words, lists: seriesLists([...lines, ...end.slice(-END_LINES)]) }
+    const { next, prev } = sequels(lines, end)
+    return {
+      opening: lines,
+      running: runningHeads(ends),
+      names: words.slice(0, 20),
+      words,
+      lists: seriesLists([...lines, ...end.slice(-END_LINES)]),
+      ...(next.length && { next }),
+      ...(prev.length && { prev }),
+    }
   } finally {
     void task.destroy().catch(() => {})
   }
@@ -276,14 +314,16 @@ export async function bookDetails(b: Pick<BookMeta, 'id' | 'kind'>, signal?: Abo
     const file = await getFile(b.id)
     if (!file) return { opening: [] }
     if (b.kind === 'epub') return await epubDetails(file, signal)
-    const { opening, running, names, words, lists } = await pdfOpening(file, signal)
-    return running?.length || names?.length || lists?.length
+    const { opening, running, names, words, lists, next, prev } = await pdfOpening(file, signal)
+    return running?.length || names?.length || lists?.length || next?.length || prev?.length
       ? {
           opening,
           meta: {
             ...(running?.length && { running }),
             ...(names?.length && { names, words }),
             ...(lists?.length && { lists }),
+            ...(next?.length && { next }),
+            ...(prev?.length && { prev }),
             title: '',
             authors: [],
             series: '',
