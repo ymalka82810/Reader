@@ -7,7 +7,8 @@
 
 import { authorInName, guessBookName, isJunkTitle, nameFromOpening, seriesOf, tidyBookName, withoutAuthor, type BookName } from './bookName'
 import type { EpubMeta } from './bookText'
-import { bookNumber, copyrightYear, inLists, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, originalTitle, seriesByNames, soundOf, titleCase, type SeriesList } from './bookInference'
+import { bookNumber, copyrightYear, seriesByWords, inLists, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, originalTitle, seriesByNames, soundOf, titleCase } from './bookInference'
+import { listsOf, rememberLists } from './bookKnowledge'
 import { hasConsent } from './consent'
 import { blocks, clueStats, trusted } from './identifyLearning'
 import { bookIsbns } from './isbn'
@@ -44,6 +45,8 @@ type VolumeInfo = {
   authors?: string[]
   language?: string
   seriesInfo?: { bookDisplayNumber?: string }
+  /** Wikidata's id of the series ("Q123"), for its whole list of books */
+  seriesId?: string
 }
 
 const hebrew = (s: string) => /[֐-׿]/.test(s)
@@ -361,7 +364,7 @@ function sparql(key: string, query: string, parse: (rows: Row[]) => VolumeInfo[]
 
 /** these works' series and their number in it, with their authors, in Google Books' shape (the series as the subtitle) */
 function wikidataWorks(ids: string[], title: string, lang: 'he' | 'en', signal?: AbortSignal, budget?: Budget): Promise<VolumeInfo[]> {
-  const query = `SELECT ?book ?seriesLabel ?num ?authorLabel WHERE {
+  const query = `SELECT ?book ?series ?seriesLabel ?num ?authorLabel WHERE {
   VALUES ?book { ${ids.map((i) => `wd:${i}`).join(' ')} }
   ?book p:P179 ?st . ?st ps:P179 ?series .
   OPTIONAL { ?st pq:P1545 ?num }
@@ -379,7 +382,7 @@ function wikidataWorks(ids: string[], title: string, lang: 'he' | 'en', signal?:
         // a series with no name in the book's language comes back as its id ("Q123")
         if (!/^\d{1,3}$/.test(num) || noLabel(series)) continue
         const key = `${qid(r.book?.value)}|${series}|${num}`
-        const w = works.get(key) ?? { title, subtitle: series, seriesInfo: { bookDisplayNumber: String(Number(num)) }, authors: [] }
+        const w = works.get(key) ?? { title, subtitle: series, seriesInfo: { bookDisplayNumber: String(Number(num)) }, authors: [], seriesId: qid(r.series?.value) }
         const a = r.authorLabel?.value ?? ''
         if (!noLabel(a) && !w.authors!.includes(a)) w.authors!.push(a)
         works.set(key, w)
@@ -393,7 +396,7 @@ function wikidataWorks(ids: string[], title: string, lang: 'he' | 'en', signal?:
 
 /** the works numbered so in these series: their title, the series and their authors */
 function wikidataNumbered(ids: string[], number: string, lang: 'he' | 'en', signal?: AbortSignal, budget?: Budget): Promise<VolumeInfo[]> {
-  const query = `SELECT ?book ?bookLabel ?seriesLabel ?authorLabel WHERE {
+  const query = `SELECT ?book ?bookLabel ?series ?seriesLabel ?authorLabel WHERE {
   VALUES ?series { ${ids.map((i) => `wd:${i}`).join(' ')} }
   ?book p:P179 ?st . ?st ps:P179 ?series ; pq:P1545 "${number}" .
   OPTIONAL { ?book wdt:P50 ?author }
@@ -409,7 +412,7 @@ function wikidataNumbered(ids: string[], number: string, lang: 'he' | 'en', sign
         const series = r.seriesLabel?.value ?? ''
         if (noLabel(title) || noLabel(series)) continue
         const key = qid(r.book?.value)
-        const w = works.get(key) ?? { title, subtitle: series, seriesInfo: { bookDisplayNumber: number }, authors: [] }
+        const w = works.get(key) ?? { title, subtitle: series, seriesInfo: { bookDisplayNumber: number }, authors: [], seriesId: qid(r.series?.value) }
         const a = r.authorLabel?.value ?? ''
         if (!noLabel(a) && !w.authors!.includes(a)) w.authors!.push(a)
         works.set(key, w)
@@ -419,6 +422,44 @@ function wikidataNumbered(ids: string[], number: string, lang: 'he' | 'en', sign
     signal,
     budget,
   )
+}
+
+/** every numbered book of a series on Wikidata, by its title in the book's language: the series' whole list */
+function wikidataSeriesBooks(id: string, lang: 'he' | 'en', signal?: AbortSignal, budget?: Budget): Promise<VolumeInfo[]> {
+  const query = `SELECT ?book ?bookLabel ?num WHERE {
+  ?book p:P179 ?st . ?st ps:P179 wd:${id} ; pq:P1545 ?num .
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "${lang}" . }
+} LIMIT 80`
+  return sparql(
+    `series-books:${lang}:${id}`,
+    query,
+    (rows) =>
+      rows
+        .filter((r) => /^\d{1,3}$/.test(r.num?.value ?? '') && !noLabel(r.bookLabel?.value ?? ''))
+        .map((r) => ({ title: r.bookLabel!.value, seriesInfo: { bookDisplayNumber: String(Number(r.num!.value)) } })),
+    signal,
+    budget,
+  )
+}
+
+/**
+ * Wikidata named a book's series: its whole list of books is kept on the device under the name the library gives the
+ * series (bookKnowledge), so the series' other books are identified by their titles from now on, offline. Wikidata
+ * failing keeps nothing.
+ */
+async function learnSeries(id: string | undefined, series: string, author: string, lang: 'he' | 'en', signal?: AbortSignal) {
+  if (!id) return
+  try {
+    const books = (await wikidataSeriesBooks(id, lang, signal, { left: 1 }))
+      .filter((b) => lang !== 'he' || hebrew(b.title ?? ''))
+      .map((b) => ({ title: withoutSeries(b.title!, series), number: b.seriesInfo!.bookDisplayNumber! }))
+    // one title for each number: a number Wikidata gives two works (an edition, a part) says nothing sure
+    const once = books.filter((b) => books.filter((x) => x.number === b.number).length === 1)
+    if (once.length >= 2) rememberLists([{ series, books: once }], author, 'wikidata')
+  } catch (e) {
+    if (signal?.aborted) throw e
+    console.warn(e)
+  }
 }
 
 const byAuthor = (w: VolumeInfo, author: string) => {
@@ -442,12 +483,12 @@ async function wikidataSeries(
   lang: 'he' | 'en',
   signal?: AbortSignal,
   budget?: Budget,
-): Promise<{ series: string; number: string; byAuthor: boolean } | undefined> {
+): Promise<{ series: string; number: string; byAuthor: boolean; seriesId?: string } | undefined> {
   const ids = (await wikidataItems(title, lang, signal, budget)).map((i) => i.title!).slice(0, 8)
   if (!ids.length) return undefined
   const works = (await wikidataWorks(ids, title, lang, signal, budget)).filter((w) => norm(w.subtitle ?? '') !== norm(title))
   const one = onlyOne(works, author)
-  return one && { series: one.work.subtitle!, number: one.work.seriesInfo!.bookDisplayNumber!, byAuthor: one.byAuthor }
+  return one && { series: one.work.subtitle!, number: one.work.seriesInfo!.bookDisplayNumber!, byAuthor: one.byAuthor, seriesId: one.work.seriesId }
 }
 
 /** A name that is a series and a number with no title ("משפחת קיין 1"): the work Wikidata has at that number. */
@@ -458,11 +499,11 @@ async function wikidataByNumber(
   lang: 'he' | 'en',
   signal?: AbortSignal,
   budget?: Budget,
-): Promise<{ series: string; title: string; author: string; byAuthor: boolean } | undefined> {
+): Promise<{ series: string; title: string; author: string; byAuthor: boolean; seriesId?: string } | undefined> {
   const ids = (await wikidataItems(series, lang, signal, budget)).map((i) => i.title!).slice(0, 8)
   if (!ids.length) return undefined
   const one = onlyOne(await wikidataNumbered(ids, number, lang, signal, budget), author)
-  return one && { series: one.work.subtitle!, title: one.work.title!, author: (one.work.authors ?? []).join(', '), byAuthor: one.byAuthor }
+  return one && { series: one.work.subtitle!, title: one.work.title!, author: (one.work.authors ?? []).join(', '), byAuthor: one.byAuthor, seriesId: one.work.seriesId }
 }
 
 /** A catalog's entry for an ISBN; undefined when there is none, or when a Hebrew book's ISBN is the original's (a
@@ -760,6 +801,19 @@ async function findName(
       fromOriginal = true
     }
   }
+  // still no series: the series whose fingerprint (the vocabulary its books share, weighed by how rare it is in the
+  // library) this book's vocabulary has; with no author too, against the books already read
+  if (!base.series && library && meta?.words?.length) {
+    try {
+      const s = await seriesOfWords(meta.words, b.author, library, (b as { id?: string }).id, signal)
+      if (s) {
+        base = { ...base, series: s, number: '' }
+        fromOriginal = true
+      }
+    } catch (e) {
+      if (signal?.aborted) throw e
+    }
+  }
   // a series with no number: the number the library's books of the series leave for it, by their years when need be
   if (base.series && !base.number && library) {
     // this book is one of the series for the books after it in this run (its year read with theirs)
@@ -877,7 +931,10 @@ async function withWikidata(r: Identified, hebrewBook: boolean, signal?: AbortSi
     try {
       const lang = hebrewBook || hebrew(r.series) ? 'he' : 'en'
       const n = await wikidataByNumber(r.series, r.number, r.author, lang, signal, { left: WIKIDATA_PER_BOOK })
-      if (n && (!hebrewBook || hebrew(n.title))) return { ...r, title: n.title, online: true, sites: [...(r.sites ?? []), SITE.wikidata] }
+      if (n && (!hebrewBook || hebrew(n.title))) {
+        await learnSeries(n.seriesId, r.series, r.author, lang, signal)
+        return { ...r, title: n.title, online: true, sites: [...(r.sites ?? []), SITE.wikidata] }
+      }
     } catch (e) {
       if (signal?.aborted) throw e
       console.warn(e)
@@ -896,12 +953,14 @@ async function withWikidata(r: Identified, hebrewBook: boolean, signal?: AbortSi
       if (n && (!hebrewBook || (hebrew(n.series) && hebrew(n.title)))) {
         const author = r.author || (hebrew(n.author) === hebrewBook ? n.author : '')
         const series = asLibrarySeries(n.series, author, library)
+        await learnSeries(n.seriesId, series, author, lang, signal)
         return { ...rest, series, number: String(Number(numbered[2])), title: withoutSeries(n.title, series, n.series), author, online: true, sites }
       }
     }
     const w = await wikidataSeries(r.title, r.author, lang, signal, budget)
     if (!w || (hebrewBook && !hebrew(w.series))) return r
     const series = asLibrarySeries(w.series, r.author, library)
+    await learnSeries(w.seriesId, series, r.author, lang, signal)
     return { ...rest, series, number: w.number, title: withoutSeries(r.title, series, w.series), online: true, sites, ...(sure && w.byAuthor && { sure }) }
   } catch (e) {
     if (signal?.aborted) throw e
@@ -960,9 +1019,10 @@ async function translatedTitle(title: string, signal?: AbortSignal): Promise<str
 }
 
 // what each library book's file says of it that other books are compared with: the year it was first published (its
-// copyright page) and the names its story repeats; read once and kept on the device
+// copyright page), the names its story repeats, and its vocabulary (the series' fingerprint); read once and kept on the
+// device, and kept for every book the identification reads, so the fingerprints grow with the library
 const FACTS_KEY = 'reader:book-facts'
-type Facts = { year: number | null; names: [string, number][] }
+type Facts = { year: number | null; names?: [string, number][]; words?: [string, number][] }
 function facts(): Record<string, Facts> {
   try {
     return JSON.parse(localStorage.getItem(FACTS_KEY) ?? '{}') as Record<string, Facts>
@@ -970,21 +1030,76 @@ function facts(): Record<string, Facts> {
     return {}
   }
 }
+/** a book's main names: the head of its vocabulary, or the names kept before the vocabulary was */
+const namesOf = (f: Facts | undefined) => (f?.words?.length ? f.words.slice(0, 20) : (f?.names ?? []))
 
-async function factsOf(m: { id?: string; kind?: string }, signal?: AbortSignal): Promise<Facts | undefined> {
-  if (!m.id || (m.kind !== 'epub' && m.kind !== 'pdf')) return undefined
-  const known = facts()[m.id]
-  if (known) return known
-  const { bookDetails } = await import('./bookText')
-  const d = await bookDetails({ id: m.id, kind: m.kind }, signal)
-  const f: Facts = { year: copyrightYear(d.opening) ?? null, names: d.meta?.names ?? [] }
-  if (d.meta?.lists?.length) rememberLists(d.meta.lists)
+function factsFrom(opening: string[], meta?: EpubMeta): Facts {
+  return { year: copyrightYear(opening) ?? null, ...(meta?.words?.length ? { words: meta.words } : { names: meta?.names ?? [] }) }
+}
+
+function keepFactsOf(id: string, f: Facts) {
   try {
-    localStorage.setItem(FACTS_KEY, JSON.stringify({ ...facts(), [m.id]: f }))
+    localStorage.setItem(FACTS_KEY, JSON.stringify({ ...facts(), [id]: f }))
   } catch {
     /* storage unavailable */
   }
+}
+
+/** keeps what a book the identification just read says of it, for the books compared with it later */
+export function keepFacts(id: string, opening: string[], meta?: EpubMeta) {
+  const known = facts()[id]
+  if (known?.words || (!meta?.words?.length && known)) return
+  keepFactsOf(id, factsFrom(opening, meta))
+}
+
+/** a book's facts: those kept, else read from its file (and kept); with `vocabulary`, kept facts from before the
+ *  vocabulary was kept are read again */
+async function factsOf(m: { id?: string; kind?: string }, signal?: AbortSignal, vocabulary = false): Promise<Facts | undefined> {
+  if (!m.id || (m.kind !== 'epub' && m.kind !== 'pdf')) return undefined
+  const known = facts()[m.id]
+  if (known && (!vocabulary || known.words)) return known
+  const { bookDetails } = await import('./bookText')
+  const d = await bookDetails({ id: m.id, kind: m.kind }, signal)
+  const f = factsFrom(d.opening, d.meta)
+  if (d.meta?.lists?.length) rememberLists(d.meta.lists)
+  keepFactsOf(m.id, f)
   return f
+}
+
+/**
+ * The series this book's vocabulary has the fingerprint of (seriesByWords). The author's series in the library are
+ * compared (six books of each at most, read when need be); any other series only by the books whose vocabulary is kept
+ * already, so a book with no author is compared with the whole library without reading it all. Never this book itself.
+ */
+async function seriesOfWords(
+  words: [string, number][],
+  author: string,
+  library: LibraryNames,
+  self?: string,
+  signal?: AbortSignal,
+): Promise<string | undefined> {
+  const kept = facts()
+  const a = norm(author)
+  const mine = (s: { authors: Set<string> }) => !!a && [...s.authors].some((x) => x === a || x.includes(a) || a.includes(x))
+  const series = await Promise.all(
+    [...library.series.values()]
+      .filter((s) => s.members?.length)
+      .map(async (s) => ({
+        name: s.name,
+        books: (
+          await Promise.all(
+            s.members!
+              .filter((m) => m.id !== self)
+              .slice(0, 6)
+              .map((m) => (mine(s) ? factsOf(m, signal, true) : Promise.resolve(m.id ? kept[m.id] : undefined))),
+          )
+        ).map((f) => f?.words ?? []),
+      })),
+  )
+  const all = Object.entries(facts())
+    .filter(([id]) => id !== self)
+    .map(([, f]) => f.words ?? [])
+  return seriesByWords(words, series, all)
 }
 
 /** The author's series (in the library) that this book's names point to; its books are compared, six of each at most */
@@ -997,7 +1112,7 @@ async function seriesOfNames(names: [string, number][], author: string, library:
   const series = await Promise.all(
     mine.map(async (s) => ({
       name: s.name,
-      books: (await Promise.all(s.members!.slice(0, 6).map((m) => factsOf(m, signal)))).map((f) => f?.names ?? []).filter((n) => n.length),
+      books: (await Promise.all(s.members!.slice(0, 6).map((m) => factsOf(m, signal)))).map(namesOf).filter((n) => n.length),
     })),
   )
   return seriesByNames(names, series)
@@ -1018,44 +1133,13 @@ async function numberInLibrary(
   return n
 }
 
-// the lists of series' books that books printed, kept on the device for the other books of those series
-const LISTS_KEY = 'reader:series-lists'
-const LISTS_MAX = 200
-type KeptList = SeriesList & { author?: string }
-function keptLists(): KeptList[] {
-  try {
-    return JSON.parse(localStorage.getItem(LISTS_KEY) ?? '[]') as KeptList[]
-  } catch {
-    return []
-  }
-}
-
-function rememberLists(lists: SeriesList[], author = '') {
-  const key = (l: SeriesList) => `${norm(l.series)}|${l.books.map((b) => `${b.number}:${norm(b.title)}`).join(',')}`
-  const kept = keptLists()
-  const have = new Set(kept.map(key))
-  const added = lists.filter((l) => !have.has(key(l))).map((l) => ({ ...l, ...(author.trim() && { author: author.trim() }) }))
-  if (!added.length) return
-  try {
-    localStorage.setItem(LISTS_KEY, JSON.stringify([...kept, ...added].slice(-LISTS_MAX)))
-  } catch {
-    /* storage unavailable */
-  }
-}
-
-/** the kept lists that may be this author's: those of the same author, or of none known */
-function listsOf(author: string): SeriesList[] {
-  const a = norm(author)
-  return keptLists().filter((l) => !a || !l.author || norm(l.author) === a || norm(l.author).includes(a) || a.includes(norm(l.author)))
-}
-
 // ---- weighing: every clue the book gives is checked against the name found, the way a reader would check a guess.
 // A name two independent clues agree on, and none speaks against, is sure enough to save without asking; a clue that
 // speaks against it keeps it for the user to approve, saying which.
 
 /** where a clue comes from: the file's or library's name, the file's package, the copyright page, a list of the series'
  *  books, the names its story shares with the series, a catalog, the numbers the library leaves free, a running head */
-export type Clue = 'name' | 'meta' | 'copyright' | 'list' | 'names' | 'catalog' | 'order' | 'running'
+export type Clue = 'name' | 'meta' | 'copyright' | 'list' | 'names' | 'words' | 'catalog' | 'order' | 'running'
 
 /** two titles that are one: the same words, or one the other's start ("דם האולימפוס" and "דם האולימפוס V") */
 function sameTitle(x: string, y: string): boolean {
@@ -1107,14 +1191,28 @@ async function weigh(
   if (original && sameSeries(original.series, r.series)) count('copyright', verdict(r, r.series, original.number))
   // a list of the series' books that names this title
   if (!isJunkTitle(r.title)) {
-    const listed = inLists(r.title, [...(meta?.lists ?? []), ...listsOf(b.author)], norm)
+    // only lists printed in books: Wikidata's whole series is a catalog's word (not a second clue beside it), and the
+    // names saved in the library may be this book's own
+    const listed = inLists(r.title, [...(meta?.lists ?? []), ...listsOf(b.author, [undefined])], norm)
     if (listed) count('list', verdict(r, listed.series || r.series, listed.number))
+    const known = !r.online && inLists(r.title, listsOf(b.author, ['wikidata']), norm)
+    if (known && verdict(r, known.series, known.number) === 'agree') evidence.push('catalog')
   }
   // the names the story shares with the author's series in the library
   if (meta?.names?.length && library && b.author.trim()) {
     try {
       const s = await seriesOfNames(meta.names, b.author, library, signal)
       if (s) count('names', sameSeries(s, r.series) ? 'agree' : 'against')
+    } catch (e) {
+      if (signal?.aborted) throw e
+    }
+  }
+  // the series' fingerprint in the book's vocabulary: it only agrees (a vocabulary near another series' says too little
+  // to speak against)
+  if (meta?.words?.length && library) {
+    try {
+      const s = await seriesOfWords(meta.words, b.author, library, (b as { id?: string }).id, signal)
+      if (s && sameSeries(s, r.series)) evidence.push('words')
     } catch (e) {
       if (signal?.aborted) throw e
     }

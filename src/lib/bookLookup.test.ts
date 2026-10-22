@@ -728,3 +728,73 @@ describe('asLibrarySeries / withoutSeries', () => {
     expect(n('הבחורים של טומן', '10', 'לחלום על 10').title).toBe('לחלום על 10')
   })
 })
+
+describe('identifyBook: the knowledge kept on the device', () => {
+  const json = (body: unknown) => ({ ok: true, json: async () => body }) as Response
+  const row = (o: Record<string, string>) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, { value: v }]))
+
+  it("keeps Wikidata's whole series once it named one book, and names another book of it offline", async () => {
+    stubCatalogs([answer({ title: 'גנב הברק', authors: ['ריק ריירדן'] })], (url) => {
+      if (!url.includes('wikidata')) return empty
+      const q = new URL(url).searchParams.get('query') ?? ''
+      if (!q) return json({ search: [{ id: 'Q1', label: 'גנב הברק' }] })
+      if (q.includes('wd:Q100 ;'))
+        return json({
+          results: {
+            bindings: [
+              row({ bookLabel: 'גנב הברק', num: '1' }),
+              row({ bookLabel: 'ים המפלצות', num: '2' }),
+              row({ bookLabel: 'קללת הטיטאן', num: '3' }),
+            ],
+          },
+        })
+      return json({
+        results: {
+          bindings: [
+            row({ book: 'http://www.wikidata.org/entity/Q1', series: 'http://www.wikidata.org/entity/Q100', seriesLabel: "פרסי ג'קסון", num: '1', authorLabel: 'ריק ריירדן' }),
+          ],
+        },
+      })
+    })
+    await identifyBook({ title: 'גנב הברק', author: 'ריק ריירדן', fileName: 'x.epub' }, true)
+    vi.unstubAllGlobals()
+    const r = await identifyBook({ title: 'ים המפלצות', author: 'ריק ריירדן', fileName: 'y.epub' }, false)
+    expect(r).toMatchObject({ series: "פרסי ג'קסון", number: '2', title: 'ים המפלצות', online: false })
+    expect(r.evidence).toContain('catalog')
+  })
+
+  it('names offline a book of a series whose other book the library saved, as a suggestion', async () => {
+    const { rememberName } = await import('./bookKnowledge')
+    rememberName("מגנוס צ'ייס 2 - הפטיש של תור", 'ריק ריירדן')
+    const r = await identifyBook({ title: 'הפטיש של תור', author: 'ריק ריירדן', fileName: 'y.epub' }, false)
+    expect(r).toMatchObject({ series: "מגנוס צ'ייס", number: '2', fromText: true })
+    expect(r.sure).toBeUndefined()
+  })
+})
+
+describe("identifyBook: the series' fingerprint", () => {
+  it('places a book with no series and no author by the vocabulary its series shares, as a suggestion', async () => {
+    const w = (...x: string[]): [string, number][] => x.map((s, i) => [s, 9 - (i % 4)])
+    const style = ['אמר', 'פתאום', 'הביט']
+    localStorage.setItem(
+      'reader:book-facts',
+      JSON.stringify({
+        a1: { year: null, words: w(...style, 'מחנה', 'החצויים', 'אולימפוס', 'כירון', 'נמפה', 'קנטאור') },
+        a2: { year: null, words: w(...style, 'מחנה', 'החצויים', 'אולימפוס', 'כירון', 'סאטיר', 'גרובר') },
+        b1: { year: null, words: w(...style, 'אסגרד', 'ואלהאלה', 'איינהריאר', 'לוקי', 'רוני', 'תור') },
+        b2: { year: null, words: w(...style, 'אסגרד', 'ואלהאלה', 'איינהריאר', 'לוקי', 'הארת', 'בליצן') },
+      }),
+    )
+    const library = libraryNames([
+      { id: 'a1', kind: 'epub', title: "פרסי ג'קסון 1 - גנב הברק", author: 'ריק ריירדן' },
+      { id: 'a2', kind: 'epub', title: "פרסי ג'קסון 2 - ים המפלצות", author: 'ריק ריירדן' },
+      { id: 'b1', kind: 'epub', title: "מגנוס צ'ייס 1 - חרב הקיץ", author: 'ריק ריירדן' },
+      { id: 'b2', kind: 'epub', title: "מגנוס צ'ייס 2 - הפטיש של תור", author: 'ריק ריירדן' },
+    ])
+    const meta = { title: '', authors: [], series: '', number: '', identifiers: [], words: w(...style, 'אולימפוס', 'החצויים', 'כירון', 'מחנה', 'פוסידון', 'סאטיר') }
+    const r = await identifyBook({ title: 'קללת הטיטאן', author: '', fileName: 'x.epub' }, false, undefined, [], meta, library)
+    expect(r).toMatchObject({ series: "פרסי ג'קסון", title: 'קללת הטיטאן', fromText: true })
+    expect(r.evidence).toContain('words')
+    expect(r.sure).toBeUndefined()
+  })
+})

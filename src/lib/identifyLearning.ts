@@ -5,6 +5,7 @@
 // it was wrong. Each clue's record decides how much it counts the next time (`trusted`, `blocks`), so the weighing
 // tunes itself to the library it actually meets instead of to fixed rules. Kept on the device.
 
+import { rememberName } from './bookKnowledge'
 import type { Clue } from './bookLookup'
 import { guessBookName, tidyBookName } from './bookName'
 import { norm } from './sameBook'
@@ -57,9 +58,10 @@ function drop(key: string, id: string) {
 
 // ---- anchors
 
-/** the user saved or approved this name for the book */
-export function confirmName(id: string, title: string) {
+/** the user saved or approved this name for the book (by this author): it is kept as what is known of its series too */
+export function confirmName(id: string, title: string, author = '') {
   put(CONFIRMED_KEY, id, title)
+  rememberName(title, author)
   drop(DECLINED_KEY, id)
   drop(AUTO_KEY, id)
 }
@@ -102,10 +104,10 @@ export function samePlace(a: string, b: string): boolean {
  * The user saved a name for a book by hand. If the identification had saved another name for it by itself, the clues
  * behind that one are judged by whether the user kept its place; either way the user's name is the book's from now on.
  */
-export function learnFromEdit(id: string, title: string) {
+export function learnFromEdit(id: string, title: string, author = '') {
   const auto = read<Record<string, { title: string; evidence: Clue[]; conflicts: Clue[] }>>(AUTO_KEY, {})[id]
   if (auto) recordOutcome(auto.evidence, auto.conflicts, samePlace(auto.title, title))
-  confirmName(id, title)
+  confirmName(id, title, author)
 }
 
 // ---- the clues' records
