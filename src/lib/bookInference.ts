@@ -147,3 +147,66 @@ export function numberByGaps(members: { number: number; year?: number }[], year?
     : gaps
   return fits.length === 1 ? fits[0] : undefined
 }
+
+// Common Hebrew words that every story has, so two books sharing them says nothing about a series. The names a series
+// shares (its characters, its places: "קאל", "אלסטייר", "מגיסטריום") are what is left.
+const COMMON = new Set(
+  `אני אתה את הוא היא אנחנו אתם הם הן אותו אותה אותם אותי אותך אותנו לו לה לי לך לנו להם להן שלו שלה שלי שלך שלנו שלהם
+  שלהן זה זאת זו אלה אלו כל כולם כולן הכול הכל היה היתה הייתה היו יהיה תהיה יהיו להיות הייתי היית אבל גם רק עוד כבר
+  לא לו אם כי כמו אז עכשיו פעם שוב אחר אחרי אחרת אחד אחת שני שתי שלוש מה מי איך למה מתי איפה היכן כאן שם פה הנה
+  אמר אמרה אמרו אומר אומרת שאל שאלה ענה ענתה חשב חשבה ידע ידעה יודע יודעת רצה רצתה רוצה ראה ראתה רואה הלך הלכה
+  בא באה הגיע הגיעה עשה עשתה עושה נתן נתנה לקח לקחה יכול יכולה יכל יכלה צריך צריכה אולי באמת בדיוק ממש מאוד יותר
+  פחות הרבה קצת מעט לפני מול בין תוך בתוך מתוך עם על אל מן עד בלי ללא כדי בגלל למרות אצל ליד אחורה קדימה למעלה
+  למטה החוצה פנימה שלא שהוא שהיא שהם שזה שאני שאתה כשהוא כשהיא כשהם עליו עליה עליהם אליו אליה אליהם ממנו ממנה
+  איתו איתה איתם איתי בו בה בהם בי בך בשביל יום ימים לילה בוקר ערב שנה שנים זמן רגע דבר דברים משהו מישהו שום
+  כלום אדם אנשים איש אישה ילד ילדה ילדים בית הבית עיניו עיניה פניו פניה ידו ידה ידיו ידיה ראשו ראשה לבו ליבו
+  קול מבט נראה נראתה הרגיש הרגישה התחיל התחילה המשיך המשיכה עמד עמדה ישב ישבה קם קמה לחש לחשה צעק צעקה חייך
+  חייכה הביט הביטה הסתכל הסתכלה הנהן הנהנה טוב טובה רע רעה גדול גדולה קטן קטנה חדש חדשה ישן ישנה ראשון אחרון
+  ביותר עדיין תמיד אף אפילו לגמרי כמעט בסדר כן נכון כך ככה כאילו אולם ואולם אלא אבא אמא ספר פרק עמוד שאלתי
+  לעצמו לעצמה עצמו עצמה זמורה כנרת דביר מוציאים לאור הוצאת הוצאה זכויות שמורות חדר ראש מקום עבר לעשות חשוב פשוט
+  אחרים כול אילו לכם להם פני פנים דרך קרה ניסה ניסתה הצליח הצליחה נשמע נשמעה להגיד לומר חושב חושבת בטוח בטוחה
+  עיניים ידיים רגל רגליים אביו אמו אביה אמה הורים שולחן דלת חלון קיר רצפה מים אוכל אור חושך כאן שוב אין יש איזה
+  איזו כזה כזאת אותן הזה הזאת ההוא ההיא שאם אפשר אסור מספיק לגבי בערך בעצם כלל לפחות במקום מספר כמה הכי ראשונה
+  אחרונה שנת שנה מוות חיים לב נשמה זכר אמת שקר מילים מילה שאלות תשובה בעיה סיבה דקות שעה שעות יומיים פתאום לאט מהר`.split(/\s+/),
+)
+
+/** The names a book's opening repeats: Hebrew words of three letters or more that no story would share by chance (not
+ *  in COMMON), counted with their forms after a prefix (\"וקאל\", \"לקאל\" are \"קאל\"); those said twice or more, most
+ *  said first. The front matter (the credits, the copyright notice) is left out, so the publisher is not a name. */
+export function namesIn(lines: string[]): [string, number][] {
+  const prose = lines.map(bare).filter((l) => l.split(/\s+/).length >= 5 && !/©|isbn|מסת"ב|זכויות|לשכפל|מוציאים לאור|הוצא|www\.|תרגו?ם|מאנגלית/iu.test(l))
+  const counts = new Map<string, number>()
+  for (const l of prose) {
+    for (const w of l.replace(/[\u0591-\u05C7]/gu, '').match(/[\u05D0-\u05EA][\u05D0-\u05EA'׳]{2,14}/gu) ?? []) {
+      const word = w.replace(/['׳]$/u, '')
+      counts.set(word, (counts.get(word) ?? 0) + 1)
+    }
+  }
+  // a form after a one-letter prefix counts for the word itself, when the book has it alone too
+  for (const [w, n] of [...counts]) {
+    const rest = w.slice(1)
+    if (/^[והלבמשכ]/u.test(w) && rest.length >= 3 && counts.has(rest)) {
+      counts.set(rest, counts.get(rest)! + n)
+      counts.delete(w)
+    }
+  }
+  return [...counts]
+    .filter(([w, n]) => n >= 2 && !COMMON.has(w) && !(/^[והלבמשכ]/u.test(w) && COMMON.has(w.slice(1))))
+    .sort((x, y) => y[1] - x[1])
+    .slice(0, 20)
+}
+
+/** The series whose books share the most names with this one: four at least, and clearly more than any other series
+ *  shares (half as many again), so two series of one world (Percy Jackson's and its sequel's) are not mixed up. */
+export function seriesByNames(book: [string, number][], series: { name: string; books: [string, number][][] }[]): string | undefined {
+  const mine = new Set(book.map(([w]) => w))
+  const scored = series
+    .map((s) => {
+      const theirs = new Set(s.books.flatMap((b) => b.map(([w]) => w)))
+      return { name: s.name, shared: [...mine].filter((w) => theirs.has(w)).length }
+    })
+    .sort((x, y) => y.shared - x.shared)
+  const [best, next] = scored
+  if (!best || best.shared < 4) return undefined
+  return !next || best.shared >= next.shared * 1.5 ? best.name : undefined
+}

@@ -4,6 +4,7 @@
 
 import type { BookMeta } from './db'
 import { getFile } from './db'
+import { namesIn } from './bookInference'
 
 /** how much of the book is read: enough for the half-title, the title page and the copyright page */
 const SECTIONS = 6
@@ -17,6 +18,9 @@ const OCR_WIDTH = 1600
 /** the pages past the opening whose first and last lines are compared for a running head */
 const RUNNING_FROM = 8
 const RUNNING_PAGES = 30
+/** the sections past an EPUB's opening, and the lines of them at most, read for the names its story repeats */
+const NAME_SECTIONS = 10
+const NAME_LINES = 2500
 
 const letters = (lines: string[]) => lines.reduce((n, l) => n + (l.match(/[א-תA-Za-z]/g)?.length ?? 0), 0)
 
@@ -48,6 +52,9 @@ export interface EpubMeta {
   /** a PDF's running head: a line repeated at the top or bottom of many pages (the book's title, its series or its
    *  author), most repeated first. Only a PDF has it, and only one that prints it. */
   running?: string[]
+  /** the names the story repeats (its characters and places), read from its first chapters: what its books share with
+   *  the other books of its series (namesIn) */
+  names?: [string, number][]
   title: string
   authors: string[]
   series: string
@@ -147,7 +154,16 @@ export async function epubDetails(file: Blob, signal?: AbortSignal): Promise<{ o
   }
   // a book of pictures (a scan made into an EPUB) names itself on its cover only: read that
   if (letters(lines) < MIN_LETTERS) lines.push(...(await coverLines(zip, opf, base, signal)))
-  return { opening: lines.slice(0, MAX_LINES), meta: opfMeta(opf) }
+  // the chapters after the opening, for the names the story repeats
+  const story: string[] = []
+  for (const id of spine.slice(SECTIONS, SECTIONS + NAME_SECTIONS)) {
+    signal?.throwIfAborted()
+    const html = await zip.file(base + decodeURIComponent(hrefs.get(id)!.split('#')[0]!))?.async('string')
+    if (html) story.push(...htmlLines(html))
+    if (story.length >= NAME_LINES) break
+  }
+  const names = namesIn([...lines, ...story].slice(0, MAX_LINES + NAME_LINES))
+  return { opening: lines.slice(0, MAX_LINES), meta: { ...opfMeta(opf), ...(names.length && { names }) } }
 }
 
 /** the EPUB's first sections in reading order */
@@ -185,7 +201,7 @@ async function scannedOpening(pdf: PdfDoc, signal?: AbortSignal): Promise<string
 }
 
 /** a PDF's first pages, with Hebrew stored in visual order turned back */
-async function pdfOpening(file: Blob, signal?: AbortSignal): Promise<{ opening: string[]; running?: string[] }> {
+async function pdfOpening(file: Blob, signal?: AbortSignal): Promise<{ opening: string[]; running?: string[]; names?: [string, number][] }> {
   const [pdfjs, { default: workerUrl }, layout, { visualOrder, fixLine }] = await Promise.all([
     import('pdfjs-dist/legacy/build/pdf.mjs'),
     import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'),
@@ -207,16 +223,19 @@ async function pdfOpening(file: Blob, signal?: AbortSignal): Promise<{ opening: 
     const lines = pages.flat().map((l) => fixLine(l.text, order)).slice(0, MAX_LINES)
     // a scan has no text layer: the first pages are drawn and read by OCR
     if (letters(lines) < MIN_LETTERS) return { opening: await scannedOpening(pdf, signal) }
-    // the first and last lines of the pages further in, for a running head
+    // the first and last lines of the pages further in, for a running head, and all their lines for the names
     const ends: string[][] = []
+    const story: string[] = []
     for (let i = RUNNING_FROM; i < RUNNING_FROM + RUNNING_PAGES && i <= pdf.numPages; i++) {
       signal?.throwIfAborted()
       const p = await pdf.getPage(i)
       const page = layout.readingGroups(layout.normalizeStreamOrder(await layout.rawItems(p))).flatMap(layout.buildLines)
       p.cleanup()
-      if (page.length) ends.push([page[0]!, page[page.length - 1]!].map((l) => fixLine(l.text, order)))
+      const texts = page.map((l) => fixLine(l.text, order))
+      if (texts.length) ends.push([texts[0]!, texts[texts.length - 1]!])
+      story.push(...texts)
     }
-    return { opening: lines, running: runningHeads(ends) }
+    return { opening: lines, running: runningHeads(ends), names: namesIn([...lines, ...story]) }
   } finally {
     void task.destroy().catch(() => {})
   }
@@ -230,8 +249,10 @@ export async function bookDetails(b: Pick<BookMeta, 'id' | 'kind'>, signal?: Abo
     const file = await getFile(b.id)
     if (!file) return { opening: [] }
     if (b.kind === 'epub') return await epubDetails(file, signal)
-    const { opening, running } = await pdfOpening(file, signal)
-    return running?.length ? { opening, meta: { running, title: '', authors: [], series: '', number: '', identifiers: [] } } : { opening }
+    const { opening, running, names } = await pdfOpening(file, signal)
+    return running?.length || names?.length
+      ? { opening, meta: { ...(running?.length && { running }), ...(names?.length && { names }), title: '', authors: [], series: '', number: '', identifiers: [] } }
+      : { opening }
   } catch (e) {
     if (signal?.aborted) throw e
     console.warn(e)

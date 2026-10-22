@@ -582,11 +582,32 @@ describe('asLibrarySeries / withoutSeries', () => {
       { title: 'מגיסטריום 3 - מפתח הארד', author: 'הולי בלק וקסנדרה קלייר', id: 'b3', kind: 'pdf' },
       { title: 'מגיסטריום 4 - מסכת הכסף', author: 'הולי בלק וקסנדרה קלייר', id: 'b4', kind: 'pdf' },
     ])
-    localStorage.setItem('reader:copyright-years', JSON.stringify({ b1: 2014, b3: 2016, b4: 2017 }))
+    localStorage.setItem('reader:book-facts', JSON.stringify({ b1: { year: 2014, names: [] }, b3: { year: 2016, names: [] }, b4: { year: 2017, names: [] } }))
     const opening = ['Holly Black and Cassandra Clare', 'THE GOLDEN TOWER', 'MAGISTERIUM', 'Copyright © 2018 by Holly Black and Cassandra Clare LLC']
     const meta = { running: ['מגדל הזהב'], title: '', authors: [], series: '', number: '', identifiers: [] }
     const r = await identifyBook(book, false, undefined, opening, meta, library)
     expect(formatBookName(r)).toBe('מגיסטריום 5 - מגדל הזהב')
+    expect(r.sure).toBeUndefined()
+  })
+
+  it('puts a book in the author\'s series whose books share its names, and numbers it', async () => {
+    const names = (ws: string[]): [string, number][] => ws.map((w) => [w, 10])
+    const library = libraryNames([
+      { title: 'מגיסטריום 1 - מבחן הברזל', author: 'הולי בלק וקסנדרה קלייר', id: 'b1', kind: 'pdf' },
+      { title: 'מגיסטריום 2 - יד הנחושת', author: 'הולי בלק וקסנדרה קלייר', id: 'b2', kind: 'pdf' },
+      { title: 'עולם אחר 1 - ספר', author: 'הולי בלק וקסנדרה קלייר', id: 'c1', kind: 'pdf' },
+    ])
+    localStorage.setItem(
+      'reader:book-facts',
+      JSON.stringify({
+        b1: { year: 2014, names: names(['קאל', 'ארון', 'טמרה', 'רופוס', 'אלסטייר']) },
+        b2: { year: 2015, names: names(['קאל', 'ארון', 'טמרה', "ג'ספר"]) },
+        c1: { year: 2010, names: names(['ג\'וד', 'קרדן', 'טירין']) },
+      }),
+    )
+    const meta = { names: names(['קאל', 'ארון', 'טמרה', "ג'ספר", 'השמידו']), title: '', authors: [], series: '', number: '', identifiers: [] }
+    const r = await identifyBook({ title: 'מפתח הארד', author: 'הולי בלק וקסנדרה קלייר', fileName: 'x.pdf' }, false, undefined, ['Copyright © 2016 by Holly Black'], meta, library)
+    expect(formatBookName(r)).toBe('מגיסטריום 3 - מפתח הארד')
     expect(r.sure).toBeUndefined()
   })
 })
