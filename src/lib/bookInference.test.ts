@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bookNumber, librarySeriesFor, originalSeries, soundOf } from './bookInference'
+import { bookNumber, librarySeriesFor, originalSeries, soundOf, titleCase } from './bookInference'
 import { norm } from './sameBook'
 
 describe('soundOf', () => {
@@ -33,7 +33,7 @@ const golden = [
 
 describe('originalSeries', () => {
   it('finds the original series and number on a copyright page', () => {
-    expect(originalSeries(golden)).toEqual({ series: 'MAGISTERIUM', number: '5' })
+    expect(originalSeries(golden)).toEqual({ series: 'MAGISTERIUM', number: '5', title: 'THE GOLDEN TOWER' })
     expect(originalSeries(['Throne of Glass, Book 4'])).toEqual({ series: 'Throne of Glass', number: '4' })
   })
   it('takes no copyright, year or Hebrew line for one', () => {
@@ -50,5 +50,12 @@ describe('librarySeriesFor', () => {
     expect(librarySeriesFor('MAGISTERIUM', 'הולי בלק וקסנדרה קלייר', series, norm)).toBe('מגיסטריום')
     expect(librarySeriesFor('MAGISTERIUM', 'סופר אחר', series, norm)).toBeUndefined()
     expect(librarySeriesFor('The Hunger Games', 'הולי בלק וקסנדרה קלייר', series, norm)).toBeUndefined()
+  })
+})
+
+describe('titleCase', () => {
+  it('turns an all-capitals title into a name', () => {
+    expect(titleCase('THE GOLDEN TOWER')).toBe('The Golden Tower')
+    expect(titleCase('The Iron Trial')).toBe('The Iron Trial')
   })
 })

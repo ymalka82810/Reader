@@ -1,6 +1,6 @@
 import JSZip from 'jszip'
 import { describe, expect, it, vi } from 'vitest'
-import { coverHref, epubDetails, epubOpening, htmlLines, opfMeta } from './bookText'
+import { coverHref, epubDetails, epubOpening, htmlLines, opfMeta, runningHeads } from './bookText'
 
 const ocr = vi.hoisted(() => ({ ocrLines: vi.fn() }))
 vi.mock('./ocr', () => ocr)
@@ -108,5 +108,18 @@ describe('epubDetails of a book with no text', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     expect((await epubDetails(await build())).opening).toEqual([])
     warn.mockRestore()
+  })
+})
+
+describe('runningHeads', () => {
+  it('finds the lines that open or close many pages, past their page numbers', () => {
+    const words = 'אבגדהוזחטיכלמנסעפצקרשת'
+    const text = (i: number) => `${words[i]}${words[i + 1]}ם הלך אל ${words[i]}ית`
+    const pages = Array.from({ length: 20 }, (_, i) => (i % 2 ? [`${i + 10} מגדל הזהב`, text(i)] : ['הולי בלק וקסנדרה קלייר', text(i)]))
+    expect(runningHeads(pages).sort()).toEqual(['הולי בלק וקסנדרה קלייר', 'מגדל הזהב'])
+  })
+  it('finds none in pages that only start and end with their text', () => {
+    const words = 'אבגדהוזחטיכלמנסעפצקרשת'
+    expect(runningHeads(Array.from({ length: 20 }, (_, i) => [`${words[i]}ל ${words[i + 1]}ר`, `${words[i + 2]}ם`]))).toEqual([])
   })
 })

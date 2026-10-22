@@ -51,18 +51,32 @@ const NOT_SERIES = /copyright|©|rights|isbn|published|publishing|press|ltd|inc\
 // "MAGISTERIUM V", "Magisterium, Book 5", "THE HUNGER GAMES #2", "Throne of Glass vol. 3"
 const SERIES_LINE = /^([A-Za-z][A-Za-z'’&.\- ]{2,50}?)[\s,:#\-–—]+(?:(?:book|vol(?:ume)?|no|part)\.?\s*#?)?([IVXLivxl]{1,6}|\d{1,2})$/i
 
-/** The original series and the book's number in it, as a copyright page in Latin letters names them. */
-export function originalSeries(opening: string[]): { series: string; number: string } | undefined {
-  for (const raw of opening) {
-    const line = raw.replace(/[\u200e\u200f\u202a-\u202e]/g, '').trim()
-    if (!line || /[\u0590-\u05FF]/u.test(line) || NOT_SERIES.test(line) || line.split(/\s+/).length > 7) continue
+const bare = (s: string) => s.replace(/[\u200e\u200f\u202a-\u202e]/g, '').trim()
+const latinOnly = (s: string) => !!s && !/[\u0590-\u05FF]/u.test(s) && !NOT_SERIES.test(s) && s.split(/\s+/).length <= 8
+// the authors' line over the title ("Holly Black and Cassandra Clare", "by Rick Riordan")
+const BYLINE = /^by\s|\s(?:and|&)\s/i
+
+/** The original series and the book's number in it, as a copyright page in Latin letters names them, with the original
+ *  title when the line over the series is one ("THE GOLDEN TOWER" over "MAGISTERIUM V"). */
+export function originalSeries(opening: string[]): { series: string; number: string; title?: string } | undefined {
+  for (let i = 0; i < opening.length; i++) {
+    const line = bare(opening[i]!)
+    if (!latinOnly(line) || line.split(/\s+/).length > 7) continue
     const m = SERIES_LINE.exec(line)
     if (!m) continue
     const n = bookNumber(m[2]!)
     const series = m[1]!.replace(/[\s,:#\-–—]+$/u, '').trim()
-    if (n && soundOf(series).length >= 4) return { series, number: String(n) }
+    if (!n || soundOf(series).length < 4) continue
+    const above = bare(opening[i - 1] ?? '')
+    const title = latinOnly(above) && !BYLINE.test(above) && /[A-Za-z]{3}/.test(above) && !SERIES_LINE.test(above) ? above : undefined
+    return { series, number: String(n), ...(title && { title }) }
   }
   return undefined
+}
+
+/** "THE GOLDEN TOWER" as "The Golden Tower", which a translation service reads as a name */
+export function titleCase(s: string): string {
+  return s === s.toUpperCase() ? s.toLowerCase().replace(/(^|\s)(\p{L})/gu, (_, sp: string, c: string) => sp + c.toUpperCase()) : s
 }
 
 /** The library's series this original series is, by how both sound, of the same author when the book has one; the
