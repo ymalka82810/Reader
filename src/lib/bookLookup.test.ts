@@ -664,4 +664,20 @@ describe('asLibrarySeries / withoutSeries', () => {
     const lib = libraryNames([{ title: 'לחלום על 10' }, { title: 'לרקוד על 9' }])
     expect([...lib.series.values()].map((s) => s.name)).not.toContain('על')
   })
+
+  it('keeps a number that ends a title after a joining word, even when a name saved before made that word a series', async () => {
+    // "הבחורים של טומן": "לחלום על 10", "לשחרר את 10"; and a wrong name saved before, "על 9 - לרקוד"
+    const lib = libraryNames([{ title: 'על 9 - לרקוד' }, { title: 'לשמור על 13' }, { title: 'לשחרר את 10' }])
+    const r = await identifyBook({ title: 'לחלום על 10', author: 'קלואי וולש', fileName: 'x.epub' }, false, undefined, [], undefined, lib)
+    expect(formatBookName(r)).toBe('לחלום על 10')
+  })
+
+  it('does not speak against a number held by another copy of the same book', async () => {
+    const lib = libraryNames([{ title: 'המועמדת 3 - האחת', author: 'קיארה קאס' }])
+    const lists = [{ series: 'המועמדת', books: ['המועמדת', 'העילית', 'האחת'].map((title, i) => ({ title, number: String(i + 1) })) }]
+    const meta = { lists, title: '', authors: [], series: '', number: '', identifiers: [] }
+    const r = await identifyBook({ title: 'האחת', author: 'קיארה קאס', fileName: 'x.pdf' }, false, undefined, [], meta, lib)
+    expect(formatBookName(r)).toBe('המועמדת 3 - האחת')
+    expect(r.conflicts).toBeUndefined()
+  })
 })
