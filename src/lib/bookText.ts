@@ -4,7 +4,7 @@
 
 import type { BookMeta } from './db'
 import { getFile } from './db'
-import { namesIn } from './bookInference'
+import { namesIn, seriesLists, type SeriesList } from './bookInference'
 
 /** how much of the book is read: enough for the half-title, the title page and the copyright page */
 const SECTIONS = 6
@@ -21,6 +21,10 @@ const RUNNING_PAGES = 30
 /** the sections past an EPUB's opening, and the lines of them at most, read for the names its story repeats */
 const NAME_SECTIONS = 10
 const NAME_LINES = 2500
+/** the last sections or pages, and their last lines, read for a list of the series' books */
+const END_SECTIONS = 2
+const END_PAGES = 3
+const END_LINES = 120
 
 const letters = (lines: string[]) => lines.reduce((n, l) => n + (l.match(/[א-תA-Za-z]/g)?.length ?? 0), 0)
 
@@ -55,6 +59,8 @@ export interface EpubMeta {
   /** the names the story repeats (its characters and places), read from its first chapters: what its books share with
    *  the other books of its series (namesIn) */
   names?: [string, number][]
+  /** the lists of its series' books it prints ("ספרים נוספים בסדרה"), in its opening or its last pages */
+  lists?: SeriesList[]
   title: string
   authors: string[]
   series: string
@@ -163,7 +169,14 @@ export async function epubDetails(file: Blob, signal?: AbortSignal): Promise<{ o
     if (story.length >= NAME_LINES) break
   }
   const names = namesIn([...lines, ...story].slice(0, MAX_LINES + NAME_LINES))
-  return { opening: lines.slice(0, MAX_LINES), meta: { ...opfMeta(opf), ...(names.length && { names }) } }
+  // the last sections, where the other books of the series are often listed
+  const end: string[] = []
+  for (const id of spine.slice(Math.max(SECTIONS, spine.length - END_SECTIONS))) {
+    const html = await zip.file(base + decodeURIComponent(hrefs.get(id)!.split('#')[0]!))?.async('string')
+    if (html) end.push(...htmlLines(html).slice(-END_LINES))
+  }
+  const lists = seriesLists([...lines, ...end])
+  return { opening: lines.slice(0, MAX_LINES), meta: { ...opfMeta(opf), ...(names.length && { names }), ...(lists.length && { lists }) } }
 }
 
 /** the EPUB's first sections in reading order */
@@ -201,7 +214,10 @@ async function scannedOpening(pdf: PdfDoc, signal?: AbortSignal): Promise<string
 }
 
 /** a PDF's first pages, with Hebrew stored in visual order turned back */
-async function pdfOpening(file: Blob, signal?: AbortSignal): Promise<{ opening: string[]; running?: string[]; names?: [string, number][] }> {
+async function pdfOpening(
+  file: Blob,
+  signal?: AbortSignal,
+): Promise<{ opening: string[]; running?: string[]; names?: [string, number][]; lists?: SeriesList[] }> {
   const [pdfjs, { default: workerUrl }, layout, { visualOrder, fixLine }] = await Promise.all([
     import('pdfjs-dist/legacy/build/pdf.mjs'),
     import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'),
@@ -235,7 +251,14 @@ async function pdfOpening(file: Blob, signal?: AbortSignal): Promise<{ opening: 
       if (texts.length) ends.push([texts[0]!, texts[texts.length - 1]!])
       story.push(...texts)
     }
-    return { opening: lines, running: runningHeads(ends), names: namesIn([...lines, ...story]) }
+    const end: string[] = []
+    for (let i = Math.max(RUNNING_FROM + RUNNING_PAGES, pdf.numPages - END_PAGES + 1); i <= pdf.numPages; i++) {
+      signal?.throwIfAborted()
+      const p = await pdf.getPage(i)
+      end.push(...layout.readingGroups(layout.normalizeStreamOrder(await layout.rawItems(p))).flatMap(layout.buildLines).map((l) => fixLine(l.text, order)))
+      p.cleanup()
+    }
+    return { opening: lines, running: runningHeads(ends), names: namesIn([...lines, ...story]), lists: seriesLists([...lines, ...end.slice(-END_LINES)]) }
   } finally {
     void task.destroy().catch(() => {})
   }
@@ -249,9 +272,21 @@ export async function bookDetails(b: Pick<BookMeta, 'id' | 'kind'>, signal?: Abo
     const file = await getFile(b.id)
     if (!file) return { opening: [] }
     if (b.kind === 'epub') return await epubDetails(file, signal)
-    const { opening, running, names } = await pdfOpening(file, signal)
-    return running?.length || names?.length
-      ? { opening, meta: { ...(running?.length && { running }), ...(names?.length && { names }), title: '', authors: [], series: '', number: '', identifiers: [] } }
+    const { opening, running, names, lists } = await pdfOpening(file, signal)
+    return running?.length || names?.length || lists?.length
+      ? {
+          opening,
+          meta: {
+            ...(running?.length && { running }),
+            ...(names?.length && { names }),
+            ...(lists?.length && { lists }),
+            title: '',
+            authors: [],
+            series: '',
+            number: '',
+            identifiers: [],
+          },
+        }
       : { opening }
   } catch (e) {
     if (signal?.aborted) throw e

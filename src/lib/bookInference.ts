@@ -210,3 +210,86 @@ export function seriesByNames(book: [string, number][], series: { name: string; 
   if (!best || best.shared < 4) return undefined
   return !next || best.shared >= next.shared * 1.5 ? best.name : undefined
 }
+
+/** a list of a series' books as a book prints it (\"ספרים נוספים בסדרה\", \"סדרת כס הזכוכית:\"), each title with its number */
+export interface SeriesList {
+  /** the series' name when the heading gives it (\"סדרת כס הזכוכית\"); empty for \"ספרים נוספים בסדרה\" */
+  series: string
+  books: { title: string; number: string }[]
+}
+
+const ORDINALS: Record<string, number> = {
+  ראשון: 1, שני: 2, שלישי: 3, רביעי: 4, חמישי: 5, שישי: 6, שביעי: 7, שמיני: 8, תשיעי: 9, עשירי: 10,
+}
+// a heading of a list of the series' books, with the series' name when it gives one
+const LIST_HEAD = /^(?:(?:ספרים נוספים|עוד ספרים|הספרים|כל הספרים|עוד)\s+)?ב?סדר(?:ה|ת\s+["״׳']?(.+?)["״׳']?)\s*:?$/u
+const LIST_HEAD_PLAIN = /^(?:ספרים נוספים|עוד ספרים|הספרים)\s+בסדרה\s*:?$/u
+// lines that end a list: credits, a sentence, another kind of heading
+const NOT_ENTRY = /©|isbn|מסת"ב|זכויות|הוצא|www\.|תרגו?ם|מאנגלית|^מאותו|^ספרים נוספים מאת|^עוד מאת/iu
+
+/** an entry of a list: its title and the number it states (\"1. כס הזכוכית\", \"ספר שני: כתר חצות\", \"כתר חצות (2)\") */
+function entry(line: string): { title: string; number?: number } | undefined {
+  let t = line.replace(/^[•·*\-–—]\s*/u, '').replace(/\s*[([]?בקרוב[)\]]?\s*$/u, '').trim()
+  let number: number | undefined
+  const lead = /^(\d{1,2})\s*[.)\-–—:]\s*(.+)$/u.exec(t)
+  const word = /^ספר\s+(\S+)\s*[:\-–—]\s*(.+)$/u.exec(t)
+  const tail = /^(.+?)\s*[([](?:ספר\s*)?(\d{1,2})[)\]]$/u.exec(t)
+  if (lead) [number, t] = [Number(lead[1]), lead[2]!]
+  else if (word && ORDINALS[word[1]!]) [number, t] = [ORDINALS[word[1]!], word[2]!]
+  else if (tail) [t, number] = [tail[1]!, Number(tail[2])]
+  t = t.replace(/^["״׳']|["״׳']$/gu, '').trim()
+  if (!/[\u05D0-\u05EA]{2}/u.test(t) || /[A-Za-z]/.test(t) || t.split(/\s+/).length > 8 || NOT_ENTRY.test(t) || /[.!?]$/.test(t)) return undefined
+  // a half-title's "ספר חמישי" or "מאת …" is no book of the list
+  if (/^(?:ה?ספר|כרך|חלק)\s+\S+$|^מאת\b/u.test(t)) return undefined
+  return { title: t, ...(number && { number }) }
+}
+
+/** The lists of a series' books a book prints, in its opening or its last pages: two books at least each, numbered as
+ *  they say or else by their place in the list. */
+export function seriesLists(lines: string[]): SeriesList[] {
+  const lists: SeriesList[] = []
+  for (let i = 0; i < lines.length; i++) {
+    const head = bare(lines[i]!)
+    const m = LIST_HEAD.exec(head)
+    if (!m && !LIST_HEAD_PLAIN.test(head)) continue
+    const items: { title: string; number?: number }[] = []
+    for (let j = i + 1; j < lines.length && items.length < 25; j++) {
+      const line = bare(lines[j]!)
+      if (!line) continue
+      if (LIST_HEAD.test(line) || LIST_HEAD_PLAIN.test(line)) break
+      const e = entry(line)
+      if (!e) break
+      items.push(e)
+    }
+    // three books at least, or two that say their numbers: a half-title ("סדרת X" over the title and the author) is no list
+    if (items.length < 3 && !(items.length === 2 && items.every((e) => e.number))) continue
+    lists.push({
+      series: (m?.[1] ?? '').trim(),
+      books: items.map((e, k) => ({ title: e.title, number: String(e.number ?? k + 1) })),
+    })
+  }
+  return lists
+}
+
+/** The series and number a title has in these lists: the same in all that name it, else undefined */
+export function inLists(
+  title: string,
+  lists: SeriesList[],
+  norm: (s: string) => string,
+): { series: string; number: string; others: string[] } | undefined {
+  const t = norm(title)
+  if (!t) return undefined
+  const found = new Map<string, { series: string; number: string; others: string[] }>()
+  for (const l of lists) {
+    const b = l.books.find((x) => norm(x.title) === t)
+    if (b) found.set(`${norm(l.series)}|${b.number}`, { series: l.series, number: b.number, others: l.books.map((x) => x.title).filter((x) => norm(x) !== t) })
+  }
+  // a list that names its series says more than one that does not: \"סדרת X\" and \"בסדרה\" agree when their numbers do
+  const named = [...found.values()].filter((f) => f.series)
+  const all = [...found.values()]
+  const numbers = new Set(all.map((f) => f.number))
+  if (numbers.size !== 1) return undefined
+  const names = new Set(named.map((f) => norm(f.series)))
+  if (names.size > 1) return undefined
+  return named[0] ?? all[0]
+}
