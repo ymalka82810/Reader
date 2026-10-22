@@ -42,10 +42,11 @@ export interface PendingName {
 // places a book by its series' cast (not one book's characters) and numbers a series with none by its years, "11"
 // mends names broken at a joining word, places a book by the years of all its series' books and tidies the titles, "12"
 // looks for the real title of a book whose title only repeats its series and number; the one-time identification "13"
-// (the waiting list stays "12": what waits is still to be answered) goes over the library with the cascade, the clues
-// learnt from the user, the series' fingerprint, the knowledge kept on the device and the book before and after
-const KEY = 'reader:identify:pending12'
-const OLD_KEYS = ['pending', 'backfill', 'pending2', 'backfill2', 'pending3', 'backfill3', 'pending4', 'backfill4', 'pending5', 'backfill5', 'pending6', 'backfill6', 'pending7', 'backfill7', 'pending8', 'backfill8', 'pending9', 'backfill9', 'pending10', 'backfill10', 'pending11', 'backfill11', 'backfill12'].map(
+// went over the library with the cascade, the clues learnt from the user, the series' fingerprint, the knowledge kept on
+// the device and the book before and after; "14" (with a new waiting list, "13") again, without the series said twice,
+// a publisher taken for the author, or a fingerprint of another author's series
+const KEY = 'reader:identify:pending13'
+const OLD_KEYS = ['pending', 'backfill', 'pending2', 'backfill2', 'pending3', 'backfill3', 'pending4', 'backfill4', 'pending5', 'backfill5', 'pending6', 'backfill6', 'pending7', 'backfill7', 'pending8', 'backfill8', 'pending9', 'backfill9', 'pending10', 'backfill10', 'pending11', 'backfill11', 'pending12', 'backfill12', 'backfill13'].map(
   (k) => `reader:identify:${k}`,
 )
 const listeners = new Set<() => void>()
@@ -93,7 +94,7 @@ function addPending(items: PendingName[]) {
   savePending([...loadPending().filter((p) => !ids.has(p.id)), ...items])
 }
 
-const BACKFILL = 'reader:identify:backfill13'
+const BACKFILL = 'reader:identify:backfill14'
 
 /** The books the one-time identification of the library still has to go through: all of `allIds` before it started,
  *  what is left after it was stopped, and undefined once it is done (or was cancelled). */
