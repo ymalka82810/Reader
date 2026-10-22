@@ -53,7 +53,8 @@ export function IdentifyDialog({
         conflicts: w.conflicts,
         fromText: w.source === 'text',
         fromMeta: w.source === 'meta',
-        pick: true,
+        // a name a clue speaks against is offered unchecked: the user picks it on purpose
+        pick: !w.conflicts?.length,
       })) ?? [],
   )
   const [done, setDone] = useState(() => (waiting ? books.length : 0))
@@ -74,7 +75,7 @@ export function IdentifyDialog({
         const title = r && formatBookName(r)
         const author = r?.author ?? ''
         if (r && title && (!isJunkTitle(r.title) || (r.series && r.number)) && (title !== b.title || author !== (b.author ?? '').trim())) {
-          setFound((f) => [...f, { id: b.id, title, author, was: b.title, online: r.online, sites: r.sites, fromText: !!r.fromText, fromMeta: !!r.fromMeta, evidence: r.evidence, conflicts: r.conflicts, pick: true }])
+          setFound((f) => [...f, { id: b.id, title, author, was: b.title, online: r.online, sites: r.sites, fromText: !!r.fromText, fromMeta: !!r.fromMeta, evidence: r.evidence, conflicts: r.conflicts, pick: !r.conflicts?.length }])
         }
         setAnswers(structuredClone(catalogStats()))
         setDone((n) => n + 1)

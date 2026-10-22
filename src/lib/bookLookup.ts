@@ -495,7 +495,7 @@ function withMeta(local: BookName, meta?: EpubMeta): BookName {
 /** What the library already knows: the series its books are named in (with who wrote them), and its authors. */
 export interface LibraryNames {
   /** each series with its authors and the books the library has in it, by number */
-  series: Map<string, { name: string; authors: Set<string>; members?: { number: number; id?: string; kind?: string }[] }>
+  series: Map<string, { name: string; authors: Set<string>; members?: { number: number; id?: string; kind?: string; title?: string }[] }>
   /** the series each titled book of a series is in, by its title */
   titles?: Map<string, string>
   /** longest first, so "ג'ורג' ר ר מרטין" is tried before "מרטין" */
@@ -522,7 +522,7 @@ export function libraryNames(books: { title: string; author?: string; id?: strin
     if (a) entry.authors.add(norm(a))
     if (norm(guess.title)) titles.set(norm(guess.title), name)
     const n = Number(guess.number)
-    if (Number.isInteger(n) && n > 0) entry.members!.push({ number: n, ...(b.id && { id: b.id }), ...(b.kind && { kind: b.kind }) })
+    if (Number.isInteger(n) && n > 0) entry.members!.push({ number: n, title: guess.title, ...(b.id && { id: b.id }), ...(b.kind && { kind: b.kind }) })
     series.set(key, entry)
     const count = spellings.get(key) ?? new Map<string, number>()
     count.set(name, (count.get(name) ?? 0) + 1)
@@ -540,8 +540,7 @@ export function libraryNames(books: { title: string; author?: string; id?: strin
       const key = seriesKey(name)
       // "חלק 2", "כרך 3" are parts of a book, not a series
       if (!/\p{L}{2}/u.test(name) || series.has(key) || /^(?:ה?חלק|ה?כרך|ה?ספר|part|vol\.?|volume|book)$/iu.test(name)) continue
-      // a word that only joins ("לחלום על 10", "לשחרר את 10") names no series
-      if (/^(?:על|את|של|עם|אל|לא|כל|זה|זו|גם|רק|אני|הוא|היא|אתה|את|מה|מי|כי|אם|לו|לי|לה|בו|בה|the|of|a|an|and)$/iu.test(name)) continue
+      if (joining(name)) continue
       const t = tails.get(key) ?? { name, titles: new Set<string>(), authors: new Set<string>() }
       t.titles.add(norm(words.slice(0, -k).join(' ')))
       if (b.author?.trim()) t.authors.add(norm(b.author))
@@ -568,6 +567,12 @@ const MIDDLE = /^(.+?)\s+#?(\d{1,3})\s+(.+)$/u
  * קרח 1 משחקי הכס" when the library has "שיר של אש ושל קרח 3 - סופת החרבות"). Sure when that series is the same
  * author's. Undefined when the library tells nothing new.
  */
+/** A word that only joins a title to the number it ends with ("לחלום על 10", "לשחרר את 10", "Dreaming of 10"): the
+ *  number is the title's own, and the word names no series. Compared without marks or punctuation. */
+function joining(name: string): boolean {
+  return /^(?:על|את|של|עם|אל|לא|כל|זה|זו|גם|רק|אני|הוא|היא|אתה|מה|מי|כי|אם|לו|לי|לה|בו|בה|ב|ל|מ|ו|the|of|a|an|and|to|for|in|on|at)$/iu.test(norm(name))
+}
+
 function byLibrary(name: BookName, author: string, lib?: LibraryNames): { name: BookName; author: string; sure: boolean } | undefined {
   if (!lib) return undefined
   if (name.series) {
@@ -596,7 +601,7 @@ function byLibrary(name: BookName, author: string, lib?: LibraryNames): { name: 
   if (end) {
     const words = end[1]!.split(' ')
     for (let k = 1; k < words.length; k++) {
-      const s = lib.series.get(seriesKey(words.slice(-k).join(' ')))
+      const s = joining(words.slice(-k).join(' ')) ? undefined : lib.series.get(seriesKey(words.slice(-k).join(' ')))
       if (s) return { name: { series: s.name, number: String(Number(end[2])), title: words.slice(0, -k).join(' ') }, author: who, sure: sureOf(s) }
     }
   }
@@ -1018,6 +1023,13 @@ function listsOf(author: string): SeriesList[] {
 export type Clue = 'name' | 'meta' | 'copyright' | 'list' | 'names' | 'catalog' | 'order' | 'running'
 const STRONG: Clue[] = ['name', 'meta', 'copyright', 'list', 'names', 'catalog']
 
+/** two titles that are one: the same words, or one the other's start ("דם האולימפוס" and "דם האולימפוס V") */
+function sameTitle(x: string, y: string): boolean {
+  const a = norm(x)
+  const b = norm(y)
+  return !!a && !!b && (a === b || a.startsWith(`${b} `) || b.startsWith(`${a} `))
+}
+
 /** one series under two spellings or forms: "פרסי ג'קסון" and "פרסי ג'קסון והאולימפיים", "MAGISTERIUM" and "מגיסטריום" */
 function sameSeries(x: string, y: string): boolean {
   const a = seriesKey(x)
@@ -1078,8 +1090,9 @@ async function weigh(
   // speaks against (unless that book is this one, under the same title)
   const members = library?.series.get(seriesKey(r.series))?.members ?? []
   if (r.number && members.length) {
-    const taken = members.some((m) => m.number === Number(r.number))
-    if (taken && !library?.titles?.get(norm(r.title))) conflicts.push('order')
+    // another book at this number: not a second copy of this one (the same title, as a PDF and an EPUB)
+    const taken = members.some((m) => m.number === Number(r.number) && !(m.title && sameTitle(m.title, r.title)))
+    if (taken) conflicts.push('order')
   }
   if (meta?.running?.some((h) => norm(h) === norm(r.title))) evidence.push('running')
   const strong = evidence.filter((c) => STRONG.includes(c)).length
