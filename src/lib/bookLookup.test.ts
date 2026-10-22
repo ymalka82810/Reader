@@ -680,4 +680,27 @@ describe('asLibrarySeries / withoutSeries', () => {
     expect(formatBookName(r)).toBe('המועמדת 3 - האחת')
     expect(r.conflicts).toBeUndefined()
   })
+
+  it('numbers a book of a series by its original title on Wikidata', async () => {
+    const library = libraryNames([{ title: 'פרויקט X 1 - פרויקט X', author: 'גרג הורביץ', id: 'x1', kind: 'epub' }])
+    const names = (ws: string[]): [string, number][] => ws.map((w, i) => [w, 50 - i])
+    // no year for the first book, so only Wikidata can number it
+    localStorage.setItem('reader:book-facts', JSON.stringify({ x1: { year: null, names: names(['אוון', 'ג\'ק', 'ג\'ואי', 'מיה']) } }))
+    const meta = { names: names(['אוון', 'ג\'ק', 'ג\'ואי', 'קנדרה']), title: '', authors: [], series: '', number: '', identifiers: [] }
+    stubCatalogs([], (url) =>
+      url.includes('wikidata')
+        ? ({
+            ok: true,
+            json: async () => ({
+              search: [{ id: 'Q1', label: 'The Nowhere Man' }],
+              results: { bindings: [{ book: { value: 'http://www.wikidata.org/entity/Q1' }, seriesLabel: { value: 'Orphan X' }, num: { value: '2' } }] },
+            }),
+          } as Response)
+        : empty,
+    ).mockResolvedValue(answer())
+    const opening = ['GREGG HURWITZ', 'THE NOWHERE MAN', 'Copyright © 2017 by Gregg Hurwitz']
+    const r = await identifyBook({ title: 'הבן האובד', author: 'גרג הורביץ', fileName: 'x.epub' }, true, undefined, opening, meta, library)
+    expect(formatBookName(r).replace(/\u200f/g, '')).toBe('פרויקט X 2 - הבן האובד')
+    expect(r.sites).toEqual(['Wikidata'])
+  })
 })

@@ -7,7 +7,7 @@
 
 import { authorInName, guessBookName, isJunkTitle, nameFromOpening, seriesOf, tidyBookName, withoutAuthor, type BookName } from './bookName'
 import type { EpubMeta } from './bookText'
-import { copyrightYear, inLists, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, seriesByNames, soundOf, titleCase, type SeriesList } from './bookInference'
+import { copyrightYear, inLists, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, originalTitle, seriesByNames, soundOf, titleCase, type SeriesList } from './bookInference'
 import { hasConsent } from './consent'
 import { bookIsbns } from './isbn'
 import { norm } from './sameBook'
@@ -521,8 +521,9 @@ export function libraryNames(books: { title: string; author?: string; id?: strin
     const entry = series.get(key) ?? { name, authors: new Set<string>(), members: [] }
     if (a) entry.authors.add(norm(a))
     if (norm(guess.title)) titles.set(norm(guess.title), name)
-    const n = Number(guess.number)
-    if (Number.isInteger(n) && n > 0) entry.members!.push({ number: n, title: guess.title, ...(b.id && { id: b.id }), ...(b.kind && { kind: b.kind }) })
+    // a book of the series with no number counts too (as 0): the years may order it
+    const n = Number(guess.number) || 0
+    if (Number.isInteger(n) && n >= 0) entry.members!.push({ number: n, title: guess.title, ...(b.id && { id: b.id }), ...(b.kind && { kind: b.kind }) })
     series.set(key, entry)
     const count = spellings.get(key) ?? new Map<string, number>()
     count.set(name, (count.get(name) ?? 0) + 1)
@@ -754,10 +755,31 @@ async function findName(
   }
   // a series with no number: the number the library's books of the series leave for it, by their years when need be
   if (base.series && !base.number && library) {
-    const n = await numberInLibrary(base.series, copyrightYear(opening), library, signal)
+    // this book is one of the series for the books after it in this run (its year read with theirs)
+    const self = b as { id?: string; kind?: string }
+    const entry = library.series.get(seriesKey(base.series))
+    if (entry && self.id && !entry.members?.some((m) => m.id === self.id))
+      (entry.members ??= []).push({ number: 0, title: base.title, id: self.id, ...(self.kind && { kind: self.kind }) })
+    const n = await numberInLibrary(base.series, copyrightYear(opening), library, signal, self.id)
     if (n) {
+      // the number is given: the next book of this run is not offered it too
+      const me = entry?.members?.find((m) => self.id && m.id === self.id)
+      if (me) me.number = n
+      else entry?.members?.push({ number: n, title: base.title })
       base = { ...base, number: String(n) }
       fromOriginal = true
+    }
+  }
+  // still no number: the number Wikidata gives the original (its title on the copyright page) in its series
+  let numberedOnline = false
+  if (base.series && !base.number && online) {
+    const t = originalTitle(opening)
+    const holder = /copyright\s*©?\s*\d{4}\s+by\s+([A-Za-z.' -]+?)(?:\s+LLC|\s+Inc\.?|,|$)/i.exec(opening.find((l) => /copyright.*\bby\b/i.test(l)) ?? '')?.[1] ?? ''
+    const n = t ? await originalNumber(t, holder.trim(), signal) : undefined
+    if (n) {
+      base = { ...base, number: n }
+      fromOriginal = true
+      numberedOnline = true
     }
   }
   // a title that says nothing, from the PDF's running head: the line printed on many pages that is neither its series
@@ -784,6 +806,7 @@ async function findName(
     online: false,
     ...(fromText || fromOriginal || fromRunning ? { fromText: true } : fromMeta && { fromMeta, ...(metaSure && { sure: true }) }),
     ...(libSure && { sure: true }),
+    ...(numberedOnline && { sites: [SITE.wikidata] }),
   }
   if (!online) return mine
   const known = !isJunkTitle(base.title)
@@ -973,13 +996,17 @@ async function seriesOfNames(names: [string, number][], author: string, library:
 }
 
 /** The number a book of this series has, from the numbers its other books in the library have and their years */
-async function numberInLibrary(series: string, year: number | undefined, library: LibraryNames, signal?: AbortSignal): Promise<number | undefined> {
-  const members = library.series.get(seriesKey(series))?.members ?? []
+async function numberInLibrary(
+  series: string,
+  year: number | undefined,
+  library: LibraryNames,
+  signal?: AbortSignal,
+  self?: string,
+): Promise<number | undefined> {
+  const members = (library.series.get(seriesKey(series))?.members ?? []).filter((m) => !self || m.id !== self)
   if (!members.length) return undefined
   const dated = year ? await Promise.all(members.map(async (m) => ({ number: m.number, year: (await factsOf(m, signal))?.year ?? undefined }))) : members
   const n = numberByGaps(dated, year)
-  // the number is given: the next book of this run is not offered it too
-  if (n) members.push({ number: n })
   return n
 }
 
@@ -1091,7 +1118,7 @@ async function weigh(
   const members = library?.series.get(seriesKey(r.series))?.members ?? []
   if (r.number && members.length) {
     // another book at this number: not a second copy of this one (the same title, as a PDF and an EPUB)
-    const taken = members.some((m) => m.number === Number(r.number) && !(m.title && sameTitle(m.title, r.title)))
+    const taken = members.some((m) => m.number && m.number === Number(r.number) && !(m.title && sameTitle(m.title, r.title)))
     if (taken) conflicts.push('order')
   }
   if (meta?.running?.some((h) => norm(h) === norm(r.title))) evidence.push('running')
@@ -1100,4 +1127,22 @@ async function weigh(
   if (conflicts.length) delete out.sure
   else if (strong >= 2) out.sure = true
   return out
+}
+
+/** The number in its series that Wikidata gives a book by its original title ("The Nowhere Man" is Orphan X 2): one
+ *  work of that very name with a number in a series, else undefined. Wikidata failing gives none. */
+async function originalNumber(title: string, holder: string, signal?: AbortSignal): Promise<string | undefined> {
+  try {
+    const name = titleCase(title)
+    const budget: Budget = { left: 2 }
+    const ids = (await wikidataItems(name, 'en', signal, budget)).map((i) => i.title!).slice(0, 8)
+    if (!ids.length) return undefined
+    // the original's author, from its copyright notice ("Copyright © 2017 by Gregg Hurwitz"), tells two works of one name apart
+    const one = onlyOne(await wikidataWorks(ids, name, 'en', signal, budget), holder)
+    return one?.work.seriesInfo?.bookDisplayNumber
+  } catch (e) {
+    if (signal?.aborted) throw e
+    console.warn(e)
+    return undefined
+  }
 }
