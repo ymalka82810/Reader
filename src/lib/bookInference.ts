@@ -133,19 +133,23 @@ export function originalSeriesName(
   return undefined
 }
 
-/** The number a book of a series has, from the numbers the library already has in it: the only one missing (2 when there
- *  are 1 and 3), or the next one (4 after 1, 2 and 3); and when several fit (2 or 5 after 1, 3 and 4), the one the years
- *  agree with: a book first published after the others comes after them. Undefined when that does not decide it. */
+/** The number a book of a series has, from the numbers the library already has in it and the years its books were first
+ *  published: of the numbers missing (2 or 5 after 1, 3 and 4), the one the years agree with — a book first published
+ *  after the others comes after them. Undefined without the book's year, or when the years do not decide it. */
 export function numberByGaps(members: { number: number; year?: number }[], year?: number): number | undefined {
   if (!members.length) return undefined
   const have = new Set(members.map((m) => m.number))
   const max = Math.max(...have)
   const gaps: number[] = []
   for (let i = 1; i <= max + 1; i++) if (!have.has(i)) gaps.push(i)
-  const fits = year
-    ? gaps.filter((g) => members.every((m) => m.year === undefined || (m.number < g ? m.year <= year : m.year >= year)))
-    : gaps
-  return fits.length === 1 ? fits[0] : undefined
+  // without the book's year it is only a guess (2 or 4 after 1 and 3; and a book the library lacks may come before the
+  // next one): no number then
+  if (!year) return undefined
+  const fits = gaps.filter((g) => members.every((m) => m.year === undefined || (m.number < g ? m.year <= year : m.year >= year)))
+  // years that decide need a year on the other side of the gap: "after 4" with no year past it is still only a guess
+  const dated = members.filter((m) => m.year !== undefined)
+  const sure = (g: number) => !year || g < max || dated.some((m) => m.number < g)
+  return fits.length === 1 && sure(fits[0]!) ? fits[0] : undefined
 }
 
 // Common Hebrew words that every story has, so two books sharing them says nothing about a series. The names a series
@@ -196,20 +200,27 @@ export function namesIn(lines: string[]): [string, number][] {
     .slice(0, 20)
 }
 
-/** The series whose books share the most names with this one: four at least, and clearly more than any other series
- *  shares (half as many again), so two series of one world (Percy Jackson's and its sequel's) are not mixed up. */
+/** The series whose books share this one's main characters (two of its four most said names at least, among theirs)
+ *  and four names in all, clearly more than any other series (half as many again), so two series of one world (Percy
+ *  Jackson's and its sequel's) are not mixed up, and an author's books that share only her style are not a series. */
 export function seriesByNames(book: [string, number][], series: { name: string; books: [string, number][][] }[]): string | undefined {
   const mine = new Set(book.map(([w]) => w))
+  // the main characters: the names a book says most. Books of one author share words of her style, not her heroes
+  const core = new Set(book.slice(0, CORE).map(([w]) => w))
   const scored = series
     .map((s) => {
       const theirs = new Set(s.books.flatMap((b) => b.map(([w]) => w)))
-      return { name: s.name, shared: [...mine].filter((w) => theirs.has(w)).length }
+      const theirCore = new Set(s.books.flatMap((b) => b.slice(0, CORE).map(([w]) => w)))
+      return { name: s.name, shared: [...mine].filter((w) => theirs.has(w)).length, heroes: [...core].filter((w) => theirCore.has(w)).length }
     })
-    .sort((x, y) => y.shared - x.shared)
+    .sort((x, y) => y.heroes - x.heroes || y.shared - x.shared)
   const [best, next] = scored
-  if (!best || best.shared < 4) return undefined
-  return !next || best.shared >= next.shared * 1.5 ? best.name : undefined
+  if (!best || best.shared < 4 || best.heroes < 2) return undefined
+  return !next || (best.heroes >= next.heroes * 1.5 && best.shared >= next.shared) ? best.name : undefined
 }
+
+/** how many of a book's most said names are its main characters */
+const CORE = 4
 
 /** a list of a series' books as a book prints it (\"ספרים נוספים בסדרה\", \"סדרת כס הזכוכית:\"), each title with its number */
 export interface SeriesList {
@@ -264,7 +275,8 @@ export function seriesLists(lines: string[]): SeriesList[] {
     // three books at least, or two that say their numbers: a half-title ("סדרת X" over the title and the author) is no list
     if (items.length < 3 && !(items.length === 2 && items.every((e) => e.number))) continue
     lists.push({
-      series: (m?.[1] ?? '').trim(),
+      // the series' name without what a heading adds after a dash ("התנגשות — מארז פשע חושני")
+      series: (m?.[1] ?? '').split(/\s+[-–—]\s+|:/u)[0]!.trim(),
       books: items.map((e, k) => ({ title: e.title, number: String(e.number ?? k + 1) })),
     })
   }

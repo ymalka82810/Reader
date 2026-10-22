@@ -34,9 +34,9 @@ export interface PendingName {
 // splits names by what the library knows and marks a Latin series' number, "5" reads more Anna's Archive names and
 // takes "רבי־המכר" out of a series, "6" finds a title among a joined line's words and asks Google Books less, "7" infers
 // from inside the book (the copyright page, a running head, the series' list and characters, the library's numbering)
-// and weighs the clues
-const KEY = 'reader:identify:pending7'
-const OLD_KEYS = ['pending', 'backfill', 'pending2', 'backfill2', 'pending3', 'backfill3', 'pending4', 'backfill4', 'pending5', 'backfill5', 'pending6', 'backfill6'].map(
+// and weighs the clues, "8" asks a series by its characters to share its main ones and no more guesses the next number
+const KEY = 'reader:identify:pending8'
+const OLD_KEYS = ['pending', 'backfill', 'pending2', 'backfill2', 'pending3', 'backfill3', 'pending4', 'backfill4', 'pending5', 'backfill5', 'pending6', 'backfill6', 'pending7', 'backfill7'].map(
   (k) => `reader:identify:${k}`,
 )
 const listeners = new Set<() => void>()
@@ -84,7 +84,7 @@ function addPending(items: PendingName[]) {
   savePending([...loadPending().filter((p) => !ids.has(p.id)), ...items])
 }
 
-const BACKFILL = 'reader:identify:backfill7'
+const BACKFILL = 'reader:identify:backfill8'
 
 /** The books the one-time identification of the library still has to go through: all of `allIds` before it started,
  *  what is left after it was stopped, and undefined once it is done (or was cancelled). */

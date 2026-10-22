@@ -659,4 +659,9 @@ describe('asLibrarySeries / withoutSeries', () => {
       expect(r.conflicts).toContain('order')
     })
   })
+
+  it('makes no series of a joining word two titles end with ("לחלום על 10", "לרקוד על 9")', () => {
+    const lib = libraryNames([{ title: 'לחלום על 10' }, { title: 'לרקוד על 9' }])
+    expect([...lib.series.values()].map((s) => s.name)).not.toContain('על')
+  })
 })

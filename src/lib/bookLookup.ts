@@ -540,6 +540,8 @@ export function libraryNames(books: { title: string; author?: string; id?: strin
       const key = seriesKey(name)
       // "חלק 2", "כרך 3" are parts of a book, not a series
       if (!/\p{L}{2}/u.test(name) || series.has(key) || /^(?:ה?חלק|ה?כרך|ה?ספר|part|vol\.?|volume|book)$/iu.test(name)) continue
+      // a word that only joins ("לחלום על 10", "לשחרר את 10") names no series
+      if (/^(?:על|את|של|עם|אל|לא|כל|זה|זו|גם|רק|אני|הוא|היא|אתה|את|מה|מי|כי|אם|לו|לי|לה|בו|בה|the|of|a|an|and)$/iu.test(name)) continue
       const t = tails.get(key) ?? { name, titles: new Set<string>(), authors: new Set<string>() }
       t.titles.add(norm(words.slice(0, -k).join(' ')))
       if (b.author?.trim()) t.authors.add(norm(b.author))
@@ -970,7 +972,10 @@ async function numberInLibrary(series: string, year: number | undefined, library
   const members = library.series.get(seriesKey(series))?.members ?? []
   if (!members.length) return undefined
   const dated = year ? await Promise.all(members.map(async (m) => ({ number: m.number, year: (await factsOf(m, signal))?.year ?? undefined }))) : members
-  return numberByGaps(dated, year)
+  const n = numberByGaps(dated, year)
+  // the number is given: the next book of this run is not offered it too
+  if (n) members.push({ number: n })
+  return n
 }
 
 // the lists of series' books that books printed, kept on the device for the other books of those series
@@ -1075,7 +1080,6 @@ async function weigh(
   if (r.number && members.length) {
     const taken = members.some((m) => m.number === Number(r.number))
     if (taken && !library?.titles?.get(norm(r.title))) conflicts.push('order')
-    else if (!taken) evidence.push('order')
   }
   if (meta?.running?.some((h) => norm(h) === norm(r.title))) evidence.push('running')
   const strong = evidence.filter((c) => STRONG.includes(c)).length
