@@ -7,6 +7,7 @@
 import type { SeriesList } from './bookInference'
 import { sameAuthor as bySound } from './authorName'
 import { guessBookName, tidyBookName } from './bookName'
+import { bundledLists } from './seriesDb'
 import { norm } from './sameBook'
 
 const LISTS_KEY = 'reader:series-lists'
@@ -88,8 +89,11 @@ export function rememberName(name: string, author = '') {
 
 /** the kept lists that may be this author's: those of the same author, or of none known; only those from `from` when
  *  given (undefined in it stands for the lists printed in books) */
-export function listsOf(author: string, from?: (From | undefined)[]): KeptList[] {
-  return keptLists().filter((l) => sameAuthor(l.author, author) && (!from || from.includes(l.from)))
+/** the lists that may hold a book of this author (any, with no author), from where `from` says (anywhere by default);
+ *  Wikidata's lists include the series that come with the app (seriesDb), which with no author need the `title` */
+export function listsOf(author: string, from?: (From | undefined)[], title?: string): KeptList[] {
+  const kept = keptLists().filter((l) => sameAuthor(l.author, author) && (!from || from.includes(l.from)))
+  return !from || from.includes('wikidata') ? [...kept, ...bundledLists(author, title ?? '')] : kept
 }
 
 /** A book of a series, named in the library, names the next book of it (in its last pages) or the one before (in its

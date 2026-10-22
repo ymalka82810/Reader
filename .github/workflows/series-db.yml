@@ -1,0 +1,25 @@
+name: Series database
+# Rebuilds public/series-he.json from Wikidata (scripts/build-series-db.mjs) and pushes it to the series-db-update
+# branch, for a pull request like any other change.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 1 * *'
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: 24 }
+      - run: node scripts/build-series-db.mjs public/series-he.json
+      - run: |
+          if git diff --quiet -- public/series-he.json; then echo "no change"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b series-db-update
+          git add public/series-he.json
+          git commit -m "מאגר הסדרות: עדכון מ-Wikidata"
+          git push -f origin series-db-update

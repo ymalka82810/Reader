@@ -231,6 +231,7 @@ export const en: Record<keyof typeof he, Message> = {
   'stats.weak': "weak",
   'stats.noBlock': "doesn't block",
   'stats.knowledge': "Knowledge on this device",
+  'stats.bundled': 'Series database that comes with the app (from Wikidata): {series} series, {books} books.',
   'stats.bench': 'Identification benchmark',
   'stats.benchHint': 'Exports the books whose names you approved or saved, with what they came with and the right name, as a file for the developers\' benchmark',
   'stats.benchExport': 'Export test cases',

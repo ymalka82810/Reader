@@ -10,6 +10,7 @@ import { libraryAuthor } from './authorName'
 import type { EpubMeta } from './bookText'
 import { bookNumber, copyrightYear, seriesByWords, inLists, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, originalTitle, seriesByNames, soundOf, titleCase } from './bookInference'
 import { listsOf, rememberLists } from './bookKnowledge'
+import { bundledSeries, bundledTitle, loadSeriesDb } from './seriesDb'
 import { hasConsent } from './consent'
 import { blocks, clueStats, trusted } from './identifyLearning'
 import { bookIsbns } from './isbn'
@@ -735,6 +736,7 @@ export async function identifyBook(
   /** the library's series and authors (libraryNames), which split a name that has no dash */
   library?: LibraryNames,
 ): Promise<Identified> {
+  await loadSeriesDb()
   const r = tidyName(await findName(b, online, signal, opening, meta, library))
   const weighed = await weigh(r, b, opening, meta, library, signal)
   // a catalog's spelling of an author the library has under another ("Rick Riordan", "ריק ריירדן")
@@ -776,18 +778,22 @@ async function findName(
   let base: BookName = fromText ? read.name! : own
   // a translated book whose copyright page names the original series and number ("MAGISTERIUM V"), when the library
   // has that series in Hebrew: the library's series and the number, the title kept when it is one
-  const original = !base.series && library ? originalSeries(opening) : undefined
-  const fromSeries = original && librarySeriesFor(original.series, b.author, library!.series.values(), norm)
+  const original = !base.series ? originalSeries(opening) : undefined
+  // the library's series first, then the series that come with the app ("MAGISTERIUM" is "מגיסטריום" there too)
+  const fromSeries =
+    original &&
+    ((library && librarySeriesFor(original.series, b.author, library.series.values(), norm)) || librarySeriesFor(original.series, b.author, bundledSeries(), norm))
   // the original series with no number ("MAGISTERIUM" alone), as the library names it
   const nameOnly =
     !base.series && !fromSeries && library ? originalSeriesName([...opening, ...(meta?.running ?? [])], b.author, library.series.values(), norm) : undefined
   let fromOriginal = !!fromSeries || !!nameOnly
-  if (fromSeries) base = { series: fromSeries, number: original!.number, title: isJunkTitle(base.title) ? '' : base.title }
+  if (fromSeries)
+    base = { series: fromSeries, number: original!.number, title: isJunkTitle(base.title) ? (bundledTitle(fromSeries, original!.number) ?? '') : base.title }
   else if (nameOnly) base = { series: nameOnly, number: '', title: isJunkTitle(base.title) ? '' : base.title }
   // a list of the series' books that names this title, printed in this book or in another one read before
   if (meta?.lists?.length) rememberLists(meta.lists, b.author)
   if (!base.number && !isJunkTitle(base.title)) {
-    const listed = inLists(base.title, [...(meta?.lists ?? []), ...listsOf(b.author)], norm)
+    const listed = inLists(base.title, [...(meta?.lists ?? []), ...listsOf(b.author, undefined, base.title)], norm)
     // a list that does not name its series is the series of another book of it the library has
     const series =
       listed &&
@@ -1171,7 +1177,7 @@ function placeOfTitle(title: string, author: string, library?: LibraryNames): { 
   if (!t) return undefined
   for (const s of library?.series.values() ?? [])
     for (const m of s.members ?? []) if (m.number && m.title && norm(m.title) === t) return { series: s.name, number: m.number }
-  const listed = inLists(title, listsOf(author), norm)
+  const listed = inLists(title, listsOf(author, undefined, title), norm)
   const n = Number(listed?.number)
   return listed?.series && n ? { series: asLibrarySeries(listed.series, author, library), number: n } : undefined
 }
@@ -1253,7 +1259,10 @@ async function weigh(
     // what the books before and after it in the library said of it
     const said = inLists(r.title, listsOf(b.author, ['sequel']), norm)
     if (said) count('sequel', verdict(r, said.series || r.series, said.number))
-    const known = !r.online && inLists(r.title, listsOf(b.author, ['wikidata']), norm)
+    // only for a title the book gave: a title taken from the list by its number (seriesDb's bundledTitle) is the list's
+    // own word, and agrees with it by itself
+    const given = [named.title, meta?.title, ...(meta?.running ?? []), ...opening].some((x) => !!x && norm(x) === norm(r.title))
+    const known = !r.online && given && inLists(r.title, listsOf(b.author, ['wikidata'], r.title), norm)
     if (known && verdict(r, known.series, known.number) === 'agree') evidence.push('catalog')
   }
   // the names the story shares with the author's series in the library
