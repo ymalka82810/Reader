@@ -439,7 +439,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
     for (const c of changes) {
       try {
         await updateMeta(c.id, c.title, c.author)
-        confirmName(c.id, c.title)
+        confirmName(c.id, c.title, c.author)
         saved.push(c.id)
       } catch (e) {
         failure = e
@@ -479,7 +479,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
     const nameChanged = title !== editing.title || editAuthor.trim() !== (editing.author ?? '').trim()
     // a name the user typed is the book's own: it judges a name saved for it by itself, and it is a clue for the books
     // around it
-    if (nameChanged) learnFromEdit(id, title)
+    if (nameChanged) learnFromEdit(id, title, editAuthor.trim())
     editRun.current++
     setEditing(undefined)
     await refresh()

@@ -189,7 +189,7 @@ const COMMON = new Set(
 /** The names a book's opening repeats: Hebrew words of three letters or more that no story would share by chance (not
  *  in COMMON), counted with their forms after a prefix (\"וקאל\", \"לקאל\" are \"קאל\"); those said twice or more, most
  *  said first. The front matter (the credits, the copyright notice) is left out, so the publisher is not a name. */
-export function namesIn(lines: string[]): [string, number][] {
+export function namesIn(lines: string[], limit = 20): [string, number][] {
   const prose = lines.map(bare).filter((l) => l.split(/\s+/).length >= 5 && !/©|isbn|מסת"ב|זכויות|לשכפל|מוציאים לאור|הוצא|www\.|תרגו?ם|מאנגלית/iu.test(l))
   const counts = new Map<string, number>()
   for (const l of prose) {
@@ -209,7 +209,58 @@ export function namesIn(lines: string[]): [string, number][] {
   return [...counts]
     .filter(([w, n]) => n >= 2 && !COMMON.has(w) && !(/^[והלבמשכ]/u.test(w) && COMMON.has(w.slice(1))))
     .sort((x, y) => y[1] - x[1])
-    .slice(0, 20)
+    .slice(0, limit)
+}
+
+/** a book's vocabulary for its series' fingerprint: the words its story repeats past the common ones (namesIn), more of
+ *  them than its main characters — its places, its invented words, the names of things in its world */
+const WORDS = 50
+export const wordsIn = (lines: string[]) => namesIn(lines, WORDS)
+
+/**
+ * The series whose fingerprint this book's vocabulary has. A series' fingerprint is what its books' words have in
+ * common, each word weighed by how rare it is in the whole library (a word every book says, the author's style or the
+ * language's, weighs nothing; a word of one series' world weighs much). The book goes with the series whose fingerprint
+ * is nearest to its own (cosine), when that is near enough, shares five words at least, and is clearly nearer than any
+ * other series (half as much again). Undefined with too few books to tell what is rare.
+ */
+export function seriesByWords(
+  book: [string, number][],
+  series: { name: string; books: [string, number][][] }[],
+  library: [string, number][][],
+): string | undefined {
+  const docs = library.filter((d) => d.length)
+  if (docs.length < 4 || !book.length) return undefined
+  const df = new Map<string, number>()
+  for (const d of docs) for (const [w] of d) df.set(w, (df.get(w) ?? 0) + 1)
+  const idf = (w: string) => Math.log((docs.length + 1) / ((df.get(w) ?? 0) + 1))
+  const vec = (d: [string, number][]) => new Map(d.map(([w, n]) => [w, (1 + Math.log(n)) * idf(w)]))
+  const len = (v: Map<string, number>) => Math.sqrt([...v.values()].reduce((a, x) => a + x * x, 0))
+  const mine = vec(book)
+  const mineLen = len(mine)
+  if (!mineLen) return undefined
+  const scored = series
+    .filter((s) => s.books.some((b) => b.length))
+    .map((s) => {
+      const sum = new Map<string, number>()
+      const books = s.books.filter((b) => b.length)
+      for (const b of books) for (const [w, x] of vec(b)) sum.set(w, (sum.get(w) ?? 0) + x / books.length)
+      let dot = 0
+      let shared = 0
+      for (const [w, x] of mine) {
+        const y = sum.get(w)
+        if (y) {
+          dot += x * y
+          if (x > 0) shared++
+        }
+      }
+      const l = len(sum)
+      return { name: s.name, sim: l ? dot / (mineLen * l) : 0, shared }
+    })
+    .sort((x, y) => y.sim - x.sim)
+  const [best, next] = scored
+  if (!best || best.sim < 0.2 || best.shared < 5) return undefined
+  return !next || best.sim >= next.sim * 1.5 ? best.name : undefined
 }
 
 /** The series this book's characters belong to. Characters are a series' and not a single book's: a series' cast is

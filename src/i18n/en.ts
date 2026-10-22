@@ -188,6 +188,7 @@ export const en: Record<keyof typeof he, Message> = {
   'identify.clue.copyright': 'the copyright page',
   'identify.clue.list': 'the series list',
   'identify.clue.names': 'the characters',
+  'identify.clue.words': "the series' vocabulary",
   'identify.clue.catalog': 'a catalog',
   'identify.clue.order': 'the series numbering in the library',
   'identify.clue.running': 'the running head',

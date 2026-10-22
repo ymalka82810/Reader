@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bookNumber, copyrightYear, inLists, namesIn, originalTitle, seriesByNames, seriesLists, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, soundOf, titleCase } from './bookInference'
+import { bookNumber, copyrightYear, inLists, namesIn, originalTitle, seriesByNames, seriesByWords, seriesLists, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, soundOf, titleCase } from './bookInference'
 import { norm } from './sameBook'
 
 describe('soundOf', () => {
@@ -216,5 +216,30 @@ describe('numberByGaps by the places of all the series\' books', () => {
   it('takes no place when a numbered book is not at its own (a book of the series missing before it)', () => {
     expect(numberByGaps([{ number: 1, year: 2014 }, { number: 3, year: 2016 }, { number: 0, year: 2015 }], 2018)).toBe(4)
     expect(numberByGaps([{ number: 1, year: 2014 }, { number: 3, year: 2016 }, { number: 0 }], 2018)).toBeUndefined()
+  })
+})
+
+describe('seriesByWords', () => {
+  const doc = (...w: string[]): [string, number][] => w.map((x, i) => [x, 10 - (i % 5)])
+  // words every book says (the author's style) weigh nothing; the words of one series' world decide
+  const style = ['אמר', 'פתאום', 'הביט']
+  const a1 = doc(...style, 'מחנה', 'החצויים', 'אולימפוס', 'קנטאור', 'כירון', 'נמפה')
+  const a2 = doc(...style, 'מחנה', 'החצויים', 'אולימפוס', 'כירון', 'סאטיר', 'גרובר')
+  const b1 = doc(...style, 'אסגרד', 'ואלהאלה', 'איינהריאר', 'תור', 'לוקי', 'רוני')
+  const b2 = doc(...style, 'אסגרד', 'ואלהאלה', 'לוקי', 'איינהריאר', 'בליצן', 'הארת')
+  const series = [
+    { name: 'א', books: [a1, a2] },
+    { name: 'ב', books: [b1, b2] },
+  ]
+  const library = [a1, a2, b1, b2, doc('מילה', 'אחרת', 'לגמרי')]
+
+  it('finds the series whose world the book speaks of', () => {
+    expect(seriesByWords(doc(...style, 'אולימפוס', 'החצויים', 'כירון', 'מחנה', 'סאטיר', 'פוסידון'), series, library)).toBe('א')
+    expect(seriesByWords(doc(...style, 'לוקי', 'אסגרד', 'ואלהאלה', 'איינהריאר', 'הארת', 'סמירף'), series, library)).toBe('ב')
+  })
+
+  it('finds none for a book that shares only the style, or with too few books to tell', () => {
+    expect(seriesByWords(doc(...style, 'ים', 'ספינה', 'מפרש', 'גל', 'רב-חובל'), series, library)).toBeUndefined()
+    expect(seriesByWords(a1, series, [a1, b1])).toBeUndefined()
   })
 })

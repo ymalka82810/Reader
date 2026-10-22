@@ -187,6 +187,7 @@ export const he = {
   'identify.clue.copyright': 'עמוד הזכויות',
   'identify.clue.list': 'רשימת הסדרה',
   'identify.clue.names': 'הדמויות',
+  'identify.clue.words': 'אוצר המילים של הסדרה',
   'identify.clue.catalog': 'קטלוג',
   'identify.clue.order': 'מספור הסדרה בספרייה',
   'identify.clue.running': 'כותרת רצה',

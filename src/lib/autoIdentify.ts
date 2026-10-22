@@ -6,7 +6,8 @@
 // The books already in the library are identified the same way once, on the first start after this came in (the
 // "backfill"): what is left of it is kept, so a run stopped by closing the app goes on at the next start.
 
-import { identifyBook, libraryNames, type Clue } from './bookLookup'
+import { rememberName } from './bookKnowledge'
+import { identifyBook, keepFacts, libraryNames, type Clue } from './bookLookup'
 import { formatBookName, guessBookName, isJunkTitle, tidyBookName } from './bookName'
 import { bookDetails } from './bookText'
 import { hasConsent } from './consent'
@@ -250,6 +251,8 @@ export async function identifyNew(
         const b = await getBookMeta(id)
         if (!b || isConfirmed(id, b.title)) continue
         const { opening, meta } = await bookDetails(b, signal)
+        // what the book says of itself is kept for the books compared with it later (its series' fingerprint)
+        keepFacts(id, opening, meta)
         const r = await identifyBook(b, online, signal, opening, meta, library)
         if (r.failed) {
           online = false
@@ -270,6 +273,7 @@ export async function identifyNew(
           savedNow.push(id)
           named.add(id)
           if (!marksOnly) rememberAuto(id, title, r.evidence, r.conflicts)
+          rememberName(title, author)
           dropPending([id])
           await autoSyncPhoneNames([id]).catch(() => {})
           books = await listBooks().catch(() => books)
