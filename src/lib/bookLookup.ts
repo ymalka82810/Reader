@@ -7,7 +7,7 @@
 
 import { authorInName, guessBookName, isJunkTitle, nameFromOpening, seriesOf, tidyBookName, withoutAuthor, type BookName } from './bookName'
 import type { EpubMeta } from './bookText'
-import { copyrightYear, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, seriesByNames, titleCase } from './bookInference'
+import { copyrightYear, inLists, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, seriesByNames, titleCase, type SeriesList } from './bookInference'
 import { hasConsent } from './consent'
 import { bookIsbns } from './isbn'
 import { norm } from './sameBook'
@@ -492,6 +492,8 @@ function withMeta(local: BookName, meta?: EpubMeta): BookName {
 export interface LibraryNames {
   /** each series with its authors and the books the library has in it, by number */
   series: Map<string, { name: string; authors: Set<string>; members?: { number: number; id?: string; kind?: string }[] }>
+  /** the series each titled book of a series is in, by its title */
+  titles?: Map<string, string>
   /** longest first, so "ג'ורג' ר ר מרטין" is tried before "מרטין" */
   authors: string[]
 }
@@ -501,6 +503,7 @@ const seriesKey = (s: string) => norm(s.replace(/איקס/gu, 'x'))
 
 export function libraryNames(books: { title: string; author?: string; id?: string; kind?: string }[]): LibraryNames {
   const series: LibraryNames['series'] = new Map()
+  const titles = new Map<string, string>()
   const spellings = new Map<string, Map<string, number>>()
   const authors = new Set<string>()
   for (const b of books) {
@@ -513,6 +516,7 @@ export function libraryNames(books: { title: string; author?: string; id?: strin
     if (!key) continue
     const entry = series.get(key) ?? { name, authors: new Set<string>(), members: [] }
     if (a) entry.authors.add(norm(a))
+    if (norm(guess.title)) titles.set(norm(guess.title), name)
     const n = Number(guess.number)
     if (Number.isInteger(n) && n > 0) entry.members!.push({ number: n, ...(b.id && { id: b.id }), ...(b.kind && { kind: b.kind }) })
     series.set(key, entry)
@@ -546,7 +550,7 @@ export function libraryNames(books: { title: string; author?: string; id?: strin
   }
   // the spelling most of the series' books have
   for (const [key, count] of spellings) series.get(key)!.name = [...count].sort((x, y) => y[1] - x[1])[0]![0]
-  return { series, authors: [...authors].sort((x, y) => y.length - x.length) }
+  return { series, titles, authors: [...authors].sort((x, y) => y.length - x.length) }
 }
 
 /** a name with its number in the middle and no dash: "שיר של אש ושל קרח 1 משחקי הכס" */
@@ -702,6 +706,21 @@ export async function identifyBook(
   let fromOriginal = !!fromSeries || !!nameOnly
   if (fromSeries) base = { series: fromSeries, number: original!.number, title: isJunkTitle(base.title) ? '' : base.title }
   else if (nameOnly) base = { series: nameOnly, number: '', title: isJunkTitle(base.title) ? '' : base.title }
+  // a list of the series' books that names this title, printed in this book or in another one read before
+  if (meta?.lists?.length) rememberLists(meta.lists, b.author)
+  if (!base.number && !isJunkTitle(base.title)) {
+    const listed = inLists(base.title, [...(meta?.lists ?? []), ...listsOf(b.author)], norm)
+    // a list that does not name its series is the series of another book of it the library has
+    const series =
+      listed &&
+      (listed.series
+        ? asLibrarySeries(listed.series, b.author, library)
+        : base.series || listed.others.map((t) => library?.titles?.get(norm(t))).find(Boolean) || '')
+    if (listed && series && (!base.series || sameTitle(series, base.series) || !listed.series)) {
+      base = { ...base, series: base.series || series, number: listed.number }
+      fromOriginal = true
+    }
+  }
   // still no series: the author's series in the library whose books share the most names with this one (its characters)
   if (!base.series && library && b.author.trim() && meta?.names?.length) {
     const s = await seriesOfNames(meta.names, b.author, library, signal)
@@ -905,6 +924,7 @@ async function factsOf(m: { id?: string; kind?: string }, signal?: AbortSignal):
   const { bookDetails } = await import('./bookText')
   const d = await bookDetails({ id: m.id, kind: m.kind }, signal)
   const f: Facts = { year: copyrightYear(d.opening) ?? null, names: d.meta?.names ?? [] }
+  if (d.meta?.lists?.length) rememberLists(d.meta.lists)
   try {
     localStorage.setItem(FACTS_KEY, JSON.stringify({ ...facts(), [m.id]: f }))
   } catch {
@@ -935,4 +955,35 @@ async function numberInLibrary(series: string, year: number | undefined, library
   if (!members.length) return undefined
   const dated = year ? await Promise.all(members.map(async (m) => ({ number: m.number, year: (await factsOf(m, signal))?.year ?? undefined }))) : members
   return numberByGaps(dated, year)
+}
+
+// the lists of series' books that books printed, kept on the device for the other books of those series
+const LISTS_KEY = 'reader:series-lists'
+const LISTS_MAX = 200
+type KeptList = SeriesList & { author?: string }
+function keptLists(): KeptList[] {
+  try {
+    return JSON.parse(localStorage.getItem(LISTS_KEY) ?? '[]') as KeptList[]
+  } catch {
+    return []
+  }
+}
+
+function rememberLists(lists: SeriesList[], author = '') {
+  const key = (l: SeriesList) => `${norm(l.series)}|${l.books.map((b) => `${b.number}:${norm(b.title)}`).join(',')}`
+  const kept = keptLists()
+  const have = new Set(kept.map(key))
+  const added = lists.filter((l) => !have.has(key(l))).map((l) => ({ ...l, ...(author.trim() && { author: author.trim() }) }))
+  if (!added.length) return
+  try {
+    localStorage.setItem(LISTS_KEY, JSON.stringify([...kept, ...added].slice(-LISTS_MAX)))
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+/** the kept lists that may be this author's: those of the same author, or of none known */
+function listsOf(author: string): SeriesList[] {
+  const a = norm(author)
+  return keptLists().filter((l) => !a || !l.author || norm(l.author) === a || norm(l.author).includes(a) || a.includes(norm(l.author)))
 }

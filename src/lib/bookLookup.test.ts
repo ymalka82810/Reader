@@ -610,4 +610,23 @@ describe('asLibrarySeries / withoutSeries', () => {
     expect(formatBookName(r)).toBe('מגיסטריום 3 - מפתח הארד')
     expect(r.sure).toBeUndefined()
   })
+
+  it('numbers a book by a list of its series it prints, the series being another listed book\'s in the library', async () => {
+    const library = libraryNames([{ title: 'מגיסטריום 1 - מבחן הברזל', author: 'הולי בלק וקסנדרה קלייר' }])
+    const lists = [{ series: '', books: ['מבחן הברזל', 'יד הנחושת', 'מפתח הארד'].map((title, i) => ({ title, number: String(i + 1) })) }]
+    const meta = { lists, title: '', authors: [], series: '', number: '', identifiers: [] }
+    const r = await identifyBook({ title: 'יד הנחושת', author: 'הולי בלק וקסנדרה קלייר', fileName: 'x.pdf' }, false, undefined, [], meta, library)
+    expect(formatBookName(r)).toBe('מגיסטריום 2 - יד הנחושת')
+    expect(r.sure).toBeUndefined()
+    // and the list is kept for the series' other books
+    const other = await identifyBook({ title: 'מפתח הארד', author: 'הולי בלק וקסנדרה קלייר', fileName: 'y.pdf' }, false, undefined, [], undefined, library)
+    expect(formatBookName(other)).toBe('מגיסטריום 3 - מפתח הארד')
+  })
+
+  it('takes the series a list names, as the library names it', async () => {
+    const lists = [{ series: 'כס הזכוכית', books: [{ title: 'כס הזכוכית', number: '1' }, { title: 'כתר חצות', number: '2' }] }]
+    const meta = { lists, title: '', authors: [], series: '', number: '', identifiers: [] }
+    const r = await identifyBook({ title: 'כתר חצות', author: "שרה ג'יי מאס", fileName: 'x.epub' }, false, undefined, [], meta, libraryNames([]))
+    expect(formatBookName(r)).toBe('כס הזכוכית 2 - כתר חצות')
+  })
 })

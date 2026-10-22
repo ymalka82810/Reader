@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bookNumber, copyrightYear, namesIn, seriesByNames, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, soundOf, titleCase } from './bookInference'
+import { bookNumber, copyrightYear, inLists, namesIn, seriesByNames, seriesLists, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, soundOf, titleCase } from './bookInference'
 import { norm } from './sameBook'
 
 describe('soundOf', () => {
@@ -121,5 +121,39 @@ describe('seriesByNames', () => {
     const a = { name: 'א', books: [['קאל', 'ארון', 'טמרה', "ג'ספר"].map((w): [string, number] => [w, 5])] }
     const b = { name: 'ב', books: [['קאל', 'ארון', 'טמרה', 'רופוס'].map((w): [string, number] => [w, 5])] }
     expect(seriesByNames(book, [a, b])).toBeUndefined()
+  })
+})
+
+describe('seriesLists', () => {
+  it('reads a list of the series\' books, numbered by place or as it says', () => {
+    expect(seriesLists(['ספרים נוספים בסדרה:', 'מבחן הברזל', 'יד הנחושת', 'מפתח הארד', 'מסכת הכסף', 'כל הזכויות שמורות'])).toEqual([
+      { series: '', books: [
+        { title: 'מבחן הברזל', number: '1' }, { title: 'יד הנחושת', number: '2' },
+        { title: 'מפתח הארד', number: '3' }, { title: 'מסכת הכסף', number: '4' },
+      ] },
+    ])
+    expect(seriesLists(['סדרת כס הזכוכית:', '1. כס הזכוכית', '2. כתר חצות', '4. מלכת האור (בקרוב)'])[0]).toEqual({
+      series: 'כס הזכוכית',
+      books: [{ title: 'כס הזכוכית', number: '1' }, { title: 'כתר חצות', number: '2' }, { title: 'מלכת האור', number: '4' }],
+    })
+    expect(seriesLists(['בסדרה:', 'ספר ראשון: הפירמידה האדומה', 'ספר שני: כס האש'])[0]!.books[1]).toEqual({ title: 'כס האש', number: '2' })
+  })
+  it('takes no half-title for a list', () => {
+    expect(seriesLists(['סדרת מגיסטריום', 'ספר חמישי', 'מגדל הזהב', 'הולי בלק וקסנדרה קלייר'])).toEqual([])
+  })
+})
+
+describe('inLists', () => {
+  const lists = [
+    { series: '', books: [{ title: 'מבחן הברזל', number: '1' }, { title: 'יד הנחושת', number: '2' }, { title: 'מפתח הארד', number: '3' }] },
+    { series: 'מגיסטריום', books: [{ title: 'יד הנחושת', number: '2' }, { title: 'מגדל הזהב', number: '5' }] },
+  ]
+  it('finds the title\'s number, and the series when a list names it', () => {
+    expect(inLists('יד הנחושת', lists, norm)).toMatchObject({ series: 'מגיסטריום', number: '2' })
+    expect(inLists('מפתח הארד', lists, norm)).toMatchObject({ series: '', number: '3', others: ['מבחן הברזל', 'יד הנחושת'] })
+    expect(inLists('ספר אחר', lists, norm)).toBeUndefined()
+  })
+  it('takes none when lists disagree on the number', () => {
+    expect(inLists('יד הנחושת', [...lists, { series: '', books: [{ title: 'יד הנחושת', number: '4' }, { title: 'x', number: '5' }] }], norm)).toBeUndefined()
   })
 })
