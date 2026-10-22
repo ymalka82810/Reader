@@ -95,3 +95,55 @@ export function librarySeriesFor(
   const names = new Set(fits.map((s) => s.name))
   return names.size === 1 ? [...names][0] : undefined
 }
+
+/** The year the book was first published, as its copyright page says it: the original's year for a translation
+ *  ("Copyright © 2018 by …"), not the Hebrew edition's ("Hebrew Language Copyright © 2019"). */
+export function copyrightYear(opening: string[]): number | undefined {
+  const lines = opening.map(bare).filter((l) => /copyright|©/i.test(l))
+  const original = lines.filter((l) => !/hebrew|[\u0590-\u05FF]/iu.test(l))
+  for (const l of [...original, ...lines]) {
+    const y = /\b(1[89]\d\d|20\d\d)\b/.exec(l)
+    if (y) return Number(y[1])
+  }
+  return undefined
+}
+
+/** A line that is a series of the library's with no number: the original's on the copyright page ("MAGISTERIUM", by how
+ *  it sounds) or the Hebrew name itself (a half-title, a running head). Undefined when none or more than one fits. */
+export function originalSeriesName(
+  opening: string[],
+  author: string,
+  series: Iterable<{ name: string; authors: Set<string> }>,
+  norm: (s: string) => string,
+): string | undefined {
+  const all = [...series]
+  for (const raw of opening) {
+    const line = bare(raw)
+    if (!line || line.split(/\s+/).length > 4 || BYLINE.test(line) || soundOf(line).length < 4) continue
+    if (/[\u0590-\u05FF]/u.test(line)) {
+      // a Hebrew line (a half-title, a running head) is the series only when it is its very name
+      const same = all.filter((x) => norm(x.name) === norm(line) && librarySeriesFor(line, author, [x], norm))
+      if (same.length === 1) return same[0]!.name
+      continue
+    }
+    if (!latinOnly(line)) continue
+    const name = librarySeriesFor(line, author, all, norm)
+    if (name) return name
+  }
+  return undefined
+}
+
+/** The number a book of a series has, from the numbers the library already has in it: the only one missing (2 when there
+ *  are 1 and 3), or the next one (4 after 1, 2 and 3); and when several fit (2 or 5 after 1, 3 and 4), the one the years
+ *  agree with: a book first published after the others comes after them. Undefined when that does not decide it. */
+export function numberByGaps(members: { number: number; year?: number }[], year?: number): number | undefined {
+  if (!members.length) return undefined
+  const have = new Set(members.map((m) => m.number))
+  const max = Math.max(...have)
+  const gaps: number[] = []
+  for (let i = 1; i <= max + 1; i++) if (!have.has(i)) gaps.push(i)
+  const fits = year
+    ? gaps.filter((g) => members.every((m) => m.year === undefined || (m.number < g ? m.year <= year : m.year >= year)))
+    : gaps
+  return fits.length === 1 ? fits[0] : undefined
+}

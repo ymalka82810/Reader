@@ -7,7 +7,7 @@
 
 import { authorInName, guessBookName, isJunkTitle, nameFromOpening, seriesOf, tidyBookName, withoutAuthor, type BookName } from './bookName'
 import type { EpubMeta } from './bookText'
-import { librarySeriesFor, originalSeries, titleCase } from './bookInference'
+import { copyrightYear, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, titleCase } from './bookInference'
 import { hasConsent } from './consent'
 import { bookIsbns } from './isbn'
 import { norm } from './sameBook'
@@ -490,7 +490,8 @@ function withMeta(local: BookName, meta?: EpubMeta): BookName {
 
 /** What the library already knows: the series its books are named in (with who wrote them), and its authors. */
 export interface LibraryNames {
-  series: Map<string, { name: string; authors: Set<string> }>
+  /** each series with its authors and the books the library has in it, by number */
+  series: Map<string, { name: string; authors: Set<string>; members?: { number: number; id?: string; kind?: string }[] }>
   /** longest first, so "ג'ורג' ר ר מרטין" is tried before "מרטין" */
   authors: string[]
 }
@@ -498,19 +499,22 @@ export interface LibraryNames {
 /** a series compared across spellings: "פרויקט איקס" is "פרויקט X" */
 const seriesKey = (s: string) => norm(s.replace(/איקס/gu, 'x'))
 
-export function libraryNames(books: { title: string; author?: string }[]): LibraryNames {
-  const series = new Map<string, { name: string; authors: Set<string> }>()
+export function libraryNames(books: { title: string; author?: string; id?: string; kind?: string }[]): LibraryNames {
+  const series: LibraryNames['series'] = new Map()
   const spellings = new Map<string, Map<string, number>>()
   const authors = new Set<string>()
   for (const b of books) {
     const a = (b.author ?? '').trim()
     if (a && !/@/.test(a)) authors.add(a)
     // as the identification reads it, so "פרויקט X #01 - פרויקט X" counts before it is renamed
-    const name = guessBookName(tidyBookName(b.title)).series
+    const guess = guessBookName(tidyBookName(b.title))
+    const name = guess.series
     const key = name && seriesKey(name)
     if (!key) continue
-    const entry = series.get(key) ?? { name, authors: new Set<string>() }
+    const entry = series.get(key) ?? { name, authors: new Set<string>(), members: [] }
     if (a) entry.authors.add(norm(a))
+    const n = Number(guess.number)
+    if (Number.isInteger(n) && n > 0) entry.members!.push({ number: n, ...(b.id && { id: b.id }), ...(b.kind && { kind: b.kind }) })
     series.set(key, entry)
     const count = spellings.get(key) ?? new Map<string, number>()
     count.set(name, (count.get(name) ?? 0) + 1)
@@ -692,8 +696,20 @@ export async function identifyBook(
   // has that series in Hebrew: the library's series and the number, the title kept when it is one
   const original = !base.series && library ? originalSeries(opening) : undefined
   const fromSeries = original && librarySeriesFor(original.series, b.author, library!.series.values(), norm)
-  const fromOriginal = !!fromSeries
+  // the original series with no number ("MAGISTERIUM" alone), as the library names it
+  const nameOnly =
+    !base.series && !fromSeries && library ? originalSeriesName([...opening, ...(meta?.running ?? [])], b.author, library.series.values(), norm) : undefined
+  let fromOriginal = !!fromSeries || !!nameOnly
   if (fromSeries) base = { series: fromSeries, number: original!.number, title: isJunkTitle(base.title) ? '' : base.title }
+  else if (nameOnly) base = { series: nameOnly, number: '', title: isJunkTitle(base.title) ? '' : base.title }
+  // a series with no number: the number the library's books of the series leave for it, by their years when need be
+  if (base.series && !base.number && library) {
+    const n = await numberInLibrary(base.series, copyrightYear(opening), library, signal)
+    if (n) {
+      base = { ...base, number: String(n) }
+      fromOriginal = true
+    }
+  }
   // a title that says nothing, from the PDF's running head: the line printed on many pages that is neither its series
   // nor its author (and in Hebrew for a Hebrew book)
   const running = isJunkTitle(base.title)
@@ -860,4 +876,36 @@ async function translatedTitle(title: string, signal?: AbortSignal): Promise<str
     console.warn(e)
     return undefined
   }
+}
+
+// the year each library book was first published, read from its copyright page once and kept on the device
+const YEARS_KEY = 'reader:copyright-years'
+function years(): Record<string, number | null> {
+  try {
+    return JSON.parse(localStorage.getItem(YEARS_KEY) ?? '{}') as Record<string, number | null>
+  } catch {
+    return {}
+  }
+}
+
+async function yearOf(m: { id?: string; kind?: string }, signal?: AbortSignal): Promise<number | undefined> {
+  if (!m.id || (m.kind !== 'epub' && m.kind !== 'pdf')) return undefined
+  const known = years()
+  if (m.id in known) return known[m.id] ?? undefined
+  const { bookDetails } = await import('./bookText')
+  const y = copyrightYear((await bookDetails({ id: m.id, kind: m.kind }, signal)).opening)
+  try {
+    localStorage.setItem(YEARS_KEY, JSON.stringify({ ...years(), [m.id]: y ?? null }))
+  } catch {
+    /* storage unavailable */
+  }
+  return y
+}
+
+/** The number a book of this series has, from the numbers its other books in the library have and their years */
+async function numberInLibrary(series: string, year: number | undefined, library: LibraryNames, signal?: AbortSignal): Promise<number | undefined> {
+  const members = library.series.get(seriesKey(series))?.members ?? []
+  if (!members.length) return undefined
+  const dated = year ? await Promise.all(members.map(async (m) => ({ number: m.number, year: await yearOf(m, signal) }))) : members
+  return numberByGaps(dated, year)
 }
