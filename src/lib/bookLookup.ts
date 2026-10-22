@@ -5,7 +5,7 @@
 // when the name still has no series. Only the ISBN, the title and the author are sent, and only after the user agreed
 // (consent 'books').
 
-import { authorInName, guessBookName, isJunkTitle, nameFromOpening, seriesOf, tidyBookName, withoutAuthor, type BookName } from './bookName'
+import { authorFromOpening, authorInName, guessBookName, isJunkTitle, nameFromOpening, seriesOf, tidyBookName, withoutAuthor, type BookName } from './bookName'
 import { libraryAuthor } from './authorName'
 import type { EpubMeta } from './bookText'
 import { bookNumber, copyrightYear, seriesByWords, inLists, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, originalTitle, seriesByNames, soundOf, titleCase } from './bookInference'
@@ -754,7 +754,12 @@ async function findName(
 ): Promise<Identified> {
   // an e-mail address in the author field (a file's uploader) is no author
   // and an Anna's Archive name carries its author
-  const given = (/@/.test(b.author) ? '' : b.author.trim()) || authorInName(b.title) || authorInName(stem(b.fileName))
+  const given =
+    (/@/.test(b.author) ? '' : b.author.trim()) ||
+    authorInName(b.title) ||
+    authorInName(stem(b.fileName)) ||
+    // the name printed by the title on the title page, with the book's own title or the one read from the page
+    (opening.length ? authorFromOpening(opening, identifyLocally(b).title) || authorFromOpening(opening, nameFromOpening(opening, '').name?.title ?? '') || '' : '')
   // the name the library has for the same author ("J.K. Rowling" when its books are by "ג'יי קיי רולינג")
   const author = (library && libraryAuthor(given, library.authors)) || given
   const lib = byLibrary(identifyLocally({ ...b, author }), author, library)

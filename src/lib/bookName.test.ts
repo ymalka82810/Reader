@@ -171,3 +171,22 @@ describe('very long input', () => {
     expect(withoutAuthor(`${'מילה '.repeat(50)}הולי בלק`, 'הולי בלק')).toBe('מילה '.repeat(50).trim())
   })
 })
+
+describe('numbers in letters, book words and the title page author', () => {
+  it('reads a number in Hebrew letters', async () => {
+    const { letterNumber } = await import('./bookName')
+    expect([`ג'`, 'י"א', 'כ״ב', 'ט"ו', 'ט"ז', 'א"י', 'אב'].map(letterNumber)).toEqual([3, 11, 22, 15, 16, undefined, undefined])
+    expect(guessBookName("פרסי ג'קסון ג' - קללת הטיטאן")).toEqual({ series: "פרסי ג'קסון", number: '3', title: 'קללת הטיטאן' })
+  })
+
+  it('takes no "series" that is only the word for a book', () => {
+    expect(guessBookName('ספר 3 - קללת הטיטאן')).toEqual({ series: '', number: '', title: 'קללת הטיטאן' })
+  })
+
+  it('takes the name by the title on the title page as the author, but not a translator, a series or initials as a sentence', async () => {
+    const { authorFromOpening } = await import('./bookName')
+    expect(authorFromOpening(["ג'ניפר ל. ארמנטרוט", 'ממלכה של בשר ואש', 'מאנגלית: מיכל אלפרוביץ'], 'ממלכה של בשר ואש')).toBe("ג'ניפר ל. ארמנטרוט")
+    expect(authorFromOpening(['ממלכה של בשר ואש', 'תרגום: מיכל אלפרוביץ'], 'ממלכה של בשר ואש')).toBeUndefined()
+    expect(authorFromOpening(['הארי פוטר', 'הארי פוטר ואבן החכמים'], 'הארי פוטר ואבן החכמים')).toBeUndefined()
+  })
+})

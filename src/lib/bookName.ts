@@ -74,16 +74,35 @@ const ORDINALS: [RegExp, string][] = [
   [/^ten$/i, '10'],
 ]
 
-/** "3", "03", "#3", "שלישי" or "third" as "3"; undefined for anything else */
+const LETTERS: Record<string, number> = { א: 1, ב: 2, ג: 3, ד: 4, ה: 5, ו: 6, ז: 7, ח: 8, ט: 9, י: 10, כ: 20, ל: 30, מ: 40, נ: 50, ס: 60, ע: 70, פ: 80, צ: 90 }
+
+/** a number in Hebrew letters: ג' is 3, י"א is 11, כ״ב is 22, ט"ו is 15; up to 99, undefined for anything else */
+export function letterNumber(word: string): number | undefined {
+  const one = /^([\u05D0-\u05EA])['׳]$/u.exec(word)
+  if (one) return LETTERS[one[1]!]
+  const two = /^([\u05D0-\u05EA])["״]([\u05D0-\u05EA])$/u.exec(word)
+  if (!two) return undefined
+  const tens = LETTERS[two[1]!]
+  const units = LETTERS[two[2]!]
+  // tens before units, as the letters are written (י"א, never א"י); 15 and 16 are ט"ו and ט"ז
+  if (tens === 9 && (units === 6 || units === 7)) return 9 + units
+  return tens && units && tens >= 10 && units < 10 ? tens + units : undefined
+}
+
+/** "3", "03", "#3", "ג'", "שלישי" or "third" as "3"; undefined for anything else */
 function numberOf(word: string): string | undefined {
   const w = word.replace(/^#/, '')
   if (/^\d{1,3}$/.test(w)) return String(Number(w))
+  const letters = letterNumber(w)
+  if (letters) return String(letters)
   // "השלישי" is "שלישי" with the article
   const bare = /^ה[\u05D0-\u05EA]{3,}$/u.test(w) ? w.slice(1) : w
   return ORDINALS.find(([re]) => re.test(w) || re.test(bare))?.[1]
 }
 
-const NUM = String.raw`(#?\d{1,3}|[\p{L}]+)`
+// a number in Hebrew letters ("ג'", "י"א"); see letterNumber
+const LETTER_NUM = String.raw`[\u05D0-\u05EA]['׳]|[\u05D0-\u05EA]["״][\u05D0-\u05EA]`
+const NUM = String.raw`(#?\d{1,3}|${LETTER_NUM}|[\p{L}]+)`
 const DASH = String.raw`[-–—:,.]`
 // "חלק" is left out on purpose: it is part of many titles ("סופת החרבות, חלק ראשון")
 const BOOK_WORD = String.raw`(?:ספר|כרך|book|vol\.?|volume)`
@@ -95,7 +114,7 @@ export function seriesOf(text: string): { series: string; number: string } | und
   const tries: [RegExp, number, number][] = [
     [new RegExp(String.raw`^${BOOK_WORD}\s+${NUM}\s+(?:ב?סדרת|בסדרה|מתוך|of(?: the)?|in(?: the)?)\s+(.+)$`, 'iu'), 2, 1],
     [new RegExp(String.raw`^(.+?)(?:\s*${DASH}\s*|\s+)${BOOK_WORD}\s+${NUM}$`, 'iu'), 1, 2],
-    [new RegExp(String.raw`^(.+?)\s*,?\s+(#?\d{1,3})$`, 'u'), 1, 2],
+    [new RegExp(String.raw`^(.+?)\s*,?\s+(#?\d{1,3}|${LETTER_NUM})$`, 'u'), 1, 2],
   ]
   for (const [re, si, ni] of tries) {
     const m = re.exec(s)
@@ -104,6 +123,12 @@ export function seriesOf(text: string): { series: string; number: string } | und
     if (number && series) return { series, number }
   }
   return undefined
+}
+
+/** "ספר 3 - קללת הטיטאן": a "series" that is only the word for a book or a part is no series, and its number says
+ *  nothing without one; the title alone is left */
+function partOnly(n: BookName): BookName {
+  return /^(?:ה?ספר|ה?כרך|ה?חלק|book|vol\.?|volume|part)$/iu.test(n.series) ? { series: '', number: '', title: n.title } : n
 }
 
 /**
@@ -128,14 +153,18 @@ export function guessBookName(text: string): BookName {
   if (word) {
     const number = numberOf(word[2]!)
     const series = clean(word[1]!)
-    if (number && series) return { series, number, title: clean(word[3]!) }
+    if (number && series) return partOnly({ series, number, title: clean(word[3]!) })
   }
+
+  // the number in Hebrew letters: "פרסי ג'קסון ג' - קללת הטיטאן"
+  const lettered = new RegExp(String.raw`^(.+?)\s+(${LETTER_NUM})\s*(?:\s[-–—]|:)\s+(.+)$`, 'u').exec(s)
+  if (lettered) return partOnly({ series: clean(lettered[1]!), number: String(letterNumber(lettered[2]!)), title: clean(lettered[3]!) })
 
   // the template, also with "#1" or ":" ("Mistborn #1: The Final Empire")
   const tpl = /^(.+?)\s+#?(\d{1,3}(?:\s+[^\s\-–—:][^\-–—:]*?)?)\s*(?:\s[-–—]|:)\s+(.+)$/u.exec(s)
   if (tpl) {
     const [num, ...rest] = tpl[2]!.split(' ')
-    return { series: clean(tpl[1]!), number: [numberOf(num!) ?? num, ...rest].join(' '), title: clean(tpl[3]!) }
+    return partOnly({ series: clean(tpl[1]!), number: [numberOf(num!) ?? num, ...rest].join(' '), title: clean(tpl[3]!) })
   }
 
   return plain
@@ -253,12 +282,12 @@ export function isJunkTitle(title: string): boolean {
 
 // lines of a title page that are not the book's name: the publisher, the credits, the copyright notice, the author's other books
 const CREDIT =
-  /מרגנית|הוצא(?:ת|ה)|תרגו?ם|תרגמ|מאנגלית|מצרפתית|מגרמנית|עריכ|עורכ|עיצוב|עטיפ|איור|הגהה|כל הזכויות|©|isbn|copyright|all rights|printed|published|translated|edition|מהדורה|נדפס|מודפס|דפוס|www\.|https?:|@|טל[׳']|^מאת\b|^מחבר|^מחברת|^מאותו|^ספרים נוספים|^עוד ספרים|^רב[-־ ]?המכר|^בסדרה|^תוכן|^contents|^chapter|^פרק\b/iu
+  /מרגנית|הוצא(?:ת|ה)|תרגו?ם|תרגמ|מאנגלית|מצרפתית|מגרמנית|עריכ|עורכ|עיצוב|עטיפ|איור|הגהה|כל הזכויות|©|isbn|copyright|all rights|printed|published|translated|edition|מהדורה|נדפס|מודפס|דפוס|www\.|https?:|@|טל[׳']|^מאת\b|^מחבר|^מחברת|^מאותו|^ספרים נוספים|^עוד ספרים|^רב[-־ ]?המכר|^בסדרה\s*(?::|$)|^תוכן|^contents|^chapter|^פרק\b/iu
 
 // a publisher's address or phone ("רח' אגוז 6, פארק תעשיות חמן", "ת.ד. 163, קרית גת", "משק 33, מושב בן־שמן", a postal code or
 // phone number of five digits or more), a quoted line from a review on the cover ("יצירת מופת…"), or a sentence of the text
 const NOT_A_NAME =
-  /^(?:רח['׳']|רחוב\s|ת\.\s?ד\.?|ת["״]ד|משק\s+\d|מושב\s|קיבוץ\s|מיקוד|פקס|tel\b|fax\b)|\d{5,}|\d{2,3}-\d{6,7}|^["״“”„']|[.!]["״”']?\s*$|[.!]\s+\S/iu
+  /^(?:רח['׳']|רחוב\s|ת\.\s?ד\.?|ת["״]ד|משק\s+\d|מושב\s|קיבוץ\s|מיקוד|פקס|tel\b|fax\b)|\d{5,}|\d{2,3}-\d{6,7}|^["״“”„']|[.!]["״”']?\s*$|(?<!(?:^|[\s.])\p{L}['׳]?)[.!]\s+\S/iu
 
 const HEBREW = /[\u05D0-\u05EA]/
 
@@ -292,6 +321,27 @@ function bookLine(line: string): { number: string; title: string } | undefined {
  * says which one it is in its series: "גורלו של אפולו / ספר שלישי / המבוך הבוער", or the template, or "גנב הברק (פרסי
  * ג'קסון #1)" on one line. `candidates` are the short lines that may be its title, for a search when the name is not read.
  */
+/** the author a title page prints by the title: the line just before it, or else just after it, when it reads as a
+ *  person's name (two to four words, no digits) and is not a credit (a translator, a publisher), a series line, or
+ *  part of the title itself ("הארי פוטר" above "הארי פוטר ואבן החכמים") */
+export function authorFromOpening(lines: string[], title: string): string | undefined {
+  const t = fold(title)
+  if (!t) return undefined
+  const ls = lines.slice(0, 15).map((l) => clean(l.replace(/_+/g, ' ')))
+  const i = ls.findIndex((l) => fold(l) === t)
+  if (i < 0) return undefined
+  const person = (l?: string) =>
+    !!l &&
+    /^[\p{L}'׳".-]+(?:\s+[\p{L}'׳".-]+){1,3}$/u.test(l) &&
+    !CREDIT.test(l) &&
+    !NOT_A_NAME.test(l) &&
+    !IN_SERIES.test(l) &&
+    !bookLine(l) &&
+    !/^(?:ה?ספר|כרך|book|vol)\b/iu.test(l) &&
+    !t.includes(fold(l))
+  return [ls[i - 1], ls[i + 1]].find(person)
+}
+
 export function nameFromOpening(lines: string[], author: string): { name?: BookName; candidates: string[] } {
   const a = fold(author)
   const kept = lines
@@ -302,6 +352,13 @@ export function nameFromOpening(lines: string[], author: string): { name?: BookN
 
   let name: BookName | undefined
   for (let i = 0; i < kept.length && !name; i++) {
+    // "ממלכה של בשר ואש / ספר שני בסדרה הדם והאפר": the book's number and its series on one line, the title before it
+    const whole = /^(?:ספר|כרך|book)\s.*\s(?:ב?סדרת|בסדרה|of the|in the)\s/iu.test(kept[i]!) ? seriesOf(kept[i]!) : undefined
+    const before = whole && [...kept.slice(Math.max(0, i - 2), i)].reverse().find(short)
+    if (whole && before && fold(before) !== fold(whole.series)) {
+      name = { number: whole.number, series: clean(whole.series.replace(BESTSELLER, '').replace(/^["״“”„']+|["״“”„']+$/gu, '')), title: before }
+      break
+    }
     const b = bookLine(kept[i]!)
     if (!b) continue
     // "הסירנה / הספר הראשון / בסדרת החוטאים המקוריים": the series comes after, and the title before
