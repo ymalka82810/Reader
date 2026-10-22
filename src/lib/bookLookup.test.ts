@@ -721,6 +721,11 @@ describe('asLibrarySeries / withoutSeries', () => {
 
   it('leaves a series\' book no title that only repeats its place', () => {
     const n = (series: string, number: string, title: string) => tidyName({ series, number, title })
+    // the series said twice: before a mark, or with its number
+    expect(n('מורשת של דיו - בת פלם', '', 'מורשת של דיו - בת פלם, חלק ראשון, גרסת בטא')).toEqual({ series: 'מורשת של דיו - בת פלם', number: '', title: 'חלק ראשון, גרסת בטא' })
+    expect(n('הבחורים של טומן', '4', 'הבחורים של טומן 4')).toEqual({ series: 'הבחורים של טומן', number: '4', title: '' })
+    expect(n('הבחורים של טומן', '', 'הבחורים של טומן 4')).toEqual({ series: 'הבחורים של טומן', number: '4', title: '' })
+    expect(n('הארי פוטר', '1', 'הארי פוטר ואבן החכמים')).toEqual({ series: 'הארי פוטר', number: '1', title: 'הארי פוטר ואבן החכמים' })
     expect(n('משפחת קיין והאלים המצריים', '1', 'משפחת קיין 1').title).toBe('')
     expect(n('גיבורי האולימפוס', '5', 'דם האולימפוס V').title).toBe('דם האולימפוס')
     expect(n('שומרת הערים האבודות', '8', '8 1~2403').title).toBe('')
@@ -796,6 +801,11 @@ describe("identifyBook: the series' fingerprint", () => {
     expect(r).toMatchObject({ series: "פרסי ג'קסון", title: 'קללת הטיטאן', fromText: true })
     expect(r.evidence).toContain('words')
     expect(r.sure).toBeUndefined()
+    // another author's book is not placed in this author's series, however near its world; nor a name in two parts
+    const other = await identifyBook({ title: 'קללת הטיטאן', author: 'מישהי אחרת', fileName: 'x.epub' }, false, undefined, [], meta, library)
+    expect(other.series).toBe('')
+    const parts = await identifyBook({ title: 'קללת הטיטאן - סדרה אחרת', author: '', fileName: 'x.epub' }, false, undefined, [], meta, library)
+    expect(parts.series).toBe('')
   })
 })
 

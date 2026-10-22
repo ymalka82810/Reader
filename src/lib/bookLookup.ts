@@ -811,7 +811,8 @@ async function findName(
   }
   // still no series: the series whose fingerprint (the vocabulary its books share, weighed by how rare it is in the
   // library) this book's vocabulary has; with no author too, against the books already read
-  if (!base.series && library && meta?.words?.length) {
+  // (not for a name already in two parts, "המרדף - אוניברסיטת בראייר": one of them may be its own series)
+  if (!base.series && library && meta?.words?.length && !/\s[-–—]\s/u.test(base.title)) {
     try {
       const s = await seriesOfWords(meta.words, b.author, library, (b as { id?: string }).id, signal)
       if (s) {
@@ -1106,7 +1107,9 @@ async function seriesOfWords(
   const mine = (s: { authors: Set<string> }) => !!a && [...s.authors].some((x) => x === a || x.includes(a) || a.includes(x))
   const series = await Promise.all(
     [...library.series.values()]
-      .filter((s) => s.members?.length)
+      // a book with an author is compared only with that author's series (and those of no author known): a world near
+      // another author's is not that author's series
+      .filter((s) => s.members?.length && (!a || !s.authors.size || mine(s)))
       .map(async (s) => ({
         name: s.name,
         books: (
@@ -1312,8 +1315,20 @@ async function originalNumber(title: string, holder: string, signal?: AbortSigna
  *  number again ("משפחת קיין 1" as "משפחת קיין והאלים המצריים 1") is none, and a number the title ends with that is the
  *  book's own number ("דם האולימפוס V" as book 5) is left out of it, unless a joining word ties it to the title. */
 export function tidyName<T extends BookName>(r: T): T {
-  if (!r.series || !r.number) return r
+  if (!r.series) return r
   let title = r.title.trim()
+  // a title that starts with the whole series, then a mark or a number: the series said twice ("מורשת של דיו - בת פלם,
+  // חלק ראשון" of the series "מורשת של דיו - בת פלם"; "הבחורים של טומן 4" of the series' book 4). Not one that goes on
+  // in words ("הארי פוטר ואבן החכמים")
+  const series = r.series.trim()
+  if (title.startsWith(series)) {
+    const rest = /^\s*(?:[-–—,:]\s*|(\d{1,3})\s*(?:[-–—,:]\s*|$))(.*)$/u.exec(title.slice(series.length))
+    if (rest && (!rest[1] || !r.number || Number(rest[1]) === Number(r.number))) {
+      title = rest[2]!.trim()
+      if (rest[1] && !r.number) r = { ...r, number: String(Number(rest[1])) }
+    }
+  }
+  if (!r.number) return title === r.title ? r : { ...r, title }
   const end = /^(.*?)\s+([IVXLivxl]{1,6}|\d{1,3})$/u.exec(title)
   if (end && bookNumber(end[2]!) === Number(r.number)) {
     const head = end[1]!.trim()

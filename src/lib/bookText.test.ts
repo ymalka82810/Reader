@@ -123,3 +123,15 @@ describe('runningHeads', () => {
     expect(runningHeads(Array.from({ length: 20 }, (_, i) => [`${words[i]}ל ${words[i + 1]}ר`, `${words[i + 2]}ם`]))).toEqual([])
   })
 })
+
+describe('opfMeta: the authors', () => {
+  it('leaves out a publisher among the creators, and a creator of another role', () => {
+    const opf = `<package><metadata>
+      <dc:creator>עדן בל</dc:creator><dc:creator>Helicon Books</dc:creator>
+      <dc:creator opf:role="trl">מתרגם</dc:creator>
+      <dc:creator id="c3">עורכת</dc:creator><meta refines="#c3" property="role" scheme="marc:relators">edt</meta>
+      <dc:creator opf:role="aut">שותף</dc:creator>
+    </metadata></package>`
+    expect(opfMeta(opf).authors).toEqual(['עדן בל', 'שותף'])
+  })
+})
