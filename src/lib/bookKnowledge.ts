@@ -15,10 +15,19 @@ const LISTS_MAX = 500
 type From = 'wikidata' | 'library' | 'sequel'
 type KeptList = SeriesList & { author?: string; from?: From }
 
+// read many times for each book identified, so parsed once for as long as the stored text stays the same; a copy of
+// the array is given out, and a list changed is copied first (rememberWork)
+let listsRaw: string | null | undefined
+let listsParsed: KeptList[] = []
 export function keptLists(): KeptList[] {
   try {
-    const v: unknown = JSON.parse(localStorage.getItem(LISTS_KEY) ?? '[]')
-    return Array.isArray(v) ? (v as KeptList[]) : []
+    const raw = localStorage.getItem(LISTS_KEY)
+    if (raw !== listsRaw) {
+      const v: unknown = JSON.parse(raw ?? '[]')
+      listsParsed = Array.isArray(v) ? (v as KeptList[]) : []
+      listsRaw = raw
+    }
+    return [...listsParsed]
   } catch {
     return []
   }
@@ -60,7 +69,7 @@ export function rememberWork(series: string, number: string, title: string, auth
   const at = kept.findIndex(mine)
   const list: KeptList =
     at >= 0
-      ? kept.splice(at, 1)[0]!
+      ? { ...kept.splice(at, 1)[0]! }
       : { series: series.trim(), books: [], from: 'library', ...(author.trim() && { author: author.trim() }) }
   list.books = [...list.books.filter((b) => norm(b.title) !== norm(title) && b.number !== n), { title: title.trim(), number: n }].sort(
     (x, y) => Number(x.number) - Number(y.number),
