@@ -14,6 +14,9 @@ const MIN_LETTERS = 40
 /** the pages read by OCR (the cover, the title page, the copyright page) and the width they are drawn at for it */
 const OCR_PAGES = 3
 const OCR_WIDTH = 1600
+/** the pages past the opening whose first and last lines are compared for a running head */
+const RUNNING_FROM = 8
+const RUNNING_PAGES = 30
 
 const letters = (lines: string[]) => lines.reduce((n, l) => n + (l.match(/[א-תA-Za-z]/g)?.length ?? 0), 0)
 
@@ -42,6 +45,9 @@ const attr = (tag: string, name: string) => new RegExp(String.raw`\s${name}\s*=\
 
 /** What an EPUB's package says about the book. `number` is the series index as a whole number, '' when there is none. */
 export interface EpubMeta {
+  /** a PDF's running head: a line repeated at the top or bottom of many pages (the book's title, its series or its
+   *  author), most repeated first. Only a PDF has it, and only one that prints it. */
+  running?: string[]
   title: string
   authors: string[]
   series: string
@@ -179,7 +185,7 @@ async function scannedOpening(pdf: PdfDoc, signal?: AbortSignal): Promise<string
 }
 
 /** a PDF's first pages, with Hebrew stored in visual order turned back */
-async function pdfOpening(file: Blob, signal?: AbortSignal): Promise<string[]> {
+async function pdfOpening(file: Blob, signal?: AbortSignal): Promise<{ opening: string[]; running?: string[] }> {
   const [pdfjs, { default: workerUrl }, layout, { visualOrder, fixLine }] = await Promise.all([
     import('pdfjs-dist/legacy/build/pdf.mjs'),
     import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'),
@@ -200,7 +206,17 @@ async function pdfOpening(file: Blob, signal?: AbortSignal): Promise<string[]> {
     const order = visualOrder(pages)
     const lines = pages.flat().map((l) => fixLine(l.text, order)).slice(0, MAX_LINES)
     // a scan has no text layer: the first pages are drawn and read by OCR
-    return letters(lines) < MIN_LETTERS ? await scannedOpening(pdf, signal) : lines
+    if (letters(lines) < MIN_LETTERS) return { opening: await scannedOpening(pdf, signal) }
+    // the first and last lines of the pages further in, for a running head
+    const ends: string[][] = []
+    for (let i = RUNNING_FROM; i < RUNNING_FROM + RUNNING_PAGES && i <= pdf.numPages; i++) {
+      signal?.throwIfAborted()
+      const p = await pdf.getPage(i)
+      const page = layout.readingGroups(layout.normalizeStreamOrder(await layout.rawItems(p))).flatMap(layout.buildLines)
+      p.cleanup()
+      if (page.length) ends.push([page[0]!, page[page.length - 1]!].map((l) => fixLine(l.text, order)))
+    }
+    return { opening: lines, running: runningHeads(ends) }
   } finally {
     void task.destroy().catch(() => {})
   }
@@ -213,10 +229,40 @@ export async function bookDetails(b: Pick<BookMeta, 'id' | 'kind'>, signal?: Abo
   try {
     const file = await getFile(b.id)
     if (!file) return { opening: [] }
-    return b.kind === 'epub' ? await epubDetails(file, signal) : { opening: await pdfOpening(file, signal) }
+    if (b.kind === 'epub') return await epubDetails(file, signal)
+    const { opening, running } = await pdfOpening(file, signal)
+    return running?.length ? { opening, meta: { running, title: '', authors: [], series: '', number: '', identifiers: [] } } : { opening }
   } catch (e) {
     if (signal?.aborted) throw e
     console.warn(e)
     return { opening: [] }
   }
+}
+
+/** The lines that open or close many of these pages, past their page number: a running head ("מגדל הזהב" on every odd
+ *  page, "הולי בלק" on every even one). A line counts when it is on a quarter of the pages and four at least; most
+ *  repeated first. A chapter's title, which heads only its own pages, rarely gets there. */
+export function runningHeads(pages: string[][]): string[] {
+  const key = (s: string) =>
+    s
+      .replace(/[\u200e\u200f\u202a-\u202e]/g, '')
+      .replace(/\d+/g, ' ')
+      .replace(/[^\p{L}\s'׳"״-]/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  const counts = new Map<string, { text: string; n: number }>()
+  for (const page of pages) {
+    for (const k of new Set(page.map(key))) {
+      if (!/\p{L}{2}/u.test(k) || k.split(' ').length > 8) continue
+      const c = counts.get(k) ?? { text: k, n: 0 }
+      c.n++
+      counts.set(k, c)
+    }
+  }
+  const needed = Math.max(4, Math.ceil(pages.length / 4))
+  return [...counts.values()]
+    .filter((c) => c.n >= needed)
+    .sort((x, y) => y.n - x.n)
+    .slice(0, 3)
+    .map((c) => c.text)
 }

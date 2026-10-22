@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { asLibrarySeries, clearBooksCache, identifyBook, identifyLocally, libraryNames, lookupOnline, openLibrarySeries, withoutSeries } from './bookLookup'
 import { formatBookName, splitBookName } from './bookName'
+import { setConsent } from './consent'
+
+const translateText = vi.fn()
+vi.mock('./translate', () => ({ translateText: (...a: unknown[]) => translateText(...a) }))
 
 type Info = { title?: string; subtitle?: string; authors?: string[]; seriesInfo?: { bookDisplayNumber?: string } }
 
@@ -537,5 +541,38 @@ describe('asLibrarySeries / withoutSeries', () => {
     const r = await identifyBook({ title: '1~___#5_', author: 'הולי בלק וקסנדרה קלייר', fileName: '__5____1.pdf' }, false, undefined, opening, undefined, library)
     expect(r).toMatchObject({ series: 'מגיסטריום', number: '5', fromText: true })
     expect(r.sure).toBeUndefined()
+  })
+
+  const magisterium = () =>
+    libraryNames([
+      { title: 'מגיסטריום 1 - מבחן הברזל', author: 'הולי בלק וקסנדרה קלייר' },
+      { title: 'מגיסטריום 4 - מסכת הכסף', author: 'הולי בלק וקסנדרה קלייר' },
+    ])
+  const goldenOpening = ['Holly Black and Cassandra Clare', 'THE GOLDEN TOWER', 'MAGISTERIUM V', 'Copyright © 2018 by Holly Black and Cassandra Clare LLC', 'כל הזכויות שמורות']
+  const book = { title: '1~___#5_', author: 'הולי בלק וקסנדרה קלייר', fileName: '__5____1.pdf' }
+
+  it('takes the title from the running head, not the series or the author printed there too', async () => {
+    const meta = { running: ['הולי בלק וקסנדרה קלייר', 'מגדל הזהב'], title: '', authors: [], series: '', number: '', identifiers: [] }
+    const r = await identifyBook(book, false, undefined, goldenOpening, meta, magisterium())
+    expect(formatBookName(r)).toBe('מגיסטריום 5 - מגדל הזהב')
+  })
+
+  it('translates the original title when the book has no other, with the user\'s consent to translate', async () => {
+    stubCatalogs([], () => empty).mockResolvedValue(answer())
+    translateText.mockResolvedValue('מגדל הזהב')
+    setConsent('translate', true)
+    const r = await identifyBook(book, true, undefined, goldenOpening, undefined, magisterium())
+    expect(formatBookName(r)).toBe('מגיסטריום 5 - מגדל הזהב')
+    expect(translateText).toHaveBeenCalledWith('The Golden Tower', 'en', 'he', undefined)
+    expect(r.sure).toBeUndefined()
+  })
+
+  it('does not translate without that consent', async () => {
+    stubCatalogs([], () => empty).mockResolvedValue(answer())
+    translateText.mockClear()
+    setConsent('translate', false)
+    const r = await identifyBook(book, true, undefined, goldenOpening, undefined, magisterium())
+    expect(formatBookName(r)).toBe('מגיסטריום 5')
+    expect(translateText).not.toHaveBeenCalled()
   })
 })

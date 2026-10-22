@@ -7,7 +7,8 @@
 
 import { authorInName, guessBookName, isJunkTitle, nameFromOpening, seriesOf, tidyBookName, withoutAuthor, type BookName } from './bookName'
 import type { EpubMeta } from './bookText'
-import { librarySeriesFor, originalSeries } from './bookInference'
+import { librarySeriesFor, originalSeries, titleCase } from './bookInference'
+import { hasConsent } from './consent'
 import { bookIsbns } from './isbn'
 import { norm } from './sameBook'
 import { loadSettings } from './settings'
@@ -693,12 +694,29 @@ export async function identifyBook(
   const fromSeries = original && librarySeriesFor(original.series, b.author, library!.series.values(), norm)
   const fromOriginal = !!fromSeries
   if (fromSeries) base = { series: fromSeries, number: original!.number, title: isJunkTitle(base.title) ? '' : base.title }
+  // a title that says nothing, from the PDF's running head: the line printed on many pages that is neither its series
+  // nor its author (and in Hebrew for a Hebrew book)
+  const running = isJunkTitle(base.title)
+    ? meta?.running?.find(
+        (r) => !isJunkTitle(r) && (!hebrewBook || hebrew(r)) && !sameTitle(r, base.series) && !sameTitle(r, b.author) && !sameTitle(r, own.series),
+      )
+    : undefined
+  const fromRunning = !!running
+  if (running) {
+    const head = guessBookName(running)
+    base = base.series ? { ...base, title: head.series && sameTitle(head.series, base.series) ? head.title : running } : head
+  }
+  // still no title, for a series inferred from the copyright page: the original title there, translated
+  if (fromSeries && isJunkTitle(base.title) && original!.title && online && hasConsent('translate')) {
+    const he = await translatedTitle(original!.title, signal)
+    if (he) base = { ...base, title: he }
+  }
   const libSure = !!lib?.sure && base === local
   const mine: Identified = {
     ...base,
     author: b.author.trim(),
     online: false,
-    ...(fromText || fromOriginal ? { fromText: true } : fromMeta && { fromMeta, ...(metaSure && { sure: true }) }),
+    ...(fromText || fromOriginal || fromRunning ? { fromText: true } : fromMeta && { fromMeta, ...(metaSure && { sure: true }) }),
     ...(libSure && { sure: true }),
   }
   if (!online) return mine
@@ -828,4 +846,18 @@ export function withoutSeries(title: string, ...series: string[]): string {
     if (rest.length && norm(rest.join(' '))) return rest.join(' ')
   }
   return title
+}
+
+/** An original title in Hebrew, by the translation service the user agreed to: a short line in Hebrew letters, or
+ *  undefined when the service fails or answers with something else. */
+async function translatedTitle(title: string, signal?: AbortSignal): Promise<string | undefined> {
+  try {
+    const { translateText } = await import('./translate')
+    const he = (await translateText(titleCase(title), 'en', 'he', signal)).replace(/["״“”.]/g, '').replace(/\s+/g, ' ').trim()
+    return hebrew(he) && !/[A-Za-z]/.test(he) && he.split(' ').length <= 8 ? he : undefined
+  } catch (e) {
+    if (signal?.aborted) throw e
+    console.warn(e)
+    return undefined
+  }
 }
