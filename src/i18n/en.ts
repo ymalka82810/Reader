@@ -207,6 +207,8 @@ export const en: Record<keyof typeof he, Message> = {
   'identify.offlineNetwork': 'Google Books cannot be reached. Going on from the files alone…',
   'identify.libraryLaterQuota': { one: 'Google Books’ quota of requests for today is used up, so one book was identified from its file only. It will be checked again in a few hours.', other: 'Google Books’ quota of requests for today is used up, so {n} books were identified from their files only. They will be checked again in a few hours.' },
   'identify.libraryLater': { one: 'Google Books cannot be reached, so one book was identified from its file only. It will be checked again soon.', other: 'Google Books cannot be reached, so {n} books were identified from their files only. They will be checked again soon.' },
+  'identify.aroundProgress': 'Identifying related books again by the names you approved…',
+  'identify.aroundDone': 'Related books: {saved} updated, {pending} waiting for approval.',
   'identify.libraryDone': 'Identifying the library finished: {saved} books updated, {pending} waiting for approval.',
   'identify.libraryCancelled': 'Identifying the library was cancelled. What was already identified is kept.',
   'identify.reviewHint': 'These names were found automatically, but not for certain. Ticked ones are saved; unticked ones leave the list.',
