@@ -206,3 +206,15 @@ describe('numberByGaps with no numbers yet', () => {
     expect(numberByGaps(books, 2018)).toBeUndefined() // a year two books share
   })
 })
+
+describe('numberByGaps by the places of all the series\' books', () => {
+  it('counts the unnumbered books with years among those before', () => {
+    // Off-Campus: 1 numbered (2015), the others unnumbered (2015, 2016, 2016); "The Legacy" (2019) is 5, not 2
+    const books = [{ number: 1, year: 2014 }, { number: 0, year: 2015 }, { number: 0, year: 2016 }, { number: 0, year: 2017 }]
+    expect(numberByGaps(books, 2019)).toBe(5)
+  })
+  it('takes no place when a numbered book is not at its own (a book of the series missing before it)', () => {
+    expect(numberByGaps([{ number: 1, year: 2014 }, { number: 3, year: 2016 }, { number: 0, year: 2015 }], 2018)).toBe(4)
+    expect(numberByGaps([{ number: 1, year: 2014 }, { number: 3, year: 2016 }, { number: 0 }], 2018)).toBeUndefined()
+  })
+})
