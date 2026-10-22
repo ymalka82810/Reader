@@ -192,7 +192,7 @@ TypeScript רץ במצב `strict` מלא, בתוספת `noUncheckedIndexedAccess
 | `reader-device-db` | `seen` | `"גודל\|תאריך"` | אנדרואיד: קבצים בטלפון שהסריקה כבר טיפלה בהם, כלומר נוספו, דולגו ככפולים או נכשלו; לא קבצים שההוספה שלהם בוטלה (המפתח: הנתיב). שייך למכשיר ואינו נכלל בגיבוי |
 | `reader-device-paths-db` | `paths` | נתיב הקובץ בטלפון | אנדרואיד: איפה נמצא הקובץ של הספר בטלפון (המפתח: מזהה הספר), כדי לשנות את שמו יחד עם הספר. שייך למכשיר ואינו נכלל בגיבוי |
 
-ב-`localStorage`: הגדרות תצוגה (`settings.ts`, כולל `deviceAutoScan`, ‏`deviceBackgroundScan`, ‏`deviceFolders` ו-`phoneRenameSync` של הטלפון, ו-`autoIdentify` ו-`autoIdentifySave` של הזיהוי האוטומטי), שמות שנמצאו בזיהוי האוטומטי וממתינים לאישור (`reader:identify:pending6`), ומה שנשאר לזיהוי החד-פעמי של הספרייה (`reader:identify:backfill6`, או `done`), מצבי תצוגה, שפת הממשק (`reader:lang`), מראה האפליקציה (`reader.appTheme`), מהירות הקראה, הקול שנבחר לכל שפה (`reader:tts-voices`), מועדי גיבוי אחרון וגרסת הסכימה (`reader:schemaVersion`). בסשן: הספר הפתוח (`reader:open`).
+ב-`localStorage`: הגדרות תצוגה (`settings.ts`, כולל `deviceAutoScan`, ‏`deviceBackgroundScan`, ‏`deviceFolders` ו-`phoneRenameSync` של הטלפון, ו-`autoIdentify` ו-`autoIdentifySave` של הזיהוי האוטומטי), שמות שנמצאו בזיהוי האוטומטי וממתינים לאישור (`reader:identify:pending7`), ומה שנשאר לזיהוי החד-פעמי של הספרייה (`reader:identify:backfill7`, או `done`), מצבי תצוגה, שפת הממשק (`reader:lang`), מראה האפליקציה (`reader.appTheme`), מהירות הקראה, הקול שנבחר לכל שפה (`reader:tts-voices`), מועדי גיבוי אחרון וגרסת הסכימה (`reader:schemaVersion`). בסשן: הספר הפתוח (`reader:open`).
 
 הטיפוסים נמצאים ב-[db.ts](src/lib/db.ts). פורמט קובץ הגיבוי (`Manifest`, ‏`version: 1`) מתועד ב-[backupManifest.ts](src/lib/backupManifest.ts).
 
