@@ -14,6 +14,7 @@ import { setupServiceWorker } from './lib/serviceWorker'
 import { applyAppTheme, loadAppTheme } from './lib/appTheme'
 import { applyA11yClasses, loadSettings } from './lib/settings'
 import { isNativeApp } from './lib/updater'
+import { hideSplash } from './lib/splash'
 
 document.documentElement.classList.toggle('native-app', isNativeApp)
 // iOS Safari only applies :active (the pressed look of buttons) when some touch listener exists
@@ -35,6 +36,8 @@ Promise.all([migrate().catch(console.error), reloading]).then(([, reload]) => {
       <App />
     </StrictMode>,
   )
+  // let React paint the first screen under the splash before fading it out
+  requestAnimationFrame(() => requestAnimationFrame(hideSplash))
 })
 
 // A tab opened before a deploy still runs the old main-*.js, whose lazy chunks (pdf, docx…) no longer exist on

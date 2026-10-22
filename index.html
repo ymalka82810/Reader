@@ -15,9 +15,61 @@
     <title>קורא ספרים</title>
     <meta name="theme-color" content="#2b6cb0" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#151515" media="(prefers-color-scheme: dark)" />
+    <!-- Splash screen: plain HTML/CSS so it shows before any script loads (the CSP allows inline styles,
+         not inline scripts). main.tsx fades it out once the app has rendered (src/lib/splash.ts). -->
+    <style>
+      #splash { position: fixed; inset: 0; z-index: 2147483000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; background: radial-gradient(circle at 50% 42%, #24467f 0%, #15294d 55%, #0e1b33 100%); color: #f3ead8; font-family: Heebo, system-ui, -apple-system, 'Segoe UI', Arial, sans-serif; transition: opacity .35s ease, visibility .35s; }
+      #splash.splash-hide { opacity: 0; visibility: hidden; pointer-events: none; }
+      #splash .sp-icon { position: relative; width: min(44vw, 200px); aspect-ratio: 1; border-radius: 22%; overflow: hidden; box-shadow: 0 18px 44px rgba(5, 12, 26, .55), 0 0 0 1px rgba(255, 255, 255, .06); animation: sp-in .5s cubic-bezier(.2, .8, .3, 1.2) both; }
+      #splash .sp-icon > svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+      #splash .sp-book { position: absolute; inset: 0; perspective: 900px; }
+      /* a flipping leaf: the left page (x 92-216, y 110-330 of the 432 icon) turning over the spine to the right, as a Hebrew book is read */
+      #splash .sp-leaf { position: absolute; left: 21.296%; top: 25.463%; width: 28.704%; height: 50.926%; transform-origin: 100% 50%; transform-style: preserve-3d; animation: sp-flip 2.7s cubic-bezier(.45, .05, .35, 1) infinite; }
+      #splash .sp-leaf:nth-child(2), #splash .sp-leaf:nth-child(2) .sp-face, #splash .sp-leaf:nth-child(2) .sp-face::after { animation-delay: .9s; }
+      #splash .sp-leaf:nth-child(3), #splash .sp-leaf:nth-child(3) .sp-face, #splash .sp-leaf:nth-child(3) .sp-face::after { animation-delay: 1.8s; }
+      /* opacity on the leaf would flatten its 3D, so the landed leaf fades out on its faces */
+      #splash .sp-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; animation: sp-fade 2.7s linear infinite; }
+      #splash .sp-face svg { width: 100%; height: 100%; display: block; overflow: visible; }
+      #splash .sp-back { transform: rotateY(180deg); }
+      /* the leaf darkens while it is lifted; on the faces, since a filter on the leaf would flatten its 3D and hide the back */
+      #splash .sp-face::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(14, 27, 51, .28), rgba(14, 27, 51, 0) 70%); opacity: 0; animation: sp-shade 2.7s cubic-bezier(.45, .05, .35, 1) infinite; clip-path: inset(2% 0 4% 0 round 6%); }
+      #splash .sp-back::after { background: linear-gradient(270deg, rgba(14, 27, 51, .28), rgba(14, 27, 51, 0) 70%); }
+      #splash .sp-ribbon { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+      #splash .sp-name { font-size: 22px; font-weight: 700; letter-spacing: .02em; opacity: .92; animation: sp-in .6s .15s ease both; }
+      @keyframes sp-flip {
+        0%, 8% { transform: rotateY(0deg); }
+        52%, 100% { transform: rotateY(180deg); }
+      }
+      @keyframes sp-fade { 0%, 54% { opacity: 1; } 66%, 100% { opacity: 0; } }
+      @keyframes sp-shade { 0%, 8% { opacity: 0; } 30% { opacity: 1; } 52%, 100% { opacity: 0; } }
+      @keyframes sp-in { from { opacity: 0; transform: scale(.88); } to { opacity: 1; transform: none; } }
+      @media (prefers-reduced-motion: reduce) { #splash .sp-leaf { display: none; } #splash .sp-icon, #splash .sp-name { animation: none; } }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+    <div id="splash" aria-hidden="true">
+      <div class="sp-icon">
+        <svg viewBox="0 0 432 432">
+          <defs>
+            <linearGradient id="spBg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1E3A6B"/><stop offset="0.55" stop-color="#15294D"/><stop offset="1" stop-color="#0E1B33"/></linearGradient>
+            <radialGradient id="spGlow" cx="0.5" cy="0.42" r="0.6"><stop offset="0" stop-color="#4C7FD1" stop-opacity="0.38"/><stop offset="1" stop-color="#4C7FD1" stop-opacity="0"/></radialGradient>
+            <linearGradient id="spPageR" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFDF7"/><stop offset="1" stop-color="#F0E7D6"/></linearGradient>
+            <linearGradient id="spPageL" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FBF6EA"/><stop offset="1" stop-color="#E6DCC6"/></linearGradient>
+            <linearGradient id="spRibbon" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F2B01E"/><stop offset="1" stop-color="#D98A09"/></linearGradient>
+            <filter id="spSh" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="7" stdDeviation="9" flood-color="#0B1B33" flood-opacity="0.35"/></filter>
+          </defs>
+          <rect width="432" height="432" fill="url(#spBg)"/>
+          <rect width="432" height="432" fill="url(#spGlow)"/>
+          <g filter="url(#spSh)"><path d="M216 142 C 186 118, 146 110, 104 114 C 96 115, 92 120, 92 128 L 92 290 C 92 298, 97 303, 105 302 C 146 298, 186 306, 216 328 Z" fill="url(#spPageL)"/><path d="M216 142 C 246 118, 286 110, 328 114 C 336 115, 340 120, 340 128 L 340 290 C 340 298, 335 303, 327 302 C 286 298, 246 306, 216 328 Z" fill="url(#spPageR)"/><path d="M216 142 L216 328" stroke="#C9BB9E" stroke-width="5" stroke-linecap="round" opacity="0.75"/></g>
+          <g fill="#2B4A7E" opacity="0.85"><rect x="240" y="166" width="50" height="9" rx="4.5"/><rect x="236" y="190" width="54" height="9" rx="4.5"/><rect x="240" y="214" width="86" height="9" rx="4.5"/><rect x="236" y="238" width="90" height="9" rx="4.5"/><rect x="268" y="262" width="58" height="9" rx="4.5"/></g>
+          <g fill="#2B4A7E" opacity="0.5"><rect x="110" y="166" width="82" height="9" rx="4.5"/><rect x="106" y="190" width="86" height="9" rx="4.5"/><rect x="118" y="214" width="74" height="9" rx="4.5"/><rect x="106" y="238" width="86" height="9" rx="4.5"/><rect x="138" y="262" width="54" height="9" rx="4.5"/></g>
+        </svg>
+        <div class="sp-book"><div class="sp-leaf"><div class="sp-face"><svg viewBox="92 110 124 220" preserveAspectRatio="none"><path d="M216 142 C 186 118, 146 110, 104 114 C 96 115, 92 120, 92 128 L 92 290 C 92 298, 97 303, 105 302 C 146 298, 186 306, 216 328 Z" fill="url(#spPageL)"/><g fill="#2B4A7E" opacity="0.5"><rect x="110" y="166" width="82" height="9" rx="4.5"/><rect x="106" y="190" width="86" height="9" rx="4.5"/><rect x="118" y="214" width="74" height="9" rx="4.5"/><rect x="106" y="238" width="86" height="9" rx="4.5"/><rect x="138" y="262" width="54" height="9" rx="4.5"/></g></svg></div><div class="sp-face sp-back"><svg viewBox="216 110 124 220" preserveAspectRatio="none"><path d="M216 142 C 246 118, 286 110, 328 114 C 336 115, 340 120, 340 128 L 340 290 C 340 298, 335 303, 327 302 C 286 298, 246 306, 216 328 Z" fill="url(#spPageR)"/><g fill="#2B4A7E" opacity="0.85"><rect x="240" y="166" width="50" height="9" rx="4.5"/><rect x="236" y="190" width="54" height="9" rx="4.5"/><rect x="240" y="214" width="86" height="9" rx="4.5"/><rect x="236" y="238" width="90" height="9" rx="4.5"/><rect x="268" y="262" width="58" height="9" rx="4.5"/></g></svg></div></div><div class="sp-leaf"><div class="sp-face"><svg viewBox="92 110 124 220" preserveAspectRatio="none"><path d="M216 142 C 186 118, 146 110, 104 114 C 96 115, 92 120, 92 128 L 92 290 C 92 298, 97 303, 105 302 C 146 298, 186 306, 216 328 Z" fill="url(#spPageL)"/><g fill="#2B4A7E" opacity="0.5"><rect x="110" y="166" width="82" height="9" rx="4.5"/><rect x="106" y="190" width="86" height="9" rx="4.5"/><rect x="118" y="214" width="74" height="9" rx="4.5"/><rect x="106" y="238" width="86" height="9" rx="4.5"/><rect x="138" y="262" width="54" height="9" rx="4.5"/></g></svg></div><div class="sp-face sp-back"><svg viewBox="216 110 124 220" preserveAspectRatio="none"><path d="M216 142 C 246 118, 286 110, 328 114 C 336 115, 340 120, 340 128 L 340 290 C 340 298, 335 303, 327 302 C 286 298, 246 306, 216 328 Z" fill="url(#spPageR)"/><g fill="#2B4A7E" opacity="0.85"><rect x="240" y="166" width="50" height="9" rx="4.5"/><rect x="236" y="190" width="54" height="9" rx="4.5"/><rect x="240" y="214" width="86" height="9" rx="4.5"/><rect x="236" y="238" width="90" height="9" rx="4.5"/><rect x="268" y="262" width="58" height="9" rx="4.5"/></g></svg></div></div><div class="sp-leaf"><div class="sp-face"><svg viewBox="92 110 124 220" preserveAspectRatio="none"><path d="M216 142 C 186 118, 146 110, 104 114 C 96 115, 92 120, 92 128 L 92 290 C 92 298, 97 303, 105 302 C 146 298, 186 306, 216 328 Z" fill="url(#spPageL)"/><g fill="#2B4A7E" opacity="0.5"><rect x="110" y="166" width="82" height="9" rx="4.5"/><rect x="106" y="190" width="86" height="9" rx="4.5"/><rect x="118" y="214" width="74" height="9" rx="4.5"/><rect x="106" y="238" width="86" height="9" rx="4.5"/><rect x="138" y="262" width="54" height="9" rx="4.5"/></g></svg></div><div class="sp-face sp-back"><svg viewBox="216 110 124 220" preserveAspectRatio="none"><path d="M216 142 C 246 118, 286 110, 328 114 C 336 115, 340 120, 340 128 L 340 290 C 340 298, 335 303, 327 302 C 286 298, 246 306, 216 328 Z" fill="url(#spPageR)"/><g fill="#2B4A7E" opacity="0.85"><rect x="240" y="166" width="50" height="9" rx="4.5"/><rect x="236" y="190" width="54" height="9" rx="4.5"/><rect x="240" y="214" width="86" height="9" rx="4.5"/><rect x="236" y="238" width="90" height="9" rx="4.5"/><rect x="268" y="262" width="58" height="9" rx="4.5"/></g></svg></div></div></div>
+        <svg class="sp-ribbon" viewBox="0 0 432 432"><path d="M298 110 L334 110 L334 200 L316 181 L298 200 Z" fill="url(#spRibbon)"/></svg>
+      </div>
+      <div class="sp-name">קורא ספרים</div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
