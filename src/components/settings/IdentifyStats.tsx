@@ -3,7 +3,10 @@ import { t } from '../../i18n'
 import { knowledgeReport } from '../../lib/bookKnowledge'
 import { fingerprintBooks } from '../../lib/bookLookup'
 import { listBooks } from '../../lib/db'
-import { clueReport, coverage, outcomes } from '../../lib/identifyLearning'
+import { deviceBooksSupported } from '../../lib/deviceBooks'
+import { download } from '../../lib/download'
+import { clueReport, coverage, isConfirmed, outcomes } from '../../lib/identifyLearning'
+import { saveBlobToPhone } from '../../lib/phoneFiles'
 import { Row } from './parts'
 
 const pct = (n: number, of: number) => (of ? `${Math.round((n / of) * 100)}%` : '—')
@@ -12,7 +15,8 @@ const pct = (n: number, of: number) => (of ? `${Math.round((n / of) * 100)}%` : 
  *  found, what each clue taught, and what is known on the device. Read when opened. */
 export function IdentifyStats() {
   const [open, setOpen] = useState(false)
-  const [books, setBooks] = useState<{ id: string; title: string }[]>()
+  const [books, setBooks] = useState<Awaited<ReturnType<typeof listBooks>>>()
+  const [exporting, setExporting] = useState<string>()
   useEffect(() => {
     if (!open) return
     let live = true
@@ -89,6 +93,33 @@ export function IdentifyStats() {
       </div>
       <h4>{t('stats.knowledge')}</h4>
       <p>{t('stats.known', { books: k.books, printed: k.lists.book, wikidata: k.lists.wikidata, library: k.lists.library, sequel: k.lists.sequel, fingerprints: fingerprintBooks() })}</p>
+      <Row label={t('stats.bench')} hint={t('stats.benchHint')}>
+        <button disabled={!!exporting} onClick={() => void exportCases(books, setExporting)}>
+          {exporting ?? t('stats.benchExport')}
+        </button>
+      </Row>
     </div>
   )
+}
+
+/** The books whose names the user approved or saved, as cases for the identification's benchmark (identifyBench):
+ *  what each came with and the name it has now. Saved as a JSON file to add to the benchmark's cases. */
+async function exportCases(books: Awaited<ReturnType<typeof listBooks>>, busy: (s: string | undefined) => void) {
+  const mine = books.filter((b) => (b.kind === 'epub' || b.kind === 'pdf') && isConfirmed(b.id, b.title))
+  const [{ bookDetails }, { caseFromBook }] = await Promise.all([import('../../lib/bookText'), import('../../lib/identifyBench')])
+  const cases = []
+  try {
+    for (const [i, b] of mine.entries()) {
+      busy(t('stats.benchProgress', { done: i, total: mine.length }))
+      cases.push(caseFromBook(b, await bookDetails(b)))
+    }
+    const blob = new Blob([JSON.stringify(cases, null, 1)], { type: 'application/json' })
+    const name = 'identify-cases.json'
+    if (deviceBooksSupported()) await saveBlobToPhone(blob, name)
+    else download(blob, name)
+  } catch (e) {
+    console.warn(e)
+  } finally {
+    busy(undefined)
+  }
 }
