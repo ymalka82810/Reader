@@ -491,3 +491,8 @@ i.lv4 { background: var(--accent) !important; }
 .identify-catalogs span {
   display: block;
 }
+
+/* identify dialog: the clues that speak against a suggestion */
+.identify-conflicts {
+  color: #e57373;
+}

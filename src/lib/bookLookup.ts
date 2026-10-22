@@ -7,7 +7,7 @@
 
 import { authorInName, guessBookName, isJunkTitle, nameFromOpening, seriesOf, tidyBookName, withoutAuthor, type BookName } from './bookName'
 import type { EpubMeta } from './bookText'
-import { copyrightYear, inLists, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, seriesByNames, titleCase, type SeriesList } from './bookInference'
+import { copyrightYear, inLists, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, seriesByNames, soundOf, titleCase, type SeriesList } from './bookInference'
 import { hasConsent } from './consent'
 import { bookIsbns } from './isbn'
 import { norm } from './sameBook'
@@ -19,6 +19,10 @@ export interface Identified extends BookName {
   online: boolean
   /** the catalogs that gave what was found ("Google Books", "Open Library", "Wikidata") */
   sites?: string[]
+  /** the clues that agree with the name (weigh) */
+  evidence?: Clue[]
+  /** the clues that say otherwise: the name is not saved without asking then */
+  conflicts?: Clue[]
   /** whether the name was read from the book's opening pages rather than from its title or file name */
   fromText?: boolean
   /** whether the series (or the title) came from the EPUB's package rather than from the book's names */
@@ -674,6 +678,18 @@ export async function identifyBook(
   /** the library's series and authors (libraryNames), which split a name that has no dash */
   library?: LibraryNames,
 ): Promise<Identified> {
+  const r = await findName(b, online, signal, opening, meta, library)
+  return weigh(r, b, opening, meta, library, signal)
+}
+
+async function findName(
+  b: { title: string; author: string; fileName: string },
+  online: boolean,
+  signal?: AbortSignal,
+  opening: string[] = [],
+  meta?: EpubMeta,
+  library?: LibraryNames,
+): Promise<Identified> {
   // an e-mail address in the author field (a file's uploader) is no author
   // and an Anna's Archive name carries its author
   const author = (/@/.test(b.author) ? '' : b.author.trim()) || authorInName(b.title) || authorInName(stem(b.fileName))
@@ -986,4 +1002,85 @@ function rememberLists(lists: SeriesList[], author = '') {
 function listsOf(author: string): SeriesList[] {
   const a = norm(author)
   return keptLists().filter((l) => !a || !l.author || norm(l.author) === a || norm(l.author).includes(a) || a.includes(norm(l.author)))
+}
+
+// ---- weighing: every clue the book gives is checked against the name found, the way a reader would check a guess.
+// A name two independent clues agree on, and none speaks against, is sure enough to save without asking; a clue that
+// speaks against it keeps it for the user to approve, saying which.
+
+/** where a clue comes from: the file's or library's name, the file's package, the copyright page, a list of the series'
+ *  books, the names its story shares with the series, a catalog, the numbers the library leaves free, a running head */
+export type Clue = 'name' | 'meta' | 'copyright' | 'list' | 'names' | 'catalog' | 'order' | 'running'
+const STRONG: Clue[] = ['name', 'meta', 'copyright', 'list', 'names', 'catalog']
+
+/** one series under two spellings or forms: "פרסי ג'קסון" and "פרסי ג'קסון והאולימפיים", "MAGISTERIUM" and "מגיסטריום" */
+function sameSeries(x: string, y: string): boolean {
+  const a = seriesKey(x)
+  const b = seriesKey(y)
+  if (!a || !b) return false
+  if (a === b || a.startsWith(`${b} `) || b.startsWith(`${a} `)) return true
+  const s = soundOf(x)
+  return s.length >= 4 && s === soundOf(y)
+}
+
+/** a clue's say on a series and a number: agree, against, or nothing (it names another series, or none) */
+function verdict(r: BookName, series: string, number: string): 'agree' | 'against' | undefined {
+  if (!series || !r.series) return undefined
+  if (!sameSeries(series, r.series)) return 'against'
+  if (!number || !r.number) return number || r.number ? undefined : 'agree'
+  return Number(number) === Number(r.number) ? 'agree' : 'against'
+}
+
+async function weigh(
+  r: Identified,
+  b: { title: string; author: string; fileName: string },
+  opening: string[],
+  meta: EpubMeta | undefined,
+  library: LibraryNames | undefined,
+  signal?: AbortSignal,
+): Promise<Identified> {
+  if (!r.series || isJunkTitle(r.title) && !r.number) return r
+  const evidence: Clue[] = []
+  const conflicts: Clue[] = []
+  const count = (c: Clue, v: 'agree' | 'against' | undefined) => {
+    if (v === 'agree') evidence.push(c)
+    else if (v === 'against') conflicts.push(c)
+  }
+  // the name the book came with, read as it is
+  const named = identifyLocally(b)
+  if (named.series) count('name', verdict(r, named.series, named.number))
+  if (meta?.series) count('meta', verdict(r, meta.series, meta.number))
+  // the copyright page's original series, when it is this series by its sound ("Throne of Glass" is not "כס הזכוכית",
+  // which says nothing either way)
+  const original = originalSeries(opening)
+  if (original && sameSeries(original.series, r.series)) count('copyright', verdict(r, r.series, original.number))
+  // a list of the series' books that names this title
+  if (!isJunkTitle(r.title)) {
+    const listed = inLists(r.title, [...(meta?.lists ?? []), ...listsOf(b.author)], norm)
+    if (listed) count('list', verdict(r, listed.series || r.series, listed.number))
+  }
+  // the names the story shares with the author's series in the library
+  if (meta?.names?.length && library && b.author.trim()) {
+    try {
+      const s = await seriesOfNames(meta.names, b.author, library, signal)
+      if (s) count('names', sameSeries(s, r.series) ? 'agree' : 'against')
+    } catch (e) {
+      if (signal?.aborted) throw e
+    }
+  }
+  if (r.online && r.sites?.length) evidence.push('catalog')
+  // the numbers the library leaves free, and the years: a number the library already has for another book of the series
+  // speaks against (unless that book is this one, under the same title)
+  const members = library?.series.get(seriesKey(r.series))?.members ?? []
+  if (r.number && members.length) {
+    const taken = members.some((m) => m.number === Number(r.number))
+    if (taken && !library?.titles?.get(norm(r.title))) conflicts.push('order')
+    else if (!taken) evidence.push('order')
+  }
+  if (meta?.running?.some((h) => norm(h) === norm(r.title))) evidence.push('running')
+  const strong = evidence.filter((c) => STRONG.includes(c)).length
+  const out: Identified = { ...r, ...(evidence.length && { evidence }), ...(conflicts.length && { conflicts }) }
+  if (conflicts.length) delete out.sure
+  else if (strong >= 2) out.sure = true
+  return out
 }

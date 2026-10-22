@@ -99,6 +99,7 @@ describe('identifyBook', () => {
       author: "ג'יי קיי רולינג",
       online: true,
       sites: ['Google Books'],
+      evidence: ['catalog'],
     })
   })
 
@@ -628,5 +629,34 @@ describe('asLibrarySeries / withoutSeries', () => {
     const meta = { lists, title: '', authors: [], series: '', number: '', identifiers: [] }
     const r = await identifyBook({ title: 'כתר חצות', author: "שרה ג'יי מאס", fileName: 'x.epub' }, false, undefined, [], meta, libraryNames([]))
     expect(formatBookName(r)).toBe('כס הזכוכית 2 - כתר חצות')
+  })
+
+  describe('weighing the clues', () => {
+    const lists = [{ series: 'מגיסטריום', books: ['מבחן הברזל', 'יד הנחושת', 'מפתח הארד', 'מסכת הכסף', 'מגדל הזהב'].map((title, i) => ({ title, number: String(i + 1) })) }]
+    const opening = ['THE GOLDEN TOWER', 'MAGISTERIUM V', 'Copyright © 2018 by Holly Black and Cassandra Clare LLC']
+    const library = () => libraryNames([{ title: 'מגיסטריום 1 - מבחן הברזל', author: 'הולי בלק וקסנדרה קלייר' }])
+    const book = { title: 'מגדל הזהב', author: 'הולי בלק וקסנדרה קלייר', fileName: 'x.pdf' }
+
+    it('is sure of a name two clues agree on and none speaks against', async () => {
+      const meta = { lists, title: '', authors: [], series: '', number: '', identifiers: [] }
+      const r = await identifyBook(book, false, undefined, opening, meta, library())
+      expect(formatBookName(r)).toBe('מגיסטריום 5 - מגדל הזהב')
+      expect(r.evidence).toEqual(expect.arrayContaining(['copyright', 'list']))
+      expect(r.sure).toBe(true)
+    })
+
+    it('is not sure when a clue speaks against, and says which', async () => {
+      const other = [{ series: 'מגיסטריום', books: [{ title: 'מגדל הזהב', number: '4' }, { title: 'x', number: '5' }] }]
+      const meta = { lists: other, title: '', authors: [], series: '', number: '', identifiers: [] }
+      const r = await identifyBook(book, false, undefined, opening, meta, library())
+      expect(r.conflicts).toEqual(['list'])
+      expect(r.sure).toBeUndefined()
+    })
+
+    it('speaks against a number the library already has for another book', async () => {
+      const lib = libraryNames([{ title: 'מגיסטריום 5 - ספר אחר', author: 'הולי בלק וקסנדרה קלייר' }])
+      const r = await identifyBook(book, false, undefined, opening, undefined, lib)
+      expect(r.conflicts).toContain('order')
+    })
   })
 })

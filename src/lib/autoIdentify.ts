@@ -6,7 +6,7 @@
 // The books already in the library are identified the same way once, on the first start after this came in (the
 // "backfill"): what is left of it is kept, so a run stopped by closing the app goes on at the next start.
 
-import { identifyBook, libraryNames } from './bookLookup'
+import { identifyBook, libraryNames, type Clue } from './bookLookup'
 import { formatBookName, isJunkTitle } from './bookName'
 import { bookDetails } from './bookText'
 import { hasConsent } from './consent'
@@ -24,6 +24,9 @@ export interface PendingName {
   source: 'web' | 'text' | 'meta' | 'name'
   /** for 'web': the catalogs that gave the name ("Google Books", "Open Library", "Wikidata") */
   sites?: string[]
+  /** the clues that agree with the name, and those that say otherwise */
+  evidence?: Clue[]
+  conflicts?: Clue[]
 }
 
 // "3" (and "2" before it): the names found before the identification learned to tell a title from a publisher's address or a review were
@@ -194,7 +197,18 @@ export async function identifyNew(
         await autoSyncPhoneNames([id]).catch(() => {})
       } else {
         const source = r.online ? 'web' : r.fromText ? 'text' : r.fromMeta ? 'meta' : 'name'
-        addPending([{ id, title, author, was: b.title, source, ...(r.online && r.sites && { sites: r.sites }) }])
+        addPending([
+          {
+            id,
+            title,
+            author,
+            was: b.title,
+            source,
+            ...(r.online && r.sites && { sites: r.sites }),
+            ...(r.evidence && { evidence: r.evidence }),
+            ...(r.conflicts && { conflicts: r.conflicts }),
+          },
+        ])
         pending++
       }
     } catch (e) {
