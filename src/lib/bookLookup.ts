@@ -1278,8 +1278,12 @@ async function weigh(
   // speaks against (unless that book is this one, under the same title)
   const members = library?.series.get(seriesKey(r.series))?.members ?? []
   if (r.number && members.length) {
-    // another book at this number: not a second copy of this one (the same title, as a PDF and an EPUB)
-    const taken = members.some((m) => m.number && m.number === Number(r.number) && !(m.title && sameTitle(m.title, r.title)))
+    // another book at this number: not this very book (by its id: its title in the library may be another, or the new
+    // name may have none), nor a second copy of it (the same title, as a PDF and an EPUB)
+    const self = (b as { id?: string }).id
+    const taken = members.some(
+      (m) => m.number && m.number === Number(r.number) && !(self && m.id === self) && !(m.title && sameTitle(m.title, r.title)),
+    )
     if (taken) conflicts.push('order')
   }
   if (meta?.running?.some((h) => norm(h) === norm(r.title))) evidence.push('running')
