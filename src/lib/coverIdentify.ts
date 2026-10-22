@@ -33,7 +33,7 @@ function keep(id: string, lines: string[]) {
 }
 
 /** whether a name still says nothing of the book: no series, and a title that is no title */
-export const saysNothing = (r: { series: string; title: string }) => !r.series && isJunkTitle(r.title)
+const saysNothing = (r: { series: string; title: string }) => !r.series && isJunkTitle(r.title)
 
 /** the cover's line in the largest letters, then its lines in reading order: read once, then kept */
 async function coverLines(b: { id: string; cover?: Blob }, signal?: AbortSignal): Promise<{ largest?: string; lines: string[] }> {
