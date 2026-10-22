@@ -3,13 +3,22 @@ import { Dialog } from '../Dialog'
 import type { BookMeta } from '../../lib/db'
 import type { PendingName } from '../../lib/autoIdentify'
 import { formatBookName, isJunkTitle } from '../../lib/bookName'
-import { CATALOG_NAMES, catalogStats, identifyBook, resetCatalogStats, type CatalogStats, type LibraryNames } from '../../lib/bookLookup'
+import { CATALOG_NAMES, catalogStats, identifyBook, resetCatalogStats, type CatalogStats, type Clue, type LibraryNames } from '../../lib/bookLookup'
 import { bookDetails } from '../../lib/bookText'
 import { t } from '../../i18n'
 
 export type NameChange = { id: string; title: string; author: string }
 
-type Suggestion = NameChange & { was: string; online: boolean; sites?: string[]; fromText: boolean; fromMeta: boolean; pick: boolean }
+type Suggestion = NameChange & {
+  was: string
+  online: boolean
+  sites?: string[]
+  fromText: boolean
+  fromMeta: boolean
+  pick: boolean
+  evidence?: Clue[]
+  conflicts?: Clue[]
+}
 
 /** Identifies the books one after another and offers the new names; only the ticked ones are saved. With `waiting`,
  *  it offers the names found in the background (lib/autoIdentify) instead, and reports which were turned down. */
@@ -40,6 +49,8 @@ export function IdentifyDialog({
         was: w.was,
         online: w.source === 'web',
         sites: w.sites,
+        evidence: w.evidence,
+        conflicts: w.conflicts,
         fromText: w.source === 'text',
         fromMeta: w.source === 'meta',
         pick: true,
@@ -63,7 +74,7 @@ export function IdentifyDialog({
         const title = r && formatBookName(r)
         const author = r?.author ?? ''
         if (r && title && (!isJunkTitle(r.title) || (r.series && r.number)) && (title !== b.title || author !== (b.author ?? '').trim())) {
-          setFound((f) => [...f, { id: b.id, title, author, was: b.title, online: r.online, sites: r.sites, fromText: !!r.fromText, fromMeta: !!r.fromMeta, pick: true }])
+          setFound((f) => [...f, { id: b.id, title, author, was: b.title, online: r.online, sites: r.sites, fromText: !!r.fromText, fromMeta: !!r.fromMeta, evidence: r.evidence, conflicts: r.conflicts, pick: true }])
         }
         setAnswers(structuredClone(catalogStats()))
         setDone((n) => n + 1)
@@ -106,6 +117,8 @@ export function IdentifyDialog({
                     <small className="muted">
                       {[f.author, f.online ? f.sites?.join(' + ') || t('identify.fromWeb') : f.fromText ? t('identify.fromText') : f.fromMeta ? t('identify.fromMeta') : t('identify.fromName')].filter(Boolean).join(' · ')}
                     </small>
+                    {f.evidence?.length ? <small className="muted">{t('identify.evidence', { list: clues(f.evidence) })}</small> : null}
+                    {f.conflicts?.length ? <small className="identify-conflicts">{t('identify.conflicts', { list: clues(f.conflicts) })}</small> : null}
                     {f.was !== f.title && <small className="muted identify-was">{f.was}</small>}
                   </span>
                 </label>
@@ -167,3 +180,6 @@ function CatalogAnswers({ stats }: { stats: CatalogStats }) {
     </small>
   )
 }
+
+/** the clues' names, for a line under a suggestion */
+const clues = (list: Clue[]) => list.map((c) => t(`identify.clue.${c}`)).join(', ')
