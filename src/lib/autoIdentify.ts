@@ -6,7 +6,7 @@
 // The books already in the library are identified the same way once, on the first start after this came in (the
 // "backfill"): what is left of it is kept, so a run stopped by closing the app goes on at the next start.
 
-import { rememberName } from './bookKnowledge'
+import { rememberName, rememberSequels } from './bookKnowledge'
 import { identifyBook, keepFacts, libraryNames, type Clue } from './bookLookup'
 import { formatBookName, guessBookName, isJunkTitle, tidyBookName } from './bookName'
 import { bookDetails } from './bookText'
@@ -249,10 +249,14 @@ export async function identifyNew(
       visits.set(id, (visits.get(id) ?? 0) + 1)
       try {
         const b = await getBookMeta(id)
-        if (!b || isConfirmed(id, b.title)) continue
+        if (!b) continue
         const { opening, meta } = await bookDetails(b, signal)
-        // what the book says of itself is kept for the books compared with it later (its series' fingerprint)
+        // what the book says of itself is kept for the books compared with it later (its series' fingerprint), and what
+        // it says of its neighbours in the series is kept for them, by its name now
         keepFacts(id, opening, meta)
+        rememberSequels(b.title, b.author, meta?.next, meta?.prev)
+        // a name the user gave stays as it is
+        if (isConfirmed(id, b.title)) continue
         const r = await identifyBook(b, online, signal, opening, meta, library)
         if (r.failed) {
           online = false
@@ -274,6 +278,7 @@ export async function identifyNew(
           named.add(id)
           if (!marksOnly) rememberAuto(id, title, r.evidence, r.conflicts)
           rememberName(title, author)
+          rememberSequels(title, author, meta?.next, meta?.prev)
           dropPending([id])
           await autoSyncPhoneNames([id]).catch(() => {})
           books = await listBooks().catch(() => books)

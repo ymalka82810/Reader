@@ -10,8 +10,9 @@ import { norm } from './sameBook'
 
 const LISTS_KEY = 'reader:series-lists'
 const LISTS_MAX = 500
-/** `from`: where a list came from — printed in a book (none), Wikidata's whole series, or the names saved in the library */
-type From = 'wikidata' | 'library'
+/** `from`: where a list came from — printed in a book (none), Wikidata's whole series, the names saved in the library, or
+ *  the next or previous book a book of the series names (sequels) */
+type From = 'wikidata' | 'library' | 'sequel'
 type KeptList = SeriesList & { author?: string; from?: From }
 
 export function keptLists(): KeptList[] {
@@ -78,4 +79,17 @@ export function rememberName(name: string, author = '') {
  *  given (undefined in it stands for the lists printed in books) */
 export function listsOf(author: string, from?: (From | undefined)[]): KeptList[] {
   return keptLists().filter((l) => sameAuthor(l.author, author) && (!from || from.includes(l.from)))
+}
+
+/** A book of a series, named in the library, names the next book of it (in its last pages) or the one before (in its
+ *  opening): they are kept as that series' books, one number after and one before. */
+export function rememberSequels(name: string, author = '', next: string[] = [], prev: string[] = []) {
+  const g = guessBookName(tidyBookName(name))
+  const n = Number(g.number)
+  if (!g.series || !n) return
+  const books = [
+    ...next.map((title) => ({ title, number: String(n + 1) })),
+    ...(n > 1 ? prev.map((title) => ({ title, number: String(n - 1) })) : []),
+  ].filter((b) => norm(b.title) && norm(b.title) !== norm(g.title))
+  if (books.length) rememberLists([{ series: g.series, books }], author, 'sequel')
 }

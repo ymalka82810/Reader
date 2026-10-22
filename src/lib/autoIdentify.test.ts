@@ -186,3 +186,13 @@ describe('neighbours', () => {
     expect(neighbours([all[0]!], all)).toEqual(['z', 'y'])
   })
 })
+
+describe('identifyNew: the next book a book names', () => {
+  it('offers the next book its place, from the book before it in the same run', async () => {
+    add('a', "פרסי ג'קסון 1 - גנב הברק", 'ריק ריירדן')
+    details.set('a', { opening: [], meta: meta({ next: ['ים המפלצות'] }) })
+    add('b', 'ים המפלצות', 'ריק ריירדן')
+    expect(await identifyNew(['a', 'b'], new AbortController().signal)).toEqual({ saved: 0, pending: 1 })
+    expect(loadPending()[0]).toMatchObject({ id: 'b', title: "פרסי ג'קסון 2 - ים המפלצות", evidence: ['sequel'] })
+  })
+})

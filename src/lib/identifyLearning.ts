@@ -11,7 +11,7 @@ import { guessBookName, tidyBookName } from './bookName'
 import { norm } from './sameBook'
 
 /** the clues that count toward a sure name before anything is learned about them */
-const STRONG: Clue[] = ['name', 'meta', 'copyright', 'list', 'names', 'catalog']
+const STRONG: Clue[] = ['name', 'meta', 'copyright', 'list', 'names', 'sequel', 'catalog']
 
 const CONFIRMED_KEY = 'reader:identify:confirmed'
 const DECLINED_KEY = 'reader:identify:declined'
