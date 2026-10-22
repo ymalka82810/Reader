@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bookNumber, librarySeriesFor, originalSeries, soundOf, titleCase } from './bookInference'
+import { bookNumber, copyrightYear, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, soundOf, titleCase } from './bookInference'
 import { norm } from './sameBook'
 
 describe('soundOf', () => {
@@ -57,5 +57,39 @@ describe('titleCase', () => {
   it('turns an all-capitals title into a name', () => {
     expect(titleCase('THE GOLDEN TOWER')).toBe('The Golden Tower')
     expect(titleCase('The Iron Trial')).toBe('The Iron Trial')
+  })
+})
+
+describe('copyrightYear', () => {
+  it('takes the original\'s year, not the Hebrew edition\'s', () => {
+    expect(copyrightYear(['Hebrew Language Copyright © 2019 Kinneret', 'Copyright © 2018 by Holly Black and Cassandra Clare LLC'])).toBe(2018)
+    expect(copyrightYear(['© תשע"ה 2015 כנרת'])).toBe(2015)
+    expect(copyrightYear(['פרק 1', 'שנת 2018'])).toBeUndefined()
+  })
+})
+
+describe('numberByGaps', () => {
+  it('takes the one number missing, or the next', () => {
+    expect(numberByGaps([{ number: 1 }, { number: 3 }])).toBeUndefined() // 2 or 4
+    expect(numberByGaps([{ number: 1 }, { number: 2 }, { number: 3 }])).toBe(4)
+  })
+  it('decides between the gaps by the years', () => {
+    const series = [
+      { number: 1, year: 2014 },
+      { number: 3, year: 2016 },
+      { number: 4, year: 2017 },
+    ]
+    expect(numberByGaps(series, 2018)).toBe(5)
+    expect(numberByGaps(series, 2015)).toBe(2)
+    expect(numberByGaps(series)).toBeUndefined()
+  })
+})
+
+describe('originalSeriesName', () => {
+  const series = [{ name: 'מגיסטריום', authors: new Set([norm('הולי בלק וקסנדרה קלייר')]) }]
+  it('finds the series named alone, in Latin or Hebrew letters', () => {
+    expect(originalSeriesName(['THE GOLDEN TOWER', 'MAGISTERIUM'], 'הולי בלק וקסנדרה קלייר', series, norm)).toBe('מגיסטריום')
+    expect(originalSeriesName(['מגיסטריום', 'מגדל הזהב'], 'הולי בלק וקסנדרה קלייר', series, norm)).toBe('מגיסטריום')
+    expect(originalSeriesName(['מגיסטריון חדש'], 'הולי בלק וקסנדרה קלייר', series, norm)).toBeUndefined()
   })
 })

@@ -575,4 +575,18 @@ describe('asLibrarySeries / withoutSeries', () => {
     expect(formatBookName(r)).toBe('מגיסטריום 5')
     expect(translateText).not.toHaveBeenCalled()
   })
+
+  it('numbers a book of a series by the gaps the library leaves and the years of its books', async () => {
+    const library = libraryNames([
+      { title: 'מגיסטריום 1 - מבחן הברזל', author: 'הולי בלק וקסנדרה קלייר', id: 'b1', kind: 'pdf' },
+      { title: 'מגיסטריום 3 - מפתח הארד', author: 'הולי בלק וקסנדרה קלייר', id: 'b3', kind: 'pdf' },
+      { title: 'מגיסטריום 4 - מסכת הכסף', author: 'הולי בלק וקסנדרה קלייר', id: 'b4', kind: 'pdf' },
+    ])
+    localStorage.setItem('reader:copyright-years', JSON.stringify({ b1: 2014, b3: 2016, b4: 2017 }))
+    const opening = ['Holly Black and Cassandra Clare', 'THE GOLDEN TOWER', 'MAGISTERIUM', 'Copyright © 2018 by Holly Black and Cassandra Clare LLC']
+    const meta = { running: ['מגדל הזהב'], title: '', authors: [], series: '', number: '', identifiers: [] }
+    const r = await identifyBook(book, false, undefined, opening, meta, library)
+    expect(formatBookName(r)).toBe('מגיסטריום 5 - מגדל הזהב')
+    expect(r.sure).toBeUndefined()
+  })
 })
