@@ -229,6 +229,7 @@ export const he = {
   'stats.weak': "חלש",
   'stats.noBlock': "לא מבטל ודאות",
   'stats.knowledge': "מאגר הידע במכשיר",
+  'stats.bundled': 'מאגר הסדרות שמגיע עם האפליקציה (מ-Wikidata): {series} סדרות, {books} ספרים.',
   'stats.bench': 'מאגר הבדיקה של הזיהוי',
   'stats.benchHint': 'מייצא את הספרים שאישרת או ששמרת את שמם, עם מה שהגיעו איתו והשם הנכון, כקובץ למאגר הבדיקה של המפתחים',
   'stats.benchExport': 'ייצוא מקרי בדיקה',

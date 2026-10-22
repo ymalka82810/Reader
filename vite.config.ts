@@ -137,6 +137,12 @@ export default defineConfig({
             options: { cacheName: 'tesseract' },
           },
           {
+            // the series that come with the app (src/lib/seriesDb.ts): read when a book is first identified, kept for offline
+            urlPattern: ({ url }) => /\/series-he\.json$/.test(url.pathname),
+            handler: 'StaleWhileRevalidate',
+            options: { cacheName: 'series-db' },
+          },
+          {
             // Face Mesh (eye scrolling, ~17 MB) is only fetched when that mode is switched on
             urlPattern: ({ url }) => /\/assets\/face_mesh/.test(url.pathname),
             handler: 'CacheFirst',

@@ -7,6 +7,7 @@ import { deviceBooksSupported } from '../../lib/deviceBooks'
 import { download } from '../../lib/download'
 import { clueReport, coverage, isConfirmed, outcomes } from '../../lib/identifyLearning'
 import { saveBlobToPhone } from '../../lib/phoneFiles'
+import { loadSeriesDb, seriesDbSize } from '../../lib/seriesDb'
 import { Row } from './parts'
 
 const pct = (n: number, of: number) => (of ? `${Math.round((n / of) * 100)}%` : '—')
@@ -20,9 +21,7 @@ export function IdentifyStats() {
   useEffect(() => {
     if (!open) return
     let live = true
-    void listBooks()
-      .catch(() => [])
-      .then((b) => live && setBooks(b))
+    void Promise.all([listBooks().catch(() => []), loadSeriesDb()]).then(([b]) => live && setBooks(b))
     return () => {
       live = false
     }
@@ -45,6 +44,7 @@ export function IdentifyStats() {
   const o = outcomes()
   const answered = o.approved + o.corrected + o.declined
   const k = knowledgeReport()
+  const bundled = seriesDbSize()
   return (
     <div className="identify-stats">
       <Row label={t('stats.title')}>
@@ -93,6 +93,7 @@ export function IdentifyStats() {
       </div>
       <h4>{t('stats.knowledge')}</h4>
       <p>{t('stats.known', { books: k.books, printed: k.lists.book, wikidata: k.lists.wikidata, library: k.lists.library, sequel: k.lists.sequel, fingerprints: fingerprintBooks() })}</p>
+      {bundled.series > 0 && <p>{t('stats.bundled', { series: bundled.series, books: bundled.books })}</p>}
       <Row label={t('stats.bench')} hint={t('stats.benchHint')}>
         <button disabled={!!exporting} onClick={() => void exportCases(books, setExporting)}>
           {exporting ?? t('stats.benchExport')}
