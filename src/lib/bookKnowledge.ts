@@ -93,3 +93,14 @@ export function rememberSequels(name: string, author = '', next: string[] = [], 
   ].filter((b) => norm(b.title) && norm(b.title) !== norm(g.title))
   if (books.length) rememberLists([{ series: g.series, books }], author, 'sequel')
 }
+
+/** how much is known: the lists kept from each source, and the books in them */
+export function knowledgeReport(): { lists: Record<'book' | From, number>; books: number } {
+  const lists = { book: 0, wikidata: 0, library: 0, sequel: 0 }
+  let books = 0
+  for (const l of keptLists()) {
+    lists[l.from ?? 'book']++
+    books += l.books.length
+  }
+  return { lists, books }
+}

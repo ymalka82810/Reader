@@ -60,3 +60,25 @@ describe('anchors', () => {
     expect(samePlace("פרסי ג'קסון 2 - ים המפלצות", "פרסי ג'קסון 3 - ים המפלצות")).toBe(false)
   })
 })
+
+describe('the report', () => {
+  it('counts the answers, the names saved alone and those corrected later', async () => {
+    const { countOutcome, outcomes } = await import('./identifyLearning')
+    countOutcome('approved')
+    countOutcome('declined')
+    rememberAuto('a', "פרסי ג'קסון 2 - ים המפלצות", ['name'])
+    learnFromEdit('a', "פרסי ג'קסון 3 - קללת הטיטאן")
+    expect(outcomes()).toEqual({ approved: 1, corrected: 0, declined: 1, autoSaved: 1, autoCorrected: 1 })
+  })
+
+  it("tells where the library's books stand", async () => {
+    const { coverage } = await import('./identifyLearning')
+    confirmName('b', 'גנב הברק')
+    expect(
+      coverage([
+        { id: 'a', title: "פרסי ג'קסון 1 - גנב הברק" },
+        { id: 'b', title: 'גנב הברק' },
+      ]),
+    ).toEqual({ total: 2, numbered: 1, seriesOnly: 0, none: 1, confirmed: 1 })
+  })
+})

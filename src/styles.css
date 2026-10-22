@@ -496,3 +496,30 @@ i.lv4 { background: var(--accent) !important; }
 .identify-conflicts {
   color: #e57373;
 }
+
+/* the identification report in the settings (IdentifyStats) */
+.identify-stats h4 {
+  margin: 0.8em 0 0.3em;
+}
+.identify-stats p {
+  margin: 0 0 0.4em;
+}
+.identify-stats .table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.identify-stats-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.9em;
+}
+.identify-stats-table th,
+.identify-stats-table td {
+  padding: 0.35em 0.6em;
+  text-align: start;
+  white-space: nowrap;
+}
+.identify-stats-table thead {
+  background: var(--fill);
+}
