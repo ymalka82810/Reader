@@ -1062,5 +1062,172 @@
    "number": "3",
    "title": "קללת הטיטאן"
   }
+ },
+ {
+  "id": "n ספר 3",
+  "input": {
+   "title": "פרסי ג'קסון ספר 3 - מקדש האלים",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "פרסי ג'קסון",
+   "number": "3",
+   "title": "מקדש האלים"
+  }
+ },
+ {
+  "id": "n כרך 2",
+  "input": {
+   "title": "שר הטבעות כרך 2 - שתי הצריחים",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "שר הטבעות",
+   "number": "2",
+   "title": "שתי הצריחים"
+  }
+ },
+ {
+  "id": "n ספר שני",
+  "input": {
+   "title": "פרסי ג'קסון ספר שני - ים המפלצות",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "פרסי ג'קסון",
+   "number": "2",
+   "title": "ים המפלצות"
+  }
+ },
+ {
+  "id": "n english word",
+  "input": {
+   "title": "Percy Jackson Book Three - The Titan's Curse",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "Percy Jackson",
+   "number": "3",
+   "title": "The Titan's Curse"
+  }
+ },
+ {
+  "id": "n 12",
+  "input": {
+   "title": "סדרת הלהב 12 - הסוף",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "סדרת הלהב",
+   "number": "12",
+   "title": "הסוף"
+  }
+ },
+ {
+  "id": "n 75",
+  "input": {
+   "title": "סדרת הלהב 75 - הסוף",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "סדרת הלהב",
+   "number": "75",
+   "title": "הסוף"
+  }
+ },
+ {
+  "id": "n series dash book",
+  "input": {
+   "title": "סדרת הלהב - ספר 2 - הסוף",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "סדרת הלהב",
+   "number": "2",
+   "title": "הסוף"
+  }
+ },
+ {
+  "id": "n parens ספר שני",
+  "input": {
+   "title": "הסוף (סדרת הלהב, ספר שני)",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "סדרת הלהב",
+   "number": "2",
+   "title": "הסוף"
+  }
+ },
+ {
+  "id": "n parens כרך ג",
+  "input": {
+   "title": "הסוף (סדרת הלהב, כרך ג')",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "סדרת הלהב",
+   "number": "3",
+   "title": "הסוף"
+  }
+ },
+ {
+  "id": "n english colon",
+  "input": {
+   "title": "Shadow Blade, Book 12: The End",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "Shadow Blade",
+   "number": "12",
+   "title": "The End"
+  }
+ },
+ {
+  "id": "n trilogy",
+  "input": {
+   "title": "הסוף - ספר ראשון בטרילוגיה",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "",
+   "number": "",
+   "title": "הסוף - ספר ראשון בטרילוגיה"
+  }
+ },
+ {
+  "id": "a dots initials",
+  "input": {
+   "title": "הסוף",
+   "author": "ג.ק. רולינג",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "title": "הסוף",
+   "author": "ג.ק. רולינג"
+  }
+ },
+ {
+  "id": "a upper latin",
+  "input": {
+   "title": "The End",
+   "author": "RICK RIORDAN",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "title": "The End",
+   "author": "Rick Riordan"
+  }
  }
 ]
