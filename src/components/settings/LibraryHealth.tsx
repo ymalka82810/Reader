@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { t } from '../../i18n'
 import { listBooks, renameFolder, updateMeta, type BookMeta } from '../../lib/db'
-import { copyGroups, mergeCopies } from '../../lib/bookCopies'
+import { clearNotCopies, copyGroups, notCopiesCount } from '../../lib/bookCopies'
+import { useConfirm } from '../../hooks/useConfirm'
+import { ConfirmDialog } from '../library/Dialogs'
+import { CopiesDialog } from '../library/CopiesDialog'
 import { libraryHealth, type Issue } from '../../lib/seriesHealth'
 import { Row } from './parts'
 
@@ -9,12 +12,14 @@ import { Row } from './parts'
  *  under several spellings is put right here, every book of it taking the spelling most of them have (and with it the
  *  author's folder); the rest is listed, to fix in the book's details. */
 export function LibraryHealth() {
-  const [state, setState] = useState<{ books: BookMeta[]; issues: Issue[]; copies: BookMeta[][] }>()
+  const [state, setState] = useState<{ books: BookMeta[]; issues: Issue[]; copies: BookMeta[][]; apart: number }>()
+  const [copiesOpen, setCopiesOpen] = useState(false)
+  const { pending: confirmAsk, confirm } = useConfirm()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const load = async () => {
     const books = await listBooks().catch(() => [] as BookMeta[])
-    setState({ books, issues: libraryHealth(books), copies: copyGroups(books) })
+    setState({ books, issues: libraryHealth(books), copies: copyGroups(books), apart: notCopiesCount(books) })
   }
   if (!open)
     return (
@@ -50,28 +55,34 @@ export function LibraryHealth() {
       setBusy(false)
     }
   }
-  const mergeAll = async () => {
-    setBusy(true)
-    try {
-      await mergeCopies(state.copies)
-      await load()
-    } finally {
-      setBusy(false)
-    }
-  }
+
   const { issues, copies } = state
   return (
     <div className="identify-stats library-health">
       <Row label={t('health.title')}>
         <button onClick={() => setOpen(false)}>{t('stats.hide')}</button>
       </Row>
-      {!issues.length && !copies.length && <p>{t('health.none')}</p>}
+      {!issues.length && !copies.length && !state.apart && <p>{t('health.none')}</p>}
       <ul>
         {copies.length > 0 && (
           <li>
             <span>{t('copies.notice', { n: copies.length })}: {copies.map((g) => g[0]!.title).join(' · ')}</span>{' '}
-            <button disabled={busy} onClick={() => void mergeAll()}>
-              {t('copies.merge')}
+            <button disabled={busy} onClick={() => setCopiesOpen(true)}>
+              {t('copies.show')}
+            </button>
+          </li>
+        )}
+        {state.apart > 0 && (
+          <li>
+            <span>{t('copies.apart', { n: state.apart })}</span>{' '}
+            <button
+              disabled={busy}
+              onClick={() => {
+                clearNotCopies()
+                void load()
+              }}
+            >
+              {t('copies.restore')}
             </button>
           </li>
         )}
@@ -94,6 +105,8 @@ export function LibraryHealth() {
           </li>
         ))}
       </ul>
+      {copiesOpen && <CopiesDialog groups={copies} confirm={confirm} onChanged={load} onClose={() => setCopiesOpen(false)} />}
+      {confirmAsk && <ConfirmDialog ask={confirmAsk} />}
     </div>
   )
 }

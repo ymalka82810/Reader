@@ -56,9 +56,22 @@ export function markNotCopies(groups: { id: string }[][]) {
   }
 }
 
+/** the user's "not the same book" taken back: their books are offered as copies again */
+export function clearNotCopies() {
+  try {
+    localStorage.removeItem(NOT_COPIES_KEY)
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+/** how many groups of books the user said are not one book, of those still in the library */
+export function notCopiesCount(books: Book[]): number {
+  return copyGroups(books, new Set()).length - copyGroups(books).length
+}
+
 /** the library's books that are there more than once, each group one book, but for those the user said are not */
-export function copyGroups<T extends Book>(books: T[]): T[][] {
-  const not = notCopies()
+export function copyGroups<T extends Book>(books: T[], not = notCopies()): T[][] {
   const groups: T[][] = []
   for (const b of books) {
     const g = groups.find((g) => g.some((o) => sameCopy(o, b) && !not.has(pairKey(o.id, b.id))))
