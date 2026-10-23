@@ -112,6 +112,8 @@ export function useFoliateView(
 
         const cfi = startCfi ?? rec.cfi
         await view.init({ lastLocation: cfi, showTextStart: !cfi })
+        // a book whose file was made again (lib/db saveReconverted) knows only how far in the reader was
+        if (!cfi && rec.fraction) await view.goToFraction(rec.fraction)
         setStatus('ready')
       } catch (e) {
         console.error(e)

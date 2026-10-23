@@ -13,6 +13,8 @@ export interface BookRecord {
   cover?: Blob
   /** true when `file` is an EPUB that was converted from a PDF */
   fromPdf?: boolean
+  /** which PDF→EPUB conversion made `file` (PDF_CONVERSION in lib/importBook); unset = an older one */
+  conv?: number
   /** audiobooks: length and chapters; `cfi` and bookmarks then hold times (see lib/audioBook) */
   audio?: AudioInfo
   /** legacy (imported before PDF→EPUB conversion): extracted reflowable HTML sections */
@@ -73,6 +75,16 @@ export const saveBook = (b: BookRecord) =>
     await set(b.id, file, fileStore)
     await set(b.id, meta, store)
   })
+
+/**
+ * The same source file converted again by a newer converter: the new file replaces the old one under the same id.
+ * Positions inside the old file don't carry over to the new one, so the reading position keeps only how far in the reader was.
+ */
+export async function saveReconverted(rec: BookRecord) {
+  await saveBook(rec)
+  const p = await get<Progress>(rec.id, progressStore)
+  if (p?.cfi) await set(rec.id, { ...p, cfi: '' } satisfies Progress, progressStore)
+}
 
 /** a book's metadata only (no Blob) */
 export const getBookMeta = (id: string) => get<BookMeta>(id, store)
