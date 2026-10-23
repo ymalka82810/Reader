@@ -170,7 +170,7 @@ TypeScript רץ במצב `strict` מלא, בתוספת `noUncheckedIndexedAccess
    sha256: <hash של ה-APK>
    ```
 2. **בדיקה:** בתפריט ⋯ ← ״בדוק עדכון״ (מופיע רק באפליקציה, לא ב-PWA). [updater.ts](src/lib/updater.ts) קורא את ה-Releases דרך ה-API של GitHub, מחפש את החדש ביותר שהתג שלו מתחיל ב-`v` וספרה, ומשווה את ה-`versionCode` שלו לזה של האפליקציה המותקנת. ה-API האנונימי מוגבל ל-60 קריאות בשעה, ולכן התשובה נשמרת עם ETag (תשובת 304 לא נספרת) ומשמשת גם כשהמכסה נגמרה.
-3. **התקנה:** אחרי אישור, [useUpdateCheck.ts](src/hooks/useUpdateCheck.ts) קורא ל-plugin הנייטיב [AppUpdaterPlugin.java](resources/android-updater/AppUpdaterPlugin.java). הוא מוריד את ה-APK דרך `DownloadManager` (ההורדה נמשכת גם כשיוצאים מהאפליקציה), מוודא sha256 ושזו אותה חבילה בגרסה חדשה יותר, ופותח את חלון ההתקנה של המערכת. בהתקנה הראשונה אנדרואיד מבקש פעם אחת ״אפשר התקנה מהאפליקציה הזו״.
+3. **התקנה:** אחרי אישור, [useUpdateCheck.ts](src/hooks/useUpdateCheck.ts) קורא ל-plugin הנייטיב [AppUpdaterPlugin.java](resources/android-updater/AppUpdaterPlugin.java). הוא מוריד את ה-APK ישירות מהאפליקציה, במהירות המלאה של הרשת (ה-`DownloadManager` של המערכת רץ בעדיפות נמוכה ובחלק מהטלפונים לקח דקות), ואם ההורדה הישירה נכשלת — דרך `DownloadManager` (שם ההורדה נמשכת גם כשיוצאים מהאפליקציה), מוודא sha256 ושזו אותה חבילה בגרסה חדשה יותר, ופותח את חלון ההתקנה של המערכת. בהתקנה הראשונה אנדרואיד מבקש פעם אחת ״אפשר התקנה מהאפליקציה הזו״.
 4. **שגיאות:** ה-plugin דוחה עם `busy`, ‏`bad url`, ‏`download`, ‏`checksum`, ‏`not an update`, ‏`permission` או `no installer`, וההודעה מוצגת למשתמש.
 
 ה-plugin מדבר עם ה-JS דרך גשר Capacitor שמוזרק לדף, ולכן `@capacitor/core` לא נכלל ב-bundle של הווב.

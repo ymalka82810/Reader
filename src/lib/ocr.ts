@@ -56,7 +56,8 @@ export async function ocrLines(
     langPath: url('tesseract/lang'),
     // the worker is a file of the app itself, so it needs no blob: wrapper
     workerBlobURL: false,
-    gzip: true,
+    // the Android build unpacks every .gz asset and drops the extension (lang/heb.traineddata), so the app reads the plain files
+    gzip: !(window as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.(),
   })
   const stop = () => void worker.terminate().catch(() => {})
   signal?.addEventListener('abort', stop, { once: true })
