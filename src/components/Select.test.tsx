@@ -15,7 +15,7 @@ describe('Select', () => {
         <Select label="fruit" value="a" options={options} onChange={() => {}} />
       </div>,
     )
-    const btn = screen.getByRole('button', { name: 'fruit' })
+    const btn = screen.getByRole('button', { name: /^fruit/ })
     fireEvent.click(btn)
     expect(btn.getAttribute('aria-expanded')).toBe('true')
     fireEvent.scroll(screen.getByTestId('carousel'))

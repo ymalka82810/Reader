@@ -89,7 +89,7 @@ export function Dropdown<T extends string>({ value, options, onChange, label }: 
 
   return (
     <div className="dd" ref={ref}>
-      <button ref={btnRef} type="button" className="dd-btn" aria-label={label} aria-haspopup="listbox" aria-expanded={open} onKeyDown={onButtonKey} onClick={() => (open ? close(false) : show())}>
+      <button ref={btnRef} type="button" className="dd-btn" aria-label={`${label}: ${current?.label ?? ''}`} aria-haspopup="listbox" aria-expanded={open} onKeyDown={onButtonKey} onClick={() => (open ? close(false) : show())}>
         <span>{current?.label}</span>
         <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
           <path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
