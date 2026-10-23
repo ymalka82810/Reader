@@ -55,3 +55,16 @@ describe('merging', () => {
     expect(await getBookMeta('k')).toMatchObject({ tags: ['א', 'ב'], finished: true })
   })
 })
+
+it('counts the groups set apart and offers them again once taken back', async () => {
+  const { copyGroups, markNotCopies, notCopiesCount, clearNotCopies } = await import('./bookCopies')
+  const books = [
+    { id: 'a', title: 'פרסי ג\'קסון 1 - גנב הברק', author: 'ריק ריירדן', kind: 'epub' as const },
+    { id: 'b', title: 'פרסי ג\'קסון 1 - גנב הברק', author: 'Rick Riordan', kind: 'pdf' as const },
+  ]
+  markNotCopies(copyGroups(books))
+  expect(copyGroups(books)).toEqual([])
+  expect(notCopiesCount(books)).toBe(1)
+  clearNotCopies()
+  expect(copyGroups(books)).toHaveLength(1)
+})
