@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const db = vi.hoisted(() => ({
   contentId: async () => 'id1',
   hasBook: async () => false,
+  mergedInto: async () => undefined,
   listBooks: async () => [{ id: 'old', title: 'Same', author: 'Me' }],
   saveBook: vi.fn(async () => {}),
   replaceBook: vi.fn(async () => {}),

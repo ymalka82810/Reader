@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('./db', () => ({
   contentId: async () => 'id1',
   hasBook: async () => false,
+  mergedInto: async () => undefined,
   listBooks: async () => [],
   saveBook: vi.fn(async () => {}),
   replaceBook: vi.fn(),

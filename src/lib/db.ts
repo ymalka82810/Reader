@@ -113,6 +113,46 @@ export async function replaceBook(oldId: string, rec: BookRecord) {
   if (old.finished !== undefined) await setFinished(rec.id, old.finished)
   await deleteBook(oldId)
 }
+/** Ids of files merged into another book (lib/bookCopies), so adding the same file again finds the book it went into. */
+const mergedStore = createStore('reader-merged-db', 'merged')
+export const mergedInto = (id: string) => get<string>(id, mergedStore)
+
+/**
+ * One book in the library twice: `dropId`'s copy goes and `keepId`'s stays, with the other's reading time, "read"
+ * mark, tags and folder (when it has none), and — when both are the same kind of file, so positions still make sense
+ * — its notes and reading position. A name the user approved on the dropped copy only is passed as `name`.
+ */
+export async function mergeBooks(keepId: string, dropId: string, name?: { title: string; author: string }) {
+  const [keep, drop] = await Promise.all([get<BookMeta>(keepId, store), get<BookMeta>(dropId, store)])
+  if (!keep || !drop || keepId === dropId) return
+  const [notes, dropNotes, progress, stats] = await Promise.all([getNotes(keepId), getNotes(dropId), get<Progress>(dropId, progressStore), loadStats(dropId)])
+  if (keep.kind === drop.kind && !!keep.fromPdf === !!drop.fromPdf) {
+    const seen = new Set(notes.map((n) => `${n.kind}|${n.cfi}`))
+    const more = dropNotes.filter((n) => !seen.has(`${n.kind}|${n.cfi}`))
+    if (more.length) await saveNotes(keepId, [...notes, ...more])
+    if (progress) await mergeProgress(keepId, progress)
+  }
+  if (stats.secs > 0) await mergeStats(keepId, stats)
+  await serial(async () => {
+    const b = await get<BookMeta>(keepId, store)
+    if (!b) return
+    const tags = [...new Set([...(b.tags ?? []), ...(drop.tags ?? [])])]
+    await set(
+      keepId,
+      {
+        ...b,
+        ...(name && { title: name.title, author: name.author }),
+        ...(tags.length && { tags }),
+        ...(b.folder === undefined && drop.folder !== undefined && { folder: drop.folder }),
+        ...((b.finished || drop.finished) && { finished: true }),
+      },
+      store,
+    )
+  })
+  await set(dropId, keepId, mergedStore)
+  await deleteBook(dropId)
+}
+
 export const listBooks = async () => {
   const progress = new Map(await entries<string, Progress>(progressStore))
   return (await values<BookMeta>(store))

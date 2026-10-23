@@ -20,6 +20,7 @@ import { identifyWithCover } from '../lib/coverIdentify'
 import { bookDetails } from '../lib/bookText'
 import { hasConsent, setConsent, SERVICE_HOST } from '../lib/consent'
 import { IdentifyDialog, type NameChange } from './library/IdentifyDialog'
+import { copyGroups, keeperOf, markNotCopies, mergeCopies } from '../lib/bookCopies'
 import { backfillLeft, dropPending, loadPending, setBackfillLeft, subscribePending, type PendingName } from '../lib/autoIdentify'
 import { confirmName, countOutcome, declineName, learnFromEdit, recordOutcome, samePlace } from '../lib/identifyLearning'
 import { loadSettings } from '../lib/settings'
@@ -390,6 +391,30 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
     return pendingAll.filter((p) => byId.get(p.id)?.title === p.was)
   }, [pendingAll, books])
 
+  // one book in the library twice (lib/bookCopies), found again whenever a name changes; merged on a yes
+  const [notCopiesTick, setNotCopiesTick] = useState(0)
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- notCopiesTick: read the user's "not the same" again
+  const copies = useMemo(() => (loaded ? copyGroups(books) : []), [books, loaded, notCopiesTick])
+  const mergeCopiesAsk = async () => {
+    const plan = await Promise.all(copies.map(async (g) => ({ keep: await keeperOf(g), g })))
+    const kind = (b: BookMeta) => (b.kind === 'pdf' ? 'PDF' : b.fromPdf ? 'EPUB (PDF)' : 'EPUB')
+    const text = plan
+      .map(({ keep, g }) => t('copies.plan', { keep: `${keep.title} (${kind(keep)})`, drop: g.filter((b) => b !== keep).map(kind).join(', ') }))
+      .join(' · ')
+    const yes = await confirm({ title: t('copies.title', { n: copies.length }), text, ok: t('copies.merge'), danger: true })
+    if (!yes) return
+    setBusy(t('copies.merging'))
+    try {
+      const n = await mergeCopies(copies)
+      await refresh()
+      showToast(t('copies.done', { n }))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(undefined)
+    }
+  }
+
   // The books already in the library are identified once, on the first start after automatic identification came in.
   // Which books that means is fixed when the library first loads, before anything added meanwhile shows up in it: a
   // book added now is identified as a new one, at the end of its own import.
@@ -717,6 +742,20 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
         <div className="notice closable" role="status">
           <span>{t('identify.pendingNotice', { n: pending.length })}</span>
           <button onClick={reviewPending}>{t('identify.review')}</button>
+        </div>
+      )}
+      {copies.length > 0 && !imp.running && !busy && (
+        <div className="notice closable" role="status">
+          <span>{t('copies.notice', { n: copies.length })}</span>
+          <button onClick={() => void mergeCopiesAsk()}>{t('copies.merge')}</button>
+          <button
+            onClick={() => {
+              markNotCopies(copies)
+              setNotCopiesTick((n) => n + 1)
+            }}
+          >
+            {t('copies.notSame')}
+          </button>
         </div>
       )}
       {error && (

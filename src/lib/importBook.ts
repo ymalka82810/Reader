@@ -1,5 +1,5 @@
 import { ImportError, explainImportError } from './errors'
-import { contentId, hasBook, listBooks, replaceBook, saveBook, type BookMeta, type BookRecord } from './db'
+import { contentId, hasBook, listBooks, mergedInto, replaceBook, saveBook, type BookMeta, type BookRecord } from './db'
 import { sameBook } from './sameBook'
 import { t } from '../i18n'
 import { wordsOfBook, wordsOfExtracted } from './wordCount'
@@ -145,6 +145,9 @@ async function readIntoLibrary(
   const id = await contentId(file)
   signal?.throwIfAborted()
   if (await hasBook(id)) throw new ImportError(ALREADY_EXISTS)
+  // a file that was merged into another copy of its book (lib/bookCopies) is that book
+  const into = await mergedInto(id).catch(() => undefined)
+  if (into && (await hasBook(into))) throw new ImportError(ALREADY_EXISTS)
 
   let epub = file
   let fromPdf = false
