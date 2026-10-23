@@ -271,14 +271,14 @@ public class DeviceBooksPlugin extends Plugin {
     }
 
     /** a file name that cannot climb out of its folder or hide */
-    private static String cleanName(String name) {
+    static String cleanName(String name) {
         String n = name == null ? "" : name.replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", "_").trim();
         while (n.startsWith(".")) n = n.substring(1);
         return n;
     }
 
     /** `name` in `dir`, or "name (2).ext", "name (3).ext"… when that is taken (`self` itself never counts as taken) */
-    private static File freeFile(File dir, String name, File self) {
+    static File freeFile(File dir, String name, File self) {
         File f = new File(dir, name);
         int dot = name.lastIndexOf('.');
         String stem = dot > 0 ? name.substring(0, dot) : name;
