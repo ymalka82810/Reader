@@ -45,6 +45,7 @@ describe('SettingsScreen', () => {
       'נגישות',
       'תצוגה ומכשיר',
       'שפה ולימוד',
+      'פרטיות',
       'גיבוי ואחסון',
       'יעדי קריאה',
       'אודות',
@@ -156,12 +157,20 @@ describe('SettingsScreen', () => {
     localStorage.setItem('reader:consent:translate3', '1')
     localStorage.setItem('reader:consent:dict', '1')
     renderScreen()
-    fireEvent.click(screen.getByText('שפה ולימוד'))
+    fireEvent.click(screen.getByText('פרטיות'))
     fireEvent.click(screen.getByRole('button', { name: 'בטל אישור: תרגום' }))
     expect(localStorage.getItem('reader:consent:translate3')).toBeNull()
     expect(localStorage.getItem('reader:consent:dict')).toBe('1')
     expect(screen.queryByRole('button', { name: 'בטל אישור: תרגום' })).toBeNull()
     expect(screen.getByRole('button', { name: 'בטל אישור: מילון' })).toBeTruthy()
+  })
+
+  it('lists what each service receives and where it goes on the privacy page', () => {
+    media(true)
+    renderScreen()
+    fireEvent.click(screen.getByText('פרטיות'))
+    expect(screen.getByText(/המילה שסימנתם · אל: wiktionary.org/)).toBeTruthy()
+    expect(screen.getAllByText(/עדיין לא אושר/)).toHaveLength(3)
   })
 
   it('chooses how often to be reminded to back up', () => {

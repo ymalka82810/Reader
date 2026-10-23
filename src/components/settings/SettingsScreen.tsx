@@ -12,6 +12,7 @@ import { DevicePage } from './DevicePage'
 import { DisplayPage } from './DisplayPage'
 import { GoalsPage } from './GoalsPage'
 import { LanguagePage } from './LanguagePage'
+import { PrivacyPage } from './PrivacyPage'
 import { PAGES, type PageId } from './pages'
 import { searchSettings, settingsIndex } from './searchIndex'
 import { rememberedSettings, rememberSettings } from './remember'
@@ -137,6 +138,7 @@ export function SettingsScreen({ onClose, backup, onCheckUpdate, onScanDevice, s
             )}
             {current === 'goals' && <GoalsPage settings={settings} set={set} />}
             {current === 'language' && <LanguagePage settings={settings} set={set} />}
+            {current === 'privacy' && <PrivacyPage />}
             {current === 'backup' && <BackupPage actions={backup} leave={close} settings={settings} set={set} />}
             {current === 'about' && <AboutPage busy={backup.busy} onCheckUpdate={() => { close(); onCheckUpdate() }} />}
           </div>
