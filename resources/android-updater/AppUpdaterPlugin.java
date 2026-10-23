@@ -285,7 +285,7 @@ public class AppUpdaterPlugin extends Plugin {
     }
 
     // getContentLengthLong needs Android 7; the app still runs on 6
-    private static long contentLength(HttpURLConnection conn) {
+    static long contentLength(HttpURLConnection conn) {
         try {
             return Long.parseLong(conn.getHeaderField("Content-Length"));
         } catch (NumberFormatException e) {
@@ -293,7 +293,7 @@ public class AppUpdaterPlugin extends Plugin {
         }
     }
 
-    private static String sha256(File file) throws IOException {
+    static String sha256(File file) throws IOException {
         try (InputStream in = new FileInputStream(file)) {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
             byte[] buf = new byte[65536];
@@ -372,11 +372,11 @@ public class AppUpdaterPlugin extends Plugin {
         return getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
     }
 
-    private static long versionCode(PackageInfo info) {
+    static long versionCode(PackageInfo info) {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.P ? info.getLongVersionCode() : info.versionCode;
     }
 
-    private static void deleteDir(File dir) {
+    static void deleteDir(File dir) {
         if (dir == null) return;
         File[] files = dir.listFiles();
         if (files != null) for (File f : files) f.delete();
