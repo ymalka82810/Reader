@@ -1,0 +1,71 @@
+// What an offline dictionary pack holds and how a word finds its place in it. Shared by the app (offlineDict.ts) and by
+// scripts/build-dictionary-packs.mjs, which Node runs straight from this file: keep it free of imports and of anything
+// that is not erasable TypeScript.
+
+export const PACK_VERSION = 1
+
+/** part of speech, then the definitions */
+export type PackEntry = [pos: string, ...glosses: string[]]
+
+/** a slice of a pack: the entries of the words that hash here, and the inflected forms that point at their base word */
+export type Shard = { e: Record<string, PackEntry[]>; f: Record<string, string> }
+
+/** the first line of a pack file; every line after it is one shard */
+export type PackHeader = { v: number; lang: string; shards: number; words: number; built: string }
+
+const HEBREW_MARKS = /[֑-ׇ]/g
+const ARABIC_MARKS = /[ـً-ٰٟ]/g
+
+/** the key a word is stored and looked up under: niqqud, cantillation and Arabic vowel signs do not matter to a reader */
+export function normalizeWord(lang: string, word: string): string {
+  const w = word.normalize('NFC')
+  if (lang === 'he') return w.replace(HEBREW_MARKS, '')
+  if (lang === 'ar') return w.replace(ARABIC_MARKS, '')
+  return w
+}
+
+/** which of `shards` slices holds `key` (FNV-1a over its UTF-16 units) */
+export function shardOf(key: string, shards: number): number {
+  let h = 0x811c9dc5
+  for (let i = 0; i < key.length; i++) {
+    h ^= key.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return (h >>> 0) % shards
+}
+
+const MAX_WORD = 60
+const MAX_GLOSS = 140
+const MAX_GLOSSES = 3
+const MAX_ENTRIES = 6
+
+/** the parts of a kaikki.org (wiktextract) line the packs use */
+export type KaikkiLine = {
+  word?: string
+  pos?: string
+  senses?: { glosses?: string[]; form_of?: { word?: string }[]; alt_of?: { word?: string }[] }[]
+}
+
+/**
+ * Adds one line of a kaikki.org dump to the pack being built: its definitions under the word, and, when the line is an
+ * inflected form or a variant spelling of another word, a pointer to that word.
+ */
+export function addKaikkiLine(lang: string, line: KaikkiLine, entries: Map<string, PackEntry[]>, forms: Map<string, string>) {
+  if (!line.word || line.word.length > MAX_WORD) return
+  const key = normalizeWord(lang, line.word)
+  const glosses: string[] = []
+  for (const sense of line.senses ?? []) {
+    const base = sense.form_of?.[0]?.word ?? sense.alt_of?.[0]?.word
+    if (base) {
+      const baseKey = normalizeWord(lang, base)
+      if (baseKey !== key && !forms.has(key)) forms.set(key, baseKey)
+      continue
+    }
+    const gloss = sense.glosses?.at(-1)?.trim()
+    if (gloss && glosses.length < MAX_GLOSSES && !glosses.includes(gloss)) glosses.push(gloss.slice(0, MAX_GLOSS))
+  }
+  if (!glosses.length || !line.pos) return
+  const list = entries.get(key) ?? []
+  if (list.length < MAX_ENTRIES) list.push([line.pos, ...glosses])
+  entries.set(key, list)
+}
