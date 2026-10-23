@@ -1229,5 +1229,41 @@
    "title": "The End",
    "author": "Rick Riordan"
   }
+ },
+ {
+  "id": "a מאת",
+  "input": {
+   "title": "הסוף",
+   "author": "מאת: ריק ריירדן",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "title": "הסוף",
+   "author": "ריק ריירדן"
+  }
+ },
+ {
+  "id": "a two authors",
+  "input": {
+   "title": "אלים אמריקאים",
+   "author": "ניל גיימן ו-טרי פראצ'ט",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "title": "אלים אמריקאים",
+   "author": "ניל גיימן, טרי פראצ'ט"
+  }
+ },
+ {
+  "id": "a parens role",
+  "input": {
+   "title": "הסוף",
+   "author": "ריק ריירדן (מחבר)",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "title": "הסוף",
+   "author": "ריק ריירדן"
+  }
  }
 ]
