@@ -593,7 +593,7 @@ export const he = {
   'settings.brightness': 'בהירות מסך',
   'settings.letterSpacing': 'מרווח אותיות',
   'settings.columnWidth': 'רוחב טור',
-  'settings.columnAuto': 'אוטו',
+  'settings.columnAuto': 'אוטומטי',
   'settings.columnAutoLabel': 'רוחב טור אוטומטי',
   'settings.margins': 'שוליים',
   'settings.fonts': 'גופנים',

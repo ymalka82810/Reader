@@ -596,7 +596,7 @@ export const en: Record<keyof typeof he, Message> = {
   'settings.brightness': 'Screen brightness',
   'settings.letterSpacing': 'Letter spacing',
   'settings.columnWidth': 'Column width',
-  'settings.columnAuto': 'Auto',
+  'settings.columnAuto': 'Automatic',
   'settings.columnAutoLabel': 'Automatic column width',
   'settings.margins': 'Margins',
   'settings.fonts': 'Fonts',

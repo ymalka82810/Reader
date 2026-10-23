@@ -79,7 +79,7 @@ export function Select<T extends string>({ value, options, onChange, label, clas
         ref={btn}
         type="button"
         className={`select-btn ${className ?? ''}`}
-        aria-label={label}
+        aria-label={`${label}: ${current?.[1] ?? value}`}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? id : undefined}
