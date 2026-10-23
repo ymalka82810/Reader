@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { t } from '../../i18n'
 import { listBooks, renameFolder, updateMeta, type BookMeta } from '../../lib/db'
+import { copyGroups, mergeCopies } from '../../lib/bookCopies'
 import { libraryHealth, type Issue } from '../../lib/seriesHealth'
 import { Row } from './parts'
 
@@ -8,12 +9,12 @@ import { Row } from './parts'
  *  under several spellings is put right here, every book of it taking the spelling most of them have (and with it the
  *  author's folder); the rest is listed, to fix in the book's details. */
 export function LibraryHealth() {
-  const [state, setState] = useState<{ books: BookMeta[]; issues: Issue[] }>()
+  const [state, setState] = useState<{ books: BookMeta[]; issues: Issue[]; copies: BookMeta[][] }>()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const load = async () => {
     const books = await listBooks().catch(() => [] as BookMeta[])
-    setState({ books, issues: libraryHealth(books) })
+    setState({ books, issues: libraryHealth(books), copies: copyGroups(books) })
   }
   if (!open)
     return (
@@ -49,14 +50,31 @@ export function LibraryHealth() {
       setBusy(false)
     }
   }
-  const { issues } = state
+  const mergeAll = async () => {
+    setBusy(true)
+    try {
+      await mergeCopies(state.copies)
+      await load()
+    } finally {
+      setBusy(false)
+    }
+  }
+  const { issues, copies } = state
   return (
     <div className="identify-stats library-health">
       <Row label={t('health.title')}>
         <button onClick={() => setOpen(false)}>{t('stats.hide')}</button>
       </Row>
-      {!issues.length && <p>{t('health.none')}</p>}
+      {!issues.length && !copies.length && <p>{t('health.none')}</p>}
       <ul>
+        {copies.length > 0 && (
+          <li>
+            <span>{t('copies.notice', { n: copies.length })}: {copies.map((g) => g[0]!.title).join(' · ')}</span>{' '}
+            <button disabled={busy} onClick={() => void mergeAll()}>
+              {t('copies.merge')}
+            </button>
+          </li>
+        )}
         {issues.map((i, n) => (
           <li key={n}>
             {i.kind === 'author' ? (
