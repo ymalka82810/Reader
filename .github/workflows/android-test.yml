@@ -53,6 +53,13 @@ jobs:
           restore-keys: gradle-test-${{ runner.os }}-
       - run: ./gradlew :app:testDebugUnitTest --stacktrace
         working-directory: ${{ runner.temp }}/app/android
+      # a green run that executed no tests (a renamed folder, a runner that found nothing) must not pass
+      - name: Count the tests that ran
+        run: |
+          n=$(cat app/build/test-results/testDebugUnitTest/*.xml | grep -o '<testcase ' | wc -l)
+          echo "$n tests ran"
+          test "$n" -ge 20
+        working-directory: ${{ runner.temp }}/app/android
       - if: failure()
         uses: actions/upload-artifact@v7
         with:
