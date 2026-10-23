@@ -3,6 +3,7 @@
 // spellings, which splits the author's books between folders (the folder is the author); and the numbers a series is
 // missing, which may be books not in the library yet, or a book numbered wrong. Read from the names alone, on the device.
 import { sameAuthor } from './authorName'
+import { soundOf } from './bookInference'
 import { splitBookName } from './bookName'
 import { norm } from './sameBook'
 
@@ -17,6 +18,9 @@ export type Issue =
   | { kind: 'authors'; series: string; authors: string[]; books: Book[] }
   /** the numbers a series has none of, up to its last */
   | { kind: 'gap'; series: string; missing: number[] }
+  /** one series under several spellings ("מגיסטריום" / "Magisterium"): `main` is the one most of the books have, and
+   *  `books` the books of the others */
+  | { kind: 'series'; main: string; others: string[]; books: Book[] }
 
 /** one author: the same by its sound, or one name holding the other ("הולי בלק" in "הולי בלק וקסנדרה קלייר") */
 const oneAuthor = (a: string, b: string) => sameAuthor(a, b) || norm(a).includes(norm(b)) || norm(b).includes(norm(a))
@@ -70,6 +74,25 @@ export function libraryHealth(books: Book[]): Issue[] {
       if (missing.length && missing.length <= Math.max(3, numbers.length)) issues.push({ kind: 'gap', series: s.name, missing })
     }
   }
-  const order: Issue['kind'][] = ['duplicate', 'authors', 'author', 'gap']
+  // one series under several spellings: the same sound (the consonants, Hebrew or Latin) and the same author, or one of
+  // them with none; a name too short to tell by its sound is left alone
+  const bySound = new Map<string, NonNullable<ReturnType<typeof series.get>>[]>()
+  for (const s of series.values()) {
+    const sound = soundOf(s.name)
+    if (sound.length >= 4) bySound.set(sound, [...(bySound.get(sound) ?? []), s])
+  }
+  const sameWriter = (x: Book[], y: Book[]) => {
+    const xs = x.map((b) => b.author.trim()).filter(Boolean)
+    const ys = y.map((b) => b.author.trim()).filter(Boolean)
+    return !xs.length || !ys.length || xs.some((a) => ys.some((c) => oneAuthor(a, c)))
+  }
+  for (const group of bySound.values()) {
+    if (group.length < 2) continue
+    const [main, ...rest] = [...group].sort((x, y) => y.books.length - x.books.length)
+    const others = rest.filter((o) => sameWriter(main!.books, o.books))
+    if (others.length)
+      issues.push({ kind: 'series', main: main!.name, others: others.map((o) => o.name), books: others.flatMap((o) => o.books.map(({ id, title, author }) => ({ id, title, author }))) })
+  }
+  const order: Issue['kind'][] = ['duplicate', 'authors', 'series', 'author', 'gap']
   return issues.sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind))
 }

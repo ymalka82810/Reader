@@ -19,6 +19,12 @@ it('finds one author under several spellings, the most common first', () => {
   expect(issues).toEqual([{ kind: 'author', main: "ג'יי קיי רולינג", others: ['J.K. Rowling'], books: 3 }])
 })
 
+it('finds one series under several spellings, the most common first, but not two series of other authors', () => {
+  const books = [b('1', 'מגיסטריום 1 - א'), b('2', 'מגיסטריום 2 - ב'), b('3', 'Magisterium 3 - ג')]
+  expect(libraryHealth(books).find((i) => i.kind === 'series')).toEqual({ kind: 'series', main: 'מגיסטריום', others: ['Magisterium'], books: [b('3', 'Magisterium 3 - ג')] })
+  expect(libraryHealth([...books.slice(0, 2), b('3', 'Magisterium 3 - ג', 'הולי בלק')]).some((i) => i.kind === 'series')).toBe(false)
+})
+
 it('finds the numbers a series is missing, but not for a long series the library has the end of', () => {
   expect(libraryHealth([b('1', 'ס 1 - א'), b('2', 'ס 4 - ב')])).toEqual([{ kind: 'gap', series: 'ס', missing: [2, 3] }])
   expect(libraryHealth([b('1', 'ס 55 - א'), b('2', 'ס 56 - ב')])).toEqual([])

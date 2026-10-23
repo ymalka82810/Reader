@@ -5,6 +5,7 @@ import { clearNotCopies, copyGroups, notCopiesCount } from '../../lib/bookCopies
 import { useConfirm } from '../../hooks/useConfirm'
 import { ConfirmDialog } from '../library/Dialogs'
 import { CopiesDialog } from '../library/CopiesDialog'
+import { formatBookName, splitBookName } from '../../lib/bookName'
 import { libraryHealth, type Issue } from '../../lib/seriesHealth'
 import { Row } from './parts'
 
@@ -56,6 +57,17 @@ export function LibraryHealth() {
     }
   }
 
+  // the series' other spellings become the main one, each book keeping its number, title and author
+  const mergeSeries = async (main: string, books: Extract<Issue, { kind: 'series' }>['books']) => {
+    setBusy(true)
+    try {
+      for (const b of books) await updateMeta(b.id, formatBookName({ ...splitBookName(b.title), series: main }), b.author)
+      await load()
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const { issues, copies } = state
   return (
     <div className="identify-stats library-health">
@@ -92,6 +104,13 @@ export function LibraryHealth() {
               <>
                 <span>{t('health.author', { main: i.main, others: i.others.join(', '), books: i.books })}</span>{' '}
                 <button disabled={busy} onClick={() => void merge(i.main, i.others)}>
+                  {t('health.merge', { main: i.main })}
+                </button>
+              </>
+            ) : i.kind === 'series' ? (
+              <>
+                <span>{t('health.series', { main: i.main, others: i.others.join(', '), books: i.books.length })}</span>{' '}
+                <button disabled={busy} onClick={() => void mergeSeries(i.main, i.books)}>
                   {t('health.merge', { main: i.main })}
                 </button>
               </>
