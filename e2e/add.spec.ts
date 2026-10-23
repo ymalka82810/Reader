@@ -113,23 +113,29 @@ test('the very same file added again is not added twice', async ({ page }) => {
   await expect(card).toHaveCount(1)
 })
 
-test('a different file with the same title asks what to do: skip keeps one, add anyway makes two', async ({ page }) => {
+/** a book is in the library, and a different file with the same title is added: the app asks what to do */
+async function addSameTitleDifferentFile(page: Page) {
   await addFiles(page, [txt('ספר עם שם ארוך מספיק.txt', body('גרסה ראשונה'))])
   const card = page.getByRole('button', { name: /ספר עם שם ארוך מספיק/ })
   await expect(card.first()).toBeVisible({ timeout: 60_000 })
   // let the import and the background identify settle, or the second add can land while the first is still being finished
   await page.waitForTimeout(2000)
-
+  await addFiles(page, [txt('ספר עם שם ארוך מספיק.txt', body('גרסה שנייה, אחרת לגמרי'))])
   const dialog = page.getByRole('alertdialog', { name: 'הספר כבר קיים' })
-  const second = txt('ספר עם שם ארוך מספיק.txt', body('גרסה שנייה, אחרת לגמרי'))
-  await addFiles(page, [second])
   await expect(dialog).toBeVisible({ timeout: 30_000 })
+  return { card, dialog }
+}
+
+test('a different file with the same title asks what to do; skipping keeps one copy', async ({ page }) => {
+  const { card, dialog } = await addSameTitleDifferentFile(page)
   await dialog.getByRole('button', { name: 'דלג', exact: true }).click()
   await expect(dialog).toHaveCount(0)
+  await page.waitForTimeout(1000)
   await expect(card).toHaveCount(1)
+})
 
-  await addFiles(page, [second])
-  await expect(dialog).toBeVisible({ timeout: 30_000 })
+test('a different file with the same title: add anyway keeps both', async ({ page }) => {
+  const { card, dialog } = await addSameTitleDifferentFile(page)
   await dialog.getByRole('button', { name: 'הוסף בכל זאת' }).click()
   await expect(card).toHaveCount(2, { timeout: 30_000 })
 })
