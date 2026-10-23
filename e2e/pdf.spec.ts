@@ -34,5 +34,7 @@ test('a PDF shown as is can be zoomed, and its text can be selected', async ({ p
   await page.mouse.down()
   await page.mouse.move(box.left, box.y, { steps: 6 })
   await page.mouse.up()
-  await expect.poll(() => frame()!.evaluate<string>(`getSelection().toString()`)).toBe('שם')
+  // the browser extends a drag that ends in the gap next to the cell up to the end of the page text, so the
+  // exact extent differs between platforms; what matters is that the dragged-over word is selected
+  await expect.poll(() => frame()!.evaluate<string>(`getSelection().toString()`)).toContain('שם')
 })
