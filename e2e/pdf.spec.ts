@@ -8,7 +8,7 @@ test('a PDF shown as is can be zoomed, and its text can be selected', async ({ p
 
 
   const frame = () => page.frames().find((f) => f.url().startsWith('blob:'))
-  const wordWidth = async () => (await frame()?.evaluate<number>(`document.querySelector('.textLayer span').getBoundingClientRect().width`)) ?? 0
+  const wordWidth = async () => (await frame()?.evaluate<number>(`document.querySelector('.textLayer span')?.getBoundingClientRect().width`)) ?? 0
   await expect.poll(wordWidth, { timeout: 30_000 }).toBeGreaterThan(0)
   const before = await wordWidth()
 
