@@ -1,11 +1,22 @@
 import { describe, expect, it } from 'vitest'
-import { authorKey, authorOrder, libraryAuthor, sameAuthor } from './authorName'
+import { authorKey, authorOrder, libraryAuthor, sameAuthor, tidyAuthor } from './authorName'
 
 describe('authorName', () => {
   it('turns "last, first" around, but not a suffix or a list', () => {
     expect(authorOrder("רולינג, ג'יי קיי")).toBe("ג'יי קיי רולינג")
     expect(authorOrder('Smith, Jr.')).toBe('Smith, Jr.')
     expect(authorOrder('Black, Clare, Cass')).toBe('Black, Clare, Cass')
+  })
+
+  it('takes the introducing word and the role off an author, and lists two authors', () => {
+    expect(tidyAuthor('מאת: ריק ריירדן')).toBe('ריק ריירדן')
+    expect(tidyAuthor('by Rick Riordan')).toBe('Rick Riordan')
+    expect(tidyAuthor('ריק ריירדן (מחבר)')).toBe('ריק ריירדן')
+    expect(tidyAuthor("ניל גיימן ו-טרי פראצ'ט")).toBe("ניל גיימן, טרי פראצ'ט")
+    expect(tidyAuthor('Holly Black & Cassandra Clare')).toBe('Holly Black, Cassandra Clare')
+    expect(tidyAuthor('טרי פראצט (Terry Pratchett)')).toBe('טרי פראצט (Terry Pratchett)')
+    expect(tidyAuthor('מאתי כהן')).toBe('מאתי כהן')
+    expect(tidyAuthor('אורי ורדי')).toBe('אורי ורדי')
   })
 
   it('hears one author across spellings and scripts', () => {

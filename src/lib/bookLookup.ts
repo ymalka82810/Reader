@@ -6,7 +6,7 @@
 // (consent 'books').
 
 import { authorFromOpening, authorInName, guessBookName, isJunkTitle, nameFromOpening, seriesOf, tidyBookName, withoutAuthor, type BookName } from './bookName'
-import { libraryAuthor } from './authorName'
+import { libraryAuthor, tidyAuthor } from './authorName'
 import type { EpubMeta } from './bookText'
 import { bookNumber, copyrightYear, seriesByWords, inLists, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, originalTitle, seriesByNames, soundOf, titleCase } from './bookInference'
 import { listsOf, rememberLists } from './bookKnowledge'
@@ -755,7 +755,7 @@ async function findName(
   // an e-mail address in the author field (a file's uploader) is no author
   // and an Anna's Archive name carries its author
   const given =
-    (/@/.test(b.author) ? '' : b.author.trim()) ||
+    (/@/.test(b.author) ? '' : tidyAuthor(b.author)) ||
     authorInName(b.title) ||
     authorInName(stem(b.fileName)) ||
     // the name printed by the title on the title page, with the book's own title or the one read from the page

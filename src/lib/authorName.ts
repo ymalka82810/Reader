@@ -15,6 +15,20 @@ export function authorOrder(a: string): string {
   return `${first} ${last}`
 }
 
+/**
+ * The author field as a name: without the word that introduces it ("מאת: ריק ריירדן", "by Rick Riordan") or the role after
+ * it ("ריק ריירדן (מחבר)"), and two authors joined by "ו־", "and" or "&" as a list ("ניל גיימן, טרי פראצ'ט"). A name in
+ * parentheses that is the author's other spelling ("(טרי פראצט; Terry Pratchett)") is not a role and stays.
+ */
+export function tidyAuthor(a: string): string {
+  return a
+    .replace(/^\s*(?:מאת|by)(?![\p{L}])\s*[:：]?\s*/iu, '')
+    .replace(/\s*\((?:מחבר|מחברת|מחברים|סופר|סופרת|כותב|כותבת|author|authors|writer)\)/giu, '')
+    .replace(/\s+(?:ו[-־‐–]|and\s+|&\s*)(?=\S)/giu, ', ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 /** the author as the name sounds, in the order first-last; empty for a name too short to tell (fewer than 4 sounds) */
 export function authorKey(a: string): string {
   const k = soundOf(authorOrder(a.replace(/\([^)]*\)/g, ' ')))
