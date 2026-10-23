@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useBackGesture } from '../../hooks/useBackGesture'
 import { isFinished, setFinished, type BookMeta } from '../../lib/db'
+import { isKeptPdf } from '../../lib/pdfOcr'
 import { Cover } from './Cover'
 import { t } from '../../i18n'
 import { menuKeyDown } from '../menuKeys'
@@ -13,6 +14,8 @@ export type BookActions = {
   onMove: (b: BookMeta) => void
   /** saves this one book's file to the phone (a download in the browser) */
   onDownload: (b: BookMeta) => void
+  /** reads a kept PDF (a scan) by OCR and turns it into a text book */
+  onOcr: (b: BookMeta) => void
   onDelete: (b: BookMeta) => void
   refresh: () => void
 }
@@ -20,7 +23,7 @@ export type BookActions = {
 type CardProps = BookActions & { book: BookMeta; picked: boolean }
 
 /** one book's card with its "⋯" actions menu */
-export function BookCard({ book: b, picked, selecting, onOpen, onToggle, onEdit, onMove, onDownload, onDelete, refresh }: CardProps) {
+export function BookCard({ book: b, picked, selecting, onOpen, onToggle, onEdit, onMove, onDownload, onOcr, onDelete, refresh }: CardProps) {
   const [menu, setMenu] = useState(false)
   // the phone's back swipe closes the open menu first
   useBackGesture(() => setMenu(false), 3, menu)
@@ -84,6 +87,7 @@ export function BookCard({ book: b, picked, selecting, onOpen, onToggle, onEdit,
                 <button role="menuitem" onClick={() => { close(); onEdit(b) }}>{t('book.editMeta')}</button>
                 <button role="menuitem" onClick={() => { close(); onMove(b) }}>{t('book.moveToFolder')}</button>
                 <button role="menuitem" onClick={() => { close(); onDownload(b) }}>{t('book.saveToPhone')}</button>
+                {isKeptPdf(b) && <button role="menuitem" onClick={() => { close(); onOcr(b) }}>{t('book.ocr')}</button>}
                 <div className="menu-sep" role="separator" />
                 <button role="menuitem" className="danger-item" onClick={() => { close(); onDelete(b) }}>{t('common.delete')}</button>
               </div>

@@ -66,6 +66,8 @@ type Props = {
 
 export default function Library({ onOpen, startSettings, onSettingsClosed }: Props) {
   const [busy, setBusy] = useState<string>()
+  /** set while a long job can be cancelled from the wait dialog */
+  const [cancelBusy, setCancelBusy] = useState<() => void>()
   const [error, setError] = useState<string>()
   const [drag, setDrag] = useState(false)
   const [query, setQuery] = useState('')
@@ -308,6 +310,31 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
     setEditPhone(false)
     setEditSync(loadSettings().phoneRenameSync)
     if (deviceBooksSupported()) void phoneFileOf(b.id).then((p) => setEditPhone(!!p)).catch(() => {})
+  }
+
+  /** a scanned PDF made readable as text: slow, so only after a yes, and it can be cancelled */
+  const ocrBookNow = async (b: BookMeta) => {
+    const yes = await confirm({
+      title: t('ocr.confirmTitle'),
+      text: t('ocr.confirmText', { name: b.title }),
+      ok: t('ocr.confirmOk'),
+      cancel: t('common.cancel'),
+    })
+    if (!yes) return
+    const ctl = new AbortController()
+    setCancelBusy(() => () => ctl.abort())
+    setBusy(t('ocr.starting'))
+    try {
+      const { ocrBook } = await import('../lib/pdfOcr')
+      await ocrBook(b.id, (done, total) => setBusy(t('ocr.progress', { done, total })), ctl.signal)
+      refresh()
+      showToast(t('ocr.done', { name: b.title }), undefined, 5000)
+    } catch (e) {
+      if (!ctl.signal.aborted) setError(t('ocr.failed', { msg: e instanceof Error ? e.message : String(e) }))
+    } finally {
+      setCancelBusy(undefined)
+      setBusy(undefined)
+    }
   }
 
   const downloadBook = async (b: BookMeta) => {
@@ -673,6 +700,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
             <span className="spinner" aria-hidden="true" />
             <p role="status">{busy}</p>
             <p className="wait-hint">{t('common.wait')}</p>
+            {cancelBusy && <button className="danger" onClick={cancelBusy}>{t('common.cancel')}</button>}
           </div>
         </div>
       )}
@@ -764,6 +792,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
             onEdit: openEdit,
             onMove: (b) => fo.setMoving([b]),
             onDownload: downloadBook,
+            onOcr: ocrBookNow,
             onDelete: (b) => setConfirmDel([b]),
             refresh,
           }}
@@ -796,6 +825,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
             onEdit={openEdit}
             onMove={(b) => fo.setMoving([b])}
             onDownload={downloadBook}
+            onOcr={ocrBookNow}
             onDelete={(b) => setConfirmDel([b])}
             refresh={refresh}
           />
