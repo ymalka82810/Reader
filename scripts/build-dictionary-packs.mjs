@@ -6,7 +6,6 @@
 import { execFileSync } from 'node:child_process'
 import { createReadStream, createWriteStream } from 'node:fs'
 import { mkdir, rm, stat, writeFile } from 'node:fs/promises'
-import { createInterface } from 'node:readline'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { createGzip } from 'node:zlib'
@@ -24,6 +23,17 @@ const wanted = codes.length ? codes : Object.keys(LANGS)
 const unknown = wanted.filter((c) => !(c in LANGS))
 if (unknown.length) throw new Error(`unknown language: ${unknown.join(', ')}`)
 
+// not readline: it also breaks lines at U+2028 and U+2029, which occur inside the JSON strings of some entries
+async function* linesOf(file) {
+  let rest = ''
+  for await (const chunk of createReadStream(file, { encoding: 'utf8' })) {
+    const parts = (rest + chunk).split('\n')
+    rest = parts.pop()
+    yield* parts
+  }
+  if (rest) yield rest
+}
+
 async function build(code) {
   const name = LANGS[code]
   const url = `https://kaikki.org/dictionary/${name}/kaikki.org-dictionary-${name}.jsonl`
@@ -32,8 +42,7 @@ async function build(code) {
   execFileSync('curl', ['-fsSL', '--retry', '10', '--retry-all-errors', '--retry-delay', '5', '-C', '-', '-o', raw, url], { stdio: 'inherit' })
   const entries = new Map()
   const forms = new Map()
-  const lines = createInterface({ input: createReadStream(raw), crlfDelay: Infinity })
-  for await (const line of lines) if (line) addKaikkiLine(code, JSON.parse(line), entries, forms)
+  for await (const line of linesOf(raw)) if (line.trim()) addKaikkiLine(code, JSON.parse(line), entries, forms)
   let bytes = 0
   for (const [w, e] of entries) bytes += w.length + JSON.stringify(e).length + 4
   for (const [f, w] of forms) bytes += f.length + w.length + 6
