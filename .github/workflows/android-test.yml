@@ -1,0 +1,61 @@
+name: Android native tests
+# The native plugins (resources/android-*/*.java) are only compiled when the APK is built by hand. This compiles them
+# inside a freshly generated Capacitor project on every change to them, and runs the JUnit/Robolectric tests in
+# resources/android-tests.
+on:
+  pull_request:
+    paths:
+      - 'resources/android-*/**'
+      - '.github/workflows/android-test.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: 24 }
+      - uses: actions/setup-java@v6
+        with: { distribution: temurin, java-version: 21 }
+      # The Capacitor project is generated in a scratch folder: the plugins and the tests are copied into it,
+      # the same way android.yml does for the APK.
+      - name: Generate the Capacitor Android project
+        run: |
+          mkdir -p "$RUNNER_TEMP/app/dist" && cd "$RUNNER_TEMP/app"
+          echo '<!doctype html><title>reader</title>' > dist/index.html
+          npm init -y
+          npm install @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7
+          npx cap init "Reader" com.yanivm.reader --web-dir dist
+          npx cap add android
+      - name: Add the plugins, the tests and the test dependencies
+        run: |
+          app="$RUNNER_TEMP/app/android/app"
+          pkg=$app/src/main/java/com/yanivm/reader
+          cp resources/android-updater/*.java resources/android-device-books/*.java resources/android-open-with/*.java resources/android-tts/*.java "$pkg/"
+          mkdir -p "$app/src/test/java/com/yanivm/reader"
+          cp resources/android-tests/*.java "$app/src/test/java/com/yanivm/reader/"
+          cat >> "$app/build.gradle" <<'EOF'
+          dependencies {
+            implementation 'androidx.work:work-runtime:2.9.1'
+            testImplementation 'junit:junit:4.13.2'
+            testImplementation 'org.robolectric:robolectric:4.14.1'
+          }
+          android.testOptions.unitTests.includeAndroidResources = true
+          EOF
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-test-${{ runner.os }}-${{ hashFiles('.github/workflows/android-test.yml') }}
+          restore-keys: gradle-test-${{ runner.os }}-
+      - run: ./gradlew :app:testDebugUnitTest --stacktrace
+        working-directory: ${{ runner.temp }}/app/android
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-test-reports
+          path: ${{ runner.temp }}/app/android/app/build/reports/tests/
+          retention-days: 7
