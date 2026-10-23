@@ -29,6 +29,34 @@ jobs:
       - run: |
           rm -f android/app/src/main/res/mipmap-*/ic_launcher*.png
           cp -r resources/android/. android/app/src/main/res/
+      # No black screen while the app starts: the system splash, the window and the WebView all take the color of
+      # the web splash (#splash in index.html), and the system splash shows the app's icon, so the native launch
+      # flows straight into the page-flipping splash.
+      - run: |
+          sed -i "s#webDir: 'dist'#webDir: 'dist',\n  backgroundColor: '\#15294d'#" capacitor.config.ts
+          grep -q "backgroundColor: '#15294d'" capacitor.config.ts
+          cat > android/app/src/main/res/values/splash_colors.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="splash_background">#15294D</color>
+          </resources>
+          EOF
+          python3 - <<'PY'
+          p = 'android/app/src/main/res/values/styles.xml'
+          m = open(p, encoding='utf-8').read()
+          launch = '<item name="android:background">@drawable/splash</item>'
+          assert launch in m
+          m = m.replace(launch,
+              '<item name="android:background">@color/splash_background</item>\n'
+              '        <item name="windowSplashScreenBackground">@color/splash_background</item>\n'
+              '        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>\n'
+              '        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>', 1)
+          bar = '<item name="android:background">@null</item>'
+          assert bar in m
+          m = m.replace(bar, bar + '\n        <item name="android:windowBackground">@color/splash_background</item>', 1)
+          open(p, 'w', encoding='utf-8').write(m)
+          PY
+          grep -q windowSplashScreenBackground android/app/src/main/res/values/styles.xml
       # Native plugins: self-update (+ install permission, FileProvider path), the books already on the phone
       # (+ storage and notification permissions, background scan worker), reading aloud (the WebView has no
       # speechSynthesis), and versionCode = run number (tag v1.0.<n> ends with it).
