@@ -4,7 +4,7 @@ const RTL_LANGS = new Set(['he', 'iw', 'yi', 'ar', 'fa', 'ur', 'ps', 'dv', 'ckb'
 const RTL_SCRIPT = /[\p{Script=Hebrew}\p{Script=Arabic}]/u
 
 /** PDF shown page by page, or a pre-paginated EPUB: every page is a picture laid out at fixed coordinates */
-const isFixedLayout = (view: FoliateView) => view.book.rendition?.layout === 'pre-paginated'
+export const isFixedLayout = (view: FoliateView) => view.book.rendition?.layout === 'pre-paginated'
 
 /**
  * foliate takes the page direction only from the EPUB's page-progression-direction, which many

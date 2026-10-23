@@ -2,6 +2,7 @@ import { useCallback, useLayoutEffect, useRef, type Dispatch, type MutableRefObj
 import type { FoliateView } from 'foliate-js/view.js'
 import type { Settings } from '../lib/settings'
 import { createPinchPreview, wordRangeAt, type PinchPreview } from '../lib/pinchPreview'
+import { canZoom, MAX_ZOOM, setZoom, zoomLevel } from '../lib/pdfZoom'
 
 export const MIN_FONT = 12
 export const MAX_FONT = 48
@@ -247,6 +248,16 @@ export function useBookEvents(deps: BookEventsDeps) {
     let pinchStartFont = 0
     let pinchFont: number | null = null
     let preview: PinchPreview | null = null
+    // a page-by-page book (PDF shown as is) is zoomed by the pinch instead: the page grows under the fingers and is
+    // drawn sharp again on release
+    let zoomPinch: { view: FoliateView; start: number; level: number; x: number; y: number } | null = null
+    const endZoomPinch = () => {
+      if (!zoomPinch) return
+      const { view, level, x, y } = zoomPinch
+      zoomPinch = null
+      view.renderer.style.transform = ''
+      setZoom(view, level, { x, y })
+    }
     const endPreview = () => {
       preview?.remove()
       preview = null
@@ -263,6 +274,17 @@ export function useBookEvents(deps: BookEventsDeps) {
         const a = ev.touches[0]
         const b = ev.touches[1]
         if (!a || !b) return
+        const view = d.current.viewRef.current
+        if (canZoom(view)) {
+          const fr = (doc.defaultView?.frameElement as HTMLElement | null)?.getBoundingClientRect()
+          const host = view.renderer.getBoundingClientRect()
+          const x = (fr?.left ?? 0) + (a.clientX + b.clientX) / 2 - host.left
+          const y = (fr?.top ?? 0) + (a.clientY + b.clientY) / 2 - host.top
+          const start = zoomLevel(view)
+          zoomPinch = { view, start, level: start, x, y }
+          view.renderer.style.transformOrigin = `${x}px ${y}px`
+          return
+        }
         const range = wordRangeAt(doc, (a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2)
         if (!range) return
         const fr = (doc.defaultView?.frameElement as HTMLElement | null)?.getBoundingClientRect()
@@ -276,6 +298,12 @@ export function useBookEvents(deps: BookEventsDeps) {
       (ev: TouchEvent) => {
         if (ev.touches.length !== 2 || !pinchStartDist) return
         ev.preventDefault()
+        if (zoomPinch) {
+          const z = zoomPinch
+          z.level = Math.min(Math.max(z.start * (pinchDist(ev) / pinchStartDist), 1), MAX_ZOOM)
+          z.view.renderer.style.transform = `scale(${z.level / z.start})`
+          return
+        }
         // applied once on release: every settings change re-lays-out the chapter and saves
         pinchFont = clampFont(pinchStartFont * (pinchDist(ev) / pinchStartDist))
         preview?.update(pinchFont / pinchStartFont, pinchFont)
@@ -286,6 +314,7 @@ export function useBookEvents(deps: BookEventsDeps) {
       if (ev.touches.length >= 2) return
       pinchStartDist = null
       endPreview()
+      endZoomPinch()
       const next = pinchFont
       pinchFont = null
       if (next != null) d.current.setSettings((s) => (s.fontSize === next ? s : { ...s, fontSize: next }))
