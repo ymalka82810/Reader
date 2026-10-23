@@ -12,7 +12,7 @@ import { bookNumber, copyrightYear, seriesByWords, inLists, librarySeriesFor, nu
 import { listsOf, rememberLists } from './bookKnowledge'
 import { bundledSeries, bundledTitle, loadSeriesDb } from './seriesDb'
 import { hasConsent } from './consent'
-import { blocks, clueStats, trusted } from './identifyLearning'
+import { blocks, clueStats, needsMoreProof, trusted } from './identifyLearning'
 import { bookIsbns } from './isbn'
 import { norm } from './sameBook'
 import { loadSettings } from './settings'
@@ -1313,7 +1313,7 @@ async function weigh(
   const strong = evidence.filter((c) => trusted(c, stats)).length
   const out: Identified = { ...r, ...(evidence.length && { evidence }), ...(conflicts.length && { conflicts }) }
   if (conflicts.some((c) => blocks(c, stats))) delete out.sure
-  else if (strong >= 2) out.sure = true
+  else if (strong >= (needsMoreProof() ? 3 : 2)) out.sure = true
   return out
 }
 

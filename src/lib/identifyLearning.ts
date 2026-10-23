@@ -89,6 +89,36 @@ export function wasDeclined(id: string, offered: string): boolean {
 export function rememberAuto(id: string, title: string, evidence: Clue[] = [], conflicts: Clue[] = []) {
   put(AUTO_KEY, id, { title, evidence, conflicts })
   countOutcome('autoSaved')
+  setRecent(id, true)
+}
+
+// ---- how right the names saved by themselves have been lately
+
+const RECENT_KEY = 'reader:identify:recent'
+/** how many of the latest saved names are judged, and how many are needed before they are */
+const RECENT_MAX = 50
+const RECENT_MIN = 20
+/** below this share kept by the user, a name needs one more clue to be saved without asking */
+const RECENT_BAR = 0.9
+
+/** the latest names saved by themselves, by book, each with whether the user kept its place (until told otherwise) */
+function setRecent(id: string, kept: boolean) {
+  const all = read<[string, boolean][]>(RECENT_KEY, [])
+  write(RECENT_KEY, [...all.filter(([x]) => x !== id), [id, kept] as [string, boolean]].slice(-RECENT_MAX))
+}
+
+/** the share of the latest names saved by themselves the user kept (not the whole history: a rule that was mended
+ *  stops counting against the identification); undefined before enough of them were judged */
+export function recentPrecision(): number | undefined {
+  const all = read<[string, boolean][]>(RECENT_KEY, [])
+  return all.length < RECENT_MIN ? undefined : all.filter(([, kept]) => kept).length / all.length
+}
+
+/** whether the latest names saved by themselves were wrong too often: a name is then saved without asking only on one
+ *  more clue, until the user's answers say it is right again */
+export function needsMoreProof(): boolean {
+  const p = recentPrecision()
+  return p !== undefined && p < RECENT_BAR
 }
 
 /** the place in a series a name gives: its series and number, compared without spelling */
@@ -112,6 +142,7 @@ export function learnFromEdit(id: string, title: string, author = '') {
     const kept = samePlace(auto.title, title)
     recordOutcome(auto.evidence, auto.conflicts, kept)
     if (!kept) countOutcome('autoCorrected')
+    setRecent(id, kept)
   }
   confirmName(id, title, author)
 }

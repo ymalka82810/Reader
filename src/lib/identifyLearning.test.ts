@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { blocks, confirmName, declineName, isConfirmed, learnFromEdit, recordOutcome, rememberAuto, samePlace, trusted, wasDeclined } from './identifyLearning'
+import { blocks, confirmName, declineName, isConfirmed, learnFromEdit, needsMoreProof, recentPrecision, recordOutcome, rememberAuto, samePlace, trusted, wasDeclined } from './identifyLearning'
 
 beforeEach(() => localStorage.clear())
 
@@ -27,6 +27,25 @@ describe('the clues learnt from the user', () => {
   it('no more blocks with a clue whose objections the user overrode', () => {
     for (let i = 0; i < 4; i++) recordOutcome([], ['order'], true)
     expect(blocks('order')).toBe(false)
+  })
+
+  it('asks for one more clue while the latest names saved by themselves were wrong too often, and forgets it as they mend', () => {
+    const wrong = "פרסי ג'קסון 9 - אחר"
+    for (let i = 0; i < 20; i++) rememberAuto(`b${i}`, "פרסי ג'קסון 2 - ים המפלצות")
+    expect(needsMoreProof()).toBe(false)
+    for (let i = 0; i < 3; i++) learnFromEdit(`b${i}`, wrong)
+    expect(recentPrecision()).toBe(0.85)
+    expect(needsMoreProof()).toBe(true)
+    // later names that stay push the wrong ones out of the window
+    for (let i = 20; i < 70; i++) rememberAuto(`b${i}`, "פרסי ג'קסון 2 - ים המפלצות")
+    expect(needsMoreProof()).toBe(false)
+  })
+
+  it('does not judge before enough names were saved', () => {
+    for (let i = 0; i < 5; i++) rememberAuto(`c${i}`, "פרסי ג'קסון 2 - ים המפלצות")
+    for (let i = 0; i < 5; i++) learnFromEdit(`c${i}`, "פרסי ג'קסון 9 - אחר")
+    expect(recentPrecision()).toBeUndefined()
+    expect(needsMoreProof()).toBe(false)
   })
 
   it('judges a name saved by itself by the place the user kept for it', () => {
