@@ -13,6 +13,18 @@
                 <data android:mimeType="application/x-fictionbook" />
                 <data android:mimeType="application/vnd.comicbook+zip" />
                 <data android:mimeType="application/x-cbz" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+                <data android:mimeType="text/plain" />
+                <data android:mimeType="application/x-zip-compressed-fb2" />
+                <data android:mimeType="audio/mp4" />
+                <data android:mimeType="audio/x-m4b" />
+                <data android:mimeType="audio/mpeg" />
+                <data android:mimeType="audio/aac" />
+                <data android:mimeType="audio/ogg" />
+                <data android:mimeType="audio/opus" />
+                <data android:mimeType="audio/flac" />
+                <data android:mimeType="audio/wav" />
+                <data android:mimeType="audio/x-wav" />
             </intent-filter>
             <!-- file managers and download apps often give no (or a generic) type: match by the file name instead -->
             <intent-filter>
@@ -35,6 +47,22 @@
                 <data android:pathPattern=".*\\.azw3?" />
                 <data android:pathPattern=".*\\.fb2" />
                 <data android:pathPattern=".*\\.cbz" />
+                <data android:pathPattern=".*\\.fbz" />
+                <data android:pathPattern=".*\\.docx" />
+                <data android:pathPattern=".*\\..*\\.docx" />
+                <data android:pathPattern=".*\\.DOCX" />
+                <data android:pathPattern=".*\\.txt" />
+                <data android:pathPattern=".*\\..*\\.txt" />
+                <data android:pathPattern=".*\\.TXT" />
+                <data android:pathPattern=".*\\.m4b" />
+                <data android:pathPattern=".*\\.m4a" />
+                <data android:pathPattern=".*\\.mp3" />
+                <data android:pathPattern=".*\\.aac" />
+                <data android:pathPattern=".*\\.ogg" />
+                <data android:pathPattern=".*\\.oga" />
+                <data android:pathPattern=".*\\.opus" />
+                <data android:pathPattern=".*\\.flac" />
+                <data android:pathPattern=".*\\.wav" />
             </intent-filter>
             <!-- the share sheet, natively (the PWA's share_target does not exist in the APK) -->
             <intent-filter>
@@ -46,4 +74,11 @@
                 <data android:mimeType="application/x-mobipocket-ebook" />
                 <data android:mimeType="application/x-fictionbook+xml" />
                 <data android:mimeType="application/vnd.comicbook+zip" />
+                <data android:mimeType="application/x-cbz" />
+                <data android:mimeType="application/vnd.amazon.ebook" />
+                <data android:mimeType="application/x-fictionbook" />
+                <data android:mimeType="application/x-zip-compressed-fb2" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+                <data android:mimeType="text/plain" />
+                <data android:mimeType="audio/*" />
             </intent-filter>
