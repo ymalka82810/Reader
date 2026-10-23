@@ -1265,5 +1265,70 @@
    "title": "הסוף",
    "author": "ריק ריירדן"
   }
+ },
+ {
+  "id": "n חלק ב",
+  "input": {
+   "title": "שר הטבעות חלק ב' - שתי הצריחים",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "שר הטבעות",
+   "number": "2",
+   "title": "שתי הצריחים"
+  }
+ },
+ {
+  "id": "n 2.5",
+  "input": {
+   "title": "סדרת הלהב 2.5 - סיפור ביניים",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "סדרת הלהב",
+   "number": "2.5",
+   "title": "סיפור ביניים"
+  }
+ },
+ {
+  "id": "n 0.5",
+  "input": {
+   "title": "סדרת הלהב 0.5 - פריקוול",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "סדרת הלהב",
+   "number": "0.5",
+   "title": "פריקוול"
+  }
+ },
+ {
+  "id": "n roman",
+  "input": {
+   "title": "Shadow Blade II - The End",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "Shadow Blade",
+   "number": "2",
+   "title": "The End"
+  }
+ },
+ {
+  "id": "n english hash 2.5",
+  "input": {
+   "title": "The End (Shadow Blade #2.5)",
+   "author": "",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "Shadow Blade",
+   "number": "2.5",
+   "title": "The End"
+  }
  }
 ]

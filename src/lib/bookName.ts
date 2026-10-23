@@ -2,6 +2,8 @@
 // words of its own ("הערפילאים 2 העידן הראשון - האימפריה האחרונה"), and the title may hold dashes of its own
 // ("שיר של אש ושל קרח 3 - סופת החרבות, חלק ראשון - פלדה ושלג"). A book outside a series is named by its title alone.
 
+import { bookNumber } from './bookInference'
+
 export interface BookName {
   series: string
   /** the book's place in the series: "1", or with words that follow it, "2 העידן הראשון" */
@@ -92,7 +94,7 @@ export function letterNumber(word: string): number | undefined {
 /** "3", "03", "#3", "ג'", "שלישי" or "third" as "3"; undefined for anything else */
 function numberOf(word: string): string | undefined {
   const w = word.replace(/^#/, '')
-  if (/^\d{1,3}$/.test(w)) return String(Number(w))
+  if (/^\d{1,3}(?:\.5)?$/.test(w)) return String(Number(w))
   const letters = letterNumber(w)
   if (letters) return String(letters)
   // "השלישי" is "שלישי" with the article
@@ -102,7 +104,9 @@ function numberOf(word: string): string | undefined {
 
 // a number in Hebrew letters ("ג'", "י"א"); see letterNumber
 const LETTER_NUM = String.raw`[\u05D0-\u05EA]['׳]|[\u05D0-\u05EA]["״][\u05D0-\u05EA]`
-const NUM = String.raw`(#?\d{1,3}|${LETTER_NUM}|[\p{L}]+)`
+// a novella between two books is numbered by a half ("2.5"), a prequel "0.5"
+const DIGITS = String.raw`\d{1,3}(?:\.5)?`
+const NUM = String.raw`(#?${DIGITS}|${LETTER_NUM}|[\p{L}]+)`
 const DASH = String.raw`[-–—:,.]`
 // "חלק" is left out on purpose: it is part of many titles ("סופת החרבות, חלק ראשון")
 const BOOK_WORD = String.raw`(?:ספר|כרך|book|vol\.?|volume)`
@@ -114,7 +118,7 @@ export function seriesOf(text: string): { series: string; number: string } | und
   const tries: [RegExp, number, number][] = [
     [new RegExp(String.raw`^${BOOK_WORD}\s+${NUM}\s+(?:ב?סדרת|בסדרה|מתוך|of(?: the)?|in(?: the)?)\s+(.+)$`, 'iu'), 2, 1],
     [new RegExp(String.raw`^(.+?)(?:\s*${DASH}\s*|\s+)${BOOK_WORD}\s+${NUM}$`, 'iu'), 1, 2],
-    [new RegExp(String.raw`^(.+?)\s*,?\s+(#?\d{1,3}|${LETTER_NUM})$`, 'u'), 1, 2],
+    [new RegExp(String.raw`^(.+?)\s*,?\s+(#?${DIGITS}|${LETTER_NUM})$`, 'u'), 1, 2],
   ]
   for (const [re, si, ni] of tries) {
     const m = re.exec(s)
@@ -158,10 +162,17 @@ export function guessBookName(text: string): BookName {
 
   // the number in Hebrew letters: "פרסי ג'קסון ג' - קללת הטיטאן"
   const lettered = new RegExp(String.raw`^(.+?)\s+(${LETTER_NUM})\s*(?:\s[-–—]|:)\s+(.+)$`, 'u').exec(s)
-  if (lettered) return partOnly({ series: clean(lettered[1]!), number: String(letterNumber(lettered[2]!)), title: clean(lettered[3]!) })
+  if (lettered)
+    // "שר הטבעות חלק ב' - שתי הצריחים": the word for a part before the letter is not the series' (it stays in a title)
+    return partOnly({ series: clean(lettered[1]!.replace(/\s+חלק$/u, '')), number: String(letterNumber(lettered[2]!)), title: clean(lettered[3]!) })
+
+  // the number in Roman numerals after a series in Latin letters: "Shadow Blade II - The End"
+  const roman = /^([A-Za-z][^֐-׿]*?)\s+([IVX]{2,5})\s*(?:\s[-–—]|:)\s+(.+)$/u.exec(s)
+  const romanNumber = roman && bookNumber(roman[2]!)
+  if (roman && romanNumber) return { series: clean(roman[1]!), number: String(romanNumber), title: clean(roman[3]!) }
 
   // the template, also with "#1" or ":" ("Mistborn #1: The Final Empire")
-  const tpl = /^(.+?)\s+#?(\d{1,3}(?:\s+[^\s\-–—:][^\-–—:]*?)?)\s*(?:\s[-–—]|:)\s+(.+)$/u.exec(s)
+  const tpl = new RegExp(String.raw`^(.+?)\s+#?(${DIGITS}(?:\s+[^\s\-–—:][^\-–—:]*?)?)\s*(?:\s[-–—]|:)\s+(.+)$`, 'u').exec(s)
   if (tpl) {
     const [num, ...rest] = tpl[2]!.split(' ')
     return partOnly({ series: clean(tpl[1]!), number: [numberOf(num!) ?? num, ...rest].join(' '), title: clean(tpl[3]!) })
