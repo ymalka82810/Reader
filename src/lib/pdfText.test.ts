@@ -94,6 +94,25 @@ describe('toParagraphs', () => {
   it('un-reverses lines when asked', () => {
     expect(toParagraphs([line(rev('שלום עולם'), 100)], true)).toEqual(['שלום עולם'])
   })
+  it('gives each table-of-contents entry its own line, also when a title wraps', () => {
+    const ls = [
+      line('הקדמה ........ 9', 100),
+      line('פרק ראשון — שם ארוך', 88),
+      line('שנמשך לשורה שנייה ........ 19', 76),
+      line('פרק שני …… 29', 64),
+      line('פרק שלישי . . . . 87', 52),
+    ]
+    expect(toParagraphs(ls, false)).toEqual([
+      'הקדמה ........ 9',
+      'פרק ראשון — שם ארוך שנמשך לשורה שנייה ........ 19',
+      'פרק שני …… 29',
+      'פרק שלישי . . . . 87',
+    ])
+  })
+  it('does not split text that only mentions dots or numbers', () => {
+    const ls = [line('he waited... 3', 100), line('days later', 88)]
+    expect(toParagraphs(ls, false)).toEqual(['he waited... 3 days later'])
+  })
   it('returns nothing for an empty page', () => {
     expect(toParagraphs([], false)).toEqual([])
     expect(toParagraphs([line('7', 50)], false)).toEqual([])

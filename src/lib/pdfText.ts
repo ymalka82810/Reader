@@ -135,6 +135,9 @@ export function fixLine(s: string, order: VisualOrder | boolean): string {
 }
 
 /** Group a page's lines into paragraphs. */
+/** a dot leader ("....", "…", ". . .") then a page number, at the end of the text: the end of a table-of-contents entry */
+const TOC_ENTRY_END = /(?:\.{4,}|…{2,}|(?:\. ){3,}\.?)\s*\d{1,4}$/
+
 export function toParagraphs(lines: Line[], reversed: VisualOrder | boolean): string[] {
   // drop bare page numbers at the top/bottom of the page
   const isNum = (l?: Line) => !!l && /^[\d\s\-–]{1,6}$/.test(l.text)
@@ -162,13 +165,18 @@ export function toParagraphs(lines: Line[], reversed: VisualOrder | boolean): st
       const prevEnds = /[.!?:׃"”״)]$/.test(buf)
       const bigGap = gap > normalGap * 1.45 || gap < 0
       if (bigGap || (prevShort && prevEnds)) {
-        paras.push(buf)
+        if (buf) paras.push(buf)
         buf = ''
       }
     }
     if (!buf) buf = text
     else if (HYPHEN_END.test(buf)) buf = buf.slice(0, -1) + text
     else buf += ' ' + text
+    // a table-of-contents entry ends at its page number, after a dot leader: each entry is its own line
+    if (TOC_ENTRY_END.test(buf)) {
+      paras.push(buf)
+      buf = ''
+    }
     prev = l
   }
   if (buf) paras.push(buf)
