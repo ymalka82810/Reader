@@ -18,6 +18,8 @@
     <!-- Splash screen: plain HTML/CSS so it shows before any script loads (the CSP allows inline styles,
          not inline scripts). main.tsx fades it out once the app has rendered (src/lib/splash.ts). -->
     <style>
+      /* the splash color from the very first paint, so the screen isn't black or white before the splash draws */
+      html:not(.splash-done) { background: #15294d; }
       #splash { position: fixed; inset: 0; z-index: 2147483000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; background: radial-gradient(circle at 50% 42%, #24467f 0%, #15294d 55%, #0e1b33 100%); color: #f3ead8; font-family: Heebo, system-ui, -apple-system, 'Segoe UI', Arial, sans-serif; transition: opacity .35s ease, visibility .35s; }
       #splash.splash-hide { opacity: 0; visibility: hidden; pointer-events: none; }
       #splash .sp-icon { position: relative; width: min(44vw, 200px); aspect-ratio: 1; border-radius: 22%; overflow: hidden; box-shadow: 0 18px 44px rgba(5, 12, 26, .55), 0 0 0 1px rgba(255, 255, 255, .06); animation: sp-in .5s cubic-bezier(.2, .8, .3, 1.2) both; }
