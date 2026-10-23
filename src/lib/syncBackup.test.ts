@@ -85,6 +85,8 @@ describe('backup', () => {
     const a = (await getBook('a'))!
     expect(await a.file.text()).toBe('content-a')
     expect(a.file.type).toBe('application/epub+zip')
+    // the reader tells the formats apart by the file's name, so a restored book must keep it
+    expect((a.file as File).name).toBe('a.epub')
     expect(await a.cover!.text()).toBe('cover')
     expect(a.cfi).toBe('cfi-a')
     expect((await getBook('b'))!.cover).toBeUndefined()

@@ -90,7 +90,8 @@ export async function importLibrary(
       // a book already here keeps its file and details (title, author, tags, folder, read mark), which may have
       // been edited since the backup; only position, notes and stats are merged into it
       if (!exists) {
-        const fileBlob = await reader.take(base + fileRange[0], base + fileRange[1], fileType)
+        // a File with the book's name: the reader tells the formats apart by it, and a bare Blob has none and fails to open
+        const fileBlob = new File([await reader.take(base + fileRange[0], base + fileRange[1], fileType)], rest.fileName, { type: fileType })
         const coverBlob = coverRange ? await reader.take(base + coverRange[0], base + coverRange[1], coverType) : undefined
         const rec: BookRecord = { ...rest, file: fileBlob, cover: coverBlob }
         await saveBook(rec)
