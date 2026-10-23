@@ -4,7 +4,8 @@ import type { FoliateRelocateDetail, FoliateView } from 'foliate-js/view.js'
 import { Overlayer } from 'foliate-js/overlayer.js'
 import { flattenToc, type FlatTocItem } from '../components/reader/toc'
 import { getBook } from '../lib/db'
-import { alignDocDir, fixBookDir, guardBookEdges, markOwnStyles, setBookStyles } from '../lib/foliateFixes'
+import { alignDocDir, fixBookDir, guardBookEdges, isFixedLayout, markOwnStyles, setBookStyles } from '../lib/foliateFixes'
+import { resetPageScroll } from '../lib/pdfZoom'
 import { bookFromSections } from '../lib/pdfToBook'
 import { t } from '../i18n'
 import { applyLayout, bookCSS, type Settings } from '../lib/settings'
@@ -99,6 +100,7 @@ export function useFoliateView(
           markOwnStyles(d.doc)
           setBookStyles(d.doc, settingsRef.current.bookStyles)
           alignDocDir(view, d.doc)
+          if (isFixedLayout(view)) resetPageScroll(view)
           syncDir()
           h.current.load(d)
         })

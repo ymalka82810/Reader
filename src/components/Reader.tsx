@@ -9,6 +9,7 @@ import { QuoteShareDialog } from './reader/QuoteShareDialog'
 import { SearchPanel } from './reader/SearchPanel'
 import { SettingsPanel } from './reader/SettingsPanel'
 import { ViewModesSection } from './reader/ViewModesSection'
+import { ZoomSection } from './reader/ZoomSection'
 import { ReadAloudSection } from './reader/ReadAloudSection'
 import { COLOR_NAMES, HIGHLIGHT_COLORS } from './reader/colors'
 import { Icon } from './reader/shared'
@@ -657,6 +658,7 @@ export default function Reader({ id, startCfi, onClose, onSettings }: { id: stri
 
       {panel === 'settings' && (
         <SettingsPanel settings={settings} set={set} bump={bump} customFont={customFont} onAllSettings={onSettings}>
+          <ZoomSection viewRef={viewRef} />
           <ViewModesSection
             modes={modes}
             setMode={setMode}
