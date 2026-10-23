@@ -445,6 +445,8 @@ export const en: Record<keyof typeof he, Message> = {
   'err.drm': 'This book is protected by DRM, so it cannot be opened here. The reader only supports DRM-free books. Get a DRM-free copy from the seller, or read it in the app where you bought it.',
   'err.generic': 'We could not read the file. It may be corrupt or in an unsupported format.',
   'error.title': 'Something went wrong opening the book.',
+  'error.copy': 'Copy error details',
+  'error.copied': 'Copied – paste it into a message to send',
 
   // reader chrome
   'reader.backToLibrary': 'Back to library',
