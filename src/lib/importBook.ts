@@ -1,5 +1,5 @@
 import { ImportError, explainImportError } from './errors'
-import { contentId, hasBook, listBooks, mergedInto, replaceBook, saveBook, type BookMeta, type BookRecord } from './db'
+import { contentId, getBookMeta, hasBook, listBooks, mergedInto, replaceBook, saveBook, saveReconverted, type BookMeta, type BookRecord } from './db'
 import { sameBook } from './sameBook'
 import { t } from '../i18n'
 import { wordsOfBook, wordsOfExtracted } from './wordCount'
@@ -43,6 +43,11 @@ const lowerName = (f: File) =>
 
 /** a PDF bigger than this is kept as the PDF itself: converting it to EPUB would take too long and too much memory */
 export const LARGE_PDF_BYTES = 20 * 1024 * 1024
+/**
+ * Version of the PDF→EPUB conversion (lib/pdfToBook), stored on each converted book. Raise it whenever the conversion's text
+ * gets better (2: words no longer glued together): adding the same PDF again then converts it afresh instead of refusing it.
+ */
+export const PDF_CONVERSION = 2
 /** a text file this big is a whole collection, not a book; converting it would freeze a phone and take hundreds of MB of memory */
 export const MAX_TXT_BYTES = 15 * 1024 * 1024
 
@@ -144,7 +149,11 @@ async function readIntoLibrary(
   // Hash the file as the user supplied it (a PDF/TXT conversion isn't guaranteed to be byte-stable).
   const id = await contentId(file)
   signal?.throwIfAborted()
-  if (await hasBook(id)) throw new ImportError(ALREADY_EXISTS)
+  // a PDF already in the library is refused, unless an older conversion made its book: then it is converted afresh into it
+  const existing = await getBookMeta(id)
+  const reconvert =
+    !!existing && isPdf(file) && file.size <= LARGE_PDF_BYTES && !!(existing.fromPdf || existing.pdf) && (existing.conv ?? 0) < PDF_CONVERSION
+  if (existing && !reconvert) throw new ImportError(ALREADY_EXISTS)
   // a file that was merged into another copy of its book (lib/bookCopies) is that book
   const into = await mergedInto(id).catch(() => undefined)
   if (into && (await hasBook(into))) throw new ImportError(ALREADY_EXISTS)
@@ -250,6 +259,16 @@ async function readIntoLibrary(
   }
   check()
 
+  if (reconvert && existing) {
+    // the same book with a better text: everything the user set on it (name, folder, tags, cover…) stays
+    book.destroy?.()
+    if (epub === file) throw new ImportError(ALREADY_EXISTS) // kept as the PDF itself (tables, a scan): nothing better to give
+    const { pdf: _legacy, cfi: _cfi, fraction: _fraction, lastOpened: _opened, ...meta } = existing
+    const rec: BookRecord = { ...meta, kind: 'epub', file: epub, fileName: epub.name, fromPdf: true, conv: PDF_CONVERSION, words, cover: existing.cover ?? cover }
+    await saveReconverted(rec)
+    return rec
+  }
+
   const dup = (await listBooks()).find((b) => sameBook(b, { title, author }))
   let replaceId: string | undefined
   if (dup) {
@@ -286,6 +305,7 @@ async function readIntoLibrary(
     addedAt: Date.now(),
     kind: audio ? 'audio' : 'epub',
     fromPdf,
+    ...(fromPdf && !largePdf && epub !== file && { conv: PDF_CONVERSION }),
     audio,
     words,
     scripted,
