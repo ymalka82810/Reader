@@ -604,14 +604,13 @@ export default function Reader({ id, startCfi, onClose, onSettings }: { id: stri
         </ConsentGate>
       )}
       {panel === 'dict' && dict && (
-        <ConsentGate service="dict" onClose={() => setPanel(null)}>
-          <DictPanel
-            word={dict.word}
-            lang={dict.lang}
-            onFound={(text) => saveWord(dict.word, dict.lang, text, id).catch(console.error)}
-            onClose={() => setPanel(null)}
-          />
-        </ConsentGate>
+        <DictPanel
+          word={dict.word}
+          lang={dict.lang}
+          offline={settings.dictLang === 'auto'}
+          onFound={(text) => saveWord(dict.word, dict.lang, text, id).catch(console.error)}
+          onClose={() => setPanel(null)}
+        />
       )}
 
       {panel === 'edit' && editingNote && (

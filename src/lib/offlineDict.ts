@@ -1,0 +1,148 @@
+import { createStore, del, delMany, get, keys, set, setMany } from 'idb-keyval'
+import { t } from '../i18n'
+import { normalizeWord, PACK_VERSION, shardOf, type PackEntry, type PackHeader, type Shard } from './dictPackFormat'
+
+/** where the packs live: a branch the dictionary-packs workflow rebuilds (raw.githubusercontent.com is allowed by the content-security policy) */
+const PACKS_URL = 'https://raw.githubusercontent.com/ymalka82810/Reader/dictionary-packs'
+const packUrl = (lang: string) => `${PACKS_URL}/${lang}.ndjson.gz`
+
+/** what is known about a pack before downloading it */
+export type PackInfo = { bytes: number; words: number; built: string }
+/** a downloaded pack */
+export type InstalledPack = PackInfo & { shards: number }
+
+// shards are stored under `<lang>:<n>`, a finished pack's description under `meta:<lang>` (written last, so a half-downloaded pack is not "installed")
+const store = createStore('reader-dict-db', 'packs')
+const metaKey = (lang: string) => `meta:${lang}`
+const shardKey = (lang: string, i: number) => `${lang}:${i}`
+
+/** the sizes of the packs on offer; null when the network or the host fails */
+export async function fetchPackList(signal?: AbortSignal): Promise<Record<string, PackInfo> | null> {
+  try {
+    const res = await fetch(`${PACKS_URL}/manifest.json`, { signal, cache: 'no-cache' })
+    return res.ok ? ((await res.json()) as Record<string, PackInfo>) : null
+  } catch {
+    return null
+  }
+}
+
+export async function installedPacks(): Promise<Record<string, InstalledPack>> {
+  const all: Record<string, InstalledPack> = {}
+  for (const k of await keys<string>(store)) {
+    if (!k.startsWith('meta:')) continue
+    const meta = await get<InstalledPack>(k, store)
+    if (meta) all[k.slice(5)] = meta
+  }
+  return all
+}
+
+/** drops a pack and any shards of it that an interrupted download left behind */
+export async function removePack(lang: string) {
+  shardCache.clear()
+  await del(metaKey(lang), store)
+  await delMany((await keys<string>(store)).filter((k) => k.startsWith(`${lang}:`)), store)
+}
+
+/** lines of text out of a stream of bytes that may be gzip */
+async function* textLines(body: ReadableStream<Uint8Array<ArrayBuffer>>, gzipped: boolean) {
+  const text = (gzipped ? body.pipeThrough(new DecompressionStream('gzip')) : body).pipeThrough(new TextDecoderStream())
+  const reader = text.getReader()
+  let rest = ''
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    const parts = (rest + value).split('\n')
+    rest = parts.pop()!
+    yield* parts
+  }
+  if (rest) yield rest
+}
+
+/**
+ * Downloads the pack of `lang` into the device. `onProgress` gets the share (0 to 1) of the download that has arrived.
+ * Rejects when the network fails, the file is not a pack of this version, or `signal` aborts; a failed download leaves nothing behind.
+ */
+export async function downloadPack(lang: string, expectedBytes: number, onProgress: (share: number) => void, signal?: AbortSignal) {
+  const res = await fetch(packUrl(lang), { signal })
+  if (!res.ok || !res.body) throw new Error(`The dictionary host answered ${res.status}`)
+  const total = Number(res.headers.get('content-length')) || expectedBytes
+  let received = 0
+  const counted = res.body.pipeThrough(
+    new TransformStream<Uint8Array<ArrayBuffer>, Uint8Array<ArrayBuffer>>({
+      transform(chunk, ctl) {
+        received += chunk.length
+        if (total) onProgress(Math.min(1, received / total))
+        ctl.enqueue(chunk)
+      },
+    }),
+  )
+  // some hosts and proxies already undo the compression, and then the bytes that arrive are plain text
+  const gzipped = !/gzip/i.test(res.headers.get('content-encoding') ?? '')
+  await removePack(lang)
+  try {
+    let header: PackHeader | undefined
+    let batch: [string, Shard][] = []
+    let written = 0
+    const flush = async () => {
+      await setMany(batch, store)
+      batch = []
+    }
+    for await (const line of textLines(counted, gzipped)) {
+      if (!header) {
+        header = JSON.parse(line) as PackHeader
+        if (header.v !== PACK_VERSION || header.lang !== lang || !(header.shards > 0)) throw new Error('Not a dictionary pack this version can read')
+        continue
+      }
+      batch.push([shardKey(lang, written++), JSON.parse(line) as Shard])
+      if (batch.length >= 40) await flush()
+    }
+    await flush()
+    if (!header || written !== header.shards) throw new Error('The dictionary download is incomplete')
+    await set(metaKey(lang), { bytes: received, words: header.words, built: header.built, shards: header.shards } satisfies InstalledPack, store)
+    onProgress(1)
+  } catch (e) {
+    await removePack(lang)
+    throw e
+  }
+}
+
+/** a few shards stay in memory: a reader tends to look up words one after another */
+const shardCache = new Map<string, Shard | undefined>()
+const SHARD_CACHE_MAX = 12
+
+async function shardFor(lang: string, shards: number, key: string): Promise<Shard | undefined> {
+  const k = shardKey(lang, shardOf(key, shards))
+  if (shardCache.has(k)) return shardCache.get(k)
+  const shard = await get<Shard>(k, store)
+  if (shardCache.size >= SHARD_CACHE_MAX) shardCache.delete(shardCache.keys().next().value!)
+  shardCache.set(k, shard)
+  return shard
+}
+
+const own = <T>(o: Record<string, T> | undefined, k: string): T | undefined => (o && Object.hasOwn(o, k) ? o[k] : undefined)
+
+const formatEntries = (entries: PackEntry[]) =>
+  entries.map(([pos, ...glosses]) => `${pos}\n${glosses.map((g, i) => `${i + 1}. ${g}`).join('\n')}`).join('\n\n')
+
+/**
+ * The entry for `word` from the downloaded pack of `lang`, as plain text; null when that pack is not on the device or has
+ * no such word. An inflected form shows the entry of its base word.
+ */
+export async function lookUpOffline(lang: string, word: string): Promise<string | null> {
+  const meta = await get<InstalledPack>(metaKey(lang), store)
+  if (!meta) return null
+  for (const w of new Set([word, word.toLowerCase()])) {
+    const key = normalizeWord(lang, w)
+    const shard = await shardFor(lang, meta.shards, key)
+    const direct = own(shard?.e, key)
+    const base = own(shard?.f, key)
+    const parts: string[] = []
+    if (direct) parts.push(formatEntries(direct))
+    if (base) {
+      const baseEntries = own((await shardFor(lang, meta.shards, base))?.e, base)
+      if (baseEntries) parts.push(`${t('dict.formOf', { word: base })}\n\n${formatEntries(baseEntries)}`)
+    }
+    if (parts.length) return parts.join('\n\n')
+  }
+  return null
+}

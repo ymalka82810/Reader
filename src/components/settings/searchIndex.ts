@@ -25,6 +25,7 @@ const ENTRIES: [PageId, MessageKey, boolean?][] = [
   ['language', 'prefs.ifaceLang'],
   ['language', 'settings.dictLang'],
   ['language', 'settings.translateLang'],
+  ['language', 'prefs.offlineDict'],
   ['language', 'prefs.privacy'],
   ['language', 'prefs.autoIdentify'],
   ['language', 'prefs.autoIdentifySave'],

@@ -8,6 +8,7 @@ import { Select } from '../Select'
 import { Seg } from '../reader/shared'
 import { IdentifyStats } from './IdentifyStats'
 import { LibraryHealth } from './LibraryHealth'
+import { OfflineDictSection } from './OfflineDictSection'
 import { Row, Section, Toggle } from './parts'
 
 /** the services that receive what the user selects */
@@ -47,6 +48,7 @@ export function LanguagePage({ settings, set }: { settings: Settings; set: SetSe
           />
         </Row>
       </Section>
+      <OfflineDictSection />
       <Section title={t('prefs.privacy')}>
         <small className="muted">{t('prefs.privacyNote')}</small>
         {SERVICES.map((s) => {
