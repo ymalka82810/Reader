@@ -1,7 +1,7 @@
 // The splash screen (#splash in index.html) is plain HTML/CSS so it shows before any script loads.
 // Once the app has rendered it fades out, but not before one page has finished flipping, so a fast
 // start doesn't flash it for a split second.
-const MIN_SHOWN_MS = 1800
+const MIN_SHOWN_MS = 3200
 const FADE_MS = 400
 
 export function hideSplash(): void {

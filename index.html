@@ -24,15 +24,15 @@
       #splash .sp-icon > svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
       #splash .sp-book { position: absolute; inset: 0; perspective: 900px; }
       /* a flipping leaf: the left page (x 92-216, y 110-330 of the 432 icon) turning over the spine to the right, as a Hebrew book is read */
-      #splash .sp-leaf { position: absolute; left: 21.296%; top: 25.463%; width: 28.704%; height: 50.926%; transform-origin: 100% 50%; transform-style: preserve-3d; animation: sp-flip 2.7s cubic-bezier(.45, .05, .35, 1) infinite; }
-      #splash .sp-leaf:nth-child(2), #splash .sp-leaf:nth-child(2) .sp-face, #splash .sp-leaf:nth-child(2) .sp-face::after { animation-delay: .9s; }
-      #splash .sp-leaf:nth-child(3), #splash .sp-leaf:nth-child(3) .sp-face, #splash .sp-leaf:nth-child(3) .sp-face::after { animation-delay: 1.8s; }
+      #splash .sp-leaf { position: absolute; left: 21.296%; top: 25.463%; width: 28.704%; height: 50.926%; transform-origin: 100% 50%; transform-style: preserve-3d; animation: sp-flip 4.5s cubic-bezier(.45, .05, .35, 1) infinite; }
+      #splash .sp-leaf:nth-child(2), #splash .sp-leaf:nth-child(2) .sp-face, #splash .sp-leaf:nth-child(2) .sp-face::after { animation-delay: 1.5s; }
+      #splash .sp-leaf:nth-child(3), #splash .sp-leaf:nth-child(3) .sp-face, #splash .sp-leaf:nth-child(3) .sp-face::after { animation-delay: 3s; }
       /* opacity on the leaf would flatten its 3D, so the landed leaf fades out on its faces */
-      #splash .sp-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; animation: sp-fade 2.7s linear infinite; }
+      #splash .sp-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; animation: sp-fade 4.5s linear infinite; }
       #splash .sp-face svg { width: 100%; height: 100%; display: block; overflow: visible; }
       #splash .sp-back { transform: rotateY(180deg); }
       /* the leaf darkens while it is lifted; on the faces, since a filter on the leaf would flatten its 3D and hide the back */
-      #splash .sp-face::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(14, 27, 51, .28), rgba(14, 27, 51, 0) 70%); opacity: 0; animation: sp-shade 2.7s cubic-bezier(.45, .05, .35, 1) infinite; clip-path: inset(2% 0 4% 0 round 6%); }
+      #splash .sp-face::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(14, 27, 51, .28), rgba(14, 27, 51, 0) 70%); opacity: 0; animation: sp-shade 4.5s cubic-bezier(.45, .05, .35, 1) infinite; clip-path: inset(2% 0 4% 0 round 6%); }
       #splash .sp-back::after { background: linear-gradient(270deg, rgba(14, 27, 51, .28), rgba(14, 27, 51, 0) 70%); }
       #splash .sp-ribbon { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
       #splash .sp-name { font-size: 22px; font-weight: 700; letter-spacing: .02em; opacity: .92; animation: sp-in .6s .15s ease both; }
