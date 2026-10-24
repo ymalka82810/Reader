@@ -58,6 +58,8 @@ export interface Settings {
   deviceFolders: string[]
   /** Android app: when a book's title or author changes, its file on the phone is renamed to match */
   phoneRenameSync: boolean
+  /** Android app: every book's file lives in the phone's "קורא ספרים" folder (in Documents), in a sub-folder named after the book's library folder */
+  phoneLibraryFolder: boolean
   /** books just added are identified (series, number, title, author) in the background, at the end of the import queue */
   autoIdentify: boolean
   /** a sure identification is saved by itself; otherwise every one waits for the user's approval */
@@ -116,6 +118,7 @@ const DEFAULTS: Settings = {
   deviceBackgroundScan: true,
   deviceFolders: ['Documents', 'Download'],
   phoneRenameSync: true,
+  phoneLibraryFolder: true,
   autoIdentify: true,
   autoIdentifySave: true,
   googleBooksKey: '',
