@@ -7,6 +7,8 @@ import { deviceBooksSupported, hasDeviceAccess, markSeen, requestDeviceAccess, t
 import { download } from './download'
 import { loadSettings } from './settings'
 import { safeFileName } from './notesExport'
+import { folderName } from './folders'
+import { t } from '../i18n'
 
 interface CapacitorBridge {
   nativePromise: <T>(plugin: string, method: string, options?: object) => Promise<T>
@@ -60,8 +62,29 @@ export async function saveBlobToPhone(blob: Blob, name: string): Promise<string>
   }
 }
 
-/** Saves one book from the library to the phone's Download folder (a normal download in the browser).
- *  Resolves with the name it was saved under; undefined when the book is gone. */
+/** Writes a book's blob to the phone in pieces (into the books folder's sub-folder `dir`, or Download without one), and ties
+ *  the book to the new file. Resolves with what the native side saved. */
+async function writeToPhone(id: string, file: Blob, name: string, dir?: string) {
+  type Saved = { path: string; name: string; size: number; modified: number }
+  let saved: Saved
+  try {
+    saved = await call<Saved>('save', { name, dir, data: await toBase64(file.slice(0, CHUNK)) })
+    for (let at = CHUNK; at < file.size; at += CHUNK) {
+      saved = await call<Saved>('save', { path: saved.path, data: await toBase64(file.slice(at, at + CHUNK)) })
+    }
+  } catch (e) {
+    // the native side only says "permission" or "save"; anything else is a bridge/read failure
+    throw new Error(e instanceof Error && e.message === 'permission' ? 'permission' : 'save')
+  }
+  await rememberPhoneFile(id, saved.path)
+  // it sits in a scanned folder: the next scan must not offer the book's own copy as a new find
+  await markSeen([{ path: saved.path, name: saved.name, size: saved.size, modified: saved.modified }]).catch(() => {})
+  return saved
+}
+
+/** Saves one book from the library to the phone: into the books folder (in its library folder's sub-folder) when that is on,
+ *  otherwise the Download folder (a normal download in the browser). Resolves with the name it was saved under;
+ *  undefined when the book is gone. */
 export async function saveBookToPhone(id: string): Promise<string | undefined> {
   const rec = await getBook(id)
   if (!rec) return undefined
@@ -71,41 +94,48 @@ export async function saveBookToPhone(id: string): Promise<string | undefined> {
     return name
   }
   if (!(await hasDeviceAccess()) && !(await requestDeviceAccess().catch(() => false))) throw new Error('permission')
-  type Saved = { path: string; name: string; size: number; modified: number }
-  let saved: Saved
-  try {
-    saved = await call<Saved>('save', { name, data: await toBase64(rec.file.slice(0, CHUNK)) })
-    for (let at = CHUNK; at < rec.file.size; at += CHUNK) {
-      saved = await call<Saved>('save', { path: saved.path, data: await toBase64(rec.file.slice(at, at + CHUNK)) })
-    }
-  } catch (e) {
-    // the native side only says "permission" or "save"; anything else is a bridge/read failure
-    throw new Error(e instanceof Error && e.message === 'permission' ? 'permission' : 'save')
+  const known = libraryFolderOn() ? await phoneFileOf(id) : undefined
+  if (known) {
+    // already in the books folder (or elsewhere on the phone): bring it to its place instead of writing a second copy
+    const { failed } = await syncPhoneNames([id])
+    const now = await phoneFileOf(id)
+    if (!failed && now) return baseName(now)
   }
-  await rememberPhoneFile(id, saved.path)
-  // it sits in a scanned folder: the next scan must not offer the book's own copy as a new find
-  await markSeen([{ path: saved.path, name: saved.name, size: saved.size, modified: saved.modified }]).catch(() => {})
+  const saved = await writeToPhone(id, rec.file, name, libraryFolderOn() ? bookPhoneDir(rec) : undefined)
   return saved.name
 }
 
 /** Opens the phone's Downloads folder (where saved books land) in the system's Downloads app. */
 export const openDownloadsFolder = () => call('openDownloads').then(() => undefined)
 
-/** Renames the phone's file of each book to match its current title. Books never put on the phone, or
- *  whose file is no longer there, are left alone. Resolves with how many were renamed and how many failed. */
+/** The sub-folder of the books folder a book belongs in: its library folder (the author, unless the user picked another). */
+export const bookPhoneDir = (b: Pick<BookMeta, 'author' | 'folder'>): string =>
+  safeFileName(folderName(b), '') || t('folder.noAuthor')
+
+const libraryFolderOn = () => loadSettings().phoneLibraryFolder
+
+/** Gives the phone's file of each book the name of its title, and, with the books folder on, the sub-folder of its library
+ *  folder (moving it there). Books never put on the phone, or whose file is no longer there, are left alone.
+ *  Resolves with how many were changed and how many failed. */
 export async function syncPhoneNames(ids: string[]): Promise<{ renamed: number; failed: number }> {
   const out = { renamed: 0, failed: 0 }
   if (!deviceBooksSupported()) return out
+  const organise = libraryFolderOn()
   for (const id of ids) {
     const [path, meta] = await Promise.all([phoneFileOf(id), getBookMeta(id)])
     if (!path || !meta) continue
     // the phone's file keeps its own extension: a book converted from a PDF is an EPUB here, but its file there is still the PDF
     const dot = path.lastIndexOf('.')
     const name = bookFileName(meta, dot > path.lastIndexOf('/') + 1 ? path.slice(dot + 1).toLowerCase() : '')
-    if (baseName(path) === name) continue
+    const dir = bookPhoneDir(meta)
+    if (!organise && baseName(path) === name) continue
     try {
-      const res = await call<{ path: string }>('rename', { path, name })
+      const res = organise
+        ? await call<DeviceFile>('place', { path, name, dir })
+        : await call<{ path: string }>('rename', { path, name })
+      if (res.path === path) continue
       await rememberPhoneFile(id, res.path)
+      if (organise) await markSeen([res as DeviceFile]).catch(() => {})
       out.renamed++
     } catch (e) {
       // the file was moved or deleted on the phone: stop following it
@@ -114,6 +144,57 @@ export async function syncPhoneNames(ids: string[]): Promise<{ renamed: number; 
     }
   }
   return out
+}
+
+/** Puts books in the phone's books folder: a book whose file is already on the phone is moved there, one that has none
+ *  (added from the browser, a share or a cloud drive) gets a copy written there. Each lands in the sub-folder of its library
+ *  folder. Resolves with how many were put in place and how many failed; `onProgress` reports how far it is. */
+export async function placeBooksOnPhone(
+  ids: string[],
+  onProgress?: (done: number, total: number) => void,
+): Promise<{ placed: number; failed: number }> {
+  const out = { placed: 0, failed: 0 }
+  if (!deviceBooksSupported() || !ids.length) return out
+  if (!(await hasDeviceAccess()) && !(await requestDeviceAccess().catch(() => false))) {
+    out.failed = ids.length
+    return out
+  }
+  let done = 0
+  for (const id of ids) {
+    onProgress?.(done++, ids.length)
+    try {
+      const meta = await getBookMeta(id)
+      if (!meta) continue
+      const known = await phoneFileOf(id)
+      if (known) {
+        const { failed } = await syncPhoneNames([id])
+        if (!failed) {
+          out.placed++
+          continue
+        }
+        // the file cannot be moved: that is a failure; but one that is gone from the phone gets the library's copy instead
+        if (await phoneFileOf(id)) {
+          out.failed++
+          continue
+        }
+      }
+      const rec = await getBook(id)
+      if (!rec) continue
+      await writeToPhone(id, rec.file, bookFileName(rec), bookPhoneDir(rec))
+      out.placed++
+    } catch {
+      out.failed++
+    }
+  }
+  onProgress?.(ids.length, ids.length)
+  return out
+}
+
+/** After a book is added: with the books folder on, its file goes there. Quiet: a failure is retried by "organise all". */
+export async function placeNewBook(id: string): Promise<void> {
+  if (!deviceBooksSupported() || !libraryFolderOn()) return
+  if (!(await hasDeviceAccess())) return
+  await placeBooksOnPhone([id]).catch(() => {})
 }
 
 /** Brings every book's file on the phone up to date once: the name follows the book's title and author, and the system's
@@ -142,7 +223,7 @@ export async function refreshPhoneFilesOnce(): Promise<void> {
 
 /** the books' phone files follow their names by themselves (the setting), once access is there */
 export const autoSyncPhoneNames = (ids: string[]) =>
-  loadSettings().phoneRenameSync ? syncPhoneNames(ids) : Promise.resolve({ renamed: 0, failed: 0 })
+  loadSettings().phoneRenameSync || loadSettings().phoneLibraryFolder ? syncPhoneNames(ids) : Promise.resolve({ renamed: 0, failed: 0 })
 
 /** a book not yet tied to a file on the phone; `size` is read only when a name matches, as it opens the book's file */
 type LinkCandidate = { id: string; fileName: string; fromPdf?: boolean; size: () => Promise<number | undefined> }

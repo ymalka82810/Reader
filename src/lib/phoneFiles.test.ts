@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto'
 import { afterEach, describe, expect, it } from 'vitest'
-import { bookFileName, forgetPhoneFile, matchPhoneFiles, phoneFileOf, refreshPhoneFiles, rememberPhoneFile, syncPhoneNames } from './phoneFiles'
+import { bookFileName, bookPhoneDir, forgetPhoneFile, placeBooksOnPhone, placeNewBook, matchPhoneFiles, phoneFileOf, refreshPhoneFiles, rememberPhoneFile, syncPhoneNames } from './phoneFiles'
 
 afterEach(() => {
   delete (globalThis as { Capacitor?: unknown }).Capacitor
@@ -86,5 +86,28 @@ describe('matchPhoneFiles', () => {
     expect((await matchPhoneFiles([cand('b1', 'a.epub', 99, true)], [df('/s/a.pdf', 10)])).get('b1')).toBe('/s/a.pdf')
     expect((await matchPhoneFiles([cand('b1', 'a.epub', 99, true)], [df('/s/x/a.pdf'), df('/s/y/a.pdf')])).size).toBe(0)
     expect((await matchPhoneFiles([cand('b1', 'a.epub', 99, false)], [df('/s/a.pdf')])).size).toBe(0)
+  })
+})
+
+describe('bookPhoneDir', () => {
+  it('is the book\'s library folder: the author, unless the user picked another folder', () => {
+    expect(bookPhoneDir({ author: 'ריק ריירדן' })).toBe('ריק ריירדן')
+    expect(bookPhoneDir({ author: 'ריק ריירדן', folder: "פרסי ג'קסון" })).toBe("פרסי ג'קסון")
+  })
+
+  it('leaves out characters a folder name cannot hold', () => {
+    expect(bookPhoneDir({ author: 'א/ב: ג?' })).toBe('א_ב_ ג_')
+  })
+
+  it('has a folder of its own for books with no author', () => {
+    expect(bookPhoneDir({ author: '' }).length).toBeGreaterThan(0)
+    expect(bookPhoneDir({ author: 'x', folder: '' })).toBe(bookPhoneDir({ author: '' }))
+  })
+})
+
+describe('the books folder outside the Android app', () => {
+  it('places nothing', async () => {
+    expect(await placeBooksOnPhone(['b1'])).toEqual({ placed: 0, failed: 0 })
+    await expect(placeNewBook('b1')).resolves.toBeUndefined()
   })
 })

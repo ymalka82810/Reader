@@ -287,6 +287,42 @@ public class DeviceBooksPlugin extends Plugin {
         return f;
     }
 
+    /** the app's own books folder, in the phone's Documents (a scanned folder, so every book there is already known) */
+    static final String LIBRARY_DIR = "קורא ספרים";
+
+    static File libraryRoot() {
+        return new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), LIBRARY_DIR);
+    }
+
+    /** the books folder, or the sub-folder `dir` inside it; each segment is cleaned so it cannot climb out */
+    static File libraryDir(String dir) {
+        File d = libraryRoot();
+        if (dir == null) return d;
+        for (String seg : dir.split("/")) {
+            String n = cleanName(seg);
+            if (!n.isEmpty()) d = new File(d, n);
+        }
+        return d;
+    }
+
+    private static boolean inside(File f, File dir) throws Exception {
+        return f.getCanonicalPath().startsWith(dir.getCanonicalPath() + "/");
+    }
+
+    /** empty folders left behind by a moved book go too, but never the books folder itself */
+    private static void pruneEmpty(File dir) {
+        try {
+            File root = libraryRoot().getCanonicalFile();
+            File d = dir.getCanonicalFile();
+            while (!d.equals(root) && d.getPath().startsWith(root.getPath() + "/")) {
+                String[] left = d.list();
+                if (left == null || left.length > 0 || !d.delete()) return;
+                d = d.getParentFile();
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
     private boolean insideStorage(File f) throws Exception {
         String rootPath = Environment.getExternalStorageDirectory().getCanonicalPath();
         String p = f.getCanonicalPath();
@@ -384,9 +420,9 @@ public class DeviceBooksPlugin extends Plugin {
             boolean append = path != null;
             if (append) {
                 f = new File(path);
-                // only a file this method started: inside the Download folder
+                // only a file this method started: inside the Download folder or the books folder
                 File dl = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-                if (!f.getCanonicalPath().startsWith(dl.getCanonicalPath() + "/") || !f.isFile()) {
+                if (!(inside(f, dl) || inside(f, libraryRoot())) || !f.isFile()) {
                     call.reject("save");
                     return;
                 }
@@ -396,7 +432,8 @@ public class DeviceBooksPlugin extends Plugin {
                     call.reject("save");
                     return;
                 }
-                File dl = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                String sub = call.getString("dir");
+                File dl = sub == null ? Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS) : libraryDir(sub);
                 //noinspection ResultOfMethodCallIgnored
                 dl.mkdirs();
                 f = freeFile(dl, name, null);
@@ -412,6 +449,65 @@ public class DeviceBooksPlugin extends Plugin {
             call.resolve(ret);
         } catch (Exception e) {
             call.reject("save", e);
+        }
+    }
+
+    /** Moves a book's file on the phone into the books folder, into the sub-folder `dir` (the book's folder in the library),
+     *  under `name`. A file already there stays; a taken name gets " (2)". Folders left empty are removed. */
+    @PluginMethod
+    public void place(PluginCall call) {
+        if (!hasAccess()) {
+            call.reject("permission");
+            return;
+        }
+        try {
+            File from = new File(call.getString("path", ""));
+            String name = cleanName(call.getString("name"));
+            if (name.isEmpty()) {
+                call.reject("place");
+                return;
+            }
+            if (!insideStorage(from)) {
+                call.reject("outside");
+                return;
+            }
+            if (!from.isFile()) {
+                call.reject("missing");
+                return;
+            }
+            File dir = libraryDir(call.getString("dir"));
+            //noinspection ResultOfMethodCallIgnored
+            dir.mkdirs();
+            File to = freeFile(dir, name, from);
+            if (!to.equals(from)) {
+                if (!from.renameTo(to)) {
+                    // another volume or a refused rename: copy, then remove the original only once the copy is whole
+                    try (java.io.InputStream in = new java.io.FileInputStream(from);
+                         FileOutputStream out = new FileOutputStream(to)) {
+                        byte[] buf = new byte[64 * 1024];
+                        int n;
+                        while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+                    }
+                    boolean whole = to.length() == from.length();
+                    if (!whole || !from.delete()) {
+                        // a half copy, or an original that would not go: leave one file only, the original
+                        //noinspection ResultOfMethodCallIgnored
+                        to.delete();
+                        call.reject("place");
+                        return;
+                    }
+                }
+                MediaScannerConnection.scanFile(getContext(), new String[] { from.getAbsolutePath(), to.getAbsolutePath() }, null, null);
+                pruneEmpty(from.getParentFile());
+            }
+            JSObject ret = new JSObject();
+            ret.put("path", to.getAbsolutePath());
+            ret.put("name", to.getName());
+            ret.put("size", to.length());
+            ret.put("modified", to.lastModified());
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("place", e);
         }
     }
 

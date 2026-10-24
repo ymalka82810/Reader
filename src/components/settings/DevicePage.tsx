@@ -10,6 +10,10 @@ import {
   syncBackgroundScan,
 } from '../../lib/deviceBooks'
 import { t } from '../../i18n'
+import { listBooks } from '../../lib/db'
+import { placeBooksOnPhone } from '../../lib/phoneFiles'
+import { useConfirm } from '../../hooks/useConfirm'
+import { ConfirmDialog } from '../library/Dialogs'
 import { Row, Section, Toggle } from './parts'
 
 /** Android app: the books already on the phone — access, automatic scan, the folders looked through */
@@ -17,6 +21,9 @@ export function DevicePage({ settings, set, busy, onScan }: { settings: Settings
   const [access, setAccess] = useState<boolean>()
   const [error, setError] = useState('')
   const [bgNote, setBgNote] = useState('')
+  const [placing, setPlacing] = useState<string>()
+  const [placingBusy, setPlacingBusy] = useState(false)
+  const { pending: confirmAsk, confirm } = useConfirm()
   useEffect(() => {
     // re-checked on return, since access is given (or taken away) in Android's own settings
     const check = () => document.visibilityState === 'visible' && void hasDeviceAccess().then(setAccess)
@@ -40,6 +47,18 @@ export function DevicePage({ settings, set, busy, onScan }: { settings: Settings
     // the announcement is a notification, so the permission is asked for right when the user turns this on
     if (on && !(await requestNotificationAccess())) setBgNote(t('device.notifOff'))
     await syncBackgroundScan({ deviceBackgroundScan: on, deviceFolders: settings.deviceFolders })
+  }
+
+  /** every book of the library into the books folder, in its folder's sub-folder (also the ones from before the folder existed) */
+  const organiseAll = async () => {
+    setError('')
+    const ids = (await listBooks().catch(() => [])).map((b) => b.id)
+    if (!ids.length) return setPlacing(t('device.libraryFolderNone'))
+    if (!(await confirm({ title: t('device.libraryFolderAll'), text: t('device.libraryFolderAllAsk', { n: ids.length }), ok: t('device.libraryFolderAllOk'), cancel: t('common.cancel') }))) return
+    setPlacingBusy(true)
+    setPlacing(t('device.libraryFolderBusy', { done: 0, n: ids.length }))
+    const { placed, failed } = await placeBooksOnPhone(ids, (done, n) => setPlacing(t('device.libraryFolderBusy', { done, n }))).finally(() => setPlacingBusy(false))
+    setPlacing(failed ? t('device.libraryFolderDoneFailed', { placed, failed }) : t('device.libraryFolderDone', { placed }))
   }
 
   const folders = settings.deviceFolders
@@ -76,6 +95,20 @@ export function DevicePage({ settings, set, busy, onScan }: { settings: Settings
           onChange={(v) => void toggleBackground(v)}
         />
         <Toggle
+          label={t('device.libraryFolder')}
+          hint={t('device.libraryFolderHint')}
+          checked={settings.phoneLibraryFolder}
+          onChange={(v) => set('phoneLibraryFolder', v)}
+        />
+        {settings.phoneLibraryFolder && (
+          <Row label={t('device.libraryFolderAll')} hint={t('device.libraryFolderAllHint')}>
+            <button disabled={busy || access === false || placingBusy} onClick={() => void organiseAll()}>
+              {t('device.libraryFolderAllButton')}
+            </button>
+          </Row>
+        )}
+        {placing && <div role="status" className="muted">{placing}</div>}
+        <Toggle
           label={t('device.renameSync')}
           hint={t('device.renameSyncHint')}
           checked={settings.phoneRenameSync}
@@ -106,6 +139,7 @@ export function DevicePage({ settings, set, busy, onScan }: { settings: Settings
         </Row>
         {error && <div role="alert" className="muted">{error}</div>}
       </Section>
+      {confirmAsk && <ConfirmDialog ask={confirmAsk} />}
     </>
   )
 }

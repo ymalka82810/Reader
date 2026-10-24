@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { BookMeta } from '../lib/db'
-import { rememberPhoneFile } from '../lib/phoneFiles'
+import { placeNewBook, rememberPhoneFile } from '../lib/phoneFiles'
 import { importFile, isAbort, isAlreadyInLibrary, DeferredDuplicate, type DuplicateChoice } from '../lib/importBook'
 import { onLaunchFiles, takeSharedFiles } from '../lib/inbox'
 import { startImportService, stopImportService, updateImportService } from '../lib/deviceBooks'
@@ -315,6 +315,7 @@ async function work(run: Run) {
         own.signal,
       )
       if ('devicePath' in item && item.devicePath) await rememberPhoneFile(rec.id, item.devicePath).catch(() => {})
+      await placeNewBook(rec.id) // into the phone's books folder, in the sub-folder of its library folder
       added.push(rec.id)
       await handlers?.refresh() // show each book as soon as it's done
     } catch (e) {
