@@ -89,6 +89,14 @@ describe('matchPhoneFiles', () => {
   })
 })
 
+describe('bookPhoneDir with the library\'s names', () => {
+  it('gives books of one library folder one phone folder, whatever their nikud', () => {
+    const names = new Map([['סי ג\'יי דוהרטי', 'סי ג\'יי דוהרטי']])
+    expect(bookPhoneDir({ author: 'סי ג\'יי דוֹהֶרטי' }, names)).toBe('סי ג\'יי דוהרטי')
+    expect(bookPhoneDir({ author: 'סי ג\'יי דוהרטי' }, names)).toBe('סי ג\'יי דוהרטי')
+  })
+})
+
 describe('bookPhoneDir', () => {
   it('is the book\'s library folder: the author, unless the user picked another folder', () => {
     expect(bookPhoneDir({ author: 'ריק ריירדן' })).toBe('ריק ריירדן')

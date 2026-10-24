@@ -6,16 +6,18 @@ import { wordsOfBook, wordsOfExtracted } from './wordCount'
 import { isAudio, readAudioMeta, type AudioInfo } from './audioBook'
 import { isDrmEpub, isDrmMobi } from './drm'
 import { isScriptedBook } from './sandbox'
+import { decodeEntities } from './entities'
+import { realAuthor } from './authorName'
 import { repairEpub } from './epubRepair'
 
 const ALREADY_EXISTS = t('import.exists')
 
 const langMap = (v: unknown): string => {
   if (!v) return ''
-  if (typeof v === 'string') return v
+  if (typeof v === 'string') return decodeEntities(v)
   if (typeof v === 'object') {
     const o = v as Record<string, string>
-    return o.he ?? o.en ?? Object.values(o)[0] ?? ''
+    return decodeEntities(o.he ?? o.en ?? Object.values(o)[0] ?? '')
   }
   return ''
 }
@@ -182,7 +184,7 @@ async function readIntoLibrary(
     audio = m.info
     cover = m.cover
     title = m.title || file.name.replace(/\.[^.]+$/, '')
-    author = m.author
+    author = realAuthor(m.author)
   } else {
   // Converters pull in pdf.js / JSZip, so they load only when an import actually needs them.
   const { makeBook } = await import('foliate-js/view.js')
@@ -246,7 +248,7 @@ async function readIntoLibrary(
     /* no cover */
   }
   title = langMap(opened.metadata?.title) || epub.name.replace(/\.[^.]+$/, '')
-  author = contributor(opened.metadata?.author)
+  author = realAuthor(contributor(opened.metadata?.author))
   if (!fromPdf) scripted = isScriptedBook(opened)
   if (largePdf) {
     words = 0 // a PDF shown as it is has no text to count

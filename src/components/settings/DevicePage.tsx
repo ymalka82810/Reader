@@ -12,6 +12,7 @@ import {
 import { t } from '../../i18n'
 import { listBooks } from '../../lib/db'
 import { placeBooksOnPhone } from '../../lib/phoneFiles'
+import { mergeAllAuthorSpellings } from '../../lib/authorMerge'
 import { useConfirm } from '../../hooks/useConfirm'
 import { ConfirmDialog } from '../library/Dialogs'
 import { Row, Section, Toggle } from './parts'
@@ -57,6 +58,8 @@ export function DevicePage({ settings, set, busy, onScan }: { settings: Settings
     if (!(await confirm({ title: t('device.libraryFolderAll'), text: t('device.libraryFolderAllAsk', { n: ids.length }), ok: t('device.libraryFolderAllOk'), cancel: t('common.cancel') }))) return
     setPlacingBusy(true)
     setPlacing(t('device.libraryFolderBusy', { done: 0, n: ids.length }))
+    // one author spelt several ways would get a folder for each spelling: put right first
+    await mergeAllAuthorSpellings().catch(() => 0)
     const { placed, failed } = await placeBooksOnPhone(ids, (done, n) => setPlacing(t('device.libraryFolderBusy', { done, n }))).finally(() => setPlacingBusy(false))
     setPlacing(failed ? t('device.libraryFolderDoneFailed', { placed, failed }) : t('device.libraryFolderDone', { placed }))
   }
