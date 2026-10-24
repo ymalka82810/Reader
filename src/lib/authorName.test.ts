@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { authorKey, authorOrder, libraryAuthor, sameAuthor, tidyAuthor } from './authorName'
+import { authorKey, authorOrder, libraryAuthor, realAuthor, sameAuthor, tidyAuthor } from './authorName'
 
 describe('authorName', () => {
   it('turns "last, first" around, but not a suffix or a list', () => {
@@ -34,5 +34,17 @@ describe('authorName', () => {
     expect(libraryAuthor('ריק ריירדן', lib)).toBeUndefined()
     expect(libraryAuthor('Brandon Sanderson', lib)).toBeUndefined()
     expect(libraryAuthor('Clare', ['קסנדרה קלייר', 'סוזנה קלייר'])).toBeUndefined()
+  })
+
+  it('decodes entities and drops a source tag from an author', () => {
+    expect(tidyAuthor('א.ל. ג&apos;יימס')).toBe("א.ל. ג'יימס")
+    expect(tidyAuthor("א' לוקהארט, YIT")).toBe("א' לוקהארט")
+    expect(tidyAuthor('ורוניקה רוסי YIT')).toBe('ורוניקה רוסי')
+    expect(tidyAuthor('YITZHAK')).toBe('YITZHAK')
+  })
+
+  it('empties an author field that holds no author', () => {
+    for (const a of ['Aspose', 'CamScanner', 'Unknown Author', 'ללא מחבר', 'yanivm', 'yitzhak', 'admin', 'a@b.com', 'Microsoft Word', '']) expect(realAuthor(a)).toBe('')
+    for (const a of ['ריק ריירדן', 'Rick Riordan', 'Tolkien', 'ג׳ון גרין']) expect(realAuthor(a)).toBe(a)
   })
 })

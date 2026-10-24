@@ -323,6 +323,36 @@ public class DeviceBooksPlugin extends Plugin {
         }
     }
 
+    /** removes every empty sub-folder of the books folder (deepest first), never the books folder itself */
+    private static int pruneTree(File dir) {
+        int removed = 0;
+        File[] list = dir.listFiles();
+        if (list == null) return 0;
+        for (File f : list) {
+            if (!f.isDirectory()) continue;
+            removed += pruneTree(f);
+            String[] left = f.list();
+            if (left != null && left.length == 0 && f.delete()) removed++;
+        }
+        return removed;
+    }
+
+    @PluginMethod
+    public void pruneEmptyFolders(PluginCall call) {
+        if (!hasAccess()) {
+            call.reject("permission");
+            return;
+        }
+        try {
+            File root = libraryRoot();
+            JSObject ret = new JSObject();
+            ret.put("removed", root.isDirectory() ? pruneTree(root) : 0);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("prune", e);
+        }
+    }
+
     private boolean insideStorage(File f) throws Exception {
         String rootPath = Environment.getExternalStorageDirectory().getCanonicalPath();
         String p = f.getCanonicalPath();

@@ -7,7 +7,7 @@ import { deviceBooksSupported, hasDeviceAccess, markSeen, requestDeviceAccess, t
 import { download } from './download'
 import { loadSettings } from './settings'
 import { safeFileName } from './notesExport'
-import { folderName } from './folders'
+import { folderKey, folderName, groupFolders } from './folders'
 import { t } from '../i18n'
 
 interface CapacitorBridge {
@@ -101,7 +101,7 @@ export async function saveBookToPhone(id: string): Promise<string | undefined> {
     const now = await phoneFileOf(id)
     if (!failed && now) return baseName(now)
   }
-  const saved = await writeToPhone(id, rec.file, name, libraryFolderOn() ? bookPhoneDir(rec) : undefined)
+  const saved = await writeToPhone(id, rec.file, name, libraryFolderOn() ? bookPhoneDir(rec, await phoneDirNames()) : undefined)
   return saved.name
 }
 
@@ -109,8 +109,14 @@ export async function saveBookToPhone(id: string): Promise<string | undefined> {
 export const openDownloadsFolder = () => call('openDownloads').then(() => undefined)
 
 /** The sub-folder of the books folder a book belongs in: its library folder (the author, unless the user picked another). */
-export const bookPhoneDir = (b: Pick<BookMeta, 'author' | 'folder'>): string =>
-  safeFileName(folderName(b), '') || t('folder.noAuthor')
+export const bookPhoneDir = (b: Pick<BookMeta, 'author' | 'folder'>, names?: Map<string, string>): string =>
+  safeFileName(names?.get(folderKey(b)) ?? folderName(b), '') || t('folder.noAuthor')
+
+/** The one name each library folder gets on the phone: books whose folder differs only by nikud, case or spacing share
+ *  a folder in the library, so they must share one on the phone too (the plainest spelling, as the library shows it). */
+async function phoneDirNames(): Promise<Map<string, string>> {
+  return new Map(groupFolders(await listBooks()).map((f) => [f.key, f.name]))
+}
 
 const libraryFolderOn = () => loadSettings().phoneLibraryFolder
 
@@ -121,13 +127,14 @@ export async function syncPhoneNames(ids: string[]): Promise<{ renamed: number; 
   const out = { renamed: 0, failed: 0 }
   if (!deviceBooksSupported()) return out
   const organise = libraryFolderOn()
+  const names = organise ? await phoneDirNames() : undefined
   for (const id of ids) {
     const [path, meta] = await Promise.all([phoneFileOf(id), getBookMeta(id)])
     if (!path || !meta) continue
     // the phone's file keeps its own extension: a book converted from a PDF is an EPUB here, but its file there is still the PDF
     const dot = path.lastIndexOf('.')
     const name = bookFileName(meta, dot > path.lastIndexOf('/') + 1 ? path.slice(dot + 1).toLowerCase() : '')
-    const dir = bookPhoneDir(meta)
+    const dir = bookPhoneDir(meta, names)
     if (!organise && baseName(path) === name) continue
     try {
       const res = organise
@@ -160,6 +167,7 @@ export async function placeBooksOnPhone(
     return out
   }
   let done = 0
+  const names = await phoneDirNames()
   for (const id of ids) {
     onProgress?.(done++, ids.length)
     try {
@@ -180,15 +188,20 @@ export async function placeBooksOnPhone(
       }
       const rec = await getBook(id)
       if (!rec) continue
-      await writeToPhone(id, rec.file, bookFileName(rec), bookPhoneDir(rec))
+      await writeToPhone(id, rec.file, bookFileName(rec), bookPhoneDir(rec, names))
       out.placed++
     } catch {
       out.failed++
     }
   }
   onProgress?.(ids.length, ids.length)
+  await removeEmptyPhoneFolders()
   return out
 }
+
+/** Removes the empty sub-folders of the books folder (left by books moved to another folder, or by a spelling of an
+ *  author that was merged). Quiet: an older app version without the native method, or no access, just leaves them. */
+const removeEmptyPhoneFolders = () => (deviceBooksSupported() ? call('pruneEmptyFolders').then(() => undefined, () => undefined) : Promise.resolve())
 
 /** After a book is added: with the books folder on, its file goes there. Quiet: a failure is retried by "organise all". */
 export async function placeNewBook(id: string): Promise<void> {
@@ -206,6 +219,7 @@ export async function refreshPhoneFiles(): Promise<number> {
   const { renamed } = await syncPhoneNames(ids)
   const paths = (await Promise.all(ids.map((id) => phoneFileOf(id)))).filter((p): p is string => !!p)
   await call('refreshIndex', { paths }).catch(() => {})
+  if (libraryFolderOn()) await removeEmptyPhoneFolders()
   return renamed
 }
 

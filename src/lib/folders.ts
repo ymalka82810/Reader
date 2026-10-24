@@ -1,5 +1,6 @@
 import type { BookMeta } from './db'
 import { localeTag } from '../i18n'
+import { decodeEntities } from './entities'
 
 export interface Folder {
   /** identity ignoring case and nikud/accents; '' is the "no author" folder */
@@ -9,7 +10,7 @@ export interface Folder {
   books: BookMeta[]
 }
 
-const clean = (s: string | undefined) => (s ?? '').replace(/\s+/g, ' ').trim()
+const clean = (s: string | undefined) => decodeEntities(s ?? '').replace(/\s+/g, ' ').trim()
 /** nikud and accents are dropped so "משה" and "מֹשֶׁה" land in the same folder */
 const keyOf = (name: string) => name.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('he')
 

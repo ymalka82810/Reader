@@ -1,6 +1,8 @@
 import { createStore, get, set, del, values, entries } from 'idb-keyval'
 import { deleteStats, loadStats, mergeStats } from './stats'
 import { folderKey } from './folders'
+import { decodeEntities } from './entities'
+import { realAuthor } from './authorName'
 import type { AudioInfo } from './audioBook'
 
 export interface BookRecord {
@@ -347,6 +349,15 @@ const migrations: (() => Promise<void>)[] = [
       const { file, ...meta } = b
       await set(id, file, fileStore)
       await set(id, meta, store)
+    }
+  },
+  // 3: names read from a file's metadata kept their HTML entities ("ג&apos;יימס"), and a program or user name stood as the
+  // author ("Aspose", "CamScanner", "Unknown Author"): decoded, and the author emptied when it is no author
+  async () => {
+    for (const [id, b] of await entries<string, BookMeta>(store)) {
+      const next = { ...b, title: decodeEntities(b.title ?? ''), author: realAuthor(b.author) }
+      if (b.folder !== undefined) next.folder = decodeEntities(b.folder)
+      if (next.title !== b.title || next.author !== b.author || next.folder !== b.folder) await set(id, next, store)
     }
   },
 ]

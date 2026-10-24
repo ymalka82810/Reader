@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { t } from '../../i18n'
-import { listBooks, renameFolder, updateMeta, type BookMeta } from '../../lib/db'
+import { listBooks, updateMeta, type BookMeta } from '../../lib/db'
+import { mergeAuthorSpellings } from '../../lib/authorMerge'
 import { clearNotCopies, copyGroups, notCopiesCount } from '../../lib/bookCopies'
 import { useConfirm } from '../../hooks/useConfirm'
 import { ConfirmDialog } from '../library/Dialogs'
@@ -46,11 +47,7 @@ export function LibraryHealth() {
   const merge = async (main: string, others: string[]) => {
     setBusy(true)
     try {
-      for (const other of others) {
-        for (const b of state.books) if (b.author.trim() === other) await updateMeta(b.id, b.title, main)
-        // a folder named by the other spelling (folder is author) goes with it
-        if (state.books.some((b) => b.folder?.trim() === other)) await renameFolder(other, main, true)
-      }
+      await mergeAuthorSpellings(state.books, main, others)
       await load()
     } finally {
       setBusy(false)
