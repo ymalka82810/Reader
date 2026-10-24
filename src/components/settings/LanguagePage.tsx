@@ -4,7 +4,6 @@ import { DICT_LANGS, type Settings } from '../../lib/settings'
 import { testGoogleBooksKey } from '../../lib/bookLookup'
 import type { SetSetting } from '../../hooks/useAppSettings'
 import { Select } from '../Select'
-import { Seg } from '../reader/shared'
 import { IdentifyStats } from './IdentifyStats'
 import { LibraryHealth } from './LibraryHealth'
 import { OfflineDictSection } from './OfflineDictSection'
@@ -15,7 +14,7 @@ export function LanguagePage({ settings, set }: { settings: Settings; set: SetSe
   return (
     <>
       <Section title={t('prefs.ifaceLang')}>
-        <Seg label={t('prefs.ifaceLang')} value={getLocale()} onChange={changeLocale} options={LOCALES} />
+        <Select label={t('prefs.ifaceLang')} value={getLocale()} onChange={changeLocale} options={LOCALES} />
         <small className="muted">{t('prefs.ifaceLangNote')}</small>
       </Section>
       <Section title={t('prefs.lookup')}>
