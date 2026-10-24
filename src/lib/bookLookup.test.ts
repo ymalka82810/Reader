@@ -239,9 +239,17 @@ describe('identifyBook: names from download sites', () => {
   it("drops Z-Library's marks, the author in parentheses, the date stamp, repeated copies and the extension", async () => {
     expect((await id('המלך דוד (שרון חיון גינת) (Z-Library) 1_241026_195826 (1)', 'שרון חיון גינת')).title).toBe('המלך דוד')
     expect((await id('תרועת מוות (טרי פראצט) עולם הדיסק 4 (z-library.sk, 1lib.sk, z-lib.sk)', 'טרי פראצט')).title).toBe('תרועת מוות עולם הדיסק 4')
-    expect((await id('סיכוי טוב למות (As Good As Dead) (הולי גקסון) (z-library.sk, 1lib.sk, z-lib.sk) (1)')).title).toBe('סיכוי טוב למות (הולי גקסון)')
+    expect((await id('סיכוי טוב למות (As Good As Dead) (הולי גקסון) (z-library.sk, 1lib.sk, z-lib.sk) (1)')).title).toBe('סיכוי טוב למות')
     expect((await id('עותק של עותק של הארי פוטר 1 ואבן החכמים')).title).toBe('הארי פוטר 1 ואבן החכמים')
     expect((await id('arkanos_vol5_glossary.md')).title).toBe('arkanos vol5 glossary')
+  })
+
+  it("takes the author out of Z-Library's parentheses, in Hebrew when an English spelling follows, and leaves other parentheses alone", async () => {
+    const byName = (title: string) => identifyBook({ title, author: '', fileName: 'x.epub' }, false)
+    expect(await byName('תרועת מוות (טרי פראצט) עולם הדיסק 4 (z-library.sk, 1lib.sk, z-lib.sk)')).toMatchObject({ title: 'תרועת מוות עולם הדיסק 4', author: 'טרי פראצט' })
+    expect(await byName('פולחני כשף עולם הדיסק 3 (Equal Rites) (טרי פראצט; Terry Pratchett) (z-library.sk, 1lib.sk, z-lib.sk)')).toMatchObject({ title: 'פולחני כשף עולם הדיסק 3', author: 'טרי פראצט' })
+    expect(await byName('סיכוי טוב למות (As Good As Dead) (הולי גקסון) (z-library.sk, 1lib.sk, z-lib.sk) (1)')).toMatchObject({ title: 'סיכוי טוב למות', author: 'הולי גקסון' })
+    expect((await byName('ספר (מהדורה מיוחדת)')).title).toBe('ספר (מהדורה מיוחדת)')
   })
 
   it("drops an uploader's credit, and takes the author and series of an Anna's Archive name", async () => {
