@@ -114,7 +114,7 @@ export const bookPhoneDir = (b: Pick<BookMeta, 'author' | 'folder'>, names?: Map
 
 /** The one name each library folder gets on the phone: books whose folder differs only by nikud, case or spacing share
  *  a folder in the library, so they must share one on the phone too (the plainest spelling, as the library shows it). */
-export async function phoneDirNames(): Promise<Map<string, string>> {
+async function phoneDirNames(): Promise<Map<string, string>> {
   return new Map(groupFolders(await listBooks()).map((f) => [f.key, f.name]))
 }
 
@@ -201,7 +201,7 @@ export async function placeBooksOnPhone(
 
 /** Removes the empty sub-folders of the books folder (left by books moved to another folder, or by a spelling of an
  *  author that was merged). Quiet: an older app version without the native method, or no access, just leaves them. */
-export const removeEmptyPhoneFolders = () => (deviceBooksSupported() ? call('pruneEmptyFolders').then(() => undefined, () => undefined) : Promise.resolve())
+const removeEmptyPhoneFolders = () => (deviceBooksSupported() ? call('pruneEmptyFolders').then(() => undefined, () => undefined) : Promise.resolve())
 
 /** After a book is added: with the books folder on, its file goes there. Quiet: a failure is retried by "organise all". */
 export async function placeNewBook(id: string): Promise<void> {
