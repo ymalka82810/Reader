@@ -38,6 +38,7 @@ import { customFontFace, customFontUrl, loadCustomFont, releaseCustomFontUrl, ty
 import { EYE_SCROLL_AVAILABLE, loadViewModes, saveViewModes, type ViewModes } from '../lib/viewModes'
 import { isNativeApp } from '../lib/updater'
 import { applyA11yClasses, loadSettings, saveSettings, themeColors, type Settings } from '../lib/settings'
+import { BookLoader } from './BookLoader'
 
 const TAP_HELP_KEY = 'reader:tapHelpSeen'
 /** a second back swipe within this time leaves the book */
@@ -407,7 +408,7 @@ export default function Reader({ id, startCfi, onClose, onSettings }: { id: stri
       <div className="sr-only" role="status" aria-live="polite">
         {status === 'ready' ? [chapter, positionText(fraction)].filter(Boolean).join(', ') : ''}
       </div>
-      {status === 'loading' && <div className="overlay-msg" role="status">{t('common.loading')}</div>}
+      {status === 'loading' && <div className="overlay-msg" role="status"><BookLoader label={t('common.loading')} /></div>}
       {status === 'error' && (
         <div className="overlay-msg error" role="alert">
           <p>{error}</p>
