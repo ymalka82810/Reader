@@ -65,7 +65,7 @@ function GoogleKey({ value, onChange }: { value: string; onChange: (v: string) =
   const [result, setResult] = useState<string>()
   const [busy, setBusy] = useState(false)
   return (
-    <Row label={t('prefs.googleKey')} hint={t('prefs.googleKeyHint')}>
+    <Row stacked label={t('prefs.googleKey')} hint={t('prefs.googleKeyHint')}>
       <input
         type="text"
         dir="ltr"

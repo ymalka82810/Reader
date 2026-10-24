@@ -20,10 +20,10 @@ function Label({ label, hint }: { label: string; hint?: string }) {
   )
 }
 
-/** one setting: its name and an optional explanation on the start side, the control on the other */
-export function Row({ label, hint, children }: { label: string; hint?: string; children?: ReactNode }) {
+/** one setting: its name and an optional explanation on the start side, the control on the other (`stacked`: control below, full width, for wide inputs) */
+export function Row({ label, hint, stacked, children }: { label: string; hint?: string; stacked?: boolean; children?: ReactNode }) {
   return (
-    <div className="prefs-row">
+    <div className={stacked ? 'prefs-row prefs-row-stacked' : 'prefs-row'}>
       <Label label={label} hint={hint} />
       {children && <div className="prefs-control">{children}</div>}
     </div>
