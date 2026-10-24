@@ -56,6 +56,7 @@ import {
   MoveDialog,
   PasswordDialog,
 } from './library/Dialogs'
+import { BookLoader } from './BookLoader'
 
 type Props = {
   onOpen: (id: string, cfi?: string) => void
@@ -697,7 +698,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
       {busy && (
         <div className="modal-backdrop">
           <div className="modal wait-modal" role="alertdialog" aria-modal="true" aria-busy="true" aria-label={t('common.wait')}>
-            <span className="spinner" aria-hidden="true" />
+            <BookLoader />
             <p role="status">{busy}</p>
             <p className="wait-hint">{t('common.wait')}</p>
             {cancelBusy && <button className="danger" onClick={cancelBusy}>{t('common.cancel')}</button>}
@@ -722,7 +723,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
               <progress value={batch.done} max={batch.total} />
             </div>
           )}
-          <span className="spinner" aria-hidden="true" />
+          <BookLoader inline />
           {imp.message}
           {imp.queue.length > 1 && (
             <ul className="import-queue">
@@ -771,7 +772,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
       )}
 
       {!loaded ? (
-        <p className="loading" role="status"><span className="spinner" aria-hidden="true" />{t('common.loading')}</p>
+        <div className="loading" role="status"><BookLoader label={t('common.loading')} /></div>
       ) : books.length === 0 && !busy && !imp.running ? (
         <div className="empty">
           <p>{t('lib.empty')}</p>

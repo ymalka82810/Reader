@@ -19,6 +19,7 @@ import {
 import { loadSettings, themeColors } from '../lib/settings'
 import { isRtl, localeTag, t } from '../i18n'
 import './audioPlayer.css'
+import { BookLoader } from './BookLoader'
 
 const SPEED_KEY = 'reader:audioSpeed'
 const SKIP_BACK = 15
@@ -252,7 +253,7 @@ export default function AudioPlayer({ id, onClose }: { id: string; onClose: () =
           <button onClick={close}>{t('reader.backToLibrary')}</button>
         </div>
       )}
-      {!book && !failed && <div className="overlay-msg">{t('common.loading')}</div>}
+      {!book && !failed && <div className="overlay-msg" role="status"><BookLoader label={t('common.loading')} /></div>}
 
       {book && (
         <main className="audio-main">
