@@ -248,17 +248,31 @@ function annasArchive(s: string): string | undefined {
   return title
 }
 
-/** the author an Anna's Archive name carries (its second part); '' for any other name */
+const ZLIB = /\b(?:z-?library|z-?lib|1lib)\b/i
+
+/** Z-Library names a file "title (author) (z-library.sk, …)": the parentheses that hold the author, a Hebrew name with no digits
+ *  (its English spelling may follow a ";" or ","), or undefined for a name not from Z-Library */
+function zlibAuthorParen(s: string): { inner: string; author: string } | undefined {
+  if (!ZLIB.test(s)) return undefined
+  const inners = [...s.matchAll(/\(([^()]+)\)/g)].map((m) => m[1]!).filter((p) => !ZLIB.test(p) && !/\d/.test(p) && /[א-ת]/.test(p))
+  const inner = inners[inners.length - 1]
+  const author = inner && clean(inner.split(/[;,]/).find((x) => /[א-ת]/.test(x)) ?? '')
+  return inner && author && author.split(' ').length <= 5 ? { inner, author } : undefined
+}
+
+/** the author a download site's name carries: Anna's Archive's second part, Z-Library's parentheses; '' for any other name */
 export function authorInName(s: string): string {
   // also the Hebrew of "(טרי פראצט; Terry Pratchett)"
   const name = clean(s.replace(/_+/g, ' '))
-  const a = annasParts(name)?.[1] || AUTHOR_PAIR.exec(name)?.[1] || ''
+  const a = annasParts(name)?.[1] || AUTHOR_PAIR.exec(name)?.[1] || zlibAuthorParen(name)?.author || ''
   return /\p{L}{2}/u.test(a) ? clean(a) : ''
 }
 
 export function tidyBookName(text: string): string {
   let s = clean(cap(text).replace(/_+/g, ' '))
   s = annasArchive(s) ?? s
+  const zlib = zlibAuthorParen(s)
+  if (zlib) s = s.replace(`(${zlib.inner})`, ' ')
   s = s
     .replace(/^(?:(?:עותק של|copy of)\s+)+/iu, '') // also "עותק של עותק של"
     .replace(/\.(?:md|txt|epub|pdf|docx?|fb2|mobi|azw3?)$/iu, '')
