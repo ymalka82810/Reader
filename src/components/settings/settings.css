@@ -33,6 +33,12 @@
 .prefs-control button:not([aria-label]) { padding: .5rem 1rem; font-weight: 600; white-space: nowrap; color: color-mix(in srgb, var(--accent) 75%, var(--fg)); background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px solid var(--accent); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
 .hc .prefs-control button:not([aria-label]) { color: inherit; background: transparent; border: 2px solid #fff; box-shadow: none; }
 .prefs-toggle { cursor: pointer; }
+/* a row whose control is a wide input (API key): label above, input + button below, full width */
+.prefs-row-stacked { flex-direction: column; align-items: stretch; gap: .6rem; }
+.prefs-row-stacked .prefs-control { flex: 1 1 auto; flex-wrap: wrap; }
+.prefs-row-stacked .prefs-control input[type=text] { flex: 1 1 12rem; min-width: 0; font: inherit; padding: .5rem .7rem; border-radius: var(--radius-lg); border: 1px solid var(--border); background: transparent; color: inherit; }
+.prefs-row-stacked .prefs-control small { flex-basis: 100%; }
+.hc .prefs-row-stacked .prefs-control input[type=text] { border: 2px solid #fff; }
 .prefs-toggle input { flex: none; width: 1.3rem; height: 1.3rem; }
 .prefs-control .upload { white-space: nowrap; }
 .prefs-about { margin: 0; line-height: 1.7; }
