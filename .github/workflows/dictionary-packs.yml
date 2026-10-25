@@ -1,22 +1,68 @@
 name: Dictionary packs
-# Builds the offline dictionary packs (scripts/build-dictionary-packs.mjs, read by src/lib/offlineDict.ts) from kaikki.org and
-# publishes them as the only commit of the dictionary-packs branch, which the app downloads from. Nothing in main changes.
+# Builds the offline dictionary packs (scripts/build-dictionary-packs.mjs, read by src/lib/offlineDict.ts) from Wiktionary
+# (kaikki.org and the Wikimedia dumps) and publishes them as the only commit of the dictionary-packs branch, which the app
+# downloads from. Nothing in main changes. Each language builds in its own job; a run for some languages keeps the packs
+# of the others as they were.
 on:
   workflow_dispatch:
+    inputs:
+      langs:
+        description: 'Languages to rebuild, space-separated (empty: all)'
+        default: ''
   schedule:
     - cron: '0 4 1 */3 *'
 permissions:
   contents: write
 jobs:
-  build:
+  plan:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    outputs:
+      langs: ${{ steps.plan.outputs.langs }}
+    steps:
+      - id: plan
+        env:
+          LANGS: ${{ inputs.langs }}
+        run: |
+          all="he en ar ru fr de es"
+          echo "langs=$(echo ${LANGS:-$all} | jq -Rc 'split(" ") | map(select(length > 0))')" >> "$GITHUB_OUTPUT"
+  build:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        lang: ${{ fromJson(needs.plan.outputs.langs) }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with: { node-version: 24 }
-      - run: node --max-old-space-size=8192 scripts/build-dictionary-packs.mjs packs
+      - run: node --max-old-space-size=12288 scripts/build-dictionary-packs.mjs packs ${{ matrix.lang }}
+      - run: mv packs/manifest.json packs/manifest-${{ matrix.lang }}.json
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pack-${{ matrix.lang }}
+          path: packs/
+          retention-days: 3
+  publish:
+    needs: build
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: pack-*
+          path: new
+          merge-multiple: true
       - run: |
+          ls new/manifest-*.json >/dev/null 2>&1 || { echo "no pack was built"; exit 1; }
+          git clone -q --depth 1 -b dictionary-packs "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" old || mkdir old
+          mkdir packs
+          cp old/*.ndjson.gz packs/ 2>/dev/null || true
+          cp new/*.ndjson.gz packs/
+          [ -f old/manifest.json ] || echo '{}' > old/manifest.json
+          jq -s 'reduce .[] as $m ({}; . + $m)' old/manifest.json new/manifest-*.json > packs/manifest.json
+          cat packs/manifest.json
           cd packs
           git init -q -b dictionary-packs
           git config user.name "github-actions[bot]"
