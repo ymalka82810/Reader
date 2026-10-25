@@ -42,20 +42,25 @@ async function build(code) {
   execFileSync('curl', ['-fsSL', '--retry', '10', '--retry-all-errors', '--retry-delay', '5', '-C', '-', '-o', raw, url], { stdio: 'inherit' })
   const entries = new Map()
   const forms = new Map()
-  for await (const line of linesOf(raw)) if (line.trim()) addKaikkiLine(code, JSON.parse(line), entries, forms)
+  const relations = new Map()
+  for await (const line of linesOf(raw)) if (line.trim()) addKaikkiLine(code, JSON.parse(line), entries, forms, relations)
+  // a word with no entry of its own (a form) has nothing to show its relations under
+  for (const w of relations.keys()) if (!entries.has(w)) relations.delete(w)
   let bytes = 0
   for (const [w, e] of entries) bytes += w.length + JSON.stringify(e).length + 4
   for (const [f, w] of forms) bytes += f.length + w.length + 6
+  for (const [w, r] of relations) bytes += w.length + JSON.stringify(r).length + 4
   const shards = Math.max(1, Math.ceil(bytes / SHARD_BYTES))
-  const parts = Array.from({ length: shards }, () => ({ e: {}, f: {} }))
+  const parts = Array.from({ length: shards }, () => ({ e: {}, f: {}, r: {} }))
   for (const [w, e] of entries) parts[shardOf(w, shards)].e[w] = e
   for (const [f, w] of forms) parts[shardOf(f, shards)].f[f] = w
+  for (const [w, r] of relations) parts[shardOf(w, shards)].r[w] = r
   await rm(raw)
   const header = { v: PACK_VERSION, lang: code, shards, words: entries.size, built: new Date().toISOString().slice(0, 10) }
   const file = `${out}/${code}.ndjson.gz`
   await pipeline(Readable.from([JSON.stringify(header), ...parts.map((p) => JSON.stringify(p))].map((l) => l + '\n')), createGzip({ level: 9 }), createWriteStream(file))
   const size = (await stat(file)).size
-  console.log(`${code}: ${entries.size} words, ${forms.size} forms, ${shards} shards, ${(size / 1e6).toFixed(1)} MB`)
+  console.log(`${code}: ${entries.size} words, ${forms.size} forms, ${relations.size} with related words, ${shards} shards, ${(size / 1e6).toFixed(1)} MB`)
   return { bytes: size, words: entries.size, built: header.built }
 }
 

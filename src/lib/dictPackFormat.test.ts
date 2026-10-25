@@ -97,3 +97,31 @@ describe('addKaikkiLine forms table', () => {
     expect(forms.get('dogged')).toBe('dogs')
   })
 })
+
+describe('addKaikkiLine related words', () => {
+  it('collects synonyms, antonyms, related and derived words of the line and its senses', () => {
+    const entries = new Map<string, PackEntry[]>()
+    const forms = new Map<string, string>()
+    const relations = new Map<string, import('./dictPackFormat').Relations>()
+    addKaikkiLine(
+      'he',
+      {
+        word: 'גדול',
+        pos: 'adj',
+        synonyms: [{ word: 'עָנָק' }, { word: 'Thesaurus:גדול' }],
+        senses: [{ glosses: ['big'], synonyms: [{ word: 'ענק' }, { word: 'רב' }], antonyms: [{ word: 'קָטָן' }] }],
+        derived: [{ word: 'גודל' }, { word: 'גדול' }],
+      },
+      entries,
+      forms,
+      relations,
+    )
+    expect(relations.get('גדול')).toEqual({ s: ['ענק', 'רב'], a: ['קטן'], d: ['גודל'] })
+  })
+
+  it('records nothing for a line without definitions', () => {
+    const relations = new Map<string, import('./dictPackFormat').Relations>()
+    addKaikkiLine('en', { word: 'dogs', pos: 'noun', senses: [{ form_of: [{ word: 'dog' }], synonyms: [{ word: 'hounds' }] }] }, new Map(), new Map(), relations)
+    expect(relations.size).toBe(0)
+  })
+})

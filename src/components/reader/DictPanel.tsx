@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { lookUpWord, wiktionaryUrl } from '../../lib/dictionary'
-import { lookUpOffline } from '../../lib/offlineDict'
+import { lookUpOfflineEntry, type OfflineEntry } from '../../lib/offlineDict'
 import { useLatest } from '../../hooks/useLatest'
 import { ConsentGate } from './ConsentGate'
 import { Panel } from './shared'
@@ -8,31 +8,62 @@ import { t } from '../../i18n'
 
 type Outcome = { state: 'found'; text: string } | { state: 'missing' } | { state: 'failed' }
 
+const RELATION_LABEL = { s: 'dict.synonyms', a: 'dict.antonyms', r: 'dict.related', d: 'dict.derived' } as const
+
 /**
  * `offline`: try the dictionary downloaded to the device first (it needs no network and no permission); the online one,
  * which needs the reader's permission to send the word, answers only when the device has no entry.
- * `onFound` gets the entry once it is on screen, so the app can keep the word for later review.
+ * `onFound` gets the entry once it is on screen, with the word it is for, so the app can keep the word for later review.
+ * The synonyms, antonyms and related words of an offline entry can be tapped to look them up in turn, and "back" returns.
  */
-export function DictPanel({ word, lang, offline, onFound, onClose }: { word: string; lang: string; offline: boolean; onFound: (text: string) => void; onClose: () => void }) {
+export function DictPanel({ word, lang, offline, onFound, onClose }: { word: string; lang: string; offline: boolean; onFound: (text: string, word: string) => void; onClose: () => void }) {
+  // the words tapped since the panel opened on `word`; a new `word` starts afresh
+  const [trail, setTrail] = useState<{ from: string; words: string[] }>({ from: word, words: [] })
+  const path = trail.from === word ? trail.words : []
+  const current = path.at(-1) ?? word
+  const go = (words: string[]) => setTrail({ from: word, words })
+  const back = path.length ? () => go(path.slice(0, -1)) : undefined
+  return <DictEntry key={current} word={current} lang={lang} offline={offline} onFound={onFound} onClose={onClose} onOpen={(w) => go([...path, w])} onBack={back} />
+}
+
+function DictEntry({
+  word,
+  lang,
+  offline,
+  onFound,
+  onClose,
+  onOpen,
+  onBack,
+}: {
+  word: string
+  lang: string
+  offline: boolean
+  onFound: (text: string, word: string) => void
+  onClose: () => void
+  onOpen: (word: string) => void
+  onBack?: () => void
+}) {
   const found = useLatest(onFound)
   const request = `${lang}:${word}`
-  const [local, setLocal] = useState<{ request: string; text: string | null } | null>(null)
+  const [local, setLocal] = useState<{ request: string; entry: OfflineEntry | null } | null>(null)
   // an answer for an older request counts as still loading
-  const answer = !offline ? { text: null } : local?.request === request ? local : null
+  const answer = !offline ? { entry: null } : local?.request === request ? local : null
 
   useEffect(() => {
     if (!offline) return
     let stale = false
-    const finish = (text: string | null) => {
+    const finish = (entry: OfflineEntry | null) => {
       if (stale) return
-      setLocal({ request, text })
-      if (text) found.current(text)
+      setLocal({ request, entry })
+      if (entry) found.current(entry.text, word)
     }
-    lookUpOffline(lang, word).then(finish, () => finish(null))
+    lookUpOfflineEntry(lang, word).then(finish, () => finish(null))
     return () => {
       stale = true
     }
   }, [word, lang, offline, request, found])
+
+  const backButton = onBack && <button onClick={onBack}>{t('dict.back')}</button>
 
   if (!answer)
     return (
@@ -41,13 +72,26 @@ export function DictPanel({ word, lang, offline, onFound, onClose }: { word: str
         <p className="muted" role="status">{t('common.loading')}</p>
       </Panel>
     )
-  if (answer.text)
+  if (answer.entry)
     return (
       <Panel label={t('dict.title', { word })} className="dict">
         <h3 lang={lang}>{word}</h3>
-        <div className="dict-text" dir="auto">{answer.text}</div>
+        <div className="dict-text" dir="auto">
+          {answer.entry.text}
+          {answer.entry.related.map(({ kind, words }) => (
+            <div key={kind} className="dict-related">
+              <strong>{t(RELATION_LABEL[kind])}</strong>
+              {words.map((w) => (
+                <button key={w} lang={lang} onClick={() => onOpen(w)}>
+                  {w}
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
         <small className="muted">{t('dict.offlineSource')}</small>
         <div className="row">
+          {backButton}
           <a href={wiktionaryUrl('en', word)} target="_blank" rel="noopener noreferrer">
             {t('dict.openWiktionary')}
           </a>
@@ -58,12 +102,24 @@ export function DictPanel({ word, lang, offline, onFound, onClose }: { word: str
     )
   return (
     <ConsentGate service="dict" onClose={onClose}>
-      <OnlineDictPanel word={word} lang={lang} onFound={onFound} onClose={onClose} />
+      <OnlineDictPanel word={word} lang={lang} onFound={onFound} onClose={onClose} backButton={backButton} />
     </ConsentGate>
   )
 }
 
-function OnlineDictPanel({ word, lang, onFound, onClose }: { word: string; lang: string; onFound: (text: string) => void; onClose: () => void }) {
+function OnlineDictPanel({
+  word,
+  lang,
+  onFound,
+  onClose,
+  backButton,
+}: {
+  word: string
+  lang: string
+  onFound: (text: string, word: string) => void
+  onClose: () => void
+  backButton?: ReactNode
+}) {
   const found = useLatest(onFound)
   const [attempt, setAttempt] = useState(0)
   const request = `${lang}:${word}:${attempt}`
@@ -77,7 +133,7 @@ function OnlineDictPanel({ word, lang, onFound, onClose }: { word: string; lang:
     lookUpWord(lang, word, ctl.signal).then(
       (text) => {
         finish(text ? { state: 'found', text } : { state: 'missing' })
-        if (text && !ctl.signal.aborted) found.current(text)
+        if (text && !ctl.signal.aborted) found.current(text, word)
       },
       () => {
         if (!ctl.signal.aborted) finish({ state: 'failed' })
@@ -103,6 +159,7 @@ function OnlineDictPanel({ word, lang, onFound, onClose }: { word: string; lang:
         </p>
       )}
       <div className="row">
+        {backButton}
         <a href={wiktionaryUrl(lang, word)} target="_blank" rel="noopener noreferrer">
           {t('dict.openWiktionary')}
         </a>
