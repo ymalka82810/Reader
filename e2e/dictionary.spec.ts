@@ -67,13 +67,13 @@ for (const dictLang of ['auto', 'he']) {
       return page.frames().find((f) => f.url().startsWith('blob:'))!
     }
     const book = await frame()
-    await expect.poll(() => book.evaluate(() => !!document.getElementById('w')), { timeout: 30_000 }).toBe(true)
-    await book.evaluate(() => {
+    await expect.poll(() => book.evaluate<boolean>(`!!document.getElementById('w')`), { timeout: 30_000 }).toBe(true)
+    await book.evaluate(`(() => {
       const range = document.createRange()
-      range.selectNodeContents(document.getElementById('w')!)
-      getSelection()!.removeAllRanges()
-      getSelection()!.addRange(range)
-    })
+      range.selectNodeContents(document.getElementById('w'))
+      getSelection().removeAllRanges()
+      getSelection().addRange(range)
+    })()`)
 
     await page.getByRole('button', { name: 'חפש במילון' }).click()
     await expect(page.getByText(/תערובת גזים/)).toBeVisible({ timeout: 15_000 })
