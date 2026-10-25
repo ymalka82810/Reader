@@ -1,12 +1,12 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import { lookUpWord, wiktionaryUrl } from '../../lib/dictionary'
+import { useEffect, useState } from 'react'
+import { lookUpWordOnline, wiktionaryUrl } from '../../lib/dictionary'
 import { lookUpOfflineMeanings, meaningText, type Meaning } from '../../lib/offlineDict'
 import { useLatest } from '../../hooks/useLatest'
 import { ConsentGate } from './ConsentGate'
 import { Panel } from './shared'
 import { t } from '../../i18n'
 
-type Outcome = { state: 'found'; text: string } | { state: 'missing' } | { state: 'failed' }
+type Outcome = { state: 'meanings'; meanings: Meaning[] } | { state: 'found'; text: string } | { state: 'missing' } | { state: 'failed' }
 
 const RELATION_LABEL = { s: 'dict.synonyms', a: 'dict.antonyms', r: 'dict.related', d: 'dict.derived' } as const
 
@@ -44,15 +44,10 @@ function DictEntry({
   onOpen: (word: string) => void
   onBack?: () => void
 }) {
-  const found = useLatest(onFound)
   const request = `${lang}:${word}`
   const [local, setLocal] = useState<{ request: string; meanings: Meaning[] | null } | null>(null)
-  /** the meaning the reader picked, when the word has several */
-  const [picked, setPicked] = useState<number | null>(null)
   // an answer for an older request counts as still loading
   const answer = !offline ? { meanings: null } : local?.request === request ? local : null
-  const meanings = answer?.meanings
-  const shown = meanings?.length === 1 ? meanings[0] : picked !== null ? meanings?.[picked] : undefined
 
   useEffect(() => {
     if (!offline) return
@@ -66,15 +61,6 @@ function DictEntry({
     }
   }, [word, lang, offline, request])
 
-  // a meaning is kept for review once the reader sees it, not while they are still choosing
-  useEffect(() => {
-    if (shown) found.current(meaningText(shown), shown.formOf ? shown.headword : word)
-  }, [shown, word, found])
-
-  // from a picked meaning, "back" returns to the list of meanings before it leaves the word
-  const back = shown && meanings!.length > 1 ? () => setPicked(null) : onBack
-  const backButton = back && <button onClick={back}>{t('dict.back')}</button>
-
   if (!answer)
     return (
       <Panel label={t('dict.title', { word })} className="dict">
@@ -82,63 +68,113 @@ function DictEntry({
         <p className="muted" role="status">{t('common.loading')}</p>
       </Panel>
     )
-  if (meanings?.length) {
-    const footer = (
-      <>
-        <small className="muted">{t('dict.offlineSource')}</small>
-        <div className="row">
-          {backButton}
-          <a href={wiktionaryUrl(lang === 'ar' ? 'en' : lang, shown?.word ?? word)} target="_blank" rel="noopener noreferrer">
-            {t('dict.openWiktionary')}
-          </a>
-          <span style={{ flex: 1 }} />
-          <button className="primary" onClick={onClose}>{t('common.close')}</button>
-        </div>
-      </>
+  if (answer.meanings?.length)
+    return (
+      <Meanings
+        word={word}
+        lang={lang}
+        meanings={answer.meanings}
+        source={t('dict.offlineSource')}
+        linkLang={lang === 'ar' ? 'en' : lang}
+        onFound={onFound}
+        onClose={onClose}
+        onOpen={onOpen}
+        onBack={onBack}
+      />
     )
-    if (!shown)
-      return (
-        <Panel label={t('dict.title', { word })} className="dict">
-          <h3 lang={lang}>{word}</h3>
-          <p className="muted">{t('dict.pickMeaning')}</p>
-          <div className="dict-choices">
-            {meanings.map((m, i) => (
-              <button key={i} onClick={() => setPicked(i)}>
-                <span className="dict-choice-head">
-                  <strong lang={lang}>{m.headword}</strong> <span className="muted">{m.pos}</span>
-                </span>
-                {m.formOf && <small className="muted">{t('dict.formOf', { word: m.headword })}</small>}
-                <span className="dict-choice-gloss" dir="auto">{m.glosses[0]}</span>
-              </button>
-            ))}
-          </div>
-          {footer}
-        </Panel>
-      )
+  return (
+    <ConsentGate service="dict" onClose={onClose}>
+      <OnlineDictPanel word={word} lang={lang} onFound={onFound} onClose={onClose} onOpen={onOpen} onBack={onBack} />
+    </ConsentGate>
+  )
+}
+
+/**
+ * The meanings of a word: a list to pick from when there are several, then the one picked, with its related words to
+ * tap. "Back" goes from a picked meaning to the list, and from there (or from a single meaning) to the previous word.
+ */
+function Meanings({
+  word,
+  lang,
+  meanings,
+  source,
+  linkLang,
+  onFound,
+  onClose,
+  onOpen,
+  onBack,
+}: {
+  word: string
+  lang: string
+  meanings: Meaning[]
+  source?: string
+  linkLang: string
+  onFound: (text: string, word: string) => void
+  onClose: () => void
+  onOpen: (word: string) => void
+  onBack?: () => void
+}) {
+  const found = useLatest(onFound)
+  /** the meaning the reader picked, when the word has several */
+  const [picked, setPicked] = useState<number | null>(null)
+  const shown = meanings.length === 1 ? meanings[0] : picked !== null ? meanings[picked] : undefined
+
+  // a meaning is kept for review once the reader sees it, not while they are still choosing
+  useEffect(() => {
+    if (shown) found.current(meaningText(shown), shown.formOf ? shown.headword : word)
+  }, [shown, word, found])
+
+  const back = shown && meanings.length > 1 ? () => setPicked(null) : onBack
+  const footer = (
+    <>
+      {source && <small className="muted">{source}</small>}
+      <div className="row">
+        {back && <button onClick={back}>{t('dict.back')}</button>}
+        <a href={wiktionaryUrl(linkLang, shown?.word ?? word)} target="_blank" rel="noopener noreferrer">
+          {t('dict.openWiktionary')}
+        </a>
+        <span style={{ flex: 1 }} />
+        <button className="primary" onClick={onClose}>{t('common.close')}</button>
+      </div>
+    </>
+  )
+  if (!shown)
     return (
       <Panel label={t('dict.title', { word })} className="dict">
-        <h3 lang={lang}>{shown.headword !== word ? `${word} · ${shown.headword}` : word}</h3>
-        <div className="dict-text" dir="auto">
-          {meaningText(shown)}
-          {shown.related.map(({ kind, words }) => (
-            <div key={kind} className="dict-related">
-              <strong>{t(RELATION_LABEL[kind])}</strong>
-              {words.map((w) => (
-                <button key={w} lang={lang} onClick={() => onOpen(w)}>
-                  {w}
-                </button>
-              ))}
-            </div>
+        <h3 lang={lang}>{word}</h3>
+        <p className="muted">{t('dict.pickMeaning')}</p>
+        <div className="dict-choices">
+          {meanings.map((m, i) => (
+            <button key={i} onClick={() => setPicked(i)}>
+              <span className="dict-choice-head">
+                <strong lang={lang}>{m.headword}</strong> <span className="muted">{m.pos}</span>
+              </span>
+              {m.formOf && <small className="muted">{t('dict.formOf', { word: m.headword })}</small>}
+              <span className="dict-choice-gloss" dir="auto">{m.glosses[0]}</span>
+            </button>
           ))}
         </div>
         {footer}
       </Panel>
     )
-  }
   return (
-    <ConsentGate service="dict" onClose={onClose}>
-      <OnlineDictPanel word={word} lang={lang} onFound={onFound} onClose={onClose} backButton={backButton} />
-    </ConsentGate>
+    <Panel label={t('dict.title', { word })} className="dict">
+      <h3 lang={lang}>{shown.headword !== word ? `${word} · ${shown.headword}` : word}</h3>
+      <div className="dict-text" dir="auto">
+        {meaningText(shown)}
+        {shown.related.map(({ kind, words }) => (
+          <div key={kind} className="dict-related">
+            <strong>{t(RELATION_LABEL[kind])}</strong>
+            {words.map((w) => (
+              <button key={w} lang={lang} onClick={() => onOpen(w)}>
+                {w}
+              </button>
+            ))}
+          </div>
+        ))}
+      </div>
+      {footer}
+    </Panel>
   )
 }
 
@@ -147,13 +183,15 @@ function OnlineDictPanel({
   lang,
   onFound,
   onClose,
-  backButton,
+  onOpen,
+  onBack,
 }: {
   word: string
   lang: string
   onFound: (text: string, word: string) => void
   onClose: () => void
-  backButton?: ReactNode
+  onOpen: (word: string) => void
+  onBack?: () => void
 }) {
   const found = useLatest(onFound)
   const [attempt, setAttempt] = useState(0)
@@ -165,10 +203,12 @@ function OnlineDictPanel({
   useEffect(() => {
     const ctl = new AbortController()
     const finish = (outcome: Outcome) => setDone({ request, outcome })
-    lookUpWord(lang, word, ctl.signal).then(
-      (text) => {
-        finish(text ? { state: 'found', text } : { state: 'missing' })
-        if (text && !ctl.signal.aborted) found.current(text, word)
+    lookUpWordOnline(lang, word, ctl.signal).then(
+      (answer) => {
+        if (ctl.signal.aborted) return
+        if (Array.isArray(answer)) finish({ state: 'meanings', meanings: answer })
+        else finish(answer ? { state: 'found', text: answer } : { state: 'missing' })
+        if (typeof answer === 'string') found.current(answer, word)
       },
       () => {
         if (!ctl.signal.aborted) finish({ state: 'failed' })
@@ -177,6 +217,8 @@ function OnlineDictPanel({
     return () => ctl.abort()
   }, [word, lang, request, found])
 
+  if (result?.state === 'meanings')
+    return <Meanings word={word} lang={lang} meanings={result.meanings} linkLang={lang} onFound={onFound} onClose={onClose} onOpen={onOpen} onBack={onBack} />
   return (
     <Panel label={t('dict.title', { word })} className="dict">
       <h3 lang={lang}>{word}</h3>
@@ -194,7 +236,7 @@ function OnlineDictPanel({
         </p>
       )}
       <div className="row">
-        {backButton}
+        {onBack && <button onClick={onBack}>{t('dict.back')}</button>}
         <a href={wiktionaryUrl(lang, word)} target="_blank" rel="noopener noreferrer">
           {t('dict.openWiktionary')}
         </a>

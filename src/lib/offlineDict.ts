@@ -1,7 +1,7 @@
 import { createStore, del, delMany, get, keys, set, setMany } from 'idb-keyval'
 import { t } from '../i18n'
 import { baseCandidates } from './morphology'
-import { normalizeWord, PACK_VERSION, shardOf, type PackEntry, type PackHeader, type RelationKind, type Shard } from './dictPackFormat'
+import { addKaikkiLine, normalizeWord, PACK_VERSION, shardOf, type KaikkiLine, type PackEntry, type PackHeader, type RelationKind, type Shard } from './dictPackFormat'
 
 /** where the packs live: a branch the dictionary-packs workflow rebuilds (raw.githubusercontent.com is allowed by the content-security policy) */
 const PACKS_URL = 'https://raw.githubusercontent.com/ymalka82810/Reader/dictionary-packs'
@@ -198,6 +198,13 @@ export async function lookUpOfflineMeanings(lang: string, word: string): Promise
     }
   }
   return readings.length ? toMeanings(readings, '') : null
+}
+
+/** the meanings in some lines of a Wiktionary page (read as kaikki lines), for the word `asWritten` was looked up as */
+export function meaningsFromLines(lang: string, lines: KaikkiLine[], asWritten: string): Meaning[] {
+  const entries = new Map<string, PackEntry[]>()
+  for (const line of lines) addKaikkiLine(lang, line, entries, new Map())
+  return toMeanings([...entries].map(([word, list]) => ({ word, entries: list })), normalizeWord(lang, asWritten))
 }
 
 const definitions = (m: Meaning) => `${m.pos}\n${m.glosses.map((g, i) => `${i + 1}. ${g}`).join('\n')}`
