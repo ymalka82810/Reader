@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { lookUpWordOnline, wiktionaryUrl } from '../../lib/dictionary'
-import { lookUpOfflineMeanings, meaningText, type Meaning } from '../../lib/offlineDict'
+import { installedPacks, lookUpOfflineMeanings, meaningText, type Meaning } from '../../lib/offlineDict'
+import { DICT_LANGS } from '../../lib/settings'
 import { useLatest } from '../../hooks/useLatest'
 import { ConsentGate } from './ConsentGate'
 import { Panel } from './shared'
@@ -45,17 +46,29 @@ function DictEntry({
   onBack?: () => void
 }) {
   const request = `${lang}:${word}`
-  const [local, setLocal] = useState<{ request: string; meanings: Meaning[] | null } | null>(null)
+  /** what the dictionary on the device answered, and when it had nothing, why (shown above the online answer) */
+  const [local, setLocal] = useState<{ request: string; meanings: Meaning[] | null; why?: string } | null>(null)
   // an answer for an older request counts as still loading
-  const answer = !offline ? { meanings: null } : local?.request === request ? local : null
+  const answer = !offline ? { meanings: null, why: undefined } : local?.request === request ? local : null
 
   useEffect(() => {
     if (!offline) return
     let stale = false
-    const finish = (meanings: Meaning[] | null) => {
-      if (!stale) setLocal({ request, meanings })
+    const finish = (meanings: Meaning[] | null, why?: string) => {
+      if (!stale) setLocal({ request, meanings, why })
     }
-    lookUpOfflineMeanings(lang, word).then(finish, () => finish(null))
+    lookUpOfflineMeanings(lang, word).then(
+      async (meanings) => {
+        if (meanings?.length) return finish(meanings)
+        const installed = (await installedPacks().catch(() => ({}) as Record<string, unknown>))[lang]
+        const name = DICT_LANGS.find(([code]) => code === lang)?.[1] ?? lang
+        finish(null, installed ? t('dict.notOnDevice') : t('dict.noPack', { lang: name }))
+      },
+      (e: unknown) => {
+        console.error(e)
+        finish(null, t('dict.deviceFailed', { msg: e instanceof Error ? e.message : String(e) }))
+      },
+    )
     return () => {
       stale = true
     }
@@ -84,7 +97,7 @@ function DictEntry({
     )
   return (
     <ConsentGate service="dict" onClose={onClose}>
-      <OnlineDictPanel word={word} lang={lang} onFound={onFound} onClose={onClose} onOpen={onOpen} onBack={onBack} />
+      <OnlineDictPanel word={word} lang={lang} why={answer.why} onFound={onFound} onClose={onClose} onOpen={onOpen} onBack={onBack} />
     </ConsentGate>
   )
 }
@@ -181,6 +194,7 @@ function Meanings({
 function OnlineDictPanel({
   word,
   lang,
+  why,
   onFound,
   onClose,
   onOpen,
@@ -188,6 +202,8 @@ function OnlineDictPanel({
 }: {
   word: string
   lang: string
+  /** why the dictionary on the device did not answer */
+  why?: string
   onFound: (text: string, word: string) => void
   onClose: () => void
   onOpen: (word: string) => void
@@ -218,7 +234,19 @@ function OnlineDictPanel({
   }, [word, lang, request, found])
 
   if (result?.state === 'meanings')
-    return <Meanings word={word} lang={lang} meanings={result.meanings} linkLang={lang} onFound={onFound} onClose={onClose} onOpen={onOpen} onBack={onBack} />
+    return (
+      <Meanings
+        word={word}
+        lang={lang}
+        meanings={result.meanings}
+        source={why ? `${why} · ${t('dict.onlineSource')}` : t('dict.onlineSource')}
+        linkLang={lang}
+        onFound={onFound}
+        onClose={onClose}
+        onOpen={onOpen}
+        onBack={onBack}
+      />
+    )
   return (
     <Panel label={t('dict.title', { word })} className="dict">
       <h3 lang={lang}>{word}</h3>
@@ -229,6 +257,7 @@ function OnlineDictPanel({
         </div>
       )}
       {result?.state === 'missing' && <p className="muted">{t('dict.missing')}</p>}
+      {result && <small className="muted">{why ? `${why} · ${t('dict.onlineSource')}` : t('dict.onlineSource')}</small>}
       {result?.state === 'failed' && (
         <p className="muted">
           {t('dict.failed')}{' '}

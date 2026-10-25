@@ -80,6 +80,14 @@ describe('DictPanel', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it('says why the device did not answer: no pack for the language', async () => {
+    localStorage.setItem('reader:consent:dict', '1')
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ query: { pages: [{ extract: 'online entry' }] } }) }))
+    render(<DictPanel word="dog" lang="en" offline onFound={() => {}} onClose={() => {}} />)
+    expect(await screen.findByText('online entry')).toBeTruthy()
+    expect(screen.getByText(/המילון ב-?English לא הורד למכשיר/)).toBeTruthy()
+  })
+
   it('asks permission before going online for a word the device does not have', async () => {
     await install()
     const fetchMock = vi.fn()
