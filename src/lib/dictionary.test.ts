@@ -35,3 +35,17 @@ describe('lookUpWord', () => {
     expect(await lookUpWord('en', 'retry')).toBe('ok')
   })
 })
+
+describe('lookUpWord, words as they stand in the text', () => {
+  it('falls back to the likeliest base word that has a page', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      const p = new URL(url).searchParams
+      if (p.get('prop') === 'extracts') return reply(p.get('titles') === 'ספר' ? [{ title: 'ספר', extract: 'book' }] : [{ missing: true }])
+      return reply(p.get('titles')!.split('|').map((title) => (title === 'ספר' ? { title } : { title, missing: true })))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const text = await lookUpWord('he', 'והספרים')
+    expect(text).toContain('צורה של ״ספר״:')
+    expect(text).toContain('book')
+  })
+})

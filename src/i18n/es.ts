@@ -554,6 +554,7 @@ export const es: Record<keyof typeof he, Message> = {
   'prefs.offlineDictDownload': 'Descargar ({size})',
   'prefs.offlineDictProgress': 'Descargando… {pct} %',
   'prefs.offlineDictRemove': 'Quitar',
+  'prefs.offlineDictUpdate': 'Actualizar ({size})',
   'prefs.offlineDictFailed': 'Falló la descarga (¿sin conexión de red?).',
   'prefs.offlineDictOffline': 'La lista no está disponible ahora (¿sin conexión de red?).',
   'translate.title': 'Traducción',

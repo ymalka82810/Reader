@@ -1,5 +1,6 @@
 import { createStore, del, delMany, get, keys, set, setMany } from 'idb-keyval'
 import { t } from '../i18n'
+import { baseCandidates } from './morphology'
 import { normalizeWord, PACK_VERSION, shardOf, type PackEntry, type PackHeader, type Shard } from './dictPackFormat'
 
 /** where the packs live: a branch the dictionary-packs workflow rebuilds (raw.githubusercontent.com is allowed by the content-security policy) */
@@ -108,7 +109,7 @@ export async function downloadPack(lang: string, expectedBytes: number, onProgre
 
 /** a few shards stay in memory: a reader tends to look up words one after another */
 const shardCache = new Map<string, Shard | undefined>()
-const SHARD_CACHE_MAX = 12
+const SHARD_CACHE_MAX = 16
 
 async function shardFor(lang: string, shards: number, key: string): Promise<Shard | undefined> {
   const k = shardKey(lang, shardOf(key, shards))
@@ -124,25 +125,46 @@ const own = <T>(o: Record<string, T> | undefined, k: string): T | undefined => (
 const formatEntries = (entries: PackEntry[]) =>
   entries.map(([pos, ...glosses]) => `${pos}\n${glosses.map((g, i) => `${i + 1}. ${g}`).join('\n')}`).join('\n\n')
 
+/** the entries a key has in the pack: its own, and those of the base word it is a form of; empty when it has neither */
+async function entriesOf(lang: string, shards: number, key: string): Promise<{ word: string; entries: PackEntry[] }[]> {
+  const shard = await shardFor(lang, shards, key)
+  const out: { word: string; entries: PackEntry[] }[] = []
+  const direct = own(shard?.e, key)
+  if (direct) out.push({ word: key, entries: direct })
+  const base = own(shard?.f, key)
+  const baseEntries = base ? own((await shardFor(lang, shards, base))?.e, base) : undefined
+  if (base && baseEntries) out.push({ word: base, entries: baseEntries })
+  return out
+}
+
+/** at most this many readings of a word that is not in the pack as written */
+const MAX_READINGS = 3
+
 /**
  * The entry for `word` from the downloaded pack of `lang`, as plain text; null when that pack is not on the device or has
- * no such word. An inflected form shows the entry of its base word.
+ * no such word. An inflected form shows the entry of its base word. A Hebrew or Arabic word that is not in the pack as
+ * written ("וכשהלכתי", "وبكتابها") is looked up without its prefixes and endings, showing the likeliest readings.
  */
 export async function lookUpOffline(lang: string, word: string): Promise<string | null> {
   const meta = await get<InstalledPack>(metaKey(lang), store)
   if (!meta) return null
+  const show = (found: { word: string; entries: PackEntry[] }[], asWritten: string) =>
+    found.map((f) => (f.word === asWritten ? formatEntries(f.entries) : `${t('dict.formOf', { word: f.word })}\n\n${formatEntries(f.entries)}`)).join('\n\n')
   for (const w of new Set([word, word.toLowerCase()])) {
     const key = normalizeWord(lang, w)
-    const shard = await shardFor(lang, meta.shards, key)
-    const direct = own(shard?.e, key)
-    const base = own(shard?.f, key)
-    const parts: string[] = []
-    if (direct) parts.push(formatEntries(direct))
-    if (base) {
-      const baseEntries = own((await shardFor(lang, meta.shards, base))?.e, base)
-      if (baseEntries) parts.push(`${t('dict.formOf', { word: base })}\n\n${formatEntries(baseEntries)}`)
-    }
-    if (parts.length) return parts.join('\n\n')
+    const found = await entriesOf(lang, meta.shards, key)
+    if (found.length) return show(found, key)
   }
-  return null
+  const readings: { word: string; entries: PackEntry[] }[] = []
+  let tier = Infinity
+  for (const { word: guess, cost } of baseCandidates(lang, word)) {
+    // only the guesses that took as few changes as the first one that matched: further ones are mostly noise
+    if (cost > tier || readings.length >= MAX_READINGS) break
+    for (const f of await entriesOf(lang, meta.shards, guess)) {
+      if (readings.length >= MAX_READINGS || readings.some((r) => r.word === f.word)) continue
+      readings.push(f)
+      tier = cost
+    }
+  }
+  return readings.length ? show(readings, '') : null
 }

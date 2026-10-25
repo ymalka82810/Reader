@@ -555,6 +555,7 @@ export const ru: Record<keyof typeof he, Message> = {
   'prefs.offlineDictDownload': 'Скачать ({size})',
   'prefs.offlineDictProgress': 'Загрузка… {pct}%',
   'prefs.offlineDictRemove': 'Удалить',
+  'prefs.offlineDictUpdate': 'Обновить ({size})',
   'prefs.offlineDictFailed': 'Не удалось скачать (нет подключения к сети?).',
   'prefs.offlineDictOffline': 'Список сейчас недоступен (нет подключения к сети?).',
   'translate.title': 'Перевод',

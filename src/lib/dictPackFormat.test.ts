@@ -59,3 +59,41 @@ describe('addKaikkiLine', () => {
     expect(entries.has('blank')).toBe(false)
   })
 })
+
+describe('addKaikkiLine forms table', () => {
+  it('points every inflected form in the table of a word at that word', () => {
+    const entries = new Map<string, PackEntry[]>()
+    const forms = new Map<string, string>()
+    addKaikkiLine(
+      'he',
+      {
+        word: 'כתב',
+        pos: 'verb',
+        senses: [{ glosses: ['to write'] }],
+        forms: [
+          { form: 'כָּתַב', tags: ['canonical'] },
+          { form: 'katáv', tags: ['romanization'] },
+          { form: 'כָּתַבְתִּי', tags: ['past', 'first-person'] },
+          { form: 'יִכְתְּבוּ', tags: ['future'] },
+          { form: 'אני כתבתי' },
+          { form: 'כֹּתֵב' },
+        ],
+      },
+      entries,
+      forms,
+    )
+    expect(forms.get('כתבתי')).toBe('כתב')
+    expect(forms.get('יכתבו')).toBe('כתב')
+    expect(forms.has('katáv')).toBe(false)
+    expect(forms.has('כתב')).toBe(false)
+    expect(forms.size).toBe(2)
+  })
+
+  it('keeps the pointer of a form that already has its own line', () => {
+    const entries = new Map<string, PackEntry[]>()
+    const forms = new Map<string, string>([['dogs', 'dog']])
+    addKaikkiLine('en', { word: 'dogs', pos: 'verb', senses: [{ glosses: ['to follow'] }], forms: [{ form: 'dogged' }] }, entries, forms)
+    expect(forms.get('dogs')).toBe('dog')
+    expect(forms.get('dogged')).toBe('dogs')
+  })
+})
