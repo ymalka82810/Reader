@@ -610,7 +610,7 @@ export default function Reader({ id, startCfi, onClose, onSettings }: { id: stri
         <DictPanel
           word={dict.word}
           lang={dict.lang}
-          offline={settings.dictLang === 'auto'}
+          offline
           onFound={(text, word) => saveWord(word, dict.lang, text, id).catch(console.error)}
           onClose={() => setPanel(null)}
         />

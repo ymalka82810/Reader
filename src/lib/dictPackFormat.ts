@@ -97,7 +97,7 @@ export function addKaikkiLine(
     const entry: PackEntry = { p: line.pos, g: glosses }
     // the word as the dictionary writes it: the canonical form (the English Wiktionary puts the niqqud there) or the word itself
     const full = line.forms?.find((f) => f.tags?.includes('canonical'))?.form?.trim() ?? line.word
-    if (full !== key && full.length <= MAX_WORD && normalizeWord(lang, full) === key) entry.h = full
+    if (full !== key && full.length <= MAX_WORD) entry.h = full
     const related = relationsOf(lang, key, line)
     if (related) entry.r = related
     list.push(entry)

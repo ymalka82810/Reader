@@ -161,7 +161,18 @@ export type Meaning = {
   related: { kind: RelationKind; words: string[] }[]
 }
 
-const toMeanings = (found: Found[], asWritten: string): Meaning[] =>
+/** the same meaning reached twice (a word and the spelling it is a form of both hold it) is shown once */
+const toMeanings = (found: Found[], asWritten: string): Meaning[] => {
+  const seen = new Set<string>()
+  return meaningsOf(found, asWritten).filter((m) => {
+    const id = `${m.headword}\u0000${m.pos}\u0000${m.glosses[0]}`
+    if (seen.has(id)) return false
+    seen.add(id)
+    return true
+  })
+}
+
+const meaningsOf = (found: Found[], asWritten: string): Meaning[] =>
   found.flatMap(({ word, entries }) =>
     entries.map((e) => ({
       word,

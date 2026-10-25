@@ -18,6 +18,7 @@ const LABEL_WITH_ARG = new Set(['רובד', 'משלב', 'הקשר', 'תחום'])
 const MAX_LABEL = 12
 
 const NIQQUD = /[֑-ׇ]/
+const NIQQUD_ALL = /[֑-ׇ]/g
 
 /** innermost templates first, so a label inside another template is already plain text when the outer one is read */
 function expandTemplates(text: string): string {
@@ -123,6 +124,9 @@ export function parseHeWiktionaryPage(wikitext: string): KaikkiLine[] {
       if (kind) line[kind] = [...(line[kind] ?? []), ...linkedWords(sections[s + 1]!).map((w) => ({ word: w }))]
     }
     lines.push(line)
+    // books are written in full spelling (אוויר) and the entry is titled in the niqqud spelling (אֲוִיר, without niqqud אויר):
+    // the entry is filed under its full spelling too, so a word found in a book reaches it rather than another dictionary's
+    if (full && full !== word.replace(NIQQUD_ALL, '')) lines.push({ ...line, word: full, forms: [{ form: word, tags: ['canonical'] }] })
   }
   return lines
 }
