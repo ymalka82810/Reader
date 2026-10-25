@@ -39,6 +39,7 @@ import { EYE_SCROLL_AVAILABLE, loadViewModes, saveViewModes, type ViewModes } fr
 import { isNativeApp } from '../lib/updater'
 import { applyA11yClasses, loadSettings, saveSettings, themeColors, type Settings } from '../lib/settings'
 import { BookLoader } from './BookLoader'
+import { ScrollStrip } from './ScrollStrip'
 
 const TAP_HELP_KEY = 'reader:tapHelpSeen'
 /** a second back swipe within this time leaves the book */
@@ -509,7 +510,7 @@ export default function Reader({ id, startCfi, onClose, onSettings }: { id: stri
       </div>
 
       {selection && !panel && (
-        <div
+        <ScrollStrip
           className="sel-bar"
           role="toolbar"
           aria-label={t('a11y.selection')}
@@ -528,7 +529,7 @@ export default function Reader({ id, startCfi, onClose, onSettings }: { id: stri
           <button aria-label={t('reader.shareQuote')} title={t('reader.shareQuoteTitle')} onClick={shareSelection}>⇪</button>
           <button aria-label={t('reader.lookUp')} title={t('reader.dict')} onClick={lookUp}>📖</button>
           <button aria-label={t('reader.translate')} title={t('reader.translate')} onClick={translateSelection}>🌐</button>
-        </div>
+        </ScrollStrip>
       )}
       {(backTo || (hitIdx !== null && hits.length > 0)) && !panel && (
         <div className={'jump-chips' + (uiVisible ? '' : ' low')}>

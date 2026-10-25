@@ -218,7 +218,22 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: var(--radius-sm); border:
 .search-results mark { background: color-mix(in srgb, var(--accent) 35%, transparent); color: inherit; border-radius: var(--radius-sm); }
 
 /* highlights & notes */
-.sel-bar { position: fixed; z-index: 7; transform: translateX(-50%); max-width: calc(100vw - 16px); overflow-x: auto; display: flex; gap: .5rem; padding: .45rem .6rem; border-radius: var(--radius-pill); background: var(--bg); box-shadow: var(--shadow-md); border: 1px solid var(--border); }
+.sel-bar { position: fixed; z-index: 7; transform: translateX(-50%); max-width: calc(100vw - 16px); border-radius: var(--radius-pill); background: var(--bg); box-shadow: var(--shadow-md); border: 1px solid var(--border); }
+.sel-bar .scroll-strip-track { gap: .5rem; padding: .45rem .6rem; }
+
+/* a row that scrolls sideways: the side with more beyond it fades and shows an arrow (ScrollStrip) */
+.scroll-strip { position: relative; display: flex; overflow: hidden; }
+.scroll-strip-track { display: flex; min-width: 0; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain;
+  --fade-l: 0px; --fade-r: 0px;
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent 100%); }
+.scroll-strip-track::-webkit-scrollbar { display: none; }
+.scroll-strip-track.fade-left { --fade-l: 3.2rem; }
+.scroll-strip-track.fade-right { --fade-r: 3.2rem; }
+.scroll-strip-arrow { position: absolute; top: 50%; transform: translateY(-50%); z-index: 1; width: 32px; height: 32px; min-width: 0; min-height: 0; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 1.35rem; line-height: 1; border-radius: 50%; border: 1px solid var(--border); background: var(--bg); color: var(--fg); box-shadow: var(--shadow-sm); }
+.scroll-strip-arrow.left { left: .25rem; }
+.scroll-strip-arrow.right { right: .25rem; }
+.hc .scroll-strip-arrow { border: 2px solid #fff; }
 .swatch { width: 44px; height: 44px; flex: none; padding: 0; border-radius: 50%; border: 2px solid transparent; }
 .swatch.on { border-color: var(--fg); }
 .toast, .lib-toast { position: fixed; z-index: 20; inset-inline: 0; margin-inline: auto; width: fit-content; max-width: min(92vw, 28rem); box-sizing: border-box; padding: .7rem 1.1rem; border-radius: var(--radius-lg); background: var(--bg); color: var(--fg); border: 1px solid var(--border); box-shadow: var(--shadow-lg); text-align: center; overflow-wrap: anywhere; }
