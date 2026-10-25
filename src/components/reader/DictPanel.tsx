@@ -92,7 +92,7 @@ function DictEntry({
         <small className="muted">{t('dict.offlineSource')}</small>
         <div className="row">
           {backButton}
-          <a href={wiktionaryUrl('en', word)} target="_blank" rel="noopener noreferrer">
+          <a href={wiktionaryUrl(lang === 'ar' ? 'en' : lang, word)} target="_blank" rel="noopener noreferrer">
             {t('dict.openWiktionary')}
           </a>
           <span style={{ flex: 1 }} />

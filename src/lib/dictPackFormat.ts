@@ -42,7 +42,7 @@ export function shardOf(key: string, shards: number): number {
 }
 
 const MAX_WORD = 60
-const MAX_GLOSS = 140
+const MAX_GLOSS = 200
 const MAX_GLOSSES = 3
 const MAX_ENTRIES = 6
 
@@ -83,7 +83,7 @@ export function addKaikkiLine(
       continue
     }
     const gloss = sense.glosses?.at(-1)?.trim()
-    if (gloss && glosses.length < MAX_GLOSSES && !glosses.includes(gloss)) glosses.push(gloss.slice(0, MAX_GLOSS))
+    if (gloss && glosses.length < MAX_GLOSSES && !glosses.includes(gloss)) glosses.push(gloss.length > MAX_GLOSS ? gloss.slice(0, MAX_GLOSS - 1).trimEnd() + '…' : gloss)
   }
   if (!glosses.length || !line.pos) return
   const list = entries.get(key) ?? []

@@ -1,5 +1,13 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "project": ["src/**/*.{ts,tsx}"],
-  "ignoreDependencies": ["@tesseract.js-data/heb", "@tesseract.js-data/eng"]
+  "project": [
+    "src/**/*.{ts,tsx}"
+  ],
+  "ignoreDependencies": [
+    "@tesseract.js-data/heb",
+    "@tesseract.js-data/eng"
+  ],
+  "ignoreBinaries": [
+    "bzcat"
+  ]
 }

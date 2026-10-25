@@ -1,15 +1,17 @@
-// Builds the offline dictionary packs (see src/lib/offlineDict.ts) from the kaikki.org extraction of the English Wiktionary:
-// for each language, every word of that language with its part of speech and its first definitions (in English), plus a
-// map from inflected forms to their base word. A pack is a gzipped file of lines: a header, then one shard per line
+// Builds the offline dictionary packs (see src/lib/offlineDict.ts): for each language, every word of that language with its
+// part of speech and its first definitions, a map from inflected forms to their base word, and the words related to each.
+// Definitions come from the language's own Wiktionary where there is an extraction of it (see addNative), and from the
+// kaikki.org extraction of the English Wiktionary (definitions in English) for the rest. A pack is a gzipped file of lines: a header, then one shard per line
 // (src/lib/dictPackFormat.ts). Run by the dictionary-packs workflow; needs network and about 8 GB of memory for English.
 //   node --max-old-space-size=8192 scripts/build-dictionary-packs.mjs <out-dir> [code ...]
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import { createReadStream, createWriteStream } from 'node:fs'
 import { mkdir, rm, stat, writeFile } from 'node:fs/promises'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
-import { createGzip } from 'node:zlib'
+import { createGunzip, createGzip } from 'node:zlib'
 import { addKaikkiLine, PACK_VERSION, shardOf } from '../src/lib/dictPackFormat.ts'
+import { parseHeWiktionaryPage, readDumpPages } from '../src/lib/heWiktionary.ts'
 
 // language code (the app's DICT_LANGS) -> name in kaikki.org's URLs
 const LANGS = { he: 'Hebrew', en: 'English', ar: 'Arabic', ru: 'Russian', fr: 'French', de: 'German', es: 'Spanish' }
@@ -34,18 +36,73 @@ async function* linesOf(file) {
   if (rest) yield rest
 }
 
+/** downloads `url` to `file`; the files run to gigabytes and servers cut connections now and then: curl retries and resumes */
+const fetchTo = (url, file) =>
+  execFileSync('curl', ['-fsSL', '--retry', '10', '--retry-all-errors', '--retry-delay', '5', '-C', '-', '-o', file, url], { stdio: 'inherit' })
+
+/** the lines of a stream of text */
+async function* streamLines(stream) {
+  let rest = ''
+  for await (const chunk of stream) {
+    const parts = (rest + chunk).split('\n')
+    rest = parts.pop()
+    yield* parts
+  }
+  if (rest) yield rest
+}
+
+/**
+ * Definitions in the language itself, from that language's own Wiktionary: kaikki.org extracts the French, German,
+ * Spanish and Russian editions (all languages in one file, so the lines of this one are picked out); the Hebrew edition
+ * is read from its Wikimedia dump. Returns false for a language with no such source.
+ */
+async function addNative(code, entries, forms, relations) {
+  if (['fr', 'de', 'es', 'ru'].includes(code)) {
+    const file = `${out}/${code}-native.jsonl.gz`
+    fetchTo(`https://kaikki.org/${code}wiktionary/raw-wiktextract-data.jsonl.gz`, file)
+    const mark = new RegExp(`"lang_code": ?"${code}"`)
+    const text = createReadStream(file).pipe(createGunzip())
+    text.setEncoding('utf8')
+    for await (const line of streamLines(text)) {
+      // translations carry a lang_code too: only a line about a word of this language counts
+      if (!mark.test(line)) continue
+      const data = JSON.parse(line)
+      if (data.lang_code === code) addKaikkiLine(code, data, entries, forms, relations)
+    }
+    await rm(file)
+    return true
+  }
+  if (code === 'he') {
+    const file = `${out}/hewiktionary.xml.bz2`
+    fetchTo('https://dumps.wikimedia.org/hewiktionary/latest/hewiktionary-latest-pages-articles.xml.bz2', file)
+    const bzcat = spawn('bzcat', [file], { stdio: ['ignore', 'pipe', 'inherit'] })
+    bzcat.stdout.setEncoding('utf8')
+    await readDumpPages(streamLines(bzcat.stdout), (_title, text) => {
+      for (const line of parseHeWiktionaryPage(text)) addKaikkiLine(code, line, entries, forms, relations)
+    })
+    await rm(file)
+    return true
+  }
+  return false
+}
+
 async function build(code) {
   const name = LANGS[code]
-  const url = `https://kaikki.org/dictionary/${name}/kaikki.org-dictionary-${name}.jsonl`
-  // the files run to gigabytes and the server cuts connections now and then: curl retries and resumes where it stopped
-  const raw = `${out}/${code}.jsonl`
-  execFileSync('curl', ['-fsSL', '--retry', '10', '--retry-all-errors', '--retry-delay', '5', '-C', '-', '-o', raw, url], { stdio: 'inherit' })
-  const entries = new Map()
   const forms = new Map()
   const relations = new Map()
+  // the language's own definitions come first; the English Wiktionary's fill in the words they lack
+  const native = new Map()
+  const hasNative = await addNative(code, native, forms, relations)
+  const raw = `${out}/${code}.jsonl`
+  fetchTo(`https://kaikki.org/dictionary/${name}/kaikki.org-dictionary-${name}.jsonl`, raw)
+  const entries = new Map()
   for await (const line of linesOf(raw)) if (line.trim()) addKaikkiLine(code, JSON.parse(line), entries, forms, relations)
+  await rm(raw)
+  const english = entries.size
+  for (const [w, e] of native) entries.set(w, e)
   // a word with no entry of its own (a form) has nothing to show its relations under
   for (const w of relations.keys()) if (!entries.has(w)) relations.delete(w)
+  if (hasNative) console.log(`${code}: ${native.size} words from its own Wiktionary, ${english} from the English one`)
   let bytes = 0
   for (const [w, e] of entries) bytes += w.length + JSON.stringify(e).length + 4
   for (const [f, w] of forms) bytes += f.length + w.length + 6
@@ -55,7 +112,6 @@ async function build(code) {
   for (const [w, e] of entries) parts[shardOf(w, shards)].e[w] = e
   for (const [f, w] of forms) parts[shardOf(f, shards)].f[f] = w
   for (const [w, r] of relations) parts[shardOf(w, shards)].r[w] = r
-  await rm(raw)
   const header = { v: PACK_VERSION, lang: code, shards, words: entries.size, built: new Date().toISOString().slice(0, 10) }
   const file = `${out}/${code}.ndjson.gz`
   await pipeline(Readable.from([JSON.stringify(header), ...parts.map((p) => JSON.stringify(p))].map((l) => l + '\n')), createGzip({ level: 9 }), createWriteStream(file))
