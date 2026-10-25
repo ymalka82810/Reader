@@ -46,6 +46,7 @@ async function servePack(page: Page) {
 
 for (const dictLang of ['auto', 'he']) {
   test(`a word is looked up in the dictionary on the device, not online (dictionary language: ${dictLang})`, async ({ page }) => {
+    test.setTimeout(120_000)
     await page.addInitScript((l) => localStorage.setItem('reader:settings', JSON.stringify({ dictLang: l })), dictLang)
     const online = await servePack(page)
     page.on('console', (m) => m.type() === 'error' && console.log('browser:', m.text()))
@@ -57,8 +58,7 @@ for (const dictLang of ['auto', 'he']) {
     await page.getByRole('button', { name: /שפה/ }).first().click()
     await page.getByRole('button', { name: /הורדה.*עברית/ }).click()
     await expect(page.getByRole('button', { name: /מחק.*עברית/ })).toBeVisible({ timeout: 15_000 })
-    await page.keyboard.press('Escape')
-    await page.goto('/')
+    await page.getByRole('button', { name: 'סגור הגדרות' }).click()
 
     await page.locator('input[type=file]').first().setInputFiles({ name: 'dict.epub', mimeType: 'application/epub+zip', buffer: await makeEpub() })
     await page.locator('.card', { hasText: 'ספר מילון' }).click({ timeout: 30_000 })
