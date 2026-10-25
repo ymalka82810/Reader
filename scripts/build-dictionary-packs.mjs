@@ -109,7 +109,8 @@ async function build(code) {
   const parts = Array.from({ length: shards }, () => ({ e: {}, f: {} }))
   for (const [w, e] of entries) parts[shardOf(w, shards)].e[w] = e
   for (const [f, w] of forms) parts[shardOf(f, shards)].f[f] = w
-  const header = { v: PACK_VERSION, lang: code, shards, words: entries.size, built: new Date().toISOString().slice(0, 10) }
+  // to the minute, so a second build on the same day still shows as an update on devices that have the first
+  const header = { v: PACK_VERSION, lang: code, shards, words: entries.size, built: new Date().toISOString().slice(0, 16) + 'Z' }
   const file = `${out}/${code}.ndjson.gz`
   await pipeline(Readable.from([JSON.stringify(header), ...parts.map((p) => JSON.stringify(p))].map((l) => l + '\n')), createGzip({ level: 9 }), createWriteStream(file))
   const size = (await stat(file)).size
