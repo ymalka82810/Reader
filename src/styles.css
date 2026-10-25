@@ -191,6 +191,9 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: var(--radius-sm); border:
 .panel .muted { color: var(--fg-muted); }
 .dict-text { white-space: pre-wrap; line-height: 1.6; max-height: 38vh; overflow: auto; margin-bottom: .8rem; }
 .dict .row { display: flex; align-items: center; gap: .6rem; }
+.dict-choices { display: flex; flex-direction: column; gap: .45rem; max-height: 38vh; overflow: auto; margin-bottom: .8rem; }
+.dict-choices button { display: flex; flex-direction: column; align-items: stretch; gap: .15rem; text-align: start; border-radius: var(--radius-md); border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
+.dict-choice-gloss { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: .92em; }
 .dict-related { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; margin-top: .7rem; white-space: normal; }
 .dict-related strong { margin-inline-end: .2rem; }
 .dict-related button { padding: .15rem .6rem; border-radius: var(--radius-pill); border: 1px solid var(--border); background: var(--fill); box-shadow: var(--shadow-sm); font: inherit; color: inherit; }

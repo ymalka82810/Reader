@@ -552,6 +552,7 @@ export const es: Record<keyof typeof he, Message> = {
   'dict.related': 'Relacionadas:',
   'dict.derived': 'Derivadas:',
   'dict.back': 'Atrás',
+  'dict.pickMeaning': 'La palabra tiene varios significados. Elige el adecuado:',
   'dict.offlineSource': 'Diccionario sin conexión · del Wikcionario (CC BY-SA)',
   'prefs.offlineDict': 'Diccionario sin conexión',
   'prefs.offlineDictNote': 'Un diccionario guardado en tu dispositivo que funciona sin red, para cada idioma que descargues. Las definiciones son del Wikcionario: para hebreo, francés, alemán, español y ruso en el propio idioma (y en inglés para las palabras que falten), para árabe en inglés. Se usa cuando el idioma del diccionario es «Idioma del libro»; una palabra que no tenga se busca en línea, con tu permiso.',

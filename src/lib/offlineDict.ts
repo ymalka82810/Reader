@@ -1,7 +1,7 @@
 import { createStore, del, delMany, get, keys, set, setMany } from 'idb-keyval'
 import { t } from '../i18n'
 import { baseCandidates } from './morphology'
-import { normalizeWord, PACK_VERSION, shardOf, type PackEntry, type PackHeader, type RelationKind, type Relations, type Shard } from './dictPackFormat'
+import { normalizeWord, PACK_VERSION, shardOf, type PackEntry, type PackHeader, type RelationKind, type Shard } from './dictPackFormat'
 
 /** where the packs live: a branch the dictionary-packs workflow rebuilds (raw.githubusercontent.com is allowed by the content-security policy) */
 const PACKS_URL = 'https://raw.githubusercontent.com/ymalka82810/Reader/dictionary-packs'
@@ -122,55 +122,69 @@ async function shardFor(lang: string, shards: number, key: string): Promise<Shar
 
 const own = <T>(o: Record<string, T> | undefined, k: string): T | undefined => (o && Object.hasOwn(o, k) ? o[k] : undefined)
 
-const formatEntries = (entries: PackEntry[]) =>
-  entries.map(([pos, ...glosses]) => `${pos}\n${glosses.map((g, i) => `${i + 1}. ${g}`).join('\n')}`).join('\n\n')
+/** the entries of `key` in its shard, whichever version of the format the pack on the device has */
+function entriesIn(shard: Shard | undefined, key: string): PackEntry[] | undefined {
+  const list = own(shard?.e, key)
+  const legacyRelated = own(shard?.r, key)
+  return list?.map((e) => (Array.isArray(e) ? { p: e[0], g: e.slice(1), ...(legacyRelated && { r: legacyRelated }) } : e))
+}
 
-type Found = { word: string; entries: PackEntry[]; related?: Relations }
+type Found = { word: string; entries: PackEntry[] }
 
 /** the entries a key has in the pack: its own, and those of the base word it is a form of; empty when it has neither */
 async function entriesOf(lang: string, shards: number, key: string): Promise<Found[]> {
   const shard = await shardFor(lang, shards, key)
   const out: Found[] = []
-  const direct = own(shard?.e, key)
-  if (direct) out.push({ word: key, entries: direct, related: own(shard?.r, key) })
+  const direct = entriesIn(shard, key)
+  if (direct) out.push({ word: key, entries: direct })
   const base = own(shard?.f, key)
-  const baseShard = base ? await shardFor(lang, shards, base) : undefined
-  const baseEntries = base ? own(baseShard?.e, base) : undefined
-  if (base && baseEntries) out.push({ word: base, entries: baseEntries, related: own(baseShard?.r, base) })
+  const baseEntries = base ? entriesIn(await shardFor(lang, shards, base), base) : undefined
+  if (base && baseEntries) out.push({ word: base, entries: baseEntries })
   return out
 }
 
-/** at most this many readings of a word that is not in the pack as written */
+/** at most this many base words for a word that is not in the pack as written */
 const MAX_READINGS = 3
 const RELATION_ORDER: RelationKind[] = ['s', 'a', 'r', 'd']
-const MAX_RELATED_SHOWN = 10
-
-/** an entry as shown, and the words it relates to (synonyms, antonyms, related, derived), each kind once */
-export type OfflineEntry = { text: string; related: { kind: RelationKind; words: string[] }[] }
 
 /**
- * The entry for `word` from the downloaded pack of `lang`; null when that pack is not on the device or has no such word.
- * An inflected form shows the entry of its base word. A Hebrew or Arabic word that is not in the pack as written
- * ("וכשהלכתי", "وبكتابها") is looked up without its prefixes and endings, showing the likeliest readings.
+ * One meaning of the word looked up, as shown: `word` is the dictionary word it belongs to, `formOf` says the word looked
+ * up is a form of that word (or the word without its prefixes and endings), `headword` is how the dictionary writes it in
+ * full (with niqqud, when it has them), and `related` holds its synonyms, antonyms, related and derived words.
  */
-export async function lookUpOfflineEntry(lang: string, word: string): Promise<OfflineEntry | null> {
+export type Meaning = {
+  word: string
+  formOf: boolean
+  headword: string
+  pos: string
+  glosses: string[]
+  related: { kind: RelationKind; words: string[] }[]
+}
+
+const toMeanings = (found: Found[], asWritten: string): Meaning[] =>
+  found.flatMap(({ word, entries }) =>
+    entries.map((e) => ({
+      word,
+      formOf: word !== asWritten,
+      headword: e.h ?? word,
+      pos: e.p,
+      glosses: e.g,
+      related: RELATION_ORDER.map((kind) => ({ kind, words: (e.r?.[kind] ?? []).filter((w) => w !== word) })).filter((r) => r.words.length),
+    })),
+  )
+
+/**
+ * The meanings of `word` in the downloaded pack of `lang`; null when that pack is not on the device or has no such word.
+ * An inflected form gives the meanings of its base word. A Hebrew or Arabic word that is not in the pack as written
+ * ("וכשהלכתי", "وبكتابها") is looked up without its prefixes and endings, giving the meanings of its likeliest readings.
+ */
+export async function lookUpOfflineMeanings(lang: string, word: string): Promise<Meaning[] | null> {
   const meta = await get<InstalledPack>(metaKey(lang), store)
   if (!meta) return null
-  const show = (found: Found[], asWritten: string): OfflineEntry => {
-    const text = found
-      .map((f) => (f.word === asWritten ? formatEntries(f.entries) : `${t('dict.formOf', { word: f.word })}\n\n${formatEntries(f.entries)}`))
-      .join('\n\n')
-    const headwords = new Set(found.map((f) => f.word))
-    const related = RELATION_ORDER.map((kind) => {
-      const words = [...new Set(found.flatMap((f) => f.related?.[kind] ?? []))].filter((w) => !headwords.has(w)).slice(0, MAX_RELATED_SHOWN)
-      return { kind, words }
-    }).filter((r) => r.words.length)
-    return { text, related }
-  }
   for (const w of new Set([word, word.toLowerCase()])) {
     const key = normalizeWord(lang, w)
     const found = await entriesOf(lang, meta.shards, key)
-    if (found.length) return show(found, key)
+    if (found.length) return toMeanings(found, key)
   }
   const readings: Found[] = []
   let tier = Infinity
@@ -183,8 +197,19 @@ export async function lookUpOfflineEntry(lang: string, word: string): Promise<Of
       tier = cost
     }
   }
-  return readings.length ? show(readings, '') : null
+  return readings.length ? toMeanings(readings, '') : null
 }
 
-/** the text of `lookUpOfflineEntry` alone */
-export const lookUpOffline = async (lang: string, word: string) => (await lookUpOfflineEntry(lang, word))?.text ?? null
+const definitions = (m: Meaning) => `${m.pos}\n${m.glosses.map((g, i) => `${i + 1}. ${g}`).join('\n')}`
+
+/** one meaning as plain text, as it is kept for review */
+export const meaningText = (m: Meaning) => (m.formOf ? `${t('dict.formOf', { word: m.headword })}\n\n${definitions(m)}` : definitions(m))
+
+/** all the meanings of `word` as plain text; a base word is named once above its meanings */
+export async function lookUpOffline(lang: string, word: string): Promise<string | null> {
+  const meanings = await lookUpOfflineMeanings(lang, word)
+  if (!meanings) return null
+  return meanings
+    .map((m, i) => (m.formOf && meanings[i - 1]?.word !== m.word ? `${t('dict.formOf', { word: m.word })}\n\n${definitions(m)}` : definitions(m)))
+    .join('\n\n')
+}
