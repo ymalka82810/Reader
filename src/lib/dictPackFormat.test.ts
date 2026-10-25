@@ -34,12 +34,12 @@ describe('addKaikkiLine', () => {
 
   it('keeps the part of speech and the first definitions', () => {
     const { entries } = run([{ word: 'dog', pos: 'noun', senses: [{ glosses: ['a domesticated canine'] }, { glosses: ['a man'] }, { glosses: ['a mean person'] }, { glosses: ['a fourth one'] }] }])
-    expect(entries.get('dog')).toEqual([['noun', 'a domesticated canine', 'a man', 'a mean person']])
+    expect(entries.get('dog')).toEqual([{ p: 'noun', g: ['a domesticated canine', 'a man', 'a mean person'] }])
   })
 
   it('uses the most specific gloss of a sub-sense', () => {
     const { entries } = run([{ word: 'run', pos: 'verb', senses: [{ glosses: ['to move', 'to move quickly on foot'] }] }])
-    expect(entries.get('run')).toEqual([['verb', 'to move quickly on foot']])
+    expect(entries.get('run')).toEqual([{ p: 'verb', g: ['to move quickly on foot'] }])
   })
 
   it('turns an inflected form into a pointer to its base word', () => {
@@ -98,31 +98,29 @@ describe('addKaikkiLine forms table', () => {
   })
 })
 
-describe('addKaikkiLine related words', () => {
-  it('collects synonyms, antonyms, related and derived words of the line and its senses', () => {
+describe('addKaikkiLine related words and headword', () => {
+  it('keeps the synonyms, antonyms and derived words, and the full spelling, with each meaning', () => {
     const entries = new Map<string, PackEntry[]>()
     const forms = new Map<string, string>()
-    const relations = new Map<string, import('./dictPackFormat').Relations>()
-    addKaikkiLine(
-      'he',
-      {
-        word: 'גדול',
-        pos: 'adj',
-        synonyms: [{ word: 'עָנָק' }, { word: 'Thesaurus:גדול' }],
-        senses: [{ glosses: ['big'], synonyms: [{ word: 'ענק' }, { word: 'רב' }], antonyms: [{ word: 'קָטָן' }] }],
-        derived: [{ word: 'גודל' }, { word: 'גדול' }],
-      },
-      entries,
-      forms,
-      relations,
-    )
-    expect(relations.get('גדול')).toEqual({ s: ['ענק', 'רב'], a: ['קטן'], d: ['גודל'] })
+    const add = (l: Parameters<typeof addKaikkiLine>[1]) => addKaikkiLine('he', l, entries, forms)
+    add({
+      word: 'גָּדוֹל',
+      pos: 'adj',
+      synonyms: [{ word: 'עָנָק' }, { word: 'Thesaurus:גדול' }],
+      senses: [{ glosses: ['big'], synonyms: [{ word: 'ענק' }, { word: 'רב' }], antonyms: [{ word: 'קָטָן' }] }],
+      derived: [{ word: 'גודל' }, { word: 'גדול' }],
+    })
+    add({ word: 'גדול', pos: 'noun', senses: [{ glosses: ['growth'] }], forms: [{ form: 'גִּדּוּל', tags: ['canonical'] }], related: [{ word: 'צמיחה' }] })
+    expect(entries.get('גדול')).toEqual([
+      { p: 'adj', g: ['big'], h: 'גָּדוֹל', r: { s: ['ענק', 'רב'], a: ['קטן'], d: ['גודל'] } },
+      { p: 'noun', g: ['growth'], h: 'גִּדּוּל', r: { r: ['צמיחה'] } },
+    ])
   })
 
-  it('records nothing for a line without definitions', () => {
-    const relations = new Map<string, import('./dictPackFormat').Relations>()
-    addKaikkiLine('en', { word: 'dogs', pos: 'noun', senses: [{ form_of: [{ word: 'dog' }], synonyms: [{ word: 'hounds' }] }] }, new Map(), new Map(), relations)
-    expect(relations.size).toBe(0)
+  it('records no meaning for a line without definitions', () => {
+    const entries = new Map<string, PackEntry[]>()
+    addKaikkiLine('en', { word: 'dogs', pos: 'noun', senses: [{ form_of: [{ word: 'dog' }], synonyms: [{ word: 'hounds' }] }] }, entries, new Map())
+    expect(entries.size).toBe(0)
   })
 })
 
@@ -131,7 +129,7 @@ describe('mergeTableForms', () => {
     const entries = new Map<string, PackEntry[]>()
     const forms = new Map<string, string>()
     const table = new Map<string, string>()
-    const add = (l: Parameters<typeof addKaikkiLine>[1]) => addKaikkiLine('fr', l, entries, forms, undefined, table)
+    const add = (l: Parameters<typeof addKaikkiLine>[1]) => addKaikkiLine('fr', l, entries, forms, table)
     add({ word: 'muaison', pos: 'noun', senses: [{ glosses: ['old spelling'] }], forms: [{ form: 'maison' }, { form: 'muaisons' }] })
     add({ word: 'maison', pos: 'noun', senses: [{ glosses: ['house'] }] })
     add({ word: 'suis', pos: 'verb', senses: [{ form_of: [{ word: 'être' }] }] })

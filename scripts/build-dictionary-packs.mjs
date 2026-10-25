@@ -56,7 +56,7 @@ async function* streamLines(stream) {
  * Spanish and Russian editions (all languages in one file, so the lines of this one are picked out); the Hebrew edition
  * is read from its Wikimedia dump. Returns false for a language with no such source.
  */
-async function addNative(code, entries, forms, relations, tableForms) {
+async function addNative(code, entries, forms, tableForms) {
   if (['fr', 'de', 'es', 'ru'].includes(code)) {
     const file = `${out}/${code}-native.jsonl.gz`
     fetchTo(`https://kaikki.org/${code}wiktionary/raw-wiktextract-data.jsonl.gz`, file)
@@ -67,7 +67,7 @@ async function addNative(code, entries, forms, relations, tableForms) {
       // translations carry a lang_code too: only a line about a word of this language counts
       if (!mark.test(line)) continue
       const data = JSON.parse(line)
-      if (data.lang_code === code) addKaikkiLine(code, data, entries, forms, relations, tableForms)
+      if (data.lang_code === code) addKaikkiLine(code, data, entries, forms, tableForms)
     }
     await rm(file)
     return true
@@ -78,7 +78,7 @@ async function addNative(code, entries, forms, relations, tableForms) {
     const bzcat = spawn('bzcat', [file], { stdio: ['ignore', 'pipe', 'inherit'] })
     bzcat.stdout.setEncoding('utf8')
     await readDumpPages(streamLines(bzcat.stdout), (_title, text) => {
-      for (const line of parseHeWiktionaryPage(text)) addKaikkiLine(code, line, entries, forms, relations, tableForms)
+      for (const line of parseHeWiktionaryPage(text)) addKaikkiLine(code, line, entries, forms, tableForms)
     })
     await rm(file)
     return true
@@ -89,36 +89,31 @@ async function addNative(code, entries, forms, relations, tableForms) {
 async function build(code) {
   const name = LANGS[code]
   const forms = new Map()
-  const relations = new Map()
   const tableForms = new Map()
   // the language's own definitions come first; the English Wiktionary's fill in the words they lack
   const native = new Map()
-  const hasNative = await addNative(code, native, forms, relations, tableForms)
+  const hasNative = await addNative(code, native, forms, tableForms)
   const raw = `${out}/${code}.jsonl`
   fetchTo(`https://kaikki.org/dictionary/${name}/kaikki.org-dictionary-${name}.jsonl`, raw)
   const entries = new Map()
-  for await (const line of linesOf(raw)) if (line.trim()) addKaikkiLine(code, JSON.parse(line), entries, forms, relations, tableForms)
+  for await (const line of linesOf(raw)) if (line.trim()) addKaikkiLine(code, JSON.parse(line), entries, forms, tableForms)
   await rm(raw)
   const english = entries.size
   for (const [w, e] of native) entries.set(w, e)
   mergeTableForms(forms, tableForms, entries)
-  // a word with no entry of its own (a form) has nothing to show its relations under
-  for (const w of relations.keys()) if (!entries.has(w)) relations.delete(w)
   if (hasNative) console.log(`${code}: ${native.size} words from its own Wiktionary, ${english} from the English one`)
   let bytes = 0
   for (const [w, e] of entries) bytes += w.length + JSON.stringify(e).length + 4
   for (const [f, w] of forms) bytes += f.length + w.length + 6
-  for (const [w, r] of relations) bytes += w.length + JSON.stringify(r).length + 4
   const shards = Math.max(1, Math.ceil(bytes / SHARD_BYTES))
-  const parts = Array.from({ length: shards }, () => ({ e: {}, f: {}, r: {} }))
+  const parts = Array.from({ length: shards }, () => ({ e: {}, f: {} }))
   for (const [w, e] of entries) parts[shardOf(w, shards)].e[w] = e
   for (const [f, w] of forms) parts[shardOf(f, shards)].f[f] = w
-  for (const [w, r] of relations) parts[shardOf(w, shards)].r[w] = r
   const header = { v: PACK_VERSION, lang: code, shards, words: entries.size, built: new Date().toISOString().slice(0, 10) }
   const file = `${out}/${code}.ndjson.gz`
   await pipeline(Readable.from([JSON.stringify(header), ...parts.map((p) => JSON.stringify(p))].map((l) => l + '\n')), createGzip({ level: 9 }), createWriteStream(file))
   const size = (await stat(file)).size
-  console.log(`${code}: ${entries.size} words, ${forms.size} forms, ${relations.size} with related words, ${shards} shards, ${(size / 1e6).toFixed(1)} MB`)
+  console.log(`${code}: ${entries.size} words, ${forms.size} forms, ${shards} shards, ${(size / 1e6).toFixed(1)} MB`)
   return { bytes: size, words: entries.size, built: header.built }
 }
 

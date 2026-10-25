@@ -2,20 +2,26 @@
 // scripts/build-dictionary-packs.mjs, which Node runs straight from this file: keep it free of imports and of anything
 // that is not erasable TypeScript.
 
-export const PACK_VERSION = 1
+export const PACK_VERSION = 2
 
-/** part of speech, then the definitions */
-export type PackEntry = [pos: string, ...glosses: string[]]
+/**
+ * One meaning of a written word: its part of speech (p), definitions (g), how it is written in full when that differs from
+ * the lookup key (h, e.g. the niqqud that tells סֵפֶר from סַפָּר) and the words related to this meaning (r). A word
+ * written the same way for several meanings has one entry for each, and the reader picks one.
+ */
+export type PackEntry = { p: string; g: string[]; h?: string; r?: Relations }
+/** an entry as version 1 packs stored it: part of speech, then the definitions; its relations were per word (Shard.r) */
+type PackEntryV1 = [pos: string, ...glosses: string[]]
 
 /** words that relate to a headword: synonyms (s), antonyms (a), related words (r) and words derived from it (d) */
 export type Relations = Partial<Record<RelationKind, string[]>>
 export type RelationKind = 's' | 'a' | 'r' | 'd'
 
 /**
- * a slice of a pack: the entries of the words that hash here, the inflected forms that point at their base word, and the
- * words related to each headword (`r` is newer than the format: a pack without it is still version 1, it just has none)
+ * a slice of a pack: the entries of the words that hash here and the inflected forms that point at their base word
+ * (a version 1 pack, still on some devices, has PackEntryV1 entries and the related words of each word in `r`)
  */
-export type Shard = { e: Record<string, PackEntry[]>; f: Record<string, string>; r?: Record<string, Relations> }
+export type Shard = { e: Record<string, (PackEntry | PackEntryV1)[]>; f: Record<string, string>; r?: Record<string, Relations> }
 
 /** the first line of a pack file; every line after it is one shard */
 export type PackHeader = { v: number; lang: string; shards: number; words: number; built: string }
@@ -44,7 +50,7 @@ export function shardOf(key: string, shards: number): number {
 const MAX_WORD = 60
 const MAX_GLOSS = 200
 const MAX_GLOSSES = 3
-const MAX_ENTRIES = 6
+const MAX_ENTRIES = 8
 
 /** the parts of a kaikki.org (wiktextract) line the packs use */
 type KaikkiLink = { word?: string }
@@ -70,7 +76,6 @@ export function addKaikkiLine(
   line: KaikkiLine,
   entries: Map<string, PackEntry[]>,
   forms: Map<string, string>,
-  relations?: Map<string, Relations>,
   tableForms?: Map<string, string>,
 ) {
   if (!line.word || line.word.length > MAX_WORD) return
@@ -88,7 +93,15 @@ export function addKaikkiLine(
   }
   if (!glosses.length || !line.pos) return
   const list = entries.get(key) ?? []
-  if (list.length < MAX_ENTRIES) list.push([line.pos, ...glosses])
+  if (list.length < MAX_ENTRIES) {
+    const entry: PackEntry = { p: line.pos, g: glosses }
+    // the word as the dictionary writes it: the canonical form (the English Wiktionary puts the niqqud there) or the word itself
+    const full = line.forms?.find((f) => f.tags?.includes('canonical'))?.form?.trim() ?? line.word
+    if (full !== key && full.length <= MAX_WORD && normalizeWord(lang, full) === key) entry.h = full
+    const related = relationsOf(lang, key, line)
+    if (related) entry.r = related
+    list.push(entry)
+  }
   entries.set(key, list)
   // most inflected forms have no line of their own and appear only in the table of their base word; those go to
   // `tableForms` when given, so the caller can drop the ones that are headwords themselves (see mergeTableForms)
@@ -98,7 +111,6 @@ export function addKaikkiLine(
     const formKey = normalizeWord(lang, f.form.replace(/^[-־]+|[-־]+$/g, ''))
     if (formKey && formKey !== key && !fromTables.has(formKey)) fromTables.set(formKey, key)
   }
-  if (relations) addRelations(lang, key, line, relations)
 }
 
 /**
@@ -114,8 +126,8 @@ const MAX_RELATED = 8
 const LINK_FIELDS: [RelationKind, keyof KaikkiLinks][] = [['s', 'synonyms'], ['a', 'antonyms'], ['r', 'related'], ['d', 'derived']]
 
 /** the synonyms, antonyms, related and derived words of a line and of its senses, a few of each, as lookup keys */
-function addRelations(lang: string, key: string, line: KaikkiLine, relations: Map<string, Relations>) {
-  const rel = relations.get(key) ?? {}
+function relationsOf(lang: string, key: string, line: KaikkiLine): Relations | undefined {
+  const rel: Relations = {}
   for (const [kind, field] of LINK_FIELDS) {
     const links = [...(line[field] ?? []), ...(line.senses ?? []).flatMap((sense) => sense[field] ?? [])]
     for (const link of links) {
@@ -127,5 +139,5 @@ function addRelations(lang: string, key: string, line: KaikkiLine, relations: Ma
       if (w && w !== key && !list.includes(w)) rel[kind] = [...list, w]
     }
   }
-  if (Object.keys(rel).length) relations.set(key, rel)
+  return Object.keys(rel).length ? rel : undefined
 }

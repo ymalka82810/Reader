@@ -552,6 +552,7 @@ export const fr: Record<keyof typeof he, Message> = {
   'dict.related': 'Mots apparentés :',
   'dict.derived': 'Dérivés :',
   'dict.back': 'Retour',
+  'dict.pickMeaning': 'Ce mot a plusieurs sens. Choisissez celui qui convient :',
   'dict.offlineSource': 'Dictionnaire hors ligne · du Wiktionnaire (CC BY-SA)',
   'prefs.offlineDict': 'Dictionnaire hors ligne',
   'prefs.offlineDictNote': 'Un dictionnaire conservé sur votre appareil, qui fonctionne sans réseau, pour chaque langue que vous téléchargez. Les définitions viennent du Wiktionnaire : pour l’hébreu, le français, l’allemand, l’espagnol et le russe dans la langue même (et en anglais pour les mots manquants), pour l’arabe en anglais. Il est utilisé quand la langue du dictionnaire est « Langue du livre » ; un mot qu’il ne contient pas est cherché en ligne, avec votre autorisation.',

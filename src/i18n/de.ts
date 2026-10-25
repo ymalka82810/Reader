@@ -552,6 +552,7 @@ export const de: Record<keyof typeof he, Message> = {
   'dict.related': 'Verwandte Wörter:',
   'dict.derived': 'Ableitungen:',
   'dict.back': 'Zurück',
+  'dict.pickMeaning': 'Das Wort hat mehrere Bedeutungen. Wähle die passende:',
   'dict.offlineSource': 'Offline-Wörterbuch · aus dem Wiktionary (CC BY-SA)',
   'prefs.offlineDict': 'Offline-Wörterbuch',
   'prefs.offlineDictNote': 'Ein auf deinem Gerät gespeichertes Wörterbuch, das ohne Netzwerk funktioniert, für jede Sprache, die du herunterlädst. Die Definitionen stammen aus dem Wiktionary: für Hebräisch, Französisch, Deutsch, Spanisch und Russisch in der Sprache selbst (und auf Englisch für fehlende Wörter), für Arabisch auf Englisch. Es wird verwendet, wenn die Wörterbuchsprache „Sprache des Buchs“ ist; ein Wort, das es nicht kennt, wird mit deiner Erlaubnis online nachgeschlagen.',

@@ -20,6 +20,38 @@ const install = async () => {
 }
 
 describe('DictPanel', () => {
+  it('lists the meanings of a word written the same way, opens the one picked, and goes back to the list', async () => {
+    const entries = {
+      ספר: [
+        { p: 'שם עצם', g: ['קובץ דפים מאוגד'], h: 'סֵפֶר', r: { s: ['כרך'] } },
+        { p: 'שם עצם', g: ['מי שמספר שיער'], h: 'סַפָּר', r: { s: ['גלב'] } },
+      ],
+      כרך: [{ p: 'שם עצם', g: ['ספר אחד מסדרה'] }],
+    }
+    const file = [{ v: PACK_VERSION, lang: 'he', shards: 1, words: 2, built: 'x' }, { e: entries, f: {} }].map((l) => JSON.stringify(l) + '\n').join('')
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(new Uint8Array(gzipSync(file)))))
+    await downloadPack('he', 0, () => {})
+    const onFound = vi.fn()
+    render(<DictPanel word="ספר" lang="he" offline onFound={onFound} onClose={() => {}} />)
+    expect(await screen.findByText('למילה כמה משמעויות. בחרו את המתאימה:')).toBeTruthy()
+    expect(screen.getByText('סֵפֶר')).toBeTruthy()
+    expect(screen.getByText('סַפָּר')).toBeTruthy()
+    // nothing is kept for review until a meaning is picked
+    expect(onFound).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByText('סַפָּר'))
+    expect(await screen.findByText(/מי שמספר שיער/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'גלב' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'כרך' })).toBeNull()
+    expect(onFound).toHaveBeenLastCalledWith('שם עצם\n1. מי שמספר שיער', 'ספר')
+    fireEvent.click(screen.getByRole('button', { name: 'חזרה' }))
+    fireEvent.click(await screen.findByText('סֵפֶר'))
+    fireEvent.click(await screen.findByRole('button', { name: 'כרך' }))
+    expect(await screen.findByText(/ספר אחד מסדרה/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'חזרה' }))
+    expect(await screen.findByText('למילה כמה משמעויות. בחרו את המתאימה:')).toBeTruthy()
+    await removePack('he')
+  })
+
   it('shows related words, opens one on tap and goes back', async () => {
     const shard = { e: { big: [['adj', 'large']], large: [['adj', 'of great size']], small: [['adj', 'little']] }, f: {}, r: { big: { s: ['large'], a: ['small'] } } }
     const file = [{ v: PACK_VERSION, lang: 'en', shards: 1, words: 3, built: 'x' }, shard].map((l) => JSON.stringify(l) + '\n').join('')
