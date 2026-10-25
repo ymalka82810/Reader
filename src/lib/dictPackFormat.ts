@@ -44,7 +44,12 @@ export type KaikkiLine = {
   word?: string
   pos?: string
   senses?: { glosses?: string[]; form_of?: { word?: string }[]; alt_of?: { word?: string }[] }[]
+  /** the word's inflection table and head forms: plural, construct state, conjugations, declensions */
+  forms?: { form?: string; tags?: string[] }[]
 }
+
+/** tags of rows in `forms` that are not another way to write the word: transliterations, table captions and the like */
+const NOT_A_FORM = new Set(['romanization', 'transliteration', 'table-tags', 'inflection-template', 'class', 'canonical', 'error-unknown-tag'])
 
 /**
  * Adds one line of a kaikki.org dump to the pack being built: its definitions under the word, and, when the line is an
@@ -68,4 +73,10 @@ export function addKaikkiLine(lang: string, line: KaikkiLine, entries: Map<strin
   const list = entries.get(key) ?? []
   if (list.length < MAX_ENTRIES) list.push([line.pos, ...glosses])
   entries.set(key, list)
+  // most inflected forms have no line of their own and appear only in the table of their base word
+  for (const f of line.forms ?? []) {
+    if (!f.form || f.form.length > MAX_WORD || /\s/.test(f.form) || f.tags?.some((tag) => NOT_A_FORM.has(tag))) continue
+    const formKey = normalizeWord(lang, f.form.replace(/^[-־]+|[-־]+$/g, ''))
+    if (formKey && formKey !== key && !forms.has(formKey)) forms.set(formKey, key)
+  }
 }

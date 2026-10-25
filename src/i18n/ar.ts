@@ -557,6 +557,7 @@ export const ar: Record<keyof typeof he, Message> = {
   'prefs.offlineDictDownload': 'تنزيل ({size})',
   'prefs.offlineDictProgress': 'جارٍ التنزيل… {pct}٪',
   'prefs.offlineDictRemove': 'إزالة',
+  'prefs.offlineDictUpdate': 'تحديث ({size})',
   'prefs.offlineDictFailed': 'فشل التنزيل (لا يوجد اتصال بالشبكة؟).',
   'prefs.offlineDictOffline': 'القائمة غير متاحة الآن (لا يوجد اتصال بالشبكة؟).',
   'translate.title': 'الترجمة',

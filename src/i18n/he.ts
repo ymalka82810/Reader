@@ -552,6 +552,7 @@ export const he = {
   'prefs.offlineDictDownload': 'הורדה ({size})',
   'prefs.offlineDictProgress': 'מוריד… {pct}%',
   'prefs.offlineDictRemove': 'מחק',
+  'prefs.offlineDictUpdate': 'עדכון ({size})',
   'prefs.offlineDictFailed': 'ההורדה נכשלה (אין חיבור לרשת?).',
   'prefs.offlineDictOffline': 'הרשימה לא זמינה כרגע (אין חיבור לרשת?).',
   'translate.title': 'תרגום',

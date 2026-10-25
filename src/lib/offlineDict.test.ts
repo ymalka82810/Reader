@@ -90,3 +90,21 @@ describe('fetchPackList', () => {
     expect(await fetchPackList()).toBeNull()
   })
 })
+
+describe('offline dictionary, words as they stand in the text', () => {
+  afterEach(async () => {
+    vi.unstubAllGlobals()
+    await removePack('he')
+  })
+
+  it('finds a Hebrew word under its prefixes, endings and verb inflection', async () => {
+    serve(gz(packFile('he', { הלך: [['verb', 'to walk']], ספר: [['noun', 'book']], התלבש: [['verb', 'to dress']] }, { ספרים: 'ספר' })))
+    await downloadPack('he', 0, () => {})
+    const walk = await lookUpOffline('he', 'וכשהלכתי')
+    expect(walk).toContain('צורה של ״הלך״:')
+    expect(walk).toContain('to walk')
+    expect(await lookUpOffline('he', 'הספרים')).toContain('book')
+    expect(await lookUpOffline('he', 'מתלבשים')).toContain('to dress')
+    expect(await lookUpOffline('he', 'זזזזז')).toBeNull()
+  })
+})

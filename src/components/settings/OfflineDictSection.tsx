@@ -67,6 +67,15 @@ export function OfflineDictSection() {
             }
           >
             {downloading && <button onClick={() => abort.current?.abort()}>{t('common.cancel')}</button>}
+            {!downloading && have && info && info.built > have.built && (
+              <button
+                disabled={!!busy}
+                aria-label={`${t('prefs.offlineDictUpdate', { size: formatBytes(info.bytes) })}: ${name}`}
+                onClick={() => void download(lang, info)}
+              >
+                {t('prefs.offlineDictUpdate', { size: formatBytes(info.bytes) })}
+              </button>
+            )}
             {!downloading && have && (
               <button aria-label={`${t('prefs.offlineDictRemove')}: ${name}`} onClick={() => void remove(lang)}>
                 {t('prefs.offlineDictRemove')}
