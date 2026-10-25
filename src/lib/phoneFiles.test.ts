@@ -1,6 +1,18 @@
+// @vitest-environment jsdom
 import 'fake-indexeddb/auto'
-import { afterEach, describe, expect, it } from 'vitest'
-import { bookFileName, bookPhoneDir, forgetPhoneFile, placeBooksOnPhone, placeNewBook, matchPhoneFiles, phoneFileOf, refreshPhoneFiles, rememberPhoneFile, syncPhoneNames } from './phoneFiles'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { bookFileName, bookPhoneDir, forgetPhoneFile, placeBooksOnPhone, placeNewBook, matchPhoneFiles, phoneFileOf, refreshPhoneFiles, rememberPhoneFile, saveBookToPhone, syncPhoneNames } from './phoneFiles'
+import type { BookRecord } from './db'
+
+// the test books, served in place of IndexedDB (whose fake loses a Blob's methods under jsdom)
+const books = vi.hoisted(() => new Map<string, unknown>())
+vi.mock('./db', async (orig) => ({
+  ...(await orig<typeof import('./db')>()),
+  getBook: async (id: string) => books.get(id),
+  getBookMeta: async (id: string) => books.get(id),
+  listBooks: async () => [...books.values()],
+}))
+const saveBook = (b: BookRecord) => books.set(b.id, b)
 
 afterEach(() => {
   delete (globalThis as { Capacitor?: unknown }).Capacitor
@@ -117,5 +129,72 @@ describe('the books folder outside the Android app', () => {
   it('places nothing', async () => {
     expect(await placeBooksOnPhone(['b1'])).toEqual({ placed: 0, failed: 0 })
     await expect(placeNewBook('b1')).resolves.toBeUndefined()
+  })
+})
+
+/** a fake Android app: a DeviceBooks plugin that writes into `files` (path -> size) and records every call */
+function fakePhone(files: Map<string, number>) {
+  const calls: { method: string; options: Record<string, unknown> }[] = []
+  ;(globalThis as { Capacitor?: unknown }).Capacitor = {
+    isNativePlatform: () => true,
+    isPluginAvailable: () => true,
+    nativePromise: async (_plugin: string, method: string, options: Record<string, unknown> = {}) => {
+      calls.push({ method, options })
+      if (method === 'status') return { granted: true }
+      if (method === 'save') {
+        const path = (options.path as string) ?? `/s/${options.dir ? `Documents/קורא ספרים/${options.dir}` : 'Download'}/${options.name}`
+        files.set(path, 1)
+        return { path, name: path.split('/').pop(), size: 1, modified: 1 }
+      }
+      if (method === 'place') {
+        const path = `/s/Documents/קורא ספרים/${options.dir}/${options.name}`
+        files.delete(options.path as string)
+        files.set(path, 1)
+        return { path, name: options.name, size: 1, modified: 1 }
+      }
+      if (method === 'remove') {
+        if (!files.delete(options.path as string)) throw new Error('remove')
+        return undefined
+      }
+      return undefined
+    },
+  }
+  return calls
+}
+
+const record = (over: Partial<BookRecord> = {}): BookRecord => ({
+  id: 'p1',
+  title: 'גנב הברק',
+  author: 'ריק ריירדן',
+  kind: 'epub',
+  file: new Blob(['epub']),
+  fileName: 'גנב הברק.epub',
+  addedAt: 1,
+  ...over,
+})
+
+describe('a book converted from a PDF, in the books folder', () => {
+  it('keeps its EPUB there in place of the PDF', async () => {
+    saveBook(record({ fromPdf: true }))
+    const files = new Map([['/s/Download/גנב הברק.pdf', 5]])
+    await rememberPhoneFile('p1', '/s/Download/גנב הברק.pdf')
+    fakePhone(files)
+    expect(await placeBooksOnPhone(['p1'])).toEqual({ placed: 1, failed: 0 })
+    expect([...files.keys()]).toEqual(['/s/Documents/קורא ספרים/ריק ריירדן/גנב הברק.epub'])
+    expect(await phoneFileOf('p1')).toBe('/s/Documents/קורא ספרים/ריק ריירדן/גנב הברק.epub')
+  })
+})
+
+describe('downloading a book', () => {
+  it('always saves it to Download, and leaves the book tied to its file in the books folder', async () => {
+    saveBook(record({ id: 'd1' }))
+    const inFolder = '/s/Documents/קורא ספרים/ריק ריירדן/גנב הברק.epub'
+    await rememberPhoneFile('d1', inFolder)
+    const calls = fakePhone(new Map([[inFolder, 1]]))
+    expect(await saveBookToPhone('d1')).toBe('גנב הברק.epub')
+    const save = calls.find((c) => c.method === 'save')
+    expect(save?.options.dir).toBeUndefined()
+    expect(calls.some((c) => c.method === 'place' || c.method === 'rename')).toBe(false)
+    expect(await phoneFileOf('d1')).toBe(inFolder)
   })
 })

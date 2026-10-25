@@ -62,9 +62,9 @@ export async function saveBlobToPhone(blob: Blob, name: string): Promise<string>
   }
 }
 
-/** Writes a book's blob to the phone in pieces (into the books folder's sub-folder `dir`, or Download without one), and ties
- *  the book to the new file. Resolves with what the native side saved. */
-async function writeToPhone(id: string, file: Blob, name: string, dir?: string) {
+/** Writes a book's blob to the phone in pieces (into the books folder's sub-folder `dir`, or Download without one), and,
+ *  unless `link` is false, ties the book to the new file. Resolves with what the native side saved. */
+async function writeToPhone(id: string, file: Blob, name: string, dir?: string, link = true) {
   type Saved = { path: string; name: string; size: number; modified: number }
   let saved: Saved
   try {
@@ -76,14 +76,15 @@ async function writeToPhone(id: string, file: Blob, name: string, dir?: string) 
     // the native side only says "permission" or "save"; anything else is a bridge/read failure
     throw new Error(e instanceof Error && e.message === 'permission' ? 'permission' : 'save')
   }
-  await rememberPhoneFile(id, saved.path)
+  if (link) await rememberPhoneFile(id, saved.path)
   // it sits in a scanned folder: the next scan must not offer the book's own copy as a new find
   await markSeen([{ path: saved.path, name: saved.name, size: saved.size, modified: saved.modified }]).catch(() => {})
   return saved
 }
 
-/** Saves one book from the library to the phone: into the books folder (in its library folder's sub-folder) when that is on,
- *  otherwise the Download folder (a normal download in the browser). Resolves with the name it was saved under;
+/** Saves one book from the library to the phone, always into the Download folder (a normal download in the browser): it
+ *  is the user's own copy, apart from the book's file in the books folder. A book with no file on the phone yet, while the
+ *  books folder is off, is tied to the download so it follows the book's name. Resolves with the name it was saved under;
  *  undefined when the book is gone. */
 export async function saveBookToPhone(id: string): Promise<string | undefined> {
   const rec = await getBook(id)
@@ -94,14 +95,8 @@ export async function saveBookToPhone(id: string): Promise<string | undefined> {
     return name
   }
   if (!(await hasDeviceAccess()) && !(await requestDeviceAccess().catch(() => false))) throw new Error('permission')
-  const known = libraryFolderOn() ? await phoneFileOf(id) : undefined
-  if (known) {
-    // already in the books folder (or elsewhere on the phone): bring it to its place instead of writing a second copy
-    const { failed } = await syncPhoneNames([id])
-    const now = await phoneFileOf(id)
-    if (!failed && now) return baseName(now)
-  }
-  const saved = await writeToPhone(id, rec.file, name, libraryFolderOn() ? bookPhoneDir(rec, await phoneDirNames()) : undefined)
+  const link = !libraryFolderOn() && !(await phoneFileOf(id))
+  const saved = await writeToPhone(id, rec.file, name, undefined, link)
   return saved.name
 }
 
@@ -177,6 +172,7 @@ export async function placeBooksOnPhone(
       if (known) {
         const { failed } = await syncPhoneNames([id])
         if (!failed) {
+          if (meta.fromPdf) await replacePdfWithEpub(id, names)
           out.placed++
           continue
         }
@@ -197,6 +193,29 @@ export async function placeBooksOnPhone(
   onProgress?.(ids.length, ids.length)
   await removeEmptyPhoneFolders()
   return out
+}
+
+const isPdfPath = (path: string) => path.toLowerCase().endsWith('.pdf')
+
+/** whether the installed app can delete a file in the books folder: an older APK has no `remove`, and a probe with no path
+ *  is refused by the method itself ("remove") but by the bridge (anything else) when the method is missing */
+let canRemove: Promise<boolean> | undefined
+const removeSupported = () =>
+  (canRemove ??= call('remove', { path: '' }).then(
+    () => true,
+    (e: unknown) => e instanceof Error && e.message === 'remove',
+  ))
+
+/** A book converted from a PDF is read as its EPUB, so in the books folder the EPUB is the book's file: it is written next
+ *  to the PDF, the book is tied to it, and the PDF is deleted. Left as it is on an older APK that cannot delete, so the
+ *  folder never holds both. */
+async function replacePdfWithEpub(id: string, names: Map<string, string>): Promise<void> {
+  const pdf = await phoneFileOf(id)
+  if (!pdf || !isPdfPath(pdf) || !(await removeSupported())) return
+  const rec = await getBook(id)
+  if (!rec?.fromPdf) return
+  await writeToPhone(id, rec.file, bookFileName(rec), bookPhoneDir(rec, names))
+  await call('remove', { path: pdf }).catch(() => {})
 }
 
 /** Removes the empty sub-folders of the books folder (left by books moved to another folder, or by a spelling of an

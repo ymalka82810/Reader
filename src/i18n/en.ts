@@ -865,7 +865,7 @@ export const en: Record<keyof typeof he, Message> = {
   'device.bgChannel': 'New books on this phone',
   'device.notifOff': 'Notifications are off for the app, so the background scan can’t tell you about new books. You can turn them on in Android’s settings.',
   'device.libraryFolder': 'Books folder on the phone',
-  'device.libraryFolderHint': "Every book is kept as a file in the “קורא ספרים” folder inside the phone's Documents, in a sub-folder named after its library folder (the author). A book found on the phone is moved there, one added from elsewhere is saved there as a copy, and moving a book to another folder or renaming a folder does the same on the phone. Other readers and any file manager can see the folder",
+  'device.libraryFolderHint': "Every book is kept as a file in the “קורא ספרים” folder inside the phone's Documents, in a sub-folder named after its library folder (the author). A book found on the phone is moved there, one added from elsewhere is saved there as a copy, a book converted from a PDF is kept there as its EPUB instead of the PDF, and moving a book to another folder or renaming a folder does the same on the phone. Other readers and any file manager can see the folder",
   'device.libraryFolderAll': 'Organise all books in the folder',
   'device.libraryFolderAllHint': 'Also moves the books added earlier, and saves a copy of the books that have no file on the phone',
   'device.libraryFolderAllButton': 'Organise now',
