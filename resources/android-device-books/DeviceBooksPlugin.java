@@ -541,6 +541,28 @@ public class DeviceBooksPlugin extends Plugin {
         }
     }
 
+    /** Deletes a book's file in the books folder (the PDF that a book's converted EPUB replaced there). Nothing outside the
+     *  books folder can be deleted; folders left empty go too. */
+    @PluginMethod
+    public void remove(PluginCall call) {
+        if (!hasAccess()) {
+            call.reject("permission");
+            return;
+        }
+        try {
+            File f = new File(call.getString("path", ""));
+            if (!inside(f, libraryRoot()) || !f.isFile() || !f.delete()) {
+                call.reject("remove");
+                return;
+            }
+            MediaScannerConnection.scanFile(getContext(), new String[] { f.getAbsolutePath() }, null, null);
+            pruneEmpty(f.getParentFile());
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("remove", e);
+        }
+    }
+
     @PluginMethod
     public void openDownloads(PluginCall call) {
         try {
