@@ -10,7 +10,7 @@ import { mkdir, rm, stat, writeFile } from 'node:fs/promises'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { createGunzip, createGzip } from 'node:zlib'
-import { addKaikkiLine, PACK_VERSION, shardOf } from '../src/lib/dictPackFormat.ts'
+import { addKaikkiLine, mergeTableForms, PACK_VERSION, shardOf } from '../src/lib/dictPackFormat.ts'
 import { parseHeWiktionaryPage, readDumpPages } from '../src/lib/heWiktionary.ts'
 
 // language code (the app's DICT_LANGS) -> name in kaikki.org's URLs
@@ -56,7 +56,7 @@ async function* streamLines(stream) {
  * Spanish and Russian editions (all languages in one file, so the lines of this one are picked out); the Hebrew edition
  * is read from its Wikimedia dump. Returns false for a language with no such source.
  */
-async function addNative(code, entries, forms, relations) {
+async function addNative(code, entries, forms, relations, tableForms) {
   if (['fr', 'de', 'es', 'ru'].includes(code)) {
     const file = `${out}/${code}-native.jsonl.gz`
     fetchTo(`https://kaikki.org/${code}wiktionary/raw-wiktextract-data.jsonl.gz`, file)
@@ -67,7 +67,7 @@ async function addNative(code, entries, forms, relations) {
       // translations carry a lang_code too: only a line about a word of this language counts
       if (!mark.test(line)) continue
       const data = JSON.parse(line)
-      if (data.lang_code === code) addKaikkiLine(code, data, entries, forms, relations)
+      if (data.lang_code === code) addKaikkiLine(code, data, entries, forms, relations, tableForms)
     }
     await rm(file)
     return true
@@ -78,7 +78,7 @@ async function addNative(code, entries, forms, relations) {
     const bzcat = spawn('bzcat', [file], { stdio: ['ignore', 'pipe', 'inherit'] })
     bzcat.stdout.setEncoding('utf8')
     await readDumpPages(streamLines(bzcat.stdout), (_title, text) => {
-      for (const line of parseHeWiktionaryPage(text)) addKaikkiLine(code, line, entries, forms, relations)
+      for (const line of parseHeWiktionaryPage(text)) addKaikkiLine(code, line, entries, forms, relations, tableForms)
     })
     await rm(file)
     return true
@@ -90,16 +90,18 @@ async function build(code) {
   const name = LANGS[code]
   const forms = new Map()
   const relations = new Map()
+  const tableForms = new Map()
   // the language's own definitions come first; the English Wiktionary's fill in the words they lack
   const native = new Map()
-  const hasNative = await addNative(code, native, forms, relations)
+  const hasNative = await addNative(code, native, forms, relations, tableForms)
   const raw = `${out}/${code}.jsonl`
   fetchTo(`https://kaikki.org/dictionary/${name}/kaikki.org-dictionary-${name}.jsonl`, raw)
   const entries = new Map()
-  for await (const line of linesOf(raw)) if (line.trim()) addKaikkiLine(code, JSON.parse(line), entries, forms, relations)
+  for await (const line of linesOf(raw)) if (line.trim()) addKaikkiLine(code, JSON.parse(line), entries, forms, relations, tableForms)
   await rm(raw)
   const english = entries.size
   for (const [w, e] of native) entries.set(w, e)
+  mergeTableForms(forms, tableForms, entries)
   // a word with no entry of its own (a form) has nothing to show its relations under
   for (const w of relations.keys()) if (!entries.has(w)) relations.delete(w)
   if (hasNative) console.log(`${code}: ${native.size} words from its own Wiktionary, ${english} from the English one`)

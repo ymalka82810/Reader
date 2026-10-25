@@ -71,6 +71,7 @@ export function addKaikkiLine(
   entries: Map<string, PackEntry[]>,
   forms: Map<string, string>,
   relations?: Map<string, Relations>,
+  tableForms?: Map<string, string>,
 ) {
   if (!line.word || line.word.length > MAX_WORD) return
   const key = normalizeWord(lang, line.word)
@@ -89,13 +90,24 @@ export function addKaikkiLine(
   const list = entries.get(key) ?? []
   if (list.length < MAX_ENTRIES) list.push([line.pos, ...glosses])
   entries.set(key, list)
-  // most inflected forms have no line of their own and appear only in the table of their base word
+  // most inflected forms have no line of their own and appear only in the table of their base word; those go to
+  // `tableForms` when given, so the caller can drop the ones that are headwords themselves (see mergeTableForms)
+  const fromTables = tableForms ?? forms
   for (const f of line.forms ?? []) {
     if (!f.form || f.form.length > MAX_WORD || /\s/.test(f.form) || f.tags?.some((tag) => NOT_A_FORM.has(tag))) continue
     const formKey = normalizeWord(lang, f.form.replace(/^[-־]+|[-־]+$/g, ''))
-    if (formKey && formKey !== key && !forms.has(formKey)) forms.set(formKey, key)
+    if (formKey && formKey !== key && !fromTables.has(formKey)) fromTables.set(formKey, key)
   }
   if (relations) addRelations(lang, key, line, relations)
+}
+
+/**
+ * Adds the forms read from inflection tables to `forms`, except a form that is a headword of its own ("maison" in the
+ * table of a rare spelling, "Haus" in that of "Hau"): a reader looking it up means that word, not another one's form.
+ * A form a line of its own declares (`form_of`) is kept whatever it is.
+ */
+export function mergeTableForms(forms: Map<string, string>, tableForms: Map<string, string>, entries: Map<string, unknown>) {
+  for (const [form, base] of tableForms) if (!forms.has(form) && !entries.has(form)) forms.set(form, base)
 }
 
 const MAX_RELATED = 8

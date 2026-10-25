@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addKaikkiLine, normalizeWord, shardOf, type PackEntry } from './dictPackFormat'
+import { addKaikkiLine, mergeTableForms, normalizeWord, shardOf, type PackEntry } from './dictPackFormat'
 
 describe('normalizeWord', () => {
   it('drops niqqud and Arabic vowel signs, and leaves other languages alone', () => {
@@ -123,5 +123,21 @@ describe('addKaikkiLine related words', () => {
     const relations = new Map<string, import('./dictPackFormat').Relations>()
     addKaikkiLine('en', { word: 'dogs', pos: 'noun', senses: [{ form_of: [{ word: 'dog' }], synonyms: [{ word: 'hounds' }] }] }, new Map(), new Map(), relations)
     expect(relations.size).toBe(0)
+  })
+})
+
+describe('mergeTableForms', () => {
+  it('keeps table forms that are not headwords, and every declared form', () => {
+    const entries = new Map<string, PackEntry[]>()
+    const forms = new Map<string, string>()
+    const table = new Map<string, string>()
+    const add = (l: Parameters<typeof addKaikkiLine>[1]) => addKaikkiLine('fr', l, entries, forms, undefined, table)
+    add({ word: 'muaison', pos: 'noun', senses: [{ glosses: ['old spelling'] }], forms: [{ form: 'maison' }, { form: 'muaisons' }] })
+    add({ word: 'maison', pos: 'noun', senses: [{ glosses: ['house'] }] })
+    add({ word: 'suis', pos: 'verb', senses: [{ form_of: [{ word: 'être' }] }] })
+    mergeTableForms(forms, table, entries)
+    expect(forms.get('muaisons')).toBe('muaison')
+    expect(forms.has('maison')).toBe(false)
+    expect(forms.get('suis')).toBe('être')
   })
 })
