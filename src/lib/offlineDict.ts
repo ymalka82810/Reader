@@ -1,7 +1,7 @@
 import { createStore, del, delMany, get, keys, set, setMany } from 'idb-keyval'
 import { t } from '../i18n'
 import { baseCandidates } from './morphology'
-import { normalizeWord, PACK_VERSION, shardOf, type PackEntry, type PackHeader, type Shard } from './dictPackFormat'
+import { normalizeWord, PACK_VERSION, shardOf, type PackEntry, type PackHeader, type RelationKind, type Relations, type Shard } from './dictPackFormat'
 
 /** where the packs live: a branch the dictionary-packs workflow rebuilds (raw.githubusercontent.com is allowed by the content-security policy) */
 const PACKS_URL = 'https://raw.githubusercontent.com/ymalka82810/Reader/dictionary-packs'
@@ -125,37 +125,54 @@ const own = <T>(o: Record<string, T> | undefined, k: string): T | undefined => (
 const formatEntries = (entries: PackEntry[]) =>
   entries.map(([pos, ...glosses]) => `${pos}\n${glosses.map((g, i) => `${i + 1}. ${g}`).join('\n')}`).join('\n\n')
 
+type Found = { word: string; entries: PackEntry[]; related?: Relations }
+
 /** the entries a key has in the pack: its own, and those of the base word it is a form of; empty when it has neither */
-async function entriesOf(lang: string, shards: number, key: string): Promise<{ word: string; entries: PackEntry[] }[]> {
+async function entriesOf(lang: string, shards: number, key: string): Promise<Found[]> {
   const shard = await shardFor(lang, shards, key)
-  const out: { word: string; entries: PackEntry[] }[] = []
+  const out: Found[] = []
   const direct = own(shard?.e, key)
-  if (direct) out.push({ word: key, entries: direct })
+  if (direct) out.push({ word: key, entries: direct, related: own(shard?.r, key) })
   const base = own(shard?.f, key)
-  const baseEntries = base ? own((await shardFor(lang, shards, base))?.e, base) : undefined
-  if (base && baseEntries) out.push({ word: base, entries: baseEntries })
+  const baseShard = base ? await shardFor(lang, shards, base) : undefined
+  const baseEntries = base ? own(baseShard?.e, base) : undefined
+  if (base && baseEntries) out.push({ word: base, entries: baseEntries, related: own(baseShard?.r, base) })
   return out
 }
 
 /** at most this many readings of a word that is not in the pack as written */
 const MAX_READINGS = 3
+const RELATION_ORDER: RelationKind[] = ['s', 'a', 'r', 'd']
+const MAX_RELATED_SHOWN = 10
+
+/** an entry as shown, and the words it relates to (synonyms, antonyms, related, derived), each kind once */
+export type OfflineEntry = { text: string; related: { kind: RelationKind; words: string[] }[] }
 
 /**
- * The entry for `word` from the downloaded pack of `lang`, as plain text; null when that pack is not on the device or has
- * no such word. An inflected form shows the entry of its base word. A Hebrew or Arabic word that is not in the pack as
- * written ("וכשהלכתי", "وبكتابها") is looked up without its prefixes and endings, showing the likeliest readings.
+ * The entry for `word` from the downloaded pack of `lang`; null when that pack is not on the device or has no such word.
+ * An inflected form shows the entry of its base word. A Hebrew or Arabic word that is not in the pack as written
+ * ("וכשהלכתי", "وبكتابها") is looked up without its prefixes and endings, showing the likeliest readings.
  */
-export async function lookUpOffline(lang: string, word: string): Promise<string | null> {
+export async function lookUpOfflineEntry(lang: string, word: string): Promise<OfflineEntry | null> {
   const meta = await get<InstalledPack>(metaKey(lang), store)
   if (!meta) return null
-  const show = (found: { word: string; entries: PackEntry[] }[], asWritten: string) =>
-    found.map((f) => (f.word === asWritten ? formatEntries(f.entries) : `${t('dict.formOf', { word: f.word })}\n\n${formatEntries(f.entries)}`)).join('\n\n')
+  const show = (found: Found[], asWritten: string): OfflineEntry => {
+    const text = found
+      .map((f) => (f.word === asWritten ? formatEntries(f.entries) : `${t('dict.formOf', { word: f.word })}\n\n${formatEntries(f.entries)}`))
+      .join('\n\n')
+    const headwords = new Set(found.map((f) => f.word))
+    const related = RELATION_ORDER.map((kind) => {
+      const words = [...new Set(found.flatMap((f) => f.related?.[kind] ?? []))].filter((w) => !headwords.has(w)).slice(0, MAX_RELATED_SHOWN)
+      return { kind, words }
+    }).filter((r) => r.words.length)
+    return { text, related }
+  }
   for (const w of new Set([word, word.toLowerCase()])) {
     const key = normalizeWord(lang, w)
     const found = await entriesOf(lang, meta.shards, key)
     if (found.length) return show(found, key)
   }
-  const readings: { word: string; entries: PackEntry[] }[] = []
+  const readings: Found[] = []
   let tier = Infinity
   for (const { word: guess, cost } of baseCandidates(lang, word)) {
     // only the guesses that took as few changes as the first one that matched: further ones are mostly noise
@@ -168,3 +185,6 @@ export async function lookUpOffline(lang: string, word: string): Promise<string 
   }
   return readings.length ? show(readings, '') : null
 }
+
+/** the text of `lookUpOfflineEntry` alone */
+export const lookUpOffline = async (lang: string, word: string) => (await lookUpOfflineEntry(lang, word))?.text ?? null
