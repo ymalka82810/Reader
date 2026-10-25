@@ -60,7 +60,7 @@ jobs:
           mkdir packs
           cp old/*.ndjson.gz packs/ 2>/dev/null || true
           cp new/*.ndjson.gz packs/
-          [ -f old/manifest.json ] || echo '{}' > old/manifest.json
+          test -f old/manifest.json || echo '{}' > old/manifest.json
           jq -s 'reduce .[] as $m ({}; . + $m)' old/manifest.json new/manifest-*.json > packs/manifest.json
           cat packs/manifest.json
           cd packs
