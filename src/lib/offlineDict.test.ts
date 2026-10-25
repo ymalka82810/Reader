@@ -1,7 +1,7 @@
 import { gzipSync } from 'node:zlib'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PACK_VERSION, shardOf, type PackHeader, type Shard } from './dictPackFormat'
-import { downloadPack, fetchPackList, installedPacks, lookUpOffline, removePack } from './offlineDict'
+import { downloadPack, fetchPackList, installedPacks, lookUpOffline, lookUpOfflineMeanings, removePack } from './offlineDict'
 
 /** a pack like the build script writes: a header line, then one shard per line */
 function packFile(lang: string, words: Record<string, [string, ...string[]][]>, forms: Record<string, string>, over: Partial<PackHeader> = {}) {
@@ -106,5 +106,25 @@ describe('offline dictionary, words as they stand in the text', () => {
     expect(await lookUpOffline('he', 'הספרים')).toContain('book')
     expect(await lookUpOffline('he', 'מתלבשים')).toContain('to dress')
     expect(await lookUpOffline('he', 'זזזזז')).toBeNull()
+  })
+})
+
+describe('offline dictionary, one meaning reached two ways', () => {
+  afterEach(async () => {
+    vi.unstubAllGlobals()
+    await removePack('he')
+  })
+
+  it('shows a meaning once even when the word and the spelling it points to both hold it', async () => {
+    const air = { p: 'שם עצם', g: ['תערובת גזים'], h: 'אֲוִיר' }
+    const file = [{ v: PACK_VERSION, lang: 'he', shards: 1, words: 2, built: 'x' }, { e: { אויר: [air], אוויר: [air] }, f: { אויר: 'אוויר' } }]
+      .map((l) => JSON.stringify(l) + '\n')
+      .join('')
+    serve(gz(file))
+    await downloadPack('he', 0, () => {})
+    expect(await lookUpOfflineMeanings('he', 'אויר')).toHaveLength(1)
+    const viaPrefix = await lookUpOfflineMeanings('he', 'האוויר')
+    expect(viaPrefix).toHaveLength(1)
+    expect(viaPrefix![0]).toMatchObject({ headword: 'אֲוִיר', formOf: true })
   })
 })

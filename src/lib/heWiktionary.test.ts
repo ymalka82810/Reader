@@ -70,3 +70,12 @@ describe('readDumpPages', () => {
     expect(pages).toEqual([['כלב', '==כֶּלֶב==\n# <b> & "']])
   })
 })
+
+describe('parseHeWiktionaryPage full spelling', () => {
+  it('files an entry under its full spelling too, keeping the niqqud spelling as its headword', () => {
+    const lines = parseHeWiktionaryPage('==אֲוִיר==\n{{ניתוח דקדוקי\n|כתיב מלא=אוויר\n|חלק דיבר=שם עצם\n}}\n# תערובת גזים.\n')
+    expect(lines.map((l) => l.word)).toEqual(['אֲוִיר', 'אוויר'])
+    expect(lines[1]!.forms).toEqual([{ form: 'אֲוִיר', tags: ['canonical'] }])
+    expect(lines[1]!.senses).toEqual(lines[0]!.senses)
+  })
+})

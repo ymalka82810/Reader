@@ -556,7 +556,7 @@ export const en: Record<keyof typeof he, Message> = {
   'dict.pickMeaning': 'This word has several meanings. Pick the one you mean:',
   'dict.offlineSource': 'Offline dictionary · from Wiktionary (CC BY-SA)',
   'prefs.offlineDict': 'Offline dictionary',
-  'prefs.offlineDictNote': 'A dictionary kept on your device that works without a network, for each language you download. Definitions are from Wiktionary: for Hebrew, French, German, Spanish and Russian in the language itself (and in English for words missing there), for Arabic in English. It is used when the dictionary language is “Book’s language”; a word it does not have is looked up online, with your permission.',
+  'prefs.offlineDictNote': 'A dictionary kept on your device that works without a network, for each language you download. Definitions are from Wiktionary: for Hebrew, French, German, Spanish and Russian in the language itself (and in English for words missing there), for Arabic in English. A word is looked up in it first; only a word it does not have is looked up online, with your permission.',
   'prefs.offlineDictInstalled': 'On this device · {words} words · {size}',
   'prefs.offlineDictDownload': 'Download ({size})',
   'prefs.offlineDictProgress': 'Downloading… {pct}%',
