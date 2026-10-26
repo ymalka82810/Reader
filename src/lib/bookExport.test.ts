@@ -1,11 +1,15 @@
 // @vitest-environment jsdom
 import JSZip from 'jszip'
 import { describe, expect, it, vi } from 'vitest'
-import { ExportError, exportBook, exportFormats, readEpub, sectionBlocks, sourceFormat } from './bookExport'
+import { ExportError, exportBook, exportFormats, formatExtension, isOwnFormat, readEpub, sectionBlocks, sourceFormat } from './bookExport'
 import type { BookRecord } from './db'
 
 const pdf = vi.hoisted(() => ({ extractPdf: vi.fn() }))
 vi.mock('./pdfToBook', () => pdf)
+const pdfOut = vi.hoisted(() => ({ buildPdf: vi.fn(), PdfScriptError: class extends Error {} }))
+vi.mock('./pdfExport', () => pdfOut)
+const foliate = vi.hoisted(() => ({ makeBook: vi.fn() }))
+vi.mock('foliate-js/view.js', () => foliate)
 
 async function epub(): Promise<Blob> {
   const zip = new JSZip()
@@ -43,8 +47,8 @@ const rec = (over: Partial<BookRecord> = {}): BookRecord => ({
 const text = (b: Blob) => b.text()
 
 describe('exportFormats', () => {
-  it('offers an EPUB (also one converted on import) as Word, text and a web page, its own format first', () => {
-    expect(exportFormats({ kind: 'epub', fileName: 'a.epub' })).toEqual(['epub', 'docx', 'txt', 'html'])
+  it('offers an EPUB (also one converted on import) in every other format, its own first', () => {
+    expect(exportFormats({ kind: 'epub', fileName: 'a.epub' })).toEqual(['epub', 'pdf', 'docx', 'txt', 'html'])
   })
 
   it('offers a PDF kept as it is also as an EPUB', () => {
@@ -52,10 +56,17 @@ describe('exportFormats', () => {
     expect(sourceFormat({ kind: 'epub', fileName: 'a.pdf' })).toBe('pdf')
   })
 
-  it('saves audio and the formats it reads only as they are', () => {
+  it('offers a MOBI/AZW/FB2 as it is and in every format, and a comic as images only', () => {
+    for (const f of ['a.mobi', 'a.azw3', 'a.fb2', 'a.fbz', 'a.fb2.zip'])
+      expect(exportFormats({ kind: 'epub', fileName: f })).toEqual(['original', 'epub', 'pdf', 'docx', 'txt', 'html'])
+    expect(exportFormats({ kind: 'epub', fileName: 'a.cbz' })).toEqual(['original', 'epub', 'pdf', 'html'])
+    expect(formatExtension({ kind: 'epub', fileName: 'a.MOBI' }, 'original')).toBe('mobi')
+    expect(formatExtension({ kind: 'epub', fileName: 'a.mobi' }, 'pdf')).toBe('pdf')
+  })
+
+  it('saves audio only as it is', () => {
     expect(exportFormats({ kind: 'audio', fileName: 'a.m4b' })).toEqual([])
-    expect(exportFormats({ kind: 'epub', fileName: 'a.mobi' })).toEqual([])
-    expect(exportFormats({ kind: 'epub', fileName: 'a.cbz' })).toEqual([])
+    expect(isOwnFormat({ kind: 'audio', fileName: 'a.m4b' }, 'pdf')).toBe(true)
   })
 })
 
@@ -124,6 +135,41 @@ describe('exportBook', () => {
       const xml = new DOMParser().parseFromString(await zip.file(part)!.async('string'), 'application/xml')
       expect(xml.getElementsByTagName('parsererror')).toHaveLength(0)
     }
+  })
+
+  it('writes an EPUB of a MOBI, its images and cover inside, its headings as the table of contents', async () => {
+    const page = (html: string) => `data:text/html;charset=utf-8,${encodeURIComponent(html)}`
+    const png = 'data:image/png;base64,iVBORw0KGgo='
+    const unload = vi.fn()
+    const destroy = vi.fn()
+    foliate.makeBook.mockResolvedValueOnce({
+      sections: [
+        { load: async () => page(`<body><h1>פרק א</h1><p>שלום מ-MOBI</p><img src="${png}"/></body>`), unload },
+        { linear: 'no', load: async () => page('<body><p>לא בקריאה</p></body>') },
+        { load: async () => page('<body><h2>פרק ב</h2><p>עוד טקסט</p></body>'), unload },
+      ],
+      destroy,
+    })
+    const cover = new Blob([new Uint8Array([0xff, 0xd8])], { type: 'image/jpeg' })
+    const zip = await JSZip.loadAsync(await exportBook(rec({ fileName: 'x.mobi', cover }), 'epub'))
+    const opf = await zip.file('OEBPS/content.opf')!.async('string')
+    expect(opf).toContain('<dc:title>הספר שלי</dc:title>')
+    expect(opf).toContain('<spine page-progression-direction="rtl"><itemref idref="s0"/><itemref idref="s1"/></spine>')
+    expect(opf).toContain('properties="cover-image"')
+    expect(await zip.file('OEBPS/s0.xhtml')!.async('string')).toMatch(/<h1>פרק א<\/h1>\n<p>שלום מ-MOBI<\/p>\n<figure><img src="img\/i0\.png"/)
+    expect(zip.file('OEBPS/img/i0.png')).toBeTruthy()
+    expect(await zip.file('OEBPS/nav.xhtml')!.async('string')).toContain('<a href="s1.xhtml">פרק ב</a>')
+    expect(unload).toHaveBeenCalledTimes(2)
+    expect(destroy).toHaveBeenCalled()
+  })
+
+  it('lays a book out as a PDF, and says so when its script has no font', async () => {
+    pdfOut.buildPdf.mockResolvedValueOnce(new Blob(['%PDF-']))
+    const out = await exportBook(rec({ file: await epub() }), 'pdf')
+    expect(await out.text()).toBe('%PDF-')
+    expect(pdfOut.buildPdf.mock.calls[0]![0].sections).toHaveLength(2)
+    pdfOut.buildPdf.mockRejectedValueOnce(new pdfOut.PdfScriptError())
+    await expect(exportBook(rec({ file: await epub() }), 'pdf')).rejects.toThrow('script')
   })
 
   it('converts a PDF kept as it is the way an import does, and refuses one with no text', async () => {

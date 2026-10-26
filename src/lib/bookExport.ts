@@ -1,21 +1,23 @@
-// A book from the library saved in another format than the one it is kept in: an EPUB (also one converted from a PDF,
-// a TXT or a DOCX) as Word, plain text or a web page; a PDF kept as it is also as an EPUB. Everything runs on the
-// device: the EPUB is read from its own zip, and a PDF goes through the same conversion as on import.
+// A book from the library saved in another format than the one it is kept in: any book with text as an EPUB, a PDF, a
+// Word document, plain text or a web page; a comic (CBZ) as an EPUB, a PDF or a web page. Everything runs on the
+// device: an EPUB is read from its own zip, a MOBI/AZW/FB2/CBZ through the reader's own engine (foliate-js), and a PDF
+// kept as it is goes through the same conversion as on import.
 
 import type { BookRecord } from './db'
 import { tick } from './wordCount'
 
-export type BookFormat = 'epub' | 'pdf' | 'docx' | 'txt' | 'html'
+/** 'original' is the stored file as it is, whatever its format */
+export type BookFormat = 'original' | 'epub' | 'pdf' | 'docx' | 'txt' | 'html'
 
-type Block = { t: 'h'; level: number; text: string } | { t: 'p'; text: string } | { t: 'img'; src: string; alt: string }
+export type Block = { t: 'h'; level: number; text: string } | { t: 'p'; text: string } | { t: 'img'; src: string; alt: string }
 
-/** a book's text in reading order: one list of blocks per EPUB section */
-interface BookContent {
+/** a book's text in reading order: one list of blocks per section */
+export interface BookContent {
   title: string
   author: string
   rtl: boolean
   sections: Block[][]
-  /** the images the sections point to, by their path inside the EPUB */
+  /** the images the sections point to, by the path (or URL) they are named by */
   images: Map<string, Blob>
 }
 
@@ -24,22 +26,42 @@ const extOf = (name: string) => {
   return dot > 0 ? name.slice(dot + 1).toLowerCase() : ''
 }
 
-/** what the stored file is: an EPUB, a PDF kept as it is, or something only saved as it is (MOBI, FB2, CBZ, audio) */
-export function sourceFormat(b: Pick<BookRecord, 'kind' | 'fileName'>): 'epub' | 'pdf' | 'other' {
+const READABLE = new Set(['mobi', 'azw', 'azw3', 'fb2', 'fbz', 'zip'])
+
+/** what the stored file is: an EPUB, a PDF kept as it is, a MOBI/AZW/FB2, a comic, or something only saved as it is */
+export function sourceFormat(b: Pick<BookRecord, 'kind' | 'fileName'>): 'epub' | 'pdf' | 'ebook' | 'comic' | 'other' {
   if (b.kind === 'audio') return 'other'
   const ext = extOf(b.fileName)
   if (ext === 'pdf') return 'pdf'
   if (ext === 'epub' || (!ext && b.kind === 'epub')) return 'epub'
+  if (ext === 'cbz') return 'comic'
+  if (READABLE.has(ext) || /\.fb2\.zip$/i.test(b.fileName)) return 'ebook'
   return 'other'
 }
 
-/** The formats a book can be saved in, its own one first; empty when it can only be saved as it is. */
+/** The formats a book can be saved in, the one it is kept in first; empty when it can only be saved as it is. */
 export function exportFormats(b: Pick<BookRecord, 'kind' | 'fileName'>): BookFormat[] {
-  const src = sourceFormat(b)
-  if (src === 'epub') return ['epub', 'docx', 'txt', 'html']
-  if (src === 'pdf') return ['pdf', 'epub', 'docx', 'txt', 'html']
-  return []
+  switch (sourceFormat(b)) {
+    case 'epub':
+      return ['epub', 'pdf', 'docx', 'txt', 'html']
+    case 'pdf':
+      return ['pdf', 'epub', 'docx', 'txt', 'html']
+    case 'ebook':
+      return ['original', 'epub', 'pdf', 'docx', 'txt', 'html']
+    case 'comic':
+      return ['original', 'epub', 'pdf', 'html']
+    default:
+      return []
+  }
 }
+
+/** whether `format` is the book's own file, saved as it is */
+export const isOwnFormat = (b: Pick<BookRecord, 'kind' | 'fileName'>, format: BookFormat | undefined) =>
+  !format || format === 'original' || format === sourceFormat(b) || !exportFormats(b).includes(format)
+
+/** the extension the book is saved with in `format` */
+export const formatExtension = (b: Pick<BookRecord, 'kind' | 'fileName'>, format: BookFormat) =>
+  format === 'original' ? extOf(b.fileName) : format
 
 export class ExportError extends Error {}
 
@@ -49,6 +71,14 @@ const attr = (tag: string, name: string) => new RegExp(String.raw`\s${name}\s*=\
 
 /** `rel` (a link inside the file at `from`) as a path from the zip's root */
 function resolvePath(from: string, rel: string): string {
+  if (/^(blob|data|https?):/i.test(rel)) return rel
+  if (/^(blob|data|https?):/i.test(from)) {
+    try {
+      return new URL(rel, from).href
+    } catch {
+      return rel // a blob or data URL has no folder to be relative to
+    }
+  }
   const parts = from.split('/').slice(0, -1)
   for (const seg of decodeURIComponent(rel.split('#')[0]!.split('?')[0]!).split('/')) {
     if (seg === '..') parts.pop()
@@ -89,7 +119,7 @@ export function sectionBlocks(html: string, path: string): Block[] {
       if (SKIP.has(tag)) continue
       if (tag === 'img' || tag === 'image') {
         const src = el.getAttribute('src') ?? el.getAttribute('href') ?? el.getAttribute('xlink:href') ?? el.getAttributeNS('http://www.w3.org/1999/xlink', 'href')
-        if (!src || /^(data|https?):/i.test(src)) continue
+        if (!src || /^https?:/i.test(src)) continue
         flush()
         out.push({ t: 'img', src: resolvePath(path, src), alt: el.getAttribute('alt') ?? '' })
         continue
@@ -159,6 +189,44 @@ export async function readEpub(file: Blob, signal?: AbortSignal): Promise<Omit<B
     }
     const kept = blocks.filter((b) => b.t !== 'img' || images.has(b.src))
     if (kept.length) sections.push(kept)
+  }
+  if (!sections.length) throw new ExportError('empty')
+  return { rtl: isRtlText(sample), sections, images }
+}
+
+/** A MOBI/AZW, FB2 or comic, read through foliate-js: each section as the reader itself loads it (its images then have
+ *  blob URLs of their own), as plain blocks. */
+export async function readOther(file: Blob, signal?: AbortSignal): Promise<Omit<BookContent, 'title' | 'author'>> {
+  const { makeBook } = await import('foliate-js/view.js')
+  const book = await makeBook(file)
+  const sections: Block[][] = []
+  const images = new Map<string, Blob>()
+  let sample = ''
+  try {
+    for (const [i, sec] of (book.sections ?? []).entries()) {
+      if (i % 10 === 9) await tick()
+      signal?.throwIfAborted()
+      if (sec.linear === 'no' || !sec.load) continue
+      try {
+        const url = await sec.load()
+        if (!url) continue
+        const blocks = sectionBlocks(await (await fetch(url)).text(), url)
+        for (const b of blocks) {
+          if (b.t !== 'img') {
+            if (sample.length < 20000) sample += b.text
+          } else if (!images.has(b.src)) {
+            const img = await fetch(b.src).then((r) => (r.ok ? r.blob() : undefined), () => undefined)
+            if (img) images.set(b.src, img)
+          }
+        }
+        const kept = blocks.filter((b) => b.t !== 'img' || images.has(b.src))
+        if (kept.length) sections.push(kept)
+      } finally {
+        sec.unload?.()
+      }
+    }
+  } finally {
+    book.destroy?.()
   }
   if (!sections.length) throw new ExportError('empty')
   return { rtl: isRtlText(sample), sections, images }
@@ -307,6 +375,71 @@ ${body.join('\n')}
   return zip.generateAsync({ type: 'blob', compression: 'DEFLATE', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
 }
 
+const NS = (host: string, path: string) => ['http:', '', host, path].join('/')
+
+/** an EPUB 3 of the book: a section per file, its headings as the table of contents, its images and its cover inside */
+async function buildEpubOut(c: BookContent, cover?: Blob, signal?: AbortSignal): Promise<Blob> {
+  const lang = c.rtl ? 'he' : 'en'
+  const dir = c.rtl ? 'rtl' : 'ltr'
+  const { default: JSZip } = await import('jszip')
+  const zip = new JSZip()
+  zip.file('mimetype', 'application/epub+zip', { compression: 'STORE' })
+  zip.file(
+    'META-INF/container.xml',
+    '<?xml version="1.0" encoding="utf-8"?>\n<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>',
+  )
+  zip.file('OEBPS/style.css', 'p { margin: 0 0 .8em; }\nfigure { margin: 1em 0; text-align: center; }\nfigure img { max-width: 100%; max-height: 95vh; }\n')
+  const manifest: string[] = []
+  const names = new Map<string, string>()
+  for (const [i, [path, blob]] of [...c.images].entries()) {
+    const ext = IMAGE_TYPES[extOf(path)] ? extOf(path) : blob.type.split('/')[1]?.replace('jpeg', 'jpg').replace('svg+xml', 'svg') || 'jpg'
+    const name = `img/i${i}.${ext}`
+    names.set(path, name)
+    zip.file(`OEBPS/${name}`, blob)
+    manifest.push(`<item id="i${i}" href="${name}" media-type="${IMAGE_TYPES[ext] ?? 'image/jpeg'}"/>`)
+  }
+  if (cover) {
+    zip.file('OEBPS/cover.jpg', cover)
+    manifest.push('<item id="cover-image" href="cover.jpg" media-type="' + (cover.type || 'image/jpeg') + '" properties="cover-image"/>')
+  }
+  const toc: { file: string; label: string }[] = []
+  for (const [i, sec] of c.sections.entries()) {
+    if (i % 25 === 24) {
+      await tick()
+      signal?.throwIfAborted()
+    }
+    const file = `s${i}.xhtml`
+    const body = sec
+      .map((b) => {
+        if (b.t === 'h') return `<h${b.level}>${esc(b.text)}</h${b.level}>`
+        if (b.t === 'p') return `<p>${esc(b.text)}</p>`
+        const name = names.get(b.src)
+        return name ? `<figure><img src="${name}" alt="${esc(b.alt)}"/></figure>` : ''
+      })
+      .filter(Boolean)
+      .join('\n')
+    const head = sec.find((b) => b.t === 'h')
+    const label = head && head.t === 'h' ? head.text : `${i + 1}`
+    toc.push({ file, label })
+    zip.file(
+      `OEBPS/${file}`,
+      `<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE html>\n<html xmlns="${NS('www.w3.org', '1999/xhtml')}" xml:lang="${lang}" lang="${lang}" dir="${dir}"><head><meta charset="utf-8"/><title>${esc(label)}</title><link rel="stylesheet" type="text/css" href="style.css"/></head><body>\n${body}\n</body></html>`,
+    )
+    manifest.push(`<item id="s${i}" href="${file}" media-type="application/xhtml+xml"/>`)
+  }
+  zip.file(
+    'OEBPS/nav.xhtml',
+    `<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE html>\n<html xmlns="${NS('www.w3.org', '1999/xhtml')}" xmlns:epub="${NS('www.idpf.org', '2007/ops')}" xml:lang="${lang}" lang="${lang}" dir="${dir}"><head><meta charset="utf-8"/><title>${esc(c.title)}</title></head><body><nav epub:type="toc" id="toc"><ol>\n${toc.map((t) => `<li><a href="${t.file}">${esc(t.label)}</a></li>`).join('\n')}\n</ol></nav></body></html>`,
+  )
+  const id = `urn:uuid:${crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(16)}`
+  const modified = new Date().toISOString().replace(/\.\d+Z$/, 'Z')
+  zip.file(
+    'OEBPS/content.opf',
+    `<?xml version="1.0" encoding="utf-8"?>\n<package xmlns="${NS('www.idpf.org', '2007/opf')}" version="3.0" unique-identifier="bookid" xml:lang="${lang}">\n<metadata xmlns:dc="${NS('purl.org', 'dc/elements/1.1/')}"><dc:identifier id="bookid">${id}</dc:identifier><dc:title>${esc(c.title)}</dc:title><dc:language>${lang}</dc:language>${c.author ? `<dc:creator>${esc(c.author)}</dc:creator>` : ''}<meta property="dcterms:modified">${modified}</meta>${cover ? '<meta name="cover" content="cover-image"/>' : ''}</metadata>\n<manifest><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>${manifest.join('')}</manifest>\n<spine page-progression-direction="${dir}">${c.sections.map((_, i) => `<itemref idref="s${i}"/>`).join('')}</spine>\n</package>`,
+  )
+  return zip.generateAsync({ type: 'blob', mimeType: 'application/epub+zip', compression: 'DEFLATE' })
+}
+
 // ---------- a book in another format ----------
 
 /** a PDF kept as it is, converted to an EPUB the way an import converts one; a scan or a PDF of tables has no text to give */
@@ -317,22 +450,37 @@ async function pdfAsEpub(rec: BookRecord, onProgress?: (done: number, total: num
   return buildEpub({ ...x, title: rec.title || x.title, author: rec.author || x.author, cover: rec.cover ?? x.cover }, signal)
 }
 
-/** The book's file in `format`: its own file when that is the format it is kept in. `onProgress` tells the pages of a
- *  PDF being read. Throws an ExportError ('noText', 'empty', 'epub') when the book cannot be converted. */
+/** what a long conversion is busy with: the pages of a PDF being read, or the sections of a PDF being laid out */
+export type ExportStage = 'pages' | 'sections'
+
+/** The book's file in `format`: its own file when that is the format it is kept in. `onProgress` tells how far a long
+ *  step is. Throws an ExportError ('noText', 'empty', 'epub', 'script') when the book cannot be converted. */
 export async function exportBook(
   rec: BookRecord,
   format: BookFormat,
-  onProgress?: (done: number, total: number) => void,
+  onProgress?: (stage: ExportStage, done: number, total: number) => void,
   signal?: AbortSignal,
 ): Promise<Blob> {
+  if (isOwnFormat(rec, format)) return rec.file
   const src = sourceFormat(rec)
-  if (format === src || !exportFormats(rec).includes(format)) return rec.file
-  const epub = src === 'pdf' ? await pdfAsEpub(rec, onProgress, signal) : rec.file
-  if (format === 'epub') return epub
+  // a PDF kept as it is goes through an EPUB, like on import; an EPUB is read as it is
+  const epub = src === 'pdf' ? await pdfAsEpub(rec, (d, t) => onProgress?.('pages', d, t), signal) : src === 'epub' ? rec.file : undefined
+  if (format === 'epub' && epub) return epub
   signal?.throwIfAborted()
-  const content: BookContent = { title: rec.title, author: rec.author, ...(await readEpub(epub, signal)) }
+  const read = epub ? await readEpub(epub, signal) : await readOther(rec.file, signal)
+  const content: BookContent = { title: rec.title, author: rec.author, ...read }
   signal?.throwIfAborted()
+  if (format === 'epub') return buildEpubOut(content, rec.cover, signal)
   if (format === 'txt') return buildTxt(content)
   if (format === 'html') return buildHtml(content)
+  if (format === 'pdf') {
+    const { buildPdf, PdfScriptError } = await import('./pdfExport')
+    try {
+      return await buildPdf(content, rec.cover, (d, t) => onProgress?.('sections', d, t), signal)
+    } catch (e) {
+      if (e instanceof PdfScriptError) throw new ExportError('script')
+      throw e
+    }
+  }
   return buildDocx(content, signal)
 }

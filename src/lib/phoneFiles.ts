@@ -5,7 +5,7 @@ import { createStore, del, get, keys, set, values } from 'idb-keyval'
 import { getBook, getBookMeta, getFile, listBooks, type BookMeta } from './db'
 import { deviceBooksSupported, hasDeviceAccess, markSeen, requestDeviceAccess, type DeviceFile } from './deviceBooks'
 import { download } from './download'
-import { exportBook, sourceFormat, type BookFormat } from './bookExport'
+import { exportBook, formatExtension, isOwnFormat, type BookFormat, type ExportStage } from './bookExport'
 import { loadSettings } from './settings'
 import { safeFileName } from './notesExport'
 import { folderKey, folderName, groupFolders } from './folders'
@@ -93,17 +93,17 @@ async function writeToPhone(id: string, file: Blob, name: string, dir?: string, 
 export async function saveBookToPhone(
   id: string,
   format?: BookFormat,
-  onProgress?: (done: number, total: number) => void,
+  onProgress?: (stage: ExportStage, done: number, total: number) => void,
   signal?: AbortSignal,
 ): Promise<string | undefined> {
   const rec = await getBook(id)
   if (!rec) return undefined
-  const own = !format || format === sourceFormat(rec)
+  const own = isOwnFormat(rec, format)
   // asked first, so a refused permission does not wait for a long conversion
   if (deviceBooksSupported() && !(await hasDeviceAccess()) && !(await requestDeviceAccess().catch(() => false))) throw new Error('permission')
-  const file = own ? rec.file : await exportBook(rec, format, onProgress, signal)
+  const file = own ? rec.file : await exportBook(rec, format!, onProgress, signal)
   signal?.throwIfAborted()
-  const name = own ? bookFileName(rec) : bookFileName(rec, format)
+  const name = own ? bookFileName(rec) : bookFileName(rec, formatExtension(rec, format!))
   if (!deviceBooksSupported()) {
     download(file, name)
     return name
