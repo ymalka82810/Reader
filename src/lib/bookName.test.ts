@@ -108,6 +108,14 @@ describe('tidyBookName', () => {
   })
 })
 
+describe('part and chapter words', () => {
+  it('reads part and פרק as the number in a series', () => {
+    expect(seriesOf('the marauders story- part 6')).toEqual({ series: 'the marauders story', number: '6' })
+    expect(seriesOf('סיפור המרוטרים פרק 5')).toEqual({ series: 'סיפור המרוטרים', number: '5' })
+    expect(seriesOf('הלביאה הלוחמת חלק ב')).toBeUndefined()
+  })
+})
+
 describe('isJunkTitle', () => {
   it.each([
     ['1~2402 1', true],
@@ -116,6 +124,11 @@ describe('isJunkTitle', () => {
     ['גורלו של אפולו', false],
     ['1984', true],
     ['Dune', false],
+    ['פרק', true],
+    ['חלק ב', true],
+    ['Part 6', true],
+    ['פרק ראשון', true],
+    ['פרקים של חיים', false],
   ])('%s -> %s', (title, junk) => {
     expect(isJunkTitle(title)).toBe(junk)
   })
