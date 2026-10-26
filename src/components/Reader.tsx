@@ -57,6 +57,8 @@ export default function Reader({ id, startCfi, onClose, onSettings }: { id: stri
     return isNativeApp ? { ...m, focus: false } : m // the app is already full screen: no distraction-free mode there
   })
   const [uiVisible, setUiVisible] = useState(true)
+  /** the cover shown over a book that opens without it was dismissed */
+  const [coverGone, setCoverGone] = useState(false)
   const { panel, panelRef, setPanel, closePanel, togglePanel, editingId, editNote, dict, openDict, translation, openTranslate, quote, openQuote } = useReaderPanels()
   const [fraction, setFraction] = useState(0)
   const fractionRef = useLatest(fraction)
@@ -138,7 +140,7 @@ export default function Reader({ id, startCfi, onClose, onSettings }: { id: stri
     }
   }, [])
 
-  const { status, error, title, dir, toc, bookLang, lang: language } = useFoliateView(id, host, viewRef, settings, fontUrl ? customFontFace(fontUrl) : '', startCfi, {
+  const { status, error, title, dir, toc, bookLang, lang: language, coverUrl } = useFoliateView(id, host, viewRef, settings, fontUrl ? customFontFace(fontUrl) : '', startCfi, {
     prepare: async () => {
       const [, s] = await Promise.all([notes.load(), loadStats(id)])
       stats.current = s
@@ -412,6 +414,11 @@ export default function Reader({ id, startCfi, onClose, onSettings }: { id: stri
       <div className="sr-only" role="status" aria-live="polite">
         {status === 'ready' ? [chapter, positionText(fraction)].filter(Boolean).join(', ') : ''}
       </div>
+      {status === 'ready' && coverUrl && !coverGone && (
+        <button className="cover-splash" onClick={() => setCoverGone(true)} aria-label={t('a11y.book', { title })}>
+          <img src={coverUrl} alt="" />
+        </button>
+      )}
       {status === 'loading' && <div className="overlay-msg" role="status"><BookLoader label={t('common.loading')} /></div>}
       {status === 'error' && (
         <div className="overlay-msg error" role="alert">

@@ -39,6 +39,32 @@ export function alignDocDir(view: FoliateView, doc: Document) {
   else if (view.book.dir === 'rtl') root.dir = 'rtl'
 }
 
+/** index of the first section the reader turns pages through (the cover page of most books) */
+const firstLinear = (view: FoliateView) => Math.max(0, view.book.sections.findIndex((s) => s.linear !== 'no'))
+
+/**
+ * A book with no saved position opens at its first page, so the cover shows. foliate's own start jumps to the
+ * book's `bodymatter` / `text` landmark when the EPUB declares one, which skips the cover (and the title page)
+ * of exactly those books. Must run before `view.init`.
+ */
+export function startAtFirstSection(view: FoliateView) {
+  view.goToTextStart = () => view.goTo(firstLinear(view))
+}
+
+/**
+ * Does the page the book opens on already show a picture (the cover as a page of the book)? A book whose cover is
+ * only in its metadata, or whose first page is plain text, does not: the reader then shows the cover on its own.
+ * True when it cannot tell (a PDF shown as it is has pages but no documents), so the cover is never added twice.
+ */
+export async function firstSectionShowsImage(view: FoliateView): Promise<boolean> {
+  try {
+    const doc = await view.book.sections[firstLinear(view)]?.createDocument?.()
+    return !doc || !!doc.querySelector('img, image, svg, object, canvas, video')
+  } catch {
+    return true
+  }
+}
+
 /** is there a linear section before (-1) / after (1) section `index` */
 function hasAdjacent(view: FoliateView, index: number, dir: 1 | -1) {
   const sections = view.book.sections

@@ -9,6 +9,8 @@ declare module 'foliate-js/view.js' {
     /** source size in bytes, used to estimate page counts */
     size?: number
     linear?: string
+    /** the section's document, as foliate parses it */
+    createDocument?(): Document | Promise<Document>
     /** the section as a blob URL the reader shows, its resources resolved to blob URLs of their own */
     load?(): Promise<string>
     unload?(): void
@@ -67,6 +69,8 @@ declare module 'foliate-js/view.js' {
     }
     open(source: Blob | File | string | object): Promise<void>
     init(opts: { lastLocation?: string; showTextStart?: boolean }): Promise<void>
+    /** where a book opens when it has no saved position (foliate: the first `bodymatter` landmark, else the first linear section) */
+    goToTextStart?(): Promise<unknown>
     close?(): void
     goTo(target: string | number): Promise<unknown>
     goToFraction(f: number): Promise<unknown>
