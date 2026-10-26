@@ -21,6 +21,12 @@ const call = <T>(method: string, options?: object) =>
 // book id -> where its file is on the phone; its own database, as the "seen" one holds a single store
 const pathStore = createStore('reader-device-paths-db', 'paths')
 
+// a converted copy saved to Download (path -> the book it came from): the next scan moves it to the author's versions folder
+const versionStore = createStore('reader-device-versions-db', 'versions')
+
+/** the sub-folder of a book's folder that holds its other formats, one folder per format */
+export const VERSIONS_DIR = 'גרסאות'
+
 export const rememberPhoneFile = (id: string, path: string) => set(id, path, pathStore)
 export const phoneFileOf = (id: string) => get<string>(id, pathStore)
 export const forgetPhoneFile = (id: string) => del(id, pathStore)
@@ -112,6 +118,8 @@ export async function saveBookToPhone(
   }
   const link = own && !libraryFolderOn() && !(await phoneFileOf(id))
   const saved = await writeToPhone(id, file, name, undefined, link)
+  // a converted copy is marked, so that the next scan files it under the author's versions folder
+  if (!own) await set(saved.path, id, versionStore).catch(() => {})
   return saved.name
 }
 
@@ -208,6 +216,45 @@ export async function placeBooksOnPhone(
   onProgress?.(ids.length, ids.length)
   await removeEmptyPhoneFolders()
   return out
+}
+
+/** where a converted copy of a book is filed: the book's folder, then the versions folder, then a folder per format */
+export const versionPhoneDir = (b: Pick<BookMeta, 'author' | 'folder'>, ext: string, names?: Map<string, string>): string =>
+  `${bookPhoneDir(b, names)}/${VERSIONS_DIR}/${ext.toUpperCase()}`
+
+/** Files the converted copies saved to Download (marked when they were saved) under their author's versions folder in the
+ *  books folder. Only with the books folder on and access given; a copy whose book is gone from the library, or whose
+ *  file was moved or deleted on the phone, is forgotten, and one that cannot be moved now stays marked for the next scan.
+ *  Resolves with how many were moved. Nothing is ever deleted. */
+export async function placeVersions(): Promise<number> {
+  if (!deviceBooksSupported() || !libraryFolderOn()) return 0
+  const paths = (await keys(versionStore)).map(String)
+  if (!paths.length || !(await hasDeviceAccess())) return 0
+  const names = await phoneDirNames()
+  let moved = 0
+  for (const path of paths) {
+    const id = await get<string>(path, versionStore)
+    const meta = id ? await getBookMeta(id) : undefined
+    if (!id || !meta) {
+      await del(path, versionStore)
+      continue
+    }
+    const dot = path.lastIndexOf('.')
+    const ext = dot > path.lastIndexOf('/') + 1 ? path.slice(dot + 1).toLowerCase() : ''
+    if (!ext) {
+      await del(path, versionStore)
+      continue
+    }
+    try {
+      const res = await call<DeviceFile>('place', { path, name: bookFileName(meta, ext), dir: versionPhoneDir(meta, ext, names) })
+      await markSeen([res]).catch(() => {})
+      await del(path, versionStore)
+      moved++
+    } catch (e) {
+      if (e instanceof Error && e.message === 'missing') await del(path, versionStore)
+    }
+  }
+  return moved
 }
 
 const isPdfPath = (path: string) => path.toLowerCase().endsWith('.pdf')

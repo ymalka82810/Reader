@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { bookFileName, bookPhoneDir, forgetPhoneFile, placeBooksOnPhone, placeNewBook, matchPhoneFiles, phoneFileOf, refreshPhoneFiles, rememberPhoneFile, saveBookToPhone, syncPhoneNames } from './phoneFiles'
+import { bookFileName, bookPhoneDir, forgetPhoneFile, placeBooksOnPhone, placeNewBook, matchPhoneFiles, phoneFileOf, placeVersions, versionPhoneDir, refreshPhoneFiles, rememberPhoneFile, saveBookToPhone, syncPhoneNames } from './phoneFiles'
 import type { BookRecord } from './db'
 
 // the test books, served in place of IndexedDB (whose fake loses a Blob's methods under jsdom)
@@ -11,6 +11,11 @@ vi.mock('./db', async (orig) => ({
   getBook: async (id: string) => books.get(id),
   getBookMeta: async (id: string) => books.get(id),
   listBooks: async () => [...books.values()],
+}))
+// a conversion needs a real EPUB; here it just yields a file
+vi.mock('./bookExport', async (orig) => ({
+  ...(await orig<typeof import('./bookExport')>()),
+  exportBook: async () => new Blob(['converted']),
 }))
 const saveBook = (b: BookRecord) => books.set(b.id, b)
 
@@ -199,5 +204,34 @@ describe('downloading a book', () => {
     expect(save?.options.dir).toBeUndefined()
     expect(calls.some((c) => c.method === 'place' || c.method === 'rename')).toBe(false)
     expect(await phoneFileOf('d1')).toBe(inFolder)
+  })
+})
+
+describe('converted copies', () => {
+  it('are filed under the author\'s versions folder, per format, on the next scan', async () => {
+    saveBook(record({ id: 'v1' }))
+    const files = new Map<string, number>()
+    const calls = fakePhone(files)
+    expect(await saveBookToPhone('v1', 'pdf')).toBe('גנב הברק.pdf')
+    expect([...files.keys()]).toEqual(['/s/Download/גנב הברק.pdf'])
+    expect(await placeVersions()).toBe(1)
+    expect([...files.keys()]).toEqual(['/s/Documents/קורא ספרים/ריק ריירדן/גרסאות/PDF/גנב הברק.pdf'])
+    expect(calls.some((c) => c.method === 'remove')).toBe(false)
+    expect(await placeVersions()).toBe(0)
+  })
+
+  it('are forgotten when the book is gone, and never deleted', async () => {
+    saveBook(record({ id: 'v2' }))
+    const files = new Map<string, number>()
+    const calls = fakePhone(files)
+    await saveBookToPhone('v2', 'pdf')
+    books.delete('v2')
+    expect(await placeVersions()).toBe(0)
+    expect(calls.some((c) => c.method === 'place' || c.method === 'remove')).toBe(false)
+    expect(files.size).toBe(1)
+  })
+
+  it('have a versions folder path of their own', () => {
+    expect(versionPhoneDir({ author: 'ריק ריירדן' }, 'pdf')).toBe('ריק ריירדן/גרסאות/PDF')
   })
 })
