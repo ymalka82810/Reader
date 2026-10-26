@@ -586,8 +586,16 @@ public class DeviceBooksPlugin extends Plugin {
         }
     }
 
-    /** Deletes a book's file in the books folder (the PDF that a book's converted EPUB replaced there). Nothing outside the
-     *  books folder can be deleted; folders left empty go too. */
+    /** the formats the app reads as books: the only files the app may delete (a surplus copy the user approved, or the PDF a
+     *  converted EPUB replaced) */
+    static boolean isBookFile(File f) {
+        String n = f.getName().toLowerCase(java.util.Locale.ROOT);
+        for (String ext : new String[] { ".epub", ".pdf", ".mobi", ".azw", ".azw3", ".fb2", ".cbz" }) if (n.endsWith(ext)) return true;
+        return false;
+    }
+
+    /** Deletes a book file on the phone: only a book format (EPUB, PDF, MOBI…) inside the phone's own storage, never another
+     *  app's folder; folders left empty in the books folder go too. */
     @PluginMethod
     public void remove(PluginCall call) {
         if (!hasAccess()) {
@@ -596,7 +604,7 @@ public class DeviceBooksPlugin extends Plugin {
         }
         try {
             File f = new File(call.getString("path", ""));
-            if (!inside(f, libraryRoot()) || !f.isFile() || !f.delete()) {
+            if (!insideStorage(f) || !isBookFile(f) || !f.isFile() || !f.delete()) {
                 call.reject("remove");
                 return;
             }

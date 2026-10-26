@@ -1,7 +1,7 @@
 // A book's own file on the phone (Android app only): its name follows the book's title, and a single
 // book can be saved there from the library. Talks to the native DeviceBooks plugin like lib/deviceBooks.ts does.
 
-import { createStore, del, get, keys, set, values } from 'idb-keyval'
+import { createStore, del, entries, get, keys, set, values } from 'idb-keyval'
 import type { PdfOptions } from './pdfOptions'
 import { getBook, getBookMeta, getFile, listBooks, type BookMeta } from './db'
 import { deviceBooksSupported, hasDeviceAccess, markSeen, requestDeviceAccess, type DeviceFile } from './deviceBooks'
@@ -10,6 +10,8 @@ import { exportBook, formatExtension, isOwnFormat, type BookFormat, type ExportS
 import { loadSettings } from './settings'
 import { safeFileName } from './notesExport'
 import { folderKey, folderName, groupFolders } from './folders'
+import { VERSIONS_DIR_NAME, authorDirOf, type DuplicateGroup } from './phoneDuplicates'
+import { sameBook } from './sameBook'
 import { t } from '../i18n'
 
 interface CapacitorBridge {
@@ -25,7 +27,7 @@ const pathStore = createStore('reader-device-paths-db', 'paths')
 const versionStore = createStore('reader-device-versions-db', 'versions')
 
 /** the sub-folder of a book's folder that holds its other formats, one folder per format */
-const VERSIONS_DIR = 'גרסאות'
+const VERSIONS_DIR = VERSIONS_DIR_NAME
 
 export const rememberPhoneFile = (id: string, path: string) => set(id, path, pathStore)
 export const phoneFileOf = (id: string) => get<string>(id, pathStore)
@@ -255,6 +257,54 @@ export async function placeVersions(): Promise<number> {
     }
   }
   return moved
+}
+
+/** the library's books that follow a file at `from` now follow the one at `to`, or none when it is gone (`to` undefined) */
+async function repointPhoneFile(from: string, to?: string): Promise<void> {
+  for (const [id, path] of await entries<string, string>(pathStore)) {
+    if (path !== from) continue
+    if (to) await rememberPhoneFile(id, to)
+    else await forgetPhoneFile(id)
+  }
+}
+
+/** Tidies the books found on the phone more than once (lib/phoneDuplicates): each book's other formats are filed under the
+ *  author's versions folder, and the surplus copies the user approved (`approved`, by path) are deleted. A book whose author
+ *  folder is not known (its main file is outside the books folder and the library does not have it) keeps its versions
+ *  where they are. Resolves with what was done; a file that cannot be moved or deleted is counted as failed and stays. */
+export async function tidyPhoneDuplicates(groups: DuplicateGroup[], approved: Set<string>): Promise<{ deleted: number; moved: number; failed: number }> {
+  const out = { deleted: 0, moved: 0, failed: 0 }
+  if (!deviceBooksSupported() || !groups.length) return out
+  if (!(await hasDeviceAccess()) && !(await requestDeviceAccess().catch(() => false))) return { ...out, failed: groups.length }
+  const names = await phoneDirNames()
+  const library = await listBooks()
+  for (const g of groups) {
+    for (const f of g.surplus.filter((x) => approved.has(x.path))) {
+      try {
+        await call('remove', { path: f.path })
+        await repointPhoneFile(f.path)
+        out.deleted++
+      } catch {
+        out.failed++
+      }
+    }
+    const known = library.find((b) => sameBook({ title: g.title, author: '' }, b))
+    const author = authorDirOf(g.keep.path) ?? (known ? bookPhoneDir(known, names) : undefined)
+    if (!author) continue
+    for (const v of g.versions) {
+      const ext = v.name.slice(v.name.lastIndexOf('.') + 1).toLowerCase()
+      try {
+        const res = await call<DeviceFile>('place', { path: v.path, name: `${safeFileName(g.title, 'book')}.${ext}`, dir: `${author}/${VERSIONS_DIR}/${ext.toUpperCase()}` })
+        await markSeen([res]).catch(() => {})
+        await repointPhoneFile(v.path, res.path)
+        out.moved++
+      } catch {
+        out.failed++
+      }
+    }
+  }
+  await removeEmptyPhoneFolders()
+  return out
 }
 
 const isPdfPath = (path: string) => path.toLowerCase().endsWith('.pdf')

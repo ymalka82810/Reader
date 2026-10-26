@@ -7,11 +7,14 @@ import {
   pickDeviceFolder,
   requestDeviceAccess,
   requestNotificationAccess,
+  scanDevice,
   syncBackgroundScan,
 } from '../../lib/deviceBooks'
 import { t } from '../../i18n'
 import { listBooks } from '../../lib/db'
-import { placeBooksOnPhone } from '../../lib/phoneFiles'
+import { phoneFilePaths, placeBooksOnPhone } from '../../lib/phoneFiles'
+import { findDuplicateGroups, type DuplicateGroup } from '../../lib/phoneDuplicates'
+import { PhoneDuplicatesDialog } from './PhoneDuplicatesDialog'
 import { mergeAllAuthorSpellings } from '../../lib/authorMerge'
 import { useConfirm } from '../../hooks/useConfirm'
 import { ConfirmDialog } from '../library/Dialogs'
@@ -24,6 +27,8 @@ export function DevicePage({ settings, set, busy, onScan }: { settings: Settings
   const [bgNote, setBgNote] = useState('')
   const [placing, setPlacing] = useState<string>()
   const [placingBusy, setPlacingBusy] = useState(false)
+  const [dupes, setDupes] = useState<DuplicateGroup[]>()
+  const [dupesBusy, setDupesBusy] = useState(false)
   const { pending: confirmAsk, confirm } = useConfirm()
   useEffect(() => {
     // re-checked on return, since access is given (or taken away) in Android's own settings
@@ -65,6 +70,21 @@ export function DevicePage({ settings, set, busy, onScan }: { settings: Settings
   }
 
   const folders = settings.deviceFolders
+  /** the books that are in the scanned folders more than once: shown to the user, who approves what is deleted */
+  const checkDuplicates = async () => {
+    setError('')
+    setPlacing(undefined)
+    setDupesBusy(true)
+    try {
+      const found = findDuplicateGroups(await scanDevice(folders), await phoneFilePaths())
+      if (found.length) setDupes(found)
+      else setPlacing(t('device.dupesNone'))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setDupesBusy(false)
+    }
+  }
   const addFolder = async () => {
     setError('')
     try {
@@ -123,6 +143,11 @@ export function DevicePage({ settings, set, busy, onScan }: { settings: Settings
         <Row label={t('device.retry')} hint={t('device.retryHint')}>
           <button disabled={busy || !folders.length} onClick={() => onScan(true)}>{t('device.retryButton')}</button>
         </Row>
+        <Row label={t('device.dupes')} hint={t('device.dupesHint')}>
+          <button disabled={busy || dupesBusy || access === false || !folders.length} onClick={() => void checkDuplicates()}>
+            {t('device.dupesButton')}
+          </button>
+        </Row>
         {bgNote && <div role="alert" className="muted">{bgNote}</div>}
       </Section>
       <Section title={t('device.folders')}>
@@ -142,6 +167,16 @@ export function DevicePage({ settings, set, busy, onScan }: { settings: Settings
         </Row>
         {error && <div role="alert" className="muted">{error}</div>}
       </Section>
+      {dupes && (
+        <PhoneDuplicatesDialog
+          groups={dupes}
+          onDone={(msg) => {
+            setDupes(undefined)
+            setPlacing(msg)
+          }}
+          onClose={() => setDupes(undefined)}
+        />
+      )}
       {confirmAsk && <ConfirmDialog ask={confirmAsk} />}
     </>
   )
