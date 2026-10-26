@@ -432,23 +432,36 @@ export async function buildPdf(
   }
   w.newPage()
   const images = new Map<string, PDFImage | undefined>()
-  for (const [i, s] of c.sections.entries()) {
+  const embedded = async (src: string) => {
+    if (!images.has(src)) {
+      const blob = c.images.get(src)
+      images.set(src, blob && (await embedImage(doc, blob)))
+    }
+    return images.get(src)
+  }
+  // a book that carries its own cover page would show the cover twice, the library's copy of it being the page above
+  let sections = c.sections
+  const lead = sections[0]?.[0]
+  if (coverImg && lead?.t === 'img') {
+    const img = await embedded(lead.src)
+    const ratio = coverImg.width / coverImg.height
+    const same = img && Math.abs(img.width / img.height - ratio) < ratio * 0.05
+    const alone = sections[0]!.every((b) => b.t === 'img') && sections[0]!.length === 1
+    if (same || alone) sections = [sections[0]!.slice(1), ...sections.slice(1)].filter((s) => s.length)
+  }
+  for (const [i, s] of sections.entries()) {
     signal?.throwIfAborted()
     if (w.used) w.newPage()
     for (const b of s) {
       if (b.t === 'h') w.text(b.text, { size: ((HEADING_SIZE[b.level] ?? BASE_BODY) * opts.size) / BASE_BODY, bold: true, center: true, before: opts.size * 1.4, after: opts.size * 0.7 })
       else if (b.t === 'p') w.text(b.text, { size: opts.size, after: opts.size * 0.45, indent: opts.indent })
       else {
-        if (!images.has(b.src)) {
-          const blob = c.images.get(b.src)
-          images.set(b.src, blob && (await embedImage(doc, blob)))
-        }
-        const img = images.get(b.src)
+        const img = await embedded(b.src)
         if (img) w.image(img)
       }
     }
     if (fonts.letters > 400 && fonts.missing / fonts.letters > MAX_MISSING) throw new PdfScriptError()
-    onProgress?.(i + 1, c.sections.length)
+    onProgress?.(i + 1, sections.length)
     if (i % 5 === 4) await tick()
   }
   if (fonts.letters && fonts.missing / fonts.letters > MAX_MISSING) throw new PdfScriptError()

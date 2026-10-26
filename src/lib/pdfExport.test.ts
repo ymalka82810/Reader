@@ -95,3 +95,19 @@ describe('buildPdf options', () => {
     expect(loose).toBeGreaterThan(dense)
   })
 })
+
+describe('buildPdf cover', () => {
+  const png = () => new Blob([Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC'), (ch) => ch.charCodeAt(0))], { type: 'image/png' })
+  const pages = async (c: BookContent, cover?: Blob) => {
+    const { PDFDocument } = await import('pdf-lib')
+    return (await PDFDocument.load(new Uint8Array(await (await buildPdf(c, cover)).arrayBuffer()))).getPageCount()
+  }
+  it('does not repeat the cover when the book has its own cover page', async () => {
+    const own: BookContent = { ...book(['טקסט.']), images: new Map([['cover.png', png()]]) }
+    own.sections = [[{ t: 'img', src: 'cover.png', alt: '' }], ...own.sections]
+    const plain = await pages(book(['טקסט.']), png())
+    expect(await pages(own, png())).toBe(plain)
+    // with no library cover the book's own cover page stays
+    expect(await pages(own)).toBe(plain)
+  })
+})
