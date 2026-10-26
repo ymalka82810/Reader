@@ -39,6 +39,15 @@
                 <data android:pathPattern=".*\\.azw3?" />
                 <data android:pathPattern=".*\\.fb2" />
                 <data android:pathPattern=".*\\.cbz" />
+                <data android:pathPattern=".*\\..*\\.cbz" />
+                <data android:pathPattern=".*\\..*\\..*\\.cbz" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\.cbz" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\.cbz" />
+                <data android:pathPattern=".*\\.CBZ" />
+                <data android:pathPattern=".*\\..*\\.CBZ" />
+                <data android:pathPattern=".*\\..*\\..*\\.CBZ" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\.CBZ" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\.CBZ" />
                 <data android:pathPattern=".*\\.fbz" />
                 <data android:pathPattern=".*\\.docx" />
                 <data android:pathPattern=".*\\..*\\.docx" />
