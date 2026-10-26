@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { bookFileName, bookPhoneDir, forgetPhoneFile, placeBooksOnPhone, placeNewBook, matchPhoneFiles, phoneFileOf, placeVersions, versionPhoneDir, refreshPhoneFiles, rememberPhoneFile, saveBookToPhone, syncPhoneNames } from './phoneFiles'
+import { bookFileName, bookPhoneDir, forgetPhoneFile, placeBooksOnPhone, placeNewBook, matchPhoneFiles, phoneFileOf, placeVersions, refreshPhoneFiles, rememberPhoneFile, saveBookToPhone, syncPhoneNames } from './phoneFiles'
 import type { BookRecord } from './db'
 
 // the test books, served in place of IndexedDB (whose fake loses a Blob's methods under jsdom)
@@ -229,9 +229,5 @@ describe('converted copies', () => {
     expect(await placeVersions()).toBe(0)
     expect(calls.some((c) => c.method === 'place' || c.method === 'remove')).toBe(false)
     expect(files.size).toBe(1)
-  })
-
-  it('have a versions folder path of their own', () => {
-    expect(versionPhoneDir({ author: 'ריק ריירדן' }, 'pdf')).toBe('ריק ריירדן/גרסאות/PDF')
   })
 })

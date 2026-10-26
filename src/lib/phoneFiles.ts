@@ -25,7 +25,7 @@ const pathStore = createStore('reader-device-paths-db', 'paths')
 const versionStore = createStore('reader-device-versions-db', 'versions')
 
 /** the sub-folder of a book's folder that holds its other formats, one folder per format */
-export const VERSIONS_DIR = 'גרסאות'
+const VERSIONS_DIR = 'גרסאות'
 
 export const rememberPhoneFile = (id: string, path: string) => set(id, path, pathStore)
 export const phoneFileOf = (id: string) => get<string>(id, pathStore)
@@ -219,7 +219,7 @@ export async function placeBooksOnPhone(
 }
 
 /** where a converted copy of a book is filed: the book's folder, then the versions folder, then a folder per format */
-export const versionPhoneDir = (b: Pick<BookMeta, 'author' | 'folder'>, ext: string, names?: Map<string, string>): string =>
+const versionPhoneDir = (b: Pick<BookMeta, 'author' | 'folder'>, ext: string, names?: Map<string, string>): string =>
   `${bookPhoneDir(b, names)}/${VERSIONS_DIR}/${ext.toUpperCase()}`
 
 /** Files the converted copies saved to Download (marked when they were saved) under their author's versions folder in the
