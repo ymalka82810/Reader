@@ -261,3 +261,31 @@ describe('tidyPhoneDuplicates', () => {
     expect(files.size).toBe(3)
   })
 })
+
+describe('a book\'s versions follow it to another author\'s folder', () => {
+  it('moves the filed PDF with the book, and leaves other books\' versions alone', async () => {
+    saveBook(record({ id: 'w1', author: 'א' }))
+    saveBook(record({ id: 'w2', author: 'ג', title: 'ספר אחר', fileName: 'ספר אחר.epub' }))
+    const main = '/s/Documents/קורא ספרים/א/גנב הברק.epub'
+    const other = '/s/Documents/קורא ספרים/ג/גרסאות/PDF/ספר אחר.pdf'
+    const files = new Map<string, number>([[main, 1], [other, 1]])
+    fakePhone(files)
+    await rememberPhoneFile('w1', main)
+    await saveBookToPhone('w1', 'pdf')
+    expect(await placeVersions()).toBe(1)
+    expect(files.has('/s/Documents/קורא ספרים/א/גרסאות/PDF/גנב הברק.pdf')).toBe(true)
+
+    saveBook(record({ id: 'w1', author: 'ב' }))
+    const r = await syncPhoneNames(['w1'])
+    expect(r.failed).toBe(0)
+    expect([...files.keys()].sort()).toEqual(
+      [
+        '/s/Documents/קורא ספרים/ב/גנב הברק.epub',
+        '/s/Documents/קורא ספרים/ב/גרסאות/PDF/גנב הברק.pdf',
+        other,
+      ].sort(),
+    )
+    // the next sync has nothing left to move
+    expect((await syncPhoneNames(['w1'])).failed).toBe(0)
+  })
+})
