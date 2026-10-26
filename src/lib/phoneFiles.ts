@@ -406,7 +406,7 @@ export async function refreshPhoneFiles(): Promise<number> {
 }
 
 /** the same, once after the update that fixed the index, then on demand */
-const REFRESHED_KEY = 'reader:phoneIndexRefreshed'
+const REFRESHED_KEY = 'reader:phoneIndexRefreshed2'
 export async function refreshPhoneFilesOnce(): Promise<void> {
   try {
     if (localStorage.getItem(REFRESHED_KEY)) return

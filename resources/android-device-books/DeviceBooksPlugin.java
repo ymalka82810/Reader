@@ -373,6 +373,12 @@ public class DeviceBooksPlugin extends Plugin {
             } catch (Exception ignored) {
             }
         }
+        // the row of the file itself may hold a stale name (a string of letters and digits) that an update cannot change, as
+        // the row was made by another app: drop it, the scan below makes a fresh one named after the file
+        try {
+            cr.delete(files, android.provider.MediaStore.Files.FileColumns.DATA + "=?", new String[] { to.getAbsolutePath() });
+        } catch (Exception ignored) {
+        }
         final String fileName = to.getName();
         final int dot = fileName.lastIndexOf('.');
         final String stem = dot > 0 ? fileName.substring(0, dot) : fileName;
