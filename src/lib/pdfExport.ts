@@ -9,15 +9,16 @@ import type { PDFDocument, PDFFont, PDFHexString, PDFImage, PDFName, PDFOperator
 type PdfLib = typeof import('pdf-lib')
 import type { BookContent } from './bookExport'
 import { tick } from './wordCount'
+import { DEFAULT_PDF_OPTIONS, type PdfOptions } from './pdfOptions'
 
 const PAGE_W = 419.53
 const PAGE_H = 595.28
 const MARGIN_X = 46
 const MARGIN_TOP = 54
 const MARGIN_BOTTOM = 62
-const BODY = 11.5
-const LEADING = 1.55
+/** heading sizes at the default body size; they grow and shrink with it */
 const HEADING_SIZE = [0, 19, 16, 14, 13, 12, 12]
+const BASE_BODY = 11.5
 const LINE_W = PAGE_W - 2 * MARGIN_X
 
 /** letters that no font of the PDF has, out of all letters, past which the book is in a script it cannot be written in */
@@ -198,6 +199,7 @@ class Writer {
   private f: Fonts
   private rtl: boolean
   private lib: PdfLib
+  private opts: PdfOptions
   /** each run's glyphs, encoded once: the font engine's layout is the slow part of writing */
   private encoded = new Map<PDFFont, Map<string, PDFHexString>>()
   /** the name each font goes by on the current page */
@@ -205,7 +207,8 @@ class Writer {
   /** the text drawn on the current page, written into it as one block when the page is done */
   private ops: PDFOperator[] = []
 
-  constructor(doc: PDFDocument, f: Fonts, rtl: boolean, lib: PdfLib) {
+  constructor(doc: PDFDocument, f: Fonts, rtl: boolean, lib: PdfLib, opts: PdfOptions) {
+    this.opts = opts
     this.doc = doc
     this.f = f
     this.rtl = rtl
@@ -276,10 +279,14 @@ class Writer {
   }
 
   /** a paragraph (or a heading): broken into lines, justified unless `center`, right to left when its text is */
-  text(text: string, { size, bold = false, center = false, before = 0, after = 0 }: { size: number; bold?: boolean; center?: boolean; before?: number; after?: number }) {
+  text(
+    text: string,
+    { size, bold = false, center = false, before = 0, after = 0, indent = 0 }: { size: number; bold?: boolean; center?: boolean; before?: number; after?: number; indent?: number },
+  ) {
     const set = bold ? this.f.bold : this.f.regular
     const rtl = paragraphRtl(text, this.rtl)
-    const line = size * LEADING
+    const line = size * this.opts.spacing
+    const ind = indent * size
     const space = this.word(' ', set, size).width || size * 0.28
     const words = text.split(/\s+/).filter(Boolean)
     // every word measured once, as it is drawn (a word's width is the same in any order); a word wider than the line is cut
@@ -303,7 +310,7 @@ class Writer {
     let curW = 0
     for (const w of logical) {
       const ww = this.word(w, set, size).width
-      if (cur.length && curW + space + ww > LINE_W) {
+      if (cur.length && curW + space + ww > LINE_W - (lines.length === 0 ? ind : 0)) {
         lines.push(cur)
         cur = []
         curW = 0
@@ -320,10 +327,13 @@ class Writer {
       const total = drawn.reduce((n, w) => n + w.width, 0)
       const last = i === lines.length - 1
       let gap = space
-      let x = MARGIN_X
+      // the first line is indented from the side the text starts at: the right for a right-to-left paragraph
+      const cut = i === 0 ? ind : 0
+      const avail = LINE_W - cut
+      let x = MARGIN_X + (rtl ? 0 : cut)
       if (center) x = MARGIN_X + (LINE_W - total - space * (drawn.length - 1)) / 2
-      else if (!last && drawn.length > 1 && (LINE_W - total) / (drawn.length - 1) < space * 3) gap = (LINE_W - total) / (drawn.length - 1)
-      else if (rtl) x = MARGIN_X + LINE_W - total - space * (drawn.length - 1)
+      else if (!last && drawn.length > 1 && (avail - total) / (drawn.length - 1) < space * 3) gap = (avail - total) / (drawn.length - 1)
+      else if (rtl) x = MARGIN_X + avail - total - space * (drawn.length - 1)
       const baseline = this.y - size
       for (const [j, w] of drawn.entries()) {
         // a word drawn in another order than it reads carries its real text, for copying and searching
@@ -385,13 +395,14 @@ export async function buildPdf(
   cover?: Blob,
   onProgress?: (done: number, total: number) => void,
   signal?: AbortSignal,
+  opts: PdfOptions = DEFAULT_PDF_OPTIONS,
 ): Promise<Blob> {
   const [lib, { default: fontkit }, { loadPdfFonts }] = await Promise.all([
     import('pdf-lib'),
     import('@pdf-lib/fontkit'),
     import('./pdfFonts'),
   ])
-  const files = await loadPdfFonts()
+  const files = await loadPdfFonts(opts.font)
   const doc = await lib.PDFDocument.create()
   doc.registerFontkit(ltrFontkit(fontkit))
   // mark positioning is off: the nikud is drawn on its letter by the font itself, and the positioning tables of a
@@ -409,7 +420,7 @@ export async function buildPdf(
   doc.setLanguage(c.rtl ? 'he' : 'en')
   doc.setCreator('קורא ספרים')
 
-  const w = new Writer(doc, fonts, c.rtl, lib)
+  const w = new Writer(doc, fonts, c.rtl, lib, opts)
   // the cover, alone on its page, as large as it fits
   const coverImg = cover && (await embedImage(doc, cover))
   if (coverImg) {
@@ -425,8 +436,8 @@ export async function buildPdf(
     signal?.throwIfAborted()
     if (w.used) w.newPage()
     for (const b of s) {
-      if (b.t === 'h') w.text(b.text, { size: HEADING_SIZE[b.level] ?? BODY, bold: true, center: true, before: BODY * 1.4, after: BODY * 0.7 })
-      else if (b.t === 'p') w.text(b.text, { size: BODY, after: BODY * 0.45 })
+      if (b.t === 'h') w.text(b.text, { size: ((HEADING_SIZE[b.level] ?? BASE_BODY) * opts.size) / BASE_BODY, bold: true, center: true, before: opts.size * 1.4, after: opts.size * 0.7 })
+      else if (b.t === 'p') w.text(b.text, { size: opts.size, after: opts.size * 0.45, indent: opts.indent })
       else {
         if (!images.has(b.src)) {
           const blob = c.images.get(b.src)

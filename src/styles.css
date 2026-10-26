@@ -589,3 +589,5 @@ i.lv4 { background: var(--accent) !important; }
 .copy-thumb .cover { border-radius: var(--radius-sm); }
 .copy-thumb .cover.placeholder span { -webkit-line-clamp: 4; line-clamp: 4; font-size: .5rem; }
 .copies .row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.pdf-options { display: flex; flex-direction: column; gap: .7rem; }
+.pdf-options label { display: flex; flex-direction: column; gap: .25rem; }

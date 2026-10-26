@@ -2,6 +2,7 @@
 // Word document, plain text or a web page; a comic (CBZ) as an EPUB, a PDF or a web page. Everything runs on the
 // device: an EPUB is read from its own zip, a MOBI/AZW/FB2/CBZ through the reader's own engine (foliate-js), and a PDF
 // kept as it is goes through the same conversion as on import.
+import type { PdfOptions } from './pdfOptions'
 
 import type { BookRecord } from './db'
 import { tick } from './wordCount'
@@ -460,6 +461,7 @@ export async function exportBook(
   format: BookFormat,
   onProgress?: (stage: ExportStage, done: number, total: number) => void,
   signal?: AbortSignal,
+  pdf?: PdfOptions,
 ): Promise<Blob> {
   if (isOwnFormat(rec, format)) return rec.file
   const src = sourceFormat(rec)
@@ -476,7 +478,7 @@ export async function exportBook(
   if (format === 'pdf') {
     const { buildPdf, PdfScriptError } = await import('./pdfExport')
     try {
-      return await buildPdf(content, rec.cover, (d, t) => onProgress?.('sections', d, t), signal)
+      return await buildPdf(content, rec.cover, (d, t) => onProgress?.('sections', d, t), signal, pdf)
     } catch (e) {
       if (e instanceof PdfScriptError) throw new ExportError('script')
       throw e

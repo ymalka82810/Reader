@@ -77,3 +77,21 @@ describe('font engine direction', () => {
     expect(out).toBe('םולש')
   })
 })
+
+describe('buildPdf options', () => {
+  const text = 'בראשית ברא אלוהים את השמיים ואת הארץ. '.repeat(30)
+  const size = async (o?: Partial<import('./pdfOptions').PdfOptions>) => {
+    const { DEFAULT_PDF_OPTIONS } = await import('./pdfOptions')
+    const pdf = await buildPdf(book([text]), undefined, undefined, undefined, { ...DEFAULT_PDF_OPTIONS, ...o })
+    const { PDFDocument } = await import('pdf-lib')
+    return (await PDFDocument.load(new Uint8Array(await pdf.arrayBuffer()))).getPageCount()
+  }
+  it('lays the book out with each font family', async () => {
+    for (const font of ['heebo', 'assistant', 'frank', 'david', 'miriam'] as const) expect(await size({ font })).toBeGreaterThan(0)
+  })
+  it('a larger size and wider leading take more pages', async () => {
+    const dense = await size({ size: 10, spacing: 1.3 })
+    const loose = await size({ size: 15, spacing: 2.1 })
+    expect(loose).toBeGreaterThan(dense)
+  })
+})
