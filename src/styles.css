@@ -58,6 +58,8 @@ select { font: inherit; padding: .4rem .6rem; border-radius: var(--radius-lg); b
 /* stays pinned while the books scroll beneath it; its top padding keeps it clear of the status bar / camera cutout */
 .lib-header { position: sticky; top: 0; z-index: 6; display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 0 -1rem 0; padding: calc(1rem + var(--safe-top)) 1rem .8rem; background: var(--bg); border-bottom: 1px solid var(--border-subtle); }
 .lib-header h1 { margin: 0; font-size: 1.5rem; }
+/* the search strip (which gives the content its gap under the pinned header) is hidden with 0-1 books, so the gap is kept here: folder bar and notices must not touch the header */
+.library.no-search .lib-header { margin-bottom: 1rem; }
 .lib-title { display: flex; flex-direction: column; min-width: 0; margin-inline-end: auto; }
 .lib-count { color: var(--fg-muted); }
 .modal input.readonly-field { background: var(--fill); color: var(--fg-muted); cursor: default; }
