@@ -109,7 +109,7 @@ const DIGITS = String.raw`\d{1,3}(?:\.5)?`
 const NUM = String.raw`(#?${DIGITS}|${LETTER_NUM}|[\p{L}]+)`
 const DASH = String.raw`[-–—:,.]`
 // "חלק" is left out on purpose: it is part of many titles ("סופת החרבות, חלק ראשון")
-const BOOK_WORD = String.raw`(?:ספר|כרך|book|vol\.?|volume)`
+const BOOK_WORD = String.raw`(?:ספר|כרך|פרק|book|part|vol\.?|volume)`
 
 /** "פרסי ג'קסון, ספר 1", "פרסי ג'קסון #1", "Mistborn 1", "ספר ראשון בסדרת פרסי ג'קסון", "Book 1 of Mistborn":
  *  a series and the book's number in it */
@@ -132,7 +132,7 @@ export function seriesOf(text: string): { series: string; number: string } | und
 /** "ספר 3 - קללת הטיטאן": a "series" that is only the word for a book or a part is no series, and its number says
  *  nothing without one; the title alone is left */
 function partOnly(n: BookName): BookName {
-  return /^(?:ה?ספר|ה?כרך|ה?חלק|book|vol\.?|volume|part)$/iu.test(n.series) ? { series: '', number: '', title: n.title } : n
+  return /^(?:ה?ספר|ה?כרך|ה?חלק|ה?פרק|book|vol\.?|volume|part|chapter)$/iu.test(n.series) ? { series: '', number: '', title: n.title } : n
 }
 
 /**
@@ -372,6 +372,8 @@ export function isJunkTitle(title: string): boolean {
   const words = fold(title)
     .split(' ')
     .filter((w) => /\p{L}{2}/u.test(w))
+  // the word for a part or a chapter alone ("פרק", "חלק ב", "Part 6") is a heading, not the book's name
+  if (new RegExp(String.raw`^(?:ה?פרק|ה?חלק|chapter|part)(?: (?:${ORDINAL_WORD}|[\u05D0-\u05EA]))?$`, 'iu').test(words.join(' '))) return true
   return !words.length || (words.length === 1 && words[0]!.length >= 14)
 }
 
