@@ -128,6 +128,20 @@ function visualPairs(words: string[], rtl: boolean): Pair[] {
 
 // ---------- fonts ----------
 
+/** The font engine turns a Hebrew string around by itself (it lays out by the script's direction); this file already
+ *  puts every line in visual order, so the engine is told every string is left to right, or each word is turned twice. */
+export function ltrFontkit<T extends { create: (...a: never[]) => unknown }>(fontkit: T): T {
+  return {
+    ...fontkit,
+    create: (...a: never[]) => {
+      const font = fontkit.create(...a) as { layout?: (s: string, f?: unknown, sc?: unknown, l?: unknown, d?: string) => unknown }
+      const layout = font.layout
+      if (typeof layout === 'function') font.layout = (s, f, sc, l) => layout.call(font, s, f, sc, l, 'ltr')
+      return font
+    },
+  } as T
+}
+
 interface FontSet {
   fonts: PDFFont[]
   /** per font, whether it has a letter */
@@ -379,7 +393,7 @@ export async function buildPdf(
   ])
   const files = await loadPdfFonts()
   const doc = await lib.PDFDocument.create()
-  doc.registerFontkit(fontkit)
+  doc.registerFontkit(ltrFontkit(fontkit))
   // mark positioning is off: the nikud is drawn on its letter by the font itself, and the positioning tables of a
   // reversed word fail in the font engine
   const set = async (list: Uint8Array[]): Promise<FontSet> => ({
