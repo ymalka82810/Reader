@@ -1,6 +1,6 @@
 import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
-import { isDrmEpub, isDrmMobi } from './drm'
+import { drmEpubReason, isDrmEpub, isDrmMobi } from './drm'
 
 const enc = (alg: string) =>
   `<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:enc="http://www.w3.org/2001/04/xmlenc#"><enc:EncryptedData><enc:EncryptionMethod Algorithm="${alg}"/></enc:EncryptedData></encryption>`
@@ -12,6 +12,20 @@ const epub = async (files: Record<string, string>) => {
 }
 
 describe('isDrmEpub', () => {
+  const encOf = (alg: string, uri: string) =>
+    `<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:enc="http://www.w3.org/2001/04/xmlenc#"><enc:EncryptedData><enc:EncryptionMethod Algorithm="${alg}"/><enc:CipherData><enc:CipherReference URI="${uri}"/></enc:CipherData></enc:EncryptedData></encryption>`
+  const AES = 'http://www.w3.org/2001/04/xmlenc#aes128-cbc'
+  it('accepts font obfuscation whose URI has stray spaces or invisible characters', async () => {
+    for (const alg of [' http://www.idpf.org/2008/embedding ', 'http://www.idpf.org/2008/embedding\u200f', 'HTTP://www.idpf.org/2008/embedding\n'])
+      expect(await isDrmEpub(await epub({ 'META-INF/encryption.xml': enc(alg) }))).toBe(false)
+  })
+  it('accepts any algorithm applied only to embedded fonts', async () => {
+    expect(await isDrmEpub(await epub({ 'META-INF/encryption.xml': encOf(AES, 'OEBPS/Fonts/Frank.otf') }))).toBe(false)
+  })
+  it('flags content encryption on text and images, and says which algorithm', async () => {
+    expect(await isDrmEpub(await epub({ 'META-INF/encryption.xml': encOf(AES, 'OEBPS/Text/ch1.xhtml') }))).toBe(true)
+    expect(await drmEpubReason(await epub({ 'META-INF/encryption.xml': encOf(AES, 'OEBPS/Images/a.jpg') }))).toBe(AES)
+  })
   it('accepts a plain EPUB', async () => {
     expect(await isDrmEpub(await epub({ mimetype: 'application/epub+zip' }))).toBe(false)
   })

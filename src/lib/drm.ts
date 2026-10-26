@@ -5,6 +5,16 @@ const FONT_OBFUSCATION = ['http://www.idpf.org/2008/embedding', 'http://ns.adobe
 const PDB_FIRST_RECORD = 78
 const PALMDOC_ENCRYPTION = 12
 
+/** embedded fonts: scrambling them (even by an algorithm we do not know) leaves the text of the book readable */
+const FONT_FILE = /\.(otf|ttf|ttc|woff2?|eot)$/i
+
+/** an algorithm URI as the spec writes it: stray spaces, line breaks or invisible characters around it do not change it */
+const cleanAlgorithm = (a: string) => a.replace(/[\s\u200b-\u200f\u202a-\u202e\u2060\ufeff]/g, '').toLowerCase()
+const OBFUSCATION = FONT_OBFUSCATION.map(cleanAlgorithm)
+
+/** an algorithm URI with every character that is not plain printable ASCII spelled out, for a message that shows what was really read */
+const spelled = (a: string) => [...a].map((c) => (c < '!' || c > '~' ? `U+${c.charCodeAt(0).toString(16).toUpperCase()}` : c)).join('')
+
 /** why this EPUB (a zip) counts as locked by Adobe ADEPT, Apple FairPlay, Readium LCP or the like; null when it is DRM-free */
 export async function drmEpubReason(file: Blob): Promise<string | null> {
   const { default: JSZip } = await import('jszip')
@@ -13,9 +23,16 @@ export async function drmEpubReason(file: Blob): Promise<string | null> {
     if (zip.file(name)) return name
   const xml = await zip.file('META-INF/encryption.xml')?.async('string')
   if (!xml) return null
-  const algorithms = [...xml.matchAll(/<(?:\w+:)?EncryptionMethod\b[^>]*\bAlgorithm\s*=\s*["']([^"']+)["']/g)]
-  const other = algorithms.find((m) => !FONT_OBFUSCATION.includes(m[1] ?? ''))
-  return other ? (other[1] ?? 'encryption.xml') : null
+  // each <EncryptedData> names one algorithm and the file it was applied to; only text, images and the like count as locked content
+  const blocks = xml.match(/<(?:\w+:)?EncryptedData\b[\s\S]*?<\/(?:\w+:)?EncryptedData>/g) ?? [xml]
+  for (const block of blocks) {
+    const alg = block.match(/<(?:\w+:)?EncryptionMethod\b[^>]*\bAlgorithm\s*=\s*["']([^"']+)["']/)?.[1]
+    if (alg === undefined || OBFUSCATION.includes(cleanAlgorithm(alg))) continue
+    const uri = block.match(/<(?:\w+:)?CipherReference\b[^>]*\bURI\s*=\s*["']([^"']+)["']/)?.[1]
+    if (uri !== undefined && FONT_FILE.test(uri.split(/[?#]/)[0] ?? '')) continue
+    return spelled(alg)
+  }
+  return null
 }
 
 /** does this EPUB (a zip) hold content locked by Adobe ADEPT, Apple FairPlay, Readium LCP or the like? */
