@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Dialog } from '../Dialog'
+import { Cover } from './Cover'
 import type { BookMeta } from '../../lib/db'
 import type { PendingName } from '../../lib/autoIdentify'
 import { formatBookName, isJunkTitle } from '../../lib/bookName'
@@ -85,6 +86,7 @@ export function IdentifyDialog({
     return () => ac.abort()
   }, [books, online, waiting, library])
 
+  const bookById = new Map(books.map((b) => [b.id, b]))
   const running = done < books.length
   const picked = found.filter((f) => f.pick)
   const allPicked = picked.length === found.length
@@ -114,6 +116,11 @@ export function IdentifyDialog({
               <li key={f.id}>
                 <label className="pick-row">
                   <input type="checkbox" checked={f.pick} onChange={() => toggle(f.id)} />
+                  {bookById.get(f.id) && (
+                    <span className="identify-cover">
+                      <Cover book={bookById.get(f.id)!} />
+                    </span>
+                  )}
                   <span className="identify-item">
                     <span>{f.title}</span>
                     <small className="muted">
