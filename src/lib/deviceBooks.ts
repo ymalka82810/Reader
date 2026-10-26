@@ -20,7 +20,7 @@ const call = <T>(method: string, options?: object) => cap()!.nativePromise<T>('D
 export type DeviceFile = { path: string; name: string; size: number; modified: number }
 
 /** book formats only: Word and text files in Download are rarely books, and audio has its own apps */
-const BOOK_EXTENSIONS = ['epub', 'pdf', 'mobi', 'azw', 'azw3', 'fb2', 'cbz']
+const BOOK_EXTENSIONS = ['epub', 'pdf', 'mobi', 'azw', 'azw3', 'fb2', 'cbz', 'cbr']
 
 export const deviceBooksSupported = () => {
   const c = cap()

@@ -596,7 +596,7 @@ public class DeviceBooksPlugin extends Plugin {
      *  converted EPUB replaced) */
     static boolean isBookFile(File f) {
         String n = f.getName().toLowerCase(java.util.Locale.ROOT);
-        for (String ext : new String[] { ".epub", ".pdf", ".mobi", ".azw", ".azw3", ".fb2", ".cbz" }) if (n.endsWith(ext)) return true;
+        for (String ext : new String[] { ".epub", ".pdf", ".mobi", ".azw", ".azw3", ".fb2", ".cbz", ".cbr" }) if (n.endsWith(ext)) return true;
         return false;
     }
 
