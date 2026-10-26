@@ -24,7 +24,7 @@ import { hasConsent, setConsent, SERVICE_HOST } from '../lib/consent'
 import { IdentifyDialog, type NameChange } from './library/IdentifyDialog'
 import { copyGroups } from '../lib/bookCopies'
 import { CopiesDialog } from './library/CopiesDialog'
-import { backfillLeft, dropPending, loadPending, setBackfillLeft, subscribePending, type PendingName } from '../lib/autoIdentify'
+import { backfillLeft, dropPending, unnamedIds, loadPending, setBackfillLeft, subscribePending, type PendingName } from '../lib/autoIdentify'
 import { confirmName, countOutcome, declineName, learnFromEdit, recordOutcome, samePlace } from '../lib/identifyLearning'
 import { loadSettings } from '../lib/settings'
 import { exitApp, useBackGesture } from '../hooks/useBackGesture'
@@ -465,9 +465,11 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   useEffect(() => {
     if (!loaded) return
     if (backfill.current === null) {
-      const left = backfillLeft(books.map((b) => b.id))
-      if (left) setBackfillLeft(left) // an empty library is done at once: nothing to go back over
-      backfill.current = left?.length ? left : undefined
+      // the books never gone over, and those still without a name that were not tried today
+      const first = backfillLeft(books.map((b) => b.id))
+      const ids = [...new Set([...(first ?? []), ...unnamedIds(books)])]
+      if (first || ids.length) setBackfillLeft(ids) // an empty library is done at once: nothing to go back over
+      backfill.current = ids.length ? ids : undefined
     }
     if (!backfill.current || imp.running || busy || !loadSettings().autoIdentify) return
     // read again: a run that was going on when this library opened may have finished it meanwhile

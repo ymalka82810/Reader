@@ -242,6 +242,29 @@ function gluedAuthor(words: string[], author: string): string | undefined {
   return undefined
 }
 
+/**
+ * Words run together into one (\"הלביאההלוחמת\") split back into the words of `vocab`: the words the book, its cover and the
+ * library use. A word may come with one of the joining letters in front (ה, ו, ב, ל, מ, ש, כ). The split with the fewest
+ * words wins; undefined when the letters cannot all be made of known words.
+ */
+export function splitGlued(glued: string, vocab: ReadonlySet<string>): string | undefined {
+  const text = lettersOf(glued)
+  if (text.length < 4) return undefined
+  const known = (w: string) => w.length >= 2 && (vocab.has(w) || (w.length >= 4 && /^[הובלמשכ]/u.test(w) && vocab.has(w.slice(1))))
+  // best[i]: the fewest words that make the first i letters
+  const best: (string[] | undefined)[] = Array.from({ length: text.length + 1 })
+  best[0] = []
+  for (let i = 1; i <= text.length; i++) {
+    for (let j = Math.max(0, i - 14); j < i; j++) {
+      const before = best[j]
+      const piece = text.slice(j, i)
+      if (before && known(piece) && (!best[i] || before.length + 1 < best[i]!.length)) best[i] = [...before, piece]
+    }
+  }
+  const words = best[text.length]
+  return words && words.length > 1 ? words.join(' ') : undefined
+}
+
 const latin = (s: string) => /[A-Za-z]/.test(s) && !/[\u0590-\u05FF]/.test(s)
 
 /**

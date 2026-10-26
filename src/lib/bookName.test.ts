@@ -1,3 +1,4 @@
+import { splitGlued } from './bookName'
 import { describe, expect, it } from 'vitest'
 import {
   formatBookName,
@@ -211,4 +212,16 @@ it('takes the series said a second time, run together, out of a name: what is le
   expect(tidyBookName('הלביאה הלוחמת - הלביאההלוחמת')).toBe('הלביאה הלוחמת')
   // a title that only starts like the series stays
   expect(tidyBookName('הלביאה הלוחמת - הלביאההלוחמתוהאגדה')).toBe('הלביאה הלוחמת - הלביאההלוחמתוהאגדה')
+})
+
+describe('splitGlued', () => {
+  const vocab = new Set(['הלביאה', 'הלוחמת', 'האריה', 'האגדי'])
+  it('splits words run together into the words that are known', () => {
+    expect(splitGlued('הלביאההלוחמת', vocab)).toBe('הלביאה הלוחמת')
+    expect(splitGlued('האריההאגדי', vocab)).toBe('האריה האגדי')
+  })
+  it('gives up when a part is not a known word', () => {
+    expect(splitGlued('הלביאההמסתורית', vocab)).toBeUndefined()
+    expect(splitGlued('הלביאה', vocab)).toBeUndefined()
+  })
 })
