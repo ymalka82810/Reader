@@ -8,7 +8,7 @@ import lx400 from '@fontsource/heebo/files/heebo-latin-ext-400-normal.woff?url'
 import lx700 from '@fontsource/heebo/files/heebo-latin-ext-700-normal.woff?url'
 
 /** each weight's font files, in the order a letter is looked up in them */
-export interface PdfFontFiles {
+interface PdfFontFiles {
   regular: Uint8Array[]
   bold: Uint8Array[]
 }

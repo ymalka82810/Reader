@@ -9,7 +9,7 @@ import { tick } from './wordCount'
 /** 'original' is the stored file as it is, whatever its format */
 export type BookFormat = 'original' | 'epub' | 'pdf' | 'docx' | 'txt' | 'html'
 
-export type Block = { t: 'h'; level: number; text: string } | { t: 'p'; text: string } | { t: 'img'; src: string; alt: string }
+type Block = { t: 'h'; level: number; text: string } | { t: 'p'; text: string } | { t: 'img'; src: string; alt: string }
 
 /** a book's text in reading order: one list of blocks per section */
 export interface BookContent {
@@ -196,7 +196,7 @@ export async function readEpub(file: Blob, signal?: AbortSignal): Promise<Omit<B
 
 /** A MOBI/AZW, FB2 or comic, read through foliate-js: each section as the reader itself loads it (its images then have
  *  blob URLs of their own), as plain blocks. */
-export async function readOther(file: Blob, signal?: AbortSignal): Promise<Omit<BookContent, 'title' | 'author'>> {
+async function readOther(file: Blob, signal?: AbortSignal): Promise<Omit<BookContent, 'title' | 'author'>> {
   const { makeBook } = await import('foliate-js/view.js')
   const book = await makeBook(file)
   const sections: Block[][] = []
