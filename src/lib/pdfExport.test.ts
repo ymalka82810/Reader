@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { readFileSync, writeFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
-import { buildPdf, paragraphRtl, PdfScriptError, visualLine, visualWord } from './pdfExport'
+import { buildPdf, ltrFontkit, paragraphRtl, PdfScriptError, visualLine, visualWord } from './pdfExport'
 import type { BookContent } from './bookExport'
 
 vi.mock('./pdfFonts', () => {
@@ -64,5 +64,16 @@ describe('buildPdf', () => {
   it('refuses a book in a script its fonts do not have', async () => {
     const ru = { ...book([]), rtl: false, sections: [[{ t: 'p' as const, text: 'Привет мир, это книга на русском языке. '.repeat(40) }]] }
     await expect(buildPdf(ru)).rejects.toThrow(PdfScriptError)
+  })
+})
+
+describe('font engine direction', () => {
+  it('keeps the order of a string already in visual order (no second reversal)', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { default: fontkit } = await import('@pdf-lib/fontkit')
+    const bytes = readFileSync('node_modules/@fontsource/heebo/files/heebo-hebrew-400-normal.woff')
+    const font = ltrFontkit(fontkit).create(bytes) as { layout: (s: string) => { glyphs: { codePoints: number[] }[] } }
+    const out = font.layout('םולש').glyphs.map((g) => String.fromCodePoint(...g.codePoints)).join('')
+    expect(out).toBe('םולש')
   })
 })
