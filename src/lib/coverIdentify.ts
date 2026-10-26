@@ -51,8 +51,9 @@ function withPart(title: string, part: string | undefined): string {
   return part && title && !/(?:^|\s)ה?(?:חלק|כרך|ספר)(?:\s|$)/u.test(title) ? `${title}, חלק ${part}` : title
 }
 
-/** whether a name still says nothing of the book: no series, and a title that is no title */
-const saysNothing = (r: { series: string; title: string }) => !r.series && isJunkTitle(r.title)
+/** whether a name still says nothing of the book: a title that is no title (a series with no number does not help: the
+ *  series may be the title run together, "הלביאה הלוחמת - הלביאההלוחמתחלקא") */
+const saysNothing = (r: { series: string; number?: string; title: string }) => isJunkTitle(r.title) && !(r.series && r.number)
 
 /** the cover's line in the largest letters, then its lines in reading order: read once, then kept */
 async function coverLines(b: { id: string; cover?: Blob }, signal?: AbortSignal): Promise<{ largest?: string; lines: string[] }> {
