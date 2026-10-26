@@ -13,6 +13,7 @@ import { useAutoBackup } from '../hooks/useAutoBackup'
 import { useUpdateCheck } from '../hooks/useUpdateCheck'
 import { useDeviceScan } from '../hooks/useDeviceScan'
 import { deviceBooksSupported } from '../lib/deviceBooks'
+import type { PdfOptions } from '../lib/pdfOptions'
 import { ExportError, exportFormats, isOwnFormat, type BookFormat } from '../lib/bookExport'
 import { autoSyncPhoneNames, openDownloadsFolder, phoneFileOf, saveBookToPhone, syncPhoneNames } from '../lib/phoneFiles'
 import { formatBookName, splitBookName, type BookName } from '../lib/bookName'
@@ -349,7 +350,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
     else void saveDownload(b)
   }
 
-  const saveDownload = async (b: BookMeta, format?: BookFormat) => {
+  const saveDownload = async (b: BookMeta, format?: BookFormat, pdf?: PdfOptions) => {
     const converting = !isOwnFormat(b, format)
     const ctl = new AbortController()
     if (converting) {
@@ -362,6 +363,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
         format,
         (stage, done, total) => setBusy(t(stage === 'pages' ? 'book.convertingPages' : 'book.buildingPdf', { done, total })),
         ctl.signal,
+        pdf,
       )
       if (ctl.signal.aborted) return
       if (name && deviceBooksSupported()) {
@@ -887,9 +889,9 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
         <FormatDialog
           book={downloading.book}
           formats={downloading.formats}
-          onPick={(f) => {
+          onPick={(f, pdf) => {
             setDownloading(undefined)
-            void saveDownload(downloading.book, f)
+            void saveDownload(downloading.book, f, pdf)
           }}
           onCancel={() => setDownloading(undefined)}
         />

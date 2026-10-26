@@ -2,6 +2,7 @@
 // book can be saved there from the library. Talks to the native DeviceBooks plugin like lib/deviceBooks.ts does.
 
 import { createStore, del, get, keys, set, values } from 'idb-keyval'
+import type { PdfOptions } from './pdfOptions'
 import { getBook, getBookMeta, getFile, listBooks, type BookMeta } from './db'
 import { deviceBooksSupported, hasDeviceAccess, markSeen, requestDeviceAccess, type DeviceFile } from './deviceBooks'
 import { download } from './download'
@@ -95,13 +96,14 @@ export async function saveBookToPhone(
   format?: BookFormat,
   onProgress?: (stage: ExportStage, done: number, total: number) => void,
   signal?: AbortSignal,
+  pdf?: PdfOptions,
 ): Promise<string | undefined> {
   const rec = await getBook(id)
   if (!rec) return undefined
   const own = isOwnFormat(rec, format)
   // asked first, so a refused permission does not wait for a long conversion
   if (deviceBooksSupported() && !(await hasDeviceAccess()) && !(await requestDeviceAccess().catch(() => false))) throw new Error('permission')
-  const file = own ? rec.file : await exportBook(rec, format!, onProgress, signal)
+  const file = own ? rec.file : await exportBook(rec, format!, onProgress, signal, pdf)
   signal?.throwIfAborted()
   const name = own ? bookFileName(rec) : bookFileName(rec, formatExtension(rec, format!))
   if (!deviceBooksSupported()) {

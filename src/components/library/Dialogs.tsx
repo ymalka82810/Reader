@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Dialog } from '../Dialog'
 import { t } from '../../i18n'
 import { Dropdown } from '../Dropdown'
@@ -11,6 +11,17 @@ import type { ConfirmAsk } from '../../hooks/useConfirm'
 import type { FolderDialogState } from '../../hooks/useFolders'
 import { FolderIcon } from './FolderIcon'
 import type { BookFormat } from '../../lib/bookExport'
+import { loadCustomFont } from '../../lib/customFont'
+import {
+  loadPdfOptions,
+  PDF_FONT_LABELS,
+  PDF_INDENTS,
+  PDF_SIZES,
+  PDF_SPACINGS,
+  savePdfOptions,
+  type PdfFontKey,
+  type PdfOptions,
+} from '../../lib/pdfOptions'
 
 export function DuplicateBatchDialog({
   batch,
@@ -451,9 +462,81 @@ export function FormatDialog({
 }: {
   book: BookMeta
   formats: BookFormat[]
-  onPick: (f: BookFormat) => void
+  onPick: (f: BookFormat, pdf?: PdfOptions) => void
   onCancel: () => void
 }) {
+  // the PDF is laid out by the reader's own choices, asked after the format is picked
+  const [pdfStep, setPdfStep] = useState(false)
+  const [opts, setOpts] = useState<PdfOptions>(loadPdfOptions)
+  const [customName, setCustomName] = useState<string>()
+  useEffect(() => {
+    void loadCustomFont().then((f) => setCustomName(f?.name))
+  }, [])
+  const set = <K extends keyof PdfOptions>(k: K, v: PdfOptions[K]) => setOpts((o) => ({ ...o, [k]: v }))
+  const fontOptions: { value: PdfFontKey; label: string }[] = [
+    ...(Object.keys(PDF_FONT_LABELS) as Exclude<PdfFontKey, 'custom'>[]).map((k) => ({ value: k, label: PDF_FONT_LABELS[k] })),
+    ...(customName ? [{ value: 'custom' as PdfFontKey, label: t('pdf.fontCustom', { name: customName }) }] : []),
+  ]
+  const numOptions = (list: number[], keys: Parameters<typeof t>[0][]) => list.map((v, i) => ({ value: String(v), label: t(keys[i]!) }))
+  const go = () => {
+    const chosen = opts.font === 'custom' && !customName ? { ...opts, font: 'heebo' as const } : opts
+    savePdfOptions(chosen)
+    onPick('pdf', chosen)
+  }
+  if (pdfStep)
+    return (
+      <div className="modal-backdrop" onClick={onCancel}>
+        <Dialog
+          className="modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('pdf.title')}
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.key === 'Escape' && onCancel()}
+        >
+          <h2>{t('pdf.title')}</h2>
+          <div className="pdf-options">
+            <label>
+              <span>{t('pdf.font')}</span>
+              <Dropdown label={t('pdf.font')} value={opts.font} options={fontOptions} onChange={(v) => set('font', v)} />
+            </label>
+            <label>
+              <span>{t('pdf.size')}</span>
+              <Dropdown
+                label={t('pdf.size')}
+                value={String(opts.size)}
+                options={numOptions(PDF_SIZES, ['pdf.sizeSmall', 'pdf.sizeNormal', 'pdf.sizeLarge', 'pdf.sizeXLarge'])}
+                onChange={(v) => set('size', Number(v))}
+              />
+            </label>
+            <label>
+              <span>{t('pdf.indent')}</span>
+              <Dropdown
+                label={t('pdf.indent')}
+                value={String(opts.indent)}
+                options={numOptions(PDF_INDENTS, ['pdf.indentNone', 'pdf.indentSmall', 'pdf.indentMedium', 'pdf.indentLarge'])}
+                onChange={(v) => set('indent', Number(v))}
+              />
+            </label>
+            <label>
+              <span>{t('pdf.spacing')}</span>
+              <Dropdown
+                label={t('pdf.spacing')}
+                value={String(opts.spacing)}
+                options={numOptions(PDF_SPACINGS, ['pdf.spacingTight', 'pdf.spacingNormal', 'pdf.spacingLoose', 'pdf.spacingWide'])}
+                onChange={(v) => set('spacing', Number(v))}
+              />
+            </label>
+          </div>
+          <div className="modal-actions">
+            <button onClick={() => setPdfStep(false)}>{t('pdf.back')}</button>
+            <button className="primary" onClick={go} autoFocus>
+              {t('pdf.go')}
+            </button>
+          </div>
+        </Dialog>
+      </div>
+    )
   return (
     <div className="modal-backdrop" onClick={onCancel}>
       <Dialog
@@ -468,7 +551,7 @@ export function FormatDialog({
         <p>{t('book.formatText', { title: book.title })}</p>
         <div className="format-list" role="group" aria-label={t('book.saveToPhone')}>
           {formats.map((f, i) => (
-            <button key={f} className={'format-option' + (i === 0 ? ' primary' : '')} onClick={() => onPick(f)} autoFocus={i === 0}>
+            <button key={f} className={'format-option' + (i === 0 ? ' primary' : '')} onClick={() => (f === 'pdf' ? setPdfStep(true) : onPick(f))} autoFocus={i === 0}>
               <span className="format-name">
                 {f === 'original' ? formatName(book) : t(`format.${f}`)}
                 {i === 0 && <span className="format-badge">{t('book.formatOriginal')}</span>}
