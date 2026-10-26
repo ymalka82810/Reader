@@ -33,13 +33,20 @@ const versionFilesStore = createStore('reader-device-version-files-db', 'files')
 /** the sub-folder of a book's folder that holds its other formats, one folder per format */
 const VERSIONS_DIR = VERSIONS_DIR_NAME
 
+// book id -> the copies the user saved to Download from the library (a book's own file is the one above): they follow the
+// book's name too, so a copy uploaded to Drive or shared from Download never carries a name the book no longer has
+const copyStore = createStore('reader-device-copies-db', 'copies')
+const copiesOf = async (id: string) => (await get<string[]>(id, copyStore)) ?? []
+const rememberCopy = async (id: string, path: string) =>
+  set(id, [...new Set([...(await copiesOf(id)), path])].slice(-5), copyStore)
+
 export const rememberPhoneFile = (id: string, path: string) => set(id, path, pathStore)
 export const phoneFileOf = (id: string) => get<string>(id, pathStore)
 export const forgetPhoneFile = (id: string) => del(id, pathStore)
 /** which book each file on the phone is tied to (by path) */
 export const phoneFileLinks = async () => new Map(await entries<string, string>(pathStore))
 /** the paths of every file tied to a book, also of books since deleted from the library */
-export const phoneFilePaths = async () => new Set(await values<string>(pathStore))
+export const phoneFilePaths = async () => new Set([...(await values<string>(pathStore)), ...(await values<string[]>(copyStore)).flat()])
 
 const baseName = (path: string) => path.slice(path.lastIndexOf('/') + 1)
 
@@ -128,6 +135,8 @@ export async function saveBookToPhone(
   const saved = await writeToPhone(id, file, name, undefined, link)
   // a converted copy is marked, so that the next scan files it under the author's versions folder
   if (!own) await set(saved.path, id, versionStore).catch(() => {})
+  // a copy in the book's own format that is not tied as its file is still followed, so a later rename of the book renames it too
+  else if (!link) await rememberCopy(id, saved.path).catch(() => {})
   return saved.name
 }
 
@@ -196,6 +205,7 @@ export async function syncPhoneNames(ids: string[]): Promise<{ renamed: number; 
       out.renamed += r.moved
       out.failed += r.failed
     }
+    if (meta) await syncCopies(id, meta, path, out)
     if (!path || !meta) continue
     // the phone's file keeps its own extension: a book converted from a PDF is an EPUB here, but its file there is still the PDF
     const dot = path.lastIndexOf('.')
@@ -217,6 +227,36 @@ export async function syncPhoneNames(ids: string[]): Promise<{ renamed: number; 
     }
   }
   return out
+}
+
+/** Gives the copies saved to Download the book's current name (they stay where they are, only renamed). A copy that is no
+ *  longer there stops being followed. */
+async function syncCopies(id: string, meta: BookMeta, main: string | undefined, out: { renamed: number; failed: number }): Promise<void> {
+  const paths = await copiesOf(id)
+  if (!paths.length) return
+  const kept: string[] = []
+  for (const path of paths) {
+    if (path === main) continue
+    const dot = path.lastIndexOf('.')
+    const name = bookFileName(meta, dot > path.lastIndexOf('/') + 1 ? path.slice(dot + 1).toLowerCase() : '')
+    if (baseName(path) === name) {
+      kept.push(path)
+      continue
+    }
+    try {
+      const res = await call<Partial<DeviceFile> & { path: string }>('rename', { path, name })
+      kept.push(res.path)
+      if (res.path !== path) out.renamed++
+      // under its new name the scan must not offer it as a new book
+      if (res.path !== path && typeof res.size === 'number' && typeof res.modified === 'number')
+        await markSeen([res as DeviceFile]).catch(() => {})
+    } catch (e) {
+      if (e instanceof Error && e.message === 'missing') continue
+      kept.push(path)
+      out.failed++
+    }
+  }
+  await set(id, kept, copyStore).catch(() => {})
 }
 
 /** Puts books in the phone's books folder: a book whose file is already on the phone is moved there, one that has none

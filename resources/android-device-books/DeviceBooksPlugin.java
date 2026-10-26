@@ -67,7 +67,7 @@ import org.json.JSONObject;
  *     refreshIndex({paths}) -> {}: tells the system's media index about these files (their current names, also the name and
  *       title stored in their index rows, which Drive and share sheets show) and drops entries of files that are gone (in the
  *       folders of these files), so the names a file manager shows are the real ones; never rejects
- *     rename({path, name}) -> {path, name}: renames a file in the shared storage (a name already taken gets " (2)");
+ *     rename({path, name}) -> {path, name, size, modified}: renames a file in the shared storage (a name already taken gets " (2)");
  *       rejects with "permission", "missing" (no such file), "outside" or "rename"
  *     save({name, data}) -> {path, name, size, modified}: starts a new file in the Download folder from base64 `data`
  *       (a name already taken gets " (2)"); save({path, data}) appends the next piece to it. Rejects with "permission"
@@ -482,6 +482,8 @@ public class DeviceBooksPlugin extends Plugin {
             JSObject ret = new JSObject();
             ret.put("path", to.getAbsolutePath());
             ret.put("name", to.getName());
+            ret.put("size", to.length());
+            ret.put("modified", to.lastModified());
             call.resolve(ret);
         } catch (Exception e) {
             call.reject("rename", e);
