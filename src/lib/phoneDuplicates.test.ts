@@ -46,3 +46,44 @@ describe('authorDirOf', () => {
     expect(authorDirOf('/s/Documents/קורא ספרים/ספר.epub')).toBeUndefined()
   })
 })
+
+describe('findDuplicateGroups by what is inside the files', () => {
+  const id = (title: string, author = '') => ({ title, author })
+
+  it('finds one book under file names that have nothing in common, as the app compares a book being added', () => {
+    const epub = f('/s/Download/book_493.epub', 5)
+    const pdf = f('/s/Documents/scan 20240101.pdf', 40)
+    const ids = new Map([
+      [epub.path, id('גנב הברק', 'ריק ריירדן')],
+      [pdf.path, id('גנב הברק', 'ריק ריירדן')],
+    ])
+    expect(findDuplicateGroups([epub, pdf])).toEqual([])
+    const [g] = findDuplicateGroups([epub, pdf], new Set(), ids)
+    expect(g!.by).toBe('content')
+    expect(g!.keep).toBe(epub)
+    expect(g!.versions).toEqual([pdf])
+    expect(g!.title).toBe('גנב הברק')
+    expect(g!.author).toBe('ריק ריירדן')
+  })
+
+  it('matches a series name to the bare title, like the library does, but not two authors or two volumes', () => {
+    const a = f('/s/x/aaaa1.epub')
+    const b = f('/s/x/bbbb2.pdf')
+    expect(findDuplicateGroups([a, b], new Set(), new Map([[a.path, id("פרסי ג'קסון 1 - גנב הברק", 'ריק ריירדן')], [b.path, id('גנב הברק', 'ריק ריירדן')]]))).toHaveLength(1)
+    expect(findDuplicateGroups([a, b], new Set(), new Map([[a.path, id('גנב הברק', 'ריק ריירדן')], [b.path, id('גנב הברק', 'מישהו אחר')]]))).toEqual([])
+    expect(findDuplicateGroups([a, b], new Set(), new Map([[a.path, id("פרסי ג'קסון 1 - גנב הברק")], [b.path, id("פרסי ג'קסון 2 - גנב הברק")]]))).toEqual([])
+  })
+
+  it('ignores a title that says nothing about the book', () => {
+    const a = f('/s/x/aaaa1.epub')
+    const b = f('/s/x/bbbb2.pdf')
+    expect(findDuplicateGroups([a, b], new Set(), new Map([[a.path, id('1~2402 1')], [b.path, id('1~2402 1')]]))).toEqual([])
+    expect(findDuplicateGroups([a, b], new Set(), new Map([[a.path, id('ספר')], [b.path, id('ספר')]]))).toEqual([])
+  })
+
+  it('keeps naming a group by its files when the names alone made it', () => {
+    const [g] = findDuplicateGroups([f('/s/a/ספר ארוך.epub'), f('/s/b/ספר ארוך.pdf')], new Set(), new Map())
+    expect(g!.by).toBe('name')
+    expect(g!.author).toBe('')
+  })
+})

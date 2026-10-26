@@ -242,7 +242,7 @@ describe('tidyPhoneDuplicates', () => {
     const b = df('/s/Download/גנב הברק (2).pdf')
     const files = new Map([keep, pdf, a, b].map((f) => [f.path, 1]))
     fakePhone(files)
-    const r = await tidyPhoneDuplicates([{ title: 'גנב הברק', keep, versions: [pdf], surplus: [a, b] }], new Set([a.path]))
+    const r = await tidyPhoneDuplicates([{ title: 'גנב הברק', author: '', by: 'name', keep, versions: [pdf], surplus: [a, b] }], new Set([a.path]))
     expect(r).toEqual({ deleted: 1, moved: 1, failed: 0 })
     expect([...files.keys()].sort()).toEqual(
       [keep.path, b.path, '/s/Documents/קורא ספרים/ריק ריירדן/גרסאות/PDF/גנב הברק.pdf'].sort(),
@@ -255,7 +255,7 @@ describe('tidyPhoneDuplicates', () => {
     const a = df('/s/Download/ספר בלי מחבר (1).pdf')
     const files = new Map([keep, pdf, a].map((f) => [f.path, 1]))
     const calls = fakePhone(files)
-    const r = await tidyPhoneDuplicates([{ title: 'ספר בלי מחבר', keep, versions: [pdf], surplus: [a] }], new Set())
+    const r = await tidyPhoneDuplicates([{ title: 'ספר בלי מחבר', author: '', by: 'name', keep, versions: [pdf], surplus: [a] }], new Set())
     expect(r).toEqual({ deleted: 0, moved: 0, failed: 0 })
     expect(calls.some((c) => c.method === 'remove' || c.method === 'place')).toBe(false)
     expect(files.size).toBe(3)

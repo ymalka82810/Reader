@@ -36,6 +36,8 @@ const VERSIONS_DIR = VERSIONS_DIR_NAME
 export const rememberPhoneFile = (id: string, path: string) => set(id, path, pathStore)
 export const phoneFileOf = (id: string) => get<string>(id, pathStore)
 export const forgetPhoneFile = (id: string) => del(id, pathStore)
+/** which book each file on the phone is tied to (by path) */
+export const phoneFileLinks = async () => new Map(await entries<string, string>(pathStore))
 /** the paths of every file tied to a book, also of books since deleted from the library */
 export const phoneFilePaths = async () => new Set(await values<string>(pathStore))
 
@@ -336,7 +338,7 @@ export async function tidyPhoneDuplicates(groups: DuplicateGroup[], approved: Se
         out.failed++
       }
     }
-    const known = library.find((b) => sameBook({ title: g.title, author: '' }, b))
+    const known = library.find((b) => sameBook({ title: g.title, author: g.author }, b))
     const author = authorDirOf(g.keep.path) ?? (known ? bookPhoneDir(known, names) : undefined)
     if (!author) continue
     for (const v of g.versions) {

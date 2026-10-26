@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Settings } from '../../lib/settings'
 import type { SetSetting } from '../../hooks/useAppSettings'
 import {
@@ -12,7 +12,8 @@ import {
 } from '../../lib/deviceBooks'
 import { t } from '../../i18n'
 import { listBooks } from '../../lib/db'
-import { pendingVersionCount, phoneFilePaths, placeBooksOnPhone, placeVersions } from '../../lib/phoneFiles'
+import { pendingVersionCount, phoneFileLinks, placeBooksOnPhone, placeVersions } from '../../lib/phoneFiles'
+import { identifyFiles } from '../../lib/fileIdentity'
 import { summarizePhone, type PhoneOverview } from '../../lib/phoneOverview'
 import { PhoneOverviewDialog } from './PhoneOverviewDialog'
 import { findDuplicateGroups, type DuplicateGroup } from '../../lib/phoneDuplicates'
@@ -31,6 +32,7 @@ export function DevicePage({ settings, set, busy, onScan }: { settings: Settings
   const [placingBusy, setPlacingBusy] = useState(false)
   const [dupes, setDupes] = useState<DuplicateGroup[]>()
   const [dupesBusy, setDupesBusy] = useState(false)
+  const stopLooking = useRef<AbortController>(undefined)
   const [overview, setOverview] = useState<{ data: PhoneOverview; pending: number; groups: DuplicateGroup[] }>()
   const { pending: confirmAsk, confirm } = useConfirm()
   useEffect(() => {
@@ -73,17 +75,30 @@ export function DevicePage({ settings, set, busy, onScan }: { settings: Settings
   }
 
   const folders = settings.deviceFolders
+  /** the scanned folders' books that are there more than once: each file is compared as a book is when it is added (its own
+   *  title and author), one the library follows by the library's name; shows how far it is, and can be cancelled */
+  const lookForDuplicates = async () => {
+    const ctl = new AbortController()
+    stopLooking.current = ctl
+    const [files, links] = await Promise.all([scanDevice(folders), phoneFileLinks()])
+    const identities = await identifyFiles(files, await listBooks(), links, {
+      signal: ctl.signal,
+      onProgress: (done, n) => setPlacing(t('device.identifying', { done, n })),
+    })
+    setPlacing(undefined)
+    return { files, linked: new Set(links.keys()), groups: findDuplicateGroups(files, new Set(links.keys()), identities) }
+  }
   /** what the scanned folders hold: counted, shown, and from there the converted copies are filed or the duplicates cleaned */
   const showOverview = async () => {
     setError('')
     setPlacing(undefined)
     setDupesBusy(true)
     try {
-      const [files, linked, pending] = await Promise.all([scanDevice(folders), phoneFilePaths(), pendingVersionCount()])
-      const groups = findDuplicateGroups(files, linked)
+      const [{ files, linked, groups }, pending] = await Promise.all([lookForDuplicates(), pendingVersionCount()])
       setOverview({ data: summarizePhone(files, linked, groups), pending, groups })
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      if (!(e instanceof DOMException && e.name === 'AbortError')) setError(e instanceof Error ? e.message : String(e))
+      setPlacing(undefined)
     } finally {
       setDupesBusy(false)
     }
@@ -94,11 +109,12 @@ export function DevicePage({ settings, set, busy, onScan }: { settings: Settings
     setPlacing(undefined)
     setDupesBusy(true)
     try {
-      const found = findDuplicateGroups(await scanDevice(folders), await phoneFilePaths())
+      const { groups: found } = await lookForDuplicates()
       if (found.length) setDupes(found)
       else setPlacing(t('device.dupesNone'))
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      if (!(e instanceof DOMException && e.name === 'AbortError')) setError(e instanceof Error ? e.message : String(e))
+      setPlacing(undefined)
     } finally {
       setDupesBusy(false)
     }
@@ -149,6 +165,7 @@ export function DevicePage({ settings, set, busy, onScan }: { settings: Settings
           </Row>
         )}
         {placing && <div role="status" className="muted">{placing}</div>}
+        {dupesBusy && <button onClick={() => stopLooking.current?.abort()}>{t('device.identifyCancel')}</button>}
         <Toggle
           label={t('device.renameSync')}
           hint={t('device.renameSyncHint')}

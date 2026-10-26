@@ -48,6 +48,7 @@ export function PhoneDuplicatesDialog({ groups, onDone, onClose }: { groups: Dup
           {groups.map((g) => (
             <li key={g.keep.path}>
               <strong>{g.title}</strong>
+              {g.by === 'content' && <small className="muted"> · {t('dupes.byContent')}</small>}
               <ul>
                 <li>
                   {t('dupes.keep')} {g.keep.name} · {where(g.keep.path)}
