@@ -10,6 +10,7 @@ import type { PwAsk } from '../../hooks/useBackup'
 import type { ConfirmAsk } from '../../hooks/useConfirm'
 import type { FolderDialogState } from '../../hooks/useFolders'
 import { FolderIcon } from './FolderIcon'
+import type { BookFormat } from '../../lib/bookExport'
 
 export function DuplicateBatchDialog({
   batch,
@@ -431,6 +432,49 @@ export function EditBookDialog({
           <button className="primary" onClick={onSave} disabled={!full}>
             {t('common.save')}
           </button>
+          <button onClick={onCancel}>{t('common.cancel')}</button>
+        </div>
+      </Dialog>
+    </div>
+  )
+}
+
+/** "Download to phone": which format the book is saved in. Its own format comes first and is marked as the original. */
+export function FormatDialog({
+  book,
+  formats,
+  onPick,
+  onCancel,
+}: {
+  book: BookMeta
+  formats: BookFormat[]
+  onPick: (f: BookFormat) => void
+  onCancel: () => void
+}) {
+  return (
+    <div className="modal-backdrop" onClick={onCancel}>
+      <Dialog
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('book.saveToPhone')}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.key === 'Escape' && onCancel()}
+      >
+        <h2>{t('book.saveToPhone')}</h2>
+        <p>{t('book.formatText', { title: book.title })}</p>
+        <div className="format-list" role="group" aria-label={t('book.saveToPhone')}>
+          {formats.map((f, i) => (
+            <button key={f} className={'format-option' + (i === 0 ? ' primary' : '')} onClick={() => onPick(f)} autoFocus={i === 0}>
+              <span className="format-name">
+                {t(`format.${f}`)}
+                {i === 0 && <span className="format-badge">{t('book.formatOriginal')}</span>}
+              </span>
+              <span className="format-hint">{t(`format.${f}Hint`)}</span>
+            </button>
+          ))}
+        </div>
+        <div className="modal-actions">
           <button onClick={onCancel}>{t('common.cancel')}</button>
         </div>
       </Dialog>

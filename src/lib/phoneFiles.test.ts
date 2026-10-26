@@ -31,8 +31,11 @@ describe('bookFileName', () => {
     expect(bookFileName(book({ kind: 'other', fileName: 'x.MOBI' }))).toBe("פרסי ג'קסון 1 - גנב הברק.mobi")
   })
 
-  it('names a converted PDF as the EPUB it now is', () => {
-    expect(bookFileName(book({ kind: 'pdf', fromPdf: true, fileName: 'a.pdf' }))).toBe("פרסי ג'קסון 1 - גנב הברק.epub")
+  it('names a converted PDF as the EPUB it now is, and a PDF kept as it is as a PDF', () => {
+    expect(bookFileName(book({ fromPdf: true, fileName: 'a.epub' }))).toBe("פרסי ג'קסון 1 - גנב הברק.epub")
+    expect(bookFileName(book({ fromPdf: true, fileName: 'a.pdf' }))).toBe("פרסי ג'קסון 1 - גנב הברק.pdf")
+    expect(bookFileName(book({ fileName: 'a.mobi' }))).toBe("פרסי ג'קסון 1 - גנב הברק.mobi")
+    expect(bookFileName(book({ fileName: 'a.epub' }), 'docx')).toBe("פרסי ג'קסון 1 - גנב הברק.docx")
     expect(bookFileName(book({ kind: 'pdf', fileName: 'a.pdf' }))).toBe("פרסי ג'קסון 1 - גנב הברק.pdf")
   })
 
