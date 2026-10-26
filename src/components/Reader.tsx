@@ -32,6 +32,7 @@ import { useBackGesture } from '../hooks/useBackGesture'
 import { clampFont, useBookEvents, type Selection } from '../hooks/useBookEvents'
 import { firstWord } from '../lib/dictionary'
 import { saveWord } from '../lib/flashcards'
+import { atBookEdge } from '../lib/bookEdge'
 import { formatMinutes, loadStats, minutesLeft, type Stats } from '../lib/stats'
 import { getLocale, isRtl, t } from '../i18n'
 import { customFontFace, customFontUrl, loadCustomFont, releaseCustomFontUrl, type CustomFont } from '../lib/customFont'
@@ -58,6 +59,7 @@ export default function Reader({ id, startCfi, onClose, onSettings }: { id: stri
   const [uiVisible, setUiVisible] = useState(true)
   const { panel, panelRef, setPanel, closePanel, togglePanel, editingId, editNote, dict, openDict, translation, openTranslate, quote, openQuote } = useReaderPanels()
   const [fraction, setFraction] = useState(0)
+  const fractionRef = useLatest(fraction)
   const [dragFraction, setDragFraction] = useState<number | null>(null)
   const [chapter, setChapter] = useState('')
   /** CFI of the current location, to show whether it is bookmarked */
@@ -101,6 +103,7 @@ export default function Reader({ id, startCfi, onClose, onSettings }: { id: stri
     settingsRef,
     panelRef,
     lastAnnotationClick,
+    fractionRef,
     setSettings,
     setSelection,
     setUiVisible,
@@ -369,7 +372,7 @@ export default function Reader({ id, startCfi, onClose, onSettings }: { id: stri
       gotoBookmark,
       bump: (d) => setSettings((s) => ({ ...s, fontSize: clampFont(s.fontSize + d) })),
       panel: togglePanel,
-      hideBars: () => setUiVisible(false),
+      hideBars: (turn) => setUiVisible(!!turn && atBookEdge(viewRef.current, turn, fractionRef.current)),
       autoRead: toggleAuto,
       pace: auto.adjust,
       readAloud: toggleSpeech,

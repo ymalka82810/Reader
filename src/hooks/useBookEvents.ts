@@ -2,6 +2,7 @@ import { useCallback, useLayoutEffect, useRef, type Dispatch, type MutableRefObj
 import type { FoliateView } from 'foliate-js/view.js'
 import type { Settings } from '../lib/settings'
 import { createPinchPreview, wordRangeAt, type PinchPreview } from '../lib/pinchPreview'
+import { atBookEdge, turnDirection } from '../lib/bookEdge'
 import { canZoom, MAX_ZOOM, setZoom, zoomLevel } from '../lib/pdfZoom'
 
 export const MIN_FONT = 12
@@ -35,6 +36,8 @@ export interface BookEventsDeps {
   settingsRef: MutableRefObject<Settings>
   panelRef: MutableRefObject<string | null>
   lastAnnotationClick: MutableRefObject<number>
+  /** reading position of the whole book, 0..1 */
+  fractionRef: MutableRefObject<number>
   setSettings: Dispatch<SetStateAction<Settings>>
   setSelection: Dispatch<SetStateAction<Selection | null>>
   setUiVisible: Dispatch<SetStateAction<boolean>>
@@ -98,7 +101,7 @@ export function useBookEvents(deps: BookEventsDeps) {
     let middleTap: number | undefined
     const onTap = (clientX: number, detail: number) => {
       window.clearTimeout(middleTap)
-      const { viewRef, panelRef, lastAnnotationClick, setSelection, setUiVisible, setPanel } = d.current
+      const { viewRef, panelRef, lastAnnotationClick, fractionRef, setSelection, setUiVisible, setPanel } = d.current
       // click position relative to the whole screen (the iframe can be offset/scrolled)
       const zone = tapZone(frameLeft() + clientX, window.innerWidth)
       // rapid taps on the edges are page turns, not word selections
@@ -118,7 +121,10 @@ export function useBookEvents(deps: BookEventsDeps) {
       // (so a tap sometimes appears to do nothing). Wait until it has run.
       const turn = zone === 'left' ? 'goLeft' : zone === 'right' ? 'goRight' : null
       if (turn) {
-        setUiVisible(false)
+        // a turn that goes nowhere (back on the first page, forward on the last) shows the bars instead of hiding them
+        const view = viewRef.current
+        const dead = !!view && atBookEdge(view, turnDirection(view, zone === 'left' ? 'left' : 'right'), fractionRef.current)
+        setUiVisible(dead)
         requestAnimationFrame(() => requestAnimationFrame(() => viewRef.current?.[turn]()))
       } else if (detail === 1) {
         middleTap = window.setTimeout(() => {

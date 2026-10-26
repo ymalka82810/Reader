@@ -29,6 +29,8 @@ declare module 'foliate-js/view.js' {
     scrollProp: 'scrollTop' | 'scrollLeft'
     /** on the last page of the last section */
     atEnd: boolean
+    /** on the first page of the first section */
+    atStart?: boolean
     setStyles?(css: string): void
     /** lays the book out again (the fixed-layout renderer pairs its pages into spreads here) */
     open?(book: object): void
