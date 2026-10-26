@@ -32,6 +32,25 @@ function keep(id: string, lines: string[]) {
   }
 }
 
+const PART_WORD = String.raw`(?:[א-י]|ראשון|שני|שלישי|רביעי|חמישי)`
+// run on to a word, only the first letters: "חלקי" or "חלקה" end ordinary words
+const GLUED_PART_WORD = String.raw`(?:[א-ד]|ראשון|שני|שלישי|רביעי|חמישי)`
+
+/** The volume a cover line or a file name says: "חלק ב" -> "ב'". In a file name the words are run together
+ *  ("…הלוחמתחלקב"), so the word for a part may be the end of a word there. */
+function partOf(lines: string[], glued = false): string | undefined {
+  for (const l of lines) {
+    const m = (glued ? new RegExp(String.raw`חלק\s*(${GLUED_PART_WORD})['׳]?(?=\s+\d|\s*$)`, 'u') : new RegExp(String.raw`^ה?חלק\s+(${PART_WORD})['׳]?$`, 'u')).exec(l.trim())
+    if (m) return m[1]!.length === 1 ? `${m[1]}'` : m[1]
+  }
+  return undefined
+}
+
+/** the title with its volume, unless it already says which ("סופת החרבות, חלק ראשון") */
+function withPart(title: string, part: string | undefined): string {
+  return part && title && !/(?:^|\s)ה?(?:חלק|כרך|ספר)(?:\s|$)/u.test(title) ? `${title}, חלק ${part}` : title
+}
+
 /** whether a name still says nothing of the book: no series, and a title that is no title */
 const saysNothing = (r: { series: string; title: string }) => !r.series && isJunkTitle(r.title)
 
@@ -73,7 +92,15 @@ export async function identifyWithCover(
     console.warn('OCR of the cover failed', e)
     return r
   }
-  const found = (x: Identified): Identified => ({ ...x, fromText: true, sure: undefined, evidence: [...(x.evidence ?? []), 'cover'] })
+  // the volume the cover or the file name says ("חלק ב"): a title of its own that has none is the same for both volumes
+  const part = partOf(cover.lines) ?? partOf([b.title.replace(/_+/g, ' ')], true)
+  const found = (x: Identified): Identified => ({
+    ...x,
+    title: withPart(x.title, part),
+    fromText: true,
+    sure: undefined,
+    evidence: [...(x.evidence ?? []), 'cover'],
+  })
   // lines the opening already has (an EPUB of pictures reads its cover there) say nothing new
   const fresh = cover.lines.filter((l) => !opening.includes(l))
   if (fresh.length) {

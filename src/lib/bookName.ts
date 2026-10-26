@@ -214,7 +214,32 @@ export function withoutAuthor(name: string, author: string): string {
   const words = clean(name).split(' ')
   // an author has a few words at most, so there is no need to try every suffix of a long name
   for (let k = 1; k < Math.min(words.length, MAX_AUTHOR_WORDS + 1); k++) if (people(words.slice(-k).join(' ')) === a) return words.slice(0, -k).join(' ')
-  return name
+  return gluedAuthor(words, author) ?? name
+}
+
+const lettersOf = (s: string) => s.replace(/[^\p{L}\p{N}]/gu, '')
+
+/** The author's name run on to the title with no space at all ("שרוןחיוןגינתהלביאההלוחמת"): the first or the last word
+ *  starts (or ends) with the author's letters and has something more. Undefined when it does not. */
+function gluedAuthor(words: string[], author: string): string | undefined {
+  const glued = lettersOf(clean(author))
+  // a short name could be the start of any word
+  if (glued.length < 6 || !words.length) return undefined
+  // the word without its first `n` letters (what is between them, a quote or an underscore, goes with them)
+  const dropFirst = (w: string, n: number) => {
+    let seen = 0
+    for (let i = 0; i < w.length; i++) if (/[\p{L}\p{N}]/u.test(w[i]!) && ++seen === n) return w.slice(i + 1).replace(/^[^\p{L}\p{N}]+/u, '')
+    return ''
+  }
+  const first = words[0]!
+  if (lettersOf(first).startsWith(glued) && lettersOf(first).length > glued.length) return clean([dropFirst(first, glued.length), ...words.slice(1)].join(' '))
+  const last = words[words.length - 1]!
+  if (lettersOf(last).endsWith(glued) && lettersOf(last).length > glued.length) {
+    const keep = lettersOf(last).length - glued.length
+    let seen = 0
+    for (let i = 0; i < last.length; i++) if (/[\p{L}\p{N}]/u.test(last[i]!) && ++seen === keep) return clean([...words.slice(0, -1), last.slice(0, i + 1)].join(' '))
+  }
+  return undefined
 }
 
 const latin = (s: string) => /[A-Za-z]/.test(s) && !/[\u0590-\u05FF]/.test(s)
@@ -280,6 +305,8 @@ export function tidyBookName(text: string): string {
     .replace(/\s*\((?:[^()]*\b(?:z-?library|z-?lib|1lib)\b[^()]*)\)?/giu, ' ')
     .replace(/\s*\(\d{1,2}\)/gu, ' ')
     .replace(/(?:[\s-]+\d{1,2})?(?:[\s-]+\d{6}){2}\s*$/u, '')
+    // a date and a number after it ("_240228_5201", "_240228_200"): what a scanner or a converter adds
+    .replace(/[\s-]+\d{6}[\s-]+\d{1,6}\s*$/u, '')
     // who uploaded or typed it: "נמסיס - הועלה על ידי …"
     .replace(/\s+[-–—]\s+(?:הועל(?:ה|תה)|הוקלד|נסרק|סרק|הוכן|הוקלדה)(?=\s)[\s\S]*$/u, '')
     .replace(/\s*[|•·]+\s*$/u, '')

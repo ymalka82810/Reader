@@ -190,3 +190,18 @@ describe('numbers in letters, book words and the title page author', () => {
     expect(authorFromOpening(['הארי פוטר', 'הארי פוטר ואבן החכמים'], 'הארי פוטר ואבן החכמים')).toBeUndefined()
   })
 })
+
+describe('a name run together by a scanner or a converter', () => {
+  it('takes off a date and the number after it', () => {
+    expect(tidyBookName('הלביאה_הלוחמת_240228_5201')).toBe('הלביאה הלוחמת')
+    expect(tidyBookName('הלביאה_הלוחמת_240228_200')).toBe('הלביאה הלוחמת')
+  })
+
+  it('takes off an author whose name is run on to the title with no space', () => {
+    expect(withoutAuthor('שרוןחיוןגינתהלביאההלוחמתחלקב', 'שרון חיון גינת')).toBe('הלביאההלוחמתחלקב')
+    expect(withoutAuthor('הלביאההלוחמתשרוןחיוןגינת', 'שרון חיון גינת')).toBe('הלביאההלוחמת')
+    // a short name, or a word that only starts like the author's, stays
+    expect(withoutAuthor('דנהמלך', 'דנה')).toBe('דנהמלך')
+    expect(withoutAuthor('גנב הברק', 'שרון חיון גינת')).toBe('גנב הברק')
+  })
+})
