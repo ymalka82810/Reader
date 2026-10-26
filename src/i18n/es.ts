@@ -922,7 +922,7 @@ export const es: Record<keyof typeof he, Message> = {
   'device.scanNow': 'Buscar ahora',
   'device.scanNowHint': 'Añade los libros nuevos de las carpetas de abajo',
   'device.retry': 'Libros no añadidos',
-  'device.retryHint': 'También ofrece de nuevo los libros cuya adición se canceló o falló. Los libros eliminados de la biblioteca no vuelven',
+  'device.retryHint': 'También ofrece de nuevo los libros cuya adición se canceló o falló, y los libros eliminados de la biblioteca',
   'device.retryButton': 'Buscar de nuevo',
   'device.dupes': 'Limpiar duplicados del teléfono',
   'device.dupesHint': 'Encuentra un libro que está varias veces en las carpetas: el EPUB sigue siendo el principal, los demás formatos pasan a la carpeta «Versiones» del autor, y las copias sobrantes solo se borran con tu aprobación',

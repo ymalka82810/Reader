@@ -1,7 +1,7 @@
 // A book's own file on the phone (Android app only): its name follows the book's title, and a single
 // book can be saved there from the library. Talks to the native DeviceBooks plugin like lib/deviceBooks.ts does.
 
-import { createStore, del, entries, get, keys, set, values } from 'idb-keyval'
+import { createStore, del, entries, get, keys, set } from 'idb-keyval'
 import type { PdfOptions } from './pdfOptions'
 import { getBook, getBookMeta, getFile, listBooks, type BookMeta } from './db'
 import { deviceBooksSupported, hasDeviceAccess, markSeen, requestDeviceAccess, type DeviceFile } from './deviceBooks'
@@ -45,8 +45,15 @@ export const phoneFileOf = (id: string) => get<string>(id, pathStore)
 export const forgetPhoneFile = (id: string) => del(id, pathStore)
 /** which book each file on the phone is tied to (by path) */
 export const phoneFileLinks = async () => new Map(await entries<string, string>(pathStore))
-/** the paths of every file tied to a book, also of books since deleted from the library */
-export const phoneFilePaths = async () => new Set([...(await values<string>(pathStore)), ...(await values<string[]>(copyStore)).flat()])
+/** the paths of the files tied to books that are in the library now: a book deleted from it no longer holds its file,
+ *  so a retry offers that file again */
+export async function phoneFilePathsInLibrary(): Promise<Set<string>> {
+  const ids = new Set((await listBooks()).map((b) => b.id))
+  const paths = new Set<string>()
+  for (const [id, path] of await entries<string, string>(pathStore)) if (ids.has(String(id))) paths.add(path)
+  for (const [id, copies] of await entries<string, string[]>(copyStore)) if (ids.has(String(id))) copies.forEach((c) => paths.add(c))
+  return paths
+}
 
 const baseName = (path: string) => path.slice(path.lastIndexOf('/') + 1)
 

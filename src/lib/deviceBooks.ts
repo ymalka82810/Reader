@@ -55,15 +55,15 @@ export async function scanDevice(folders: string[]): Promise<DeviceFile[]> {
 export const normalizeFolder = (f: string) => f.trim().replace(/^\/+|\/+$/g, '')
 
 // Every file the library has already dealt with (added, skipped as a duplicate, or failed), by path, with the size
-// and time it had then. A book the user later deletes from the library therefore doesn't come back on the next scan,
-// while a file that was replaced on the phone (new size or time) is looked at again.
+// and time it had then. A book the user later deletes from the library therefore doesn't come back on the next scan
+// (only on a retry, "חפש שוב"), while a file that was replaced on the phone (new size or time) is looked at again.
 const seenStore = createStore('reader-device-db', 'seen')
 const stamp = (f: DeviceFile) => `${f.size}|${f.modified}`
 
 /**
  * The files not dealt with before, in a stable order (by folder, then name). With `ofBooks` (the paths of the files
- * tied to a book, kept or deleted), a file dealt with but never tied to one counts as new too: a retry of the books
- * whose adding was cancelled or failed, or that were skipped as duplicates (those are skipped again).
+ * tied to books in the library), a file dealt with but never tied to one counts as new too: a retry of the books
+ * whose adding was cancelled or failed, that were deleted from the library, or that were skipped as duplicates (those are skipped again).
  */
 export function pickNew(files: DeviceFile[], seen: Map<string, string>, ofBooks?: Set<string>): DeviceFile[] {
   return files

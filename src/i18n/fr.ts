@@ -922,7 +922,7 @@ export const fr: Record<keyof typeof he, Message> = {
   'device.scanNow': 'Analyser maintenant',
   'device.scanNowHint': 'Ajoute les nouveaux livres des dossiers ci-dessous',
   'device.retry': 'Livres non ajoutés',
-  'device.retryHint': 'Propose aussi à nouveau les livres dont l’ajout a été annulé ou a échoué. Les livres supprimés de la bibliothèque ne reviennent pas',
+  'device.retryHint': 'Propose aussi à nouveau les livres dont l’ajout a été annulé ou a échoué, ainsi que les livres supprimés de la bibliothèque',
   'device.retryButton': 'Chercher à nouveau',
   'device.dupes': 'Nettoyer les doublons du téléphone',
   'device.dupesHint': 'Trouve un livre présent plusieurs fois dans les dossiers : l\'EPUB reste le fichier principal, les autres formats vont dans le dossier « Versions » de l\'auteur, et les copies en trop ne sont supprimées qu\'avec votre accord',

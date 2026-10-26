@@ -12,7 +12,7 @@ import {
   syncBackgroundScan,
   type DeviceFile,
 } from '../lib/deviceBooks'
-import { linkKnownBooks, phoneFilePaths, placeVersions, refreshPhoneFiles, refreshPhoneFilesOnce } from '../lib/phoneFiles'
+import { linkKnownBooks, phoneFilePathsInLibrary, placeVersions, refreshPhoneFiles, refreshPhoneFilesOnce } from '../lib/phoneFiles'
 import { loadSettings } from '../lib/settings'
 import type { AddOptions, LazyFile } from './useImport'
 import type { Confirm } from './useConfirm'
@@ -80,8 +80,8 @@ export function useDeviceScan({ addFiles, setBusy, setError, showToast, confirm 
       await (manual ? refreshPhoneFiles() : refreshPhoneFilesOnce()).catch(() => {})
       // converted copies the user saved to Download go to their author's versions folder
       await placeVersions().catch(() => {})
-      // a retry also offers the files whose adding was cancelled or failed before
-      const all = await newDeviceFiles(scanned, retry ? await phoneFilePaths() : undefined)
+      // a retry also offers the files whose adding was cancelled or failed before, and those of books deleted since
+      const all = await newDeviceFiles(scanned, retry ? await phoneFilePathsInLibrary() : undefined)
       setBusy(undefined)
       const found = manual ? all : all.filter((f) => !declined.has(f.path))
       if (!found.length) {
