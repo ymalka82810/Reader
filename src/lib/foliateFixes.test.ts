@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { FoliateView } from 'foliate-js/view.js'
-import { alignDocDir, fixBookDir, guardBookEdges } from './foliateFixes'
+import { alignDocDir, firstSectionShowsImage, fixBookDir, guardBookEdges, startAtFirstSection } from './foliateFixes'
 
 function fakeView(o: { dir?: string; index?: number; sections?: number; scrolled?: boolean; start?: number; end?: number; viewSize?: number }) {
   const prev = vi.fn(() => Promise.resolve('prev'))
@@ -125,5 +125,28 @@ describe('guardBookEdges', () => {
     guardBookEdges(paged.view)
     await paged.view.renderer.prev()
     expect(paged.prev).toHaveBeenCalled()
+  })
+})
+
+describe('startAtFirstSection', () => {
+  it('opens at the first linear section instead of the declared text start', async () => {
+    const goTo = vi.fn(() => Promise.resolve())
+    const view = { book: { sections: [{ linear: 'no' }, {}, {}] }, goTo } as unknown as FoliateView
+    startAtFirstSection(view)
+    await view.goToTextStart?.()
+    expect(goTo).toHaveBeenCalledWith(1)
+  })
+})
+
+describe('firstSectionShowsImage', () => {
+  const viewOf = (doc?: Document | (() => never)) =>
+    ({ book: { sections: [{ createDocument: typeof doc === 'function' ? doc : doc ? () => Promise.resolve(doc) : undefined }] } }) as unknown as FoliateView
+  const docWith = (found: boolean) => ({ querySelector: () => (found ? {} : null) }) as unknown as Document
+
+  it('is true when the first page has a picture', async () => expect(await firstSectionShowsImage(viewOf(docWith(true)))).toBe(true))
+  it('is false for a text-only first page', async () => expect(await firstSectionShowsImage(viewOf(docWith(false)))).toBe(false))
+  it('is true when the page cannot be read', async () => {
+    expect(await firstSectionShowsImage(viewOf())).toBe(true)
+    expect(await firstSectionShowsImage(viewOf(() => { throw new Error('x') }))).toBe(true)
   })
 })

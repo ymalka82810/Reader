@@ -4,7 +4,7 @@ import type { FoliateRelocateDetail, FoliateView } from 'foliate-js/view.js'
 import { Overlayer } from 'foliate-js/overlayer.js'
 import { flattenToc, type FlatTocItem } from '../components/reader/toc'
 import { getBook } from '../lib/db'
-import { alignDocDir, fixBookDir, guardBookEdges, isFixedLayout, markOwnStyles, setBookStyles } from '../lib/foliateFixes'
+import { alignDocDir, firstSectionShowsImage, fixBookDir, guardBookEdges, isFixedLayout, markOwnStyles, setBookStyles, startAtFirstSection } from '../lib/foliateFixes'
 import { resetPageScroll } from '../lib/pdfZoom'
 import { bookFromSections } from '../lib/pdfToBook'
 import { t } from '../i18n'
@@ -60,11 +60,14 @@ export function useFoliateView(
   /** primary language subtag of the open book ("he", "en", …), '' when unknown */
   const bookLang = useRef('')
   const [lang, setLang] = useState('')
+  /** the cover image shown over a book that opens without it (blob URL), '' when there is none */
+  const [coverUrl, setCoverUrl] = useState('')
 
   useEffect(() => {
     let cancelled = false
     const view = document.createElement('foliate-view') as FoliateView
     view.style.cssText = 'display:block;width:100%;height:100%'
+    let coverObjectUrl = ''
     const syncDir = () => setDir(view.book.dir === 'ltr' ? 'ltr' : 'rtl')
 
     ;(async () => {
@@ -113,9 +116,14 @@ export function useFoliateView(
         on<FoliateRelocateDetail>('relocate', (d) => h.current.relocate(d))
 
         const cfi = startCfi ?? rec.cfi
+        if (!cfi) startAtFirstSection(view)
         await view.init({ lastLocation: cfi, showTextStart: !cfi })
         // a book whose file was made again (lib/db saveReconverted) knows only how far in the reader was
         if (!cfi && rec.fraction) await view.goToFraction(rec.fraction)
+        else if (!cfi && rec.cover && !(await firstSectionShowsImage(view)) && !cancelled) {
+          coverObjectUrl = URL.createObjectURL(rec.cover)
+          setCoverUrl(coverObjectUrl)
+        }
         setStatus('ready')
       } catch (e) {
         console.error(e)
@@ -128,6 +136,8 @@ export function useFoliateView(
 
     return () => {
       cancelled = true
+      if (coverObjectUrl) URL.revokeObjectURL(coverObjectUrl)
+      setCoverUrl('')
       try {
         view.close?.()
       } catch {
@@ -143,5 +153,5 @@ export function useFoliateView(
     if (viewRef.current) applySettings(viewRef.current, settings, customFace)
   }, [viewRef, settings, customFace])
 
-  return { status, error, title, dir, toc, bookLang, lang }
+  return { status, error, title, dir, toc, bookLang, lang, coverUrl }
 }
