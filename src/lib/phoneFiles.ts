@@ -220,6 +220,9 @@ export async function placeBooksOnPhone(
   return out
 }
 
+/** how many converted copies saved to Download wait to be filed under their author's versions folder */
+export const pendingVersionCount = async (): Promise<number> => (await keys(versionStore)).length
+
 /** where a converted copy of a book is filed: the book's folder, then the versions folder, then a folder per format */
 const versionPhoneDir = (b: Pick<BookMeta, 'author' | 'folder'>, ext: string, names?: Map<string, string>): string =>
   `${bookPhoneDir(b, names)}/${VERSIONS_DIR}/${ext.toUpperCase()}`

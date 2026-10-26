@@ -12,7 +12,9 @@ import {
 } from '../../lib/deviceBooks'
 import { t } from '../../i18n'
 import { listBooks } from '../../lib/db'
-import { phoneFilePaths, placeBooksOnPhone } from '../../lib/phoneFiles'
+import { pendingVersionCount, phoneFilePaths, placeBooksOnPhone, placeVersions } from '../../lib/phoneFiles'
+import { summarizePhone, type PhoneOverview } from '../../lib/phoneOverview'
+import { PhoneOverviewDialog } from './PhoneOverviewDialog'
 import { findDuplicateGroups, type DuplicateGroup } from '../../lib/phoneDuplicates'
 import { PhoneDuplicatesDialog } from './PhoneDuplicatesDialog'
 import { mergeAllAuthorSpellings } from '../../lib/authorMerge'
@@ -29,6 +31,7 @@ export function DevicePage({ settings, set, busy, onScan }: { settings: Settings
   const [placingBusy, setPlacingBusy] = useState(false)
   const [dupes, setDupes] = useState<DuplicateGroup[]>()
   const [dupesBusy, setDupesBusy] = useState(false)
+  const [overview, setOverview] = useState<{ data: PhoneOverview; pending: number; groups: DuplicateGroup[] }>()
   const { pending: confirmAsk, confirm } = useConfirm()
   useEffect(() => {
     // re-checked on return, since access is given (or taken away) in Android's own settings
@@ -70,6 +73,21 @@ export function DevicePage({ settings, set, busy, onScan }: { settings: Settings
   }
 
   const folders = settings.deviceFolders
+  /** what the scanned folders hold: counted, shown, and from there the converted copies are filed or the duplicates cleaned */
+  const showOverview = async () => {
+    setError('')
+    setPlacing(undefined)
+    setDupesBusy(true)
+    try {
+      const [files, linked, pending] = await Promise.all([scanDevice(folders), phoneFilePaths(), pendingVersionCount()])
+      const groups = findDuplicateGroups(files, linked)
+      setOverview({ data: summarizePhone(files, linked, groups), pending, groups })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setDupesBusy(false)
+    }
+  }
   /** the books that are in the scanned folders more than once: shown to the user, who approves what is deleted */
   const checkDuplicates = async () => {
     setError('')
@@ -143,6 +161,11 @@ export function DevicePage({ settings, set, busy, onScan }: { settings: Settings
         <Row label={t('device.retry')} hint={t('device.retryHint')}>
           <button disabled={busy || !folders.length} onClick={() => onScan(true)}>{t('device.retryButton')}</button>
         </Row>
+        <Row label={t('device.overview')} hint={t('device.overviewHint')}>
+          <button disabled={busy || dupesBusy || access === false || !folders.length} onClick={() => void showOverview()}>
+            {t('device.overviewButton')}
+          </button>
+        </Row>
         <Row label={t('device.dupes')} hint={t('device.dupesHint')}>
           <button disabled={busy || dupesBusy || access === false || !folders.length} onClick={() => void checkDuplicates()}>
             {t('device.dupesButton')}
@@ -167,6 +190,18 @@ export function DevicePage({ settings, set, busy, onScan }: { settings: Settings
         </Row>
         {error && <div role="alert" className="muted">{error}</div>}
       </Section>
+      {overview && (
+        <PhoneOverviewDialog
+          overview={overview.data}
+          pending={overview.pending}
+          onFile={placeVersions}
+          onClean={() => {
+            setDupes(overview.groups)
+            setOverview(undefined)
+          }}
+          onClose={() => setOverview(undefined)}
+        />
+      )}
       {dupes && (
         <PhoneDuplicatesDialog
           groups={dupes}

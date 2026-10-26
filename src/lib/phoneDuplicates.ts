@@ -32,7 +32,7 @@ const stemOf = (name: string) => {
 }
 
 /** a path inside the books folder's versions folders belongs there on purpose */
-const isVersionPath = (path: string) => path.includes(`/${VERSIONS_DIR_NAME}/`)
+export const isVersionPath = (path: string) => path.includes(`/${VERSIONS_DIR_NAME}/`)
 
 /** The author's folder inside the books folder that a file is in, or undefined when it is somewhere else. */
 export function authorDirOf(path: string): string | undefined {
