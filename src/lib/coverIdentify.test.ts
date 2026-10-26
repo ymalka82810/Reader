@@ -43,3 +43,12 @@ it('leaves a book with a name alone, and one with no cover', async () => {
   await identifyWithCover({ ...book, cover: undefined }, false, undefined, [], undefined)
   expect(read).not.toHaveBeenCalled()
 })
+
+it('names the volume a cover or a glued file name says, so two volumes of one title do not get the same name', async () => {
+  const glued = { id: 'v1', title: 'שרוןחיוןגינתהלביאההלוחמתחלקב_240228_5201', author: 'שרון חיון גינת', fileName: 'x.pdf', cover: new Blob(['img']) }
+  read.mockResolvedValue([['הלביאה הלוחמת', 'חלק ב', 'שרון חיון גינת']])
+  expect(await identifyWithCover(glued, false, undefined, [], undefined)).toMatchObject({ title: "הלביאה הלוחמת, חלק ב'" })
+  // the cover says no volume: the file name does
+  read.mockResolvedValue([['הלביאה הלוחמת', 'שרון חיון גינת']])
+  expect(await identifyWithCover({ ...glued, id: 'v2', title: 'שרוןחיוןגינתהלביאההלוחמתחלקא_240228_200' }, false, undefined, [], undefined)).toMatchObject({ title: "הלביאה הלוחמת, חלק א'" })
+})
