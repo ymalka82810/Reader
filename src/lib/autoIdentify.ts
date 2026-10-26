@@ -47,7 +47,7 @@ export interface PendingName {
 // the device and the book before and after; "14" (with a new waiting list, "13") again, without the series said twice,
 // a publisher taken for the author, or a fingerprint of another author's series
 const KEY = 'reader:identify:pending13'
-const OLD_KEYS = ['pending', 'backfill', 'pending2', 'backfill2', 'pending3', 'backfill3', 'pending4', 'backfill4', 'pending5', 'backfill5', 'pending6', 'backfill6', 'pending7', 'backfill7', 'pending8', 'backfill8', 'pending9', 'backfill9', 'pending10', 'backfill10', 'pending11', 'backfill11', 'pending12', 'backfill12', 'backfill13'].map(
+const OLD_KEYS = ['pending', 'backfill', 'pending2', 'backfill2', 'pending3', 'backfill3', 'pending4', 'backfill4', 'pending5', 'backfill5', 'pending6', 'backfill6', 'pending7', 'backfill7', 'pending8', 'backfill8', 'pending9', 'backfill9', 'pending10', 'backfill10', 'pending11', 'backfill11', 'pending12', 'backfill12', 'backfill13', 'backfill14'].map(
   (k) => `reader:identify:${k}`,
 )
 const listeners = new Set<() => void>()
@@ -95,7 +95,7 @@ function addPending(items: PendingName[]) {
   savePending([...loadPending().filter((p) => !ids.has(p.id)), ...items])
 }
 
-const BACKFILL = 'reader:identify:backfill14'
+const BACKFILL = 'reader:identify:backfill15'
 
 /** The books the one-time identification of the library still has to go through: all of `allIds` before it started,
  *  what is left after it was stopped, and undefined once it is done (or was cancelled). */
@@ -120,6 +120,36 @@ export function setBackfillLeft(left: string[] | undefined) {
   } catch {
     /* storage unavailable */
   }
+}
+
+// A book whose name still says nothing is tried again from time to time, not only once: a cover that could not be read, a
+// catalog that did not answer, or a new way of reading names may name it now. Once a day at most, and only on start.
+const TRIED = 'reader:identify:junk-tried'
+const RETRY_AFTER = 24 * 60 * 60 * 1000
+
+function triedAt(): Record<string, number> {
+  try {
+    const v: unknown = JSON.parse(localStorage.getItem(TRIED) ?? '{}')
+    return v && typeof v === 'object' ? (v as Record<string, number>) : {}
+  } catch {
+    return {}
+  }
+}
+
+function markTried(ids: string[]) {
+  try {
+    const all = { ...triedAt() }
+    for (const id of ids) all[id] = Date.now()
+    localStorage.setItem(TRIED, JSON.stringify(all))
+  } catch {
+    /* storage unavailable: tried again at the next start */
+  }
+}
+
+/** the books whose name still says nothing (no series and no title) and that were not tried in the last day */
+export function unnamedIds(books: Named[]): string[] {
+  const tried = triedAt()
+  return books.filter((b) => !isConfirmed(b.id, b.title) && standing(b).junk && Date.now() - (tried[b.id] ?? 0) >= RETRY_AFTER).map((b) => b.id)
 }
 
 const unmarked = (s: string) => s.replace(/[\u200E\u200F]/g, '')
@@ -254,6 +284,7 @@ export async function identifyNew(
       try {
         const b = await getBookMeta(id)
         if (!b) continue
+        if (standing(b).junk) markTried([id])
         const { opening, meta } = await bookDetails(b, signal)
         // what the book says of itself is kept for the books compared with it later (its series' fingerprint), and what
         // it says of its neighbours in the series is kept for them, by its name now

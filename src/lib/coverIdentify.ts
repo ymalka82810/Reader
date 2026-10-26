@@ -5,10 +5,11 @@
 // any title (the library, the lists, the series that come with the app, the catalogs). OCR runs on the device (see
 // ocr.ts), only for these books, and once per book: what was read is kept (`reader:cover-lines`), even when nothing.
 import { identifyBook, type Identified, type LibraryNames } from './bookLookup'
-import { isJunkTitle, nameFromOpening } from './bookName'
+import { isJunkTitle, nameFromOpening, splitGlued } from './bookName'
 import type { EpubMeta } from './bookText'
 
-const KEY = 'reader:cover-lines'
+// "2": a cover read as nothing before is read again, once
+const KEY = 'reader:cover-lines2'
 const MAX_LINES = 8
 const KEEP = 400
 
@@ -59,7 +60,8 @@ const saysNothing = (r: { series: string; number?: string; title: string }) => i
 async function coverLines(b: { id: string; cover?: Blob }, signal?: AbortSignal): Promise<{ largest?: string; lines: string[] }> {
   const known = kept()[b.id] ?? (b.cover ? await read(b.cover, signal) : undefined)
   if (!known) return { lines: [] }
-  if (!kept()[b.id]) keep(b.id, known)
+  // a cover that read as nothing is read again next time, not kept as nothing
+  if (!kept()[b.id] && known.some(Boolean)) keep(b.id, known)
   const [largest, ...lines] = known
   return { ...(largest && { largest }), lines }
 }
@@ -110,7 +112,34 @@ export async function identifyWithCover(
   }
   // the largest line as the title, when it is one: not the author, a credit, an address or a sentence
   const title = cover.largest && nameFromOpening([cover.largest], b.author).candidates[0]
-  if (!title || isJunkTitle(title)) return r
-  const asTitle = await identifyBook({ ...b, title }, online, signal, opening, meta, library)
-  return saysNothing(asTitle) ? r : found(asTitle)
+  if (title && !isJunkTitle(title)) {
+    const asTitle = await identifyBook({ ...b, title }, online, signal, opening, meta, library)
+    if (!saysNothing(asTitle)) return found(asTitle)
+  }
+  // still nothing: the file name's run-together letters, split into words that the book, its cover or the library use
+  const split = splitGlued(r.title.replace(/(?:^|(?<=\p{L}))חלק\s*(?:[א-ד]|ראשון|שני|שלישי|רביעי|חמישי)$/u, ''), vocabulary(opening, cover, library))
+  if (!split) return r
+  const asSplit = await identifyBook({ ...b, title: split }, online, signal, opening, meta, library)
+  return saysNothing(asSplit) ? { ...r, title: withPart(split, part) } : { ...found(asSplit), fromText: undefined }
+}
+
+/** the words the book's opening, its cover and the library's names and authors use: what a run-together name is split by */
+function vocabulary(opening: string[], cover: { largest?: string; lines: string[] }, library?: LibraryNames): Set<string> {
+  const words = new Set<string>()
+  const add = (line: string) => {
+    for (const w of line.split(/[^\p{L}]+/u)) if (w.length >= 2) words.add(w)
+  }
+  for (const l of [...opening, ...(cover.largest ? [cover.largest] : []), ...cover.lines]) add(l)
+  if (library) {
+    for (const a of library.authors) add(a)
+    for (const [title, series] of library.titles ?? []) {
+      add(title)
+      add(series)
+    }
+    for (const e of library.series.values()) {
+      add(e.name)
+      for (const m of e.members ?? []) if (m.title) add(m.title)
+    }
+  }
+  return words
 }

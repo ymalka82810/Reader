@@ -59,3 +59,15 @@ it('reads the cover of a book whose series is its title run together, and names 
   read.mockResolvedValue([[]])
   expect(await identifyWithCover(stuck, false, undefined, [], undefined)).toMatchObject({ title: "הלביאה הלוחמת - חלק א'" })
 })
+
+it('splits a run-together name by the words of the library when the cover reads as nothing, and tries a cover that read as nothing again', async () => {
+  const glued = { id: 'g1', title: 'שרוןחיוןגינתהלביאההלוחמתחלקב_240228_5201', author: 'שרון חיון גינת', fileName: 'x.pdf', cover: new Blob(['img']) }
+  const library = { series: new Map(), titles: new Map([['הלביאה הלוחמת', 'הלביאה הלוחמת']]), authors: ['שרון חיון גינת'] }
+  read.mockResolvedValue([[]])
+  const r = await identifyWithCover(glued, false, undefined, [], undefined, library)
+  expect(r.title).toBe("הלביאה הלוחמת, חלק ב'")
+  // the empty reading was not kept: the next time the cover is read again
+  read.mockResolvedValue([['הלביאה הלוחמת', 'חלק ב', 'שרון חיון גינת']])
+  await identifyWithCover(glued, false, undefined, [], undefined)
+  expect(read).toHaveBeenCalledTimes(2)
+})
