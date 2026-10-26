@@ -179,4 +179,12 @@ public class DeviceBooksPluginTest {
         new File(dir, "notes").createNewFile();
         assertEquals("notes (2)", DeviceBooksPlugin.freeFile(dir, "notes", null).getName());
     }
+
+    @Test
+    public void onlyBookFilesMayBeDeleted() {
+        assertTrue(DeviceBooksPlugin.isBookFile(new File("/x/Book.EPUB")));
+        assertTrue(DeviceBooksPlugin.isBookFile(new File("/x/book (2).pdf")));
+        assertFalse(DeviceBooksPlugin.isBookFile(new File("/x/photo.jpg")));
+        assertFalse(DeviceBooksPlugin.isBookFile(new File("/x/epub")));
+    }
 }

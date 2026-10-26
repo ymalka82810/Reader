@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { bookFileName, bookPhoneDir, forgetPhoneFile, placeBooksOnPhone, placeNewBook, matchPhoneFiles, phoneFileOf, placeVersions, refreshPhoneFiles, rememberPhoneFile, saveBookToPhone, syncPhoneNames } from './phoneFiles'
+import { bookFileName, bookPhoneDir, forgetPhoneFile, placeBooksOnPhone, placeNewBook, matchPhoneFiles, phoneFileOf, placeVersions, tidyPhoneDuplicates, refreshPhoneFiles, rememberPhoneFile, saveBookToPhone, syncPhoneNames } from './phoneFiles'
 import type { BookRecord } from './db'
 
 // the test books, served in place of IndexedDB (whose fake loses a Blob's methods under jsdom)
@@ -229,5 +229,35 @@ describe('converted copies', () => {
     expect(await placeVersions()).toBe(0)
     expect(calls.some((c) => c.method === 'place' || c.method === 'remove')).toBe(false)
     expect(files.size).toBe(1)
+  })
+})
+
+describe('tidyPhoneDuplicates', () => {
+  const df = (path: string) => ({ path, name: path.split('/').pop()!, size: 1, modified: 1 })
+
+  it('files the other format under the author\'s versions folder and deletes only the surplus the user approved', async () => {
+    const keep = df('/s/Documents/קורא ספרים/ריק ריירדן/גנב הברק.epub')
+    const pdf = df('/s/Download/גנב הברק.pdf')
+    const a = df('/s/Download/גנב הברק (1).pdf')
+    const b = df('/s/Download/גנב הברק (2).pdf')
+    const files = new Map([keep, pdf, a, b].map((f) => [f.path, 1]))
+    fakePhone(files)
+    const r = await tidyPhoneDuplicates([{ title: 'גנב הברק', keep, versions: [pdf], surplus: [a, b] }], new Set([a.path]))
+    expect(r).toEqual({ deleted: 1, moved: 1, failed: 0 })
+    expect([...files.keys()].sort()).toEqual(
+      [keep.path, b.path, '/s/Documents/קורא ספרים/ריק ריירדן/גרסאות/PDF/גנב הברק.pdf'].sort(),
+    )
+  })
+
+  it('deletes nothing when nothing was approved, and keeps versions put when the author folder is unknown', async () => {
+    const keep = df('/s/Download/ספר בלי מחבר.epub')
+    const pdf = df('/s/Download/ספר בלי מחבר.pdf')
+    const a = df('/s/Download/ספר בלי מחבר (1).pdf')
+    const files = new Map([keep, pdf, a].map((f) => [f.path, 1]))
+    const calls = fakePhone(files)
+    const r = await tidyPhoneDuplicates([{ title: 'ספר בלי מחבר', keep, versions: [pdf], surplus: [a] }], new Set())
+    expect(r).toEqual({ deleted: 0, moved: 0, failed: 0 })
+    expect(calls.some((c) => c.method === 'remove' || c.method === 'place')).toBe(false)
+    expect(files.size).toBe(3)
   })
 })
