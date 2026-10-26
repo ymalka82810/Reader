@@ -64,8 +64,9 @@ import org.json.JSONObject;
  *     requestAccess() -> {granted} once the user is back from the system screen or permission dialog
  *     scan({folders, extensions}) -> {files: [{path, name, size, modified}]}; folders are relative to the shared
  *       storage root ("Documents", "Download", "Books/Hebrew"); rejects with "permission" without access
- *     refreshIndex({paths}) -> {}: tells the system's media index about these files (their current names) and asks it to drop
- *       entries of files that are gone (in the folders of these files), so the names a file manager shows are the real ones; never rejects
+ *     refreshIndex({paths}) -> {}: tells the system's media index about these files (their current names, also the name and
+ *       title stored in their index rows, which Drive and share sheets show) and drops entries of files that are gone (in the
+ *       folders of these files), so the names a file manager shows are the real ones; never rejects
  *     rename({path, name}) -> {path, name}: renames a file in the shared storage (a name already taken gets " (2)");
  *       rejects with "permission", "missing" (no such file), "outside" or "rename"
  *     save({name, data}) -> {path, name, size, modified}: starts a new file in the Download folder from base64 `data`
@@ -359,6 +360,38 @@ public class DeviceBooksPlugin extends Plugin {
         return p.startsWith(rootPath + "/") && !p.startsWith(rootPath + "/Android/");
     }
 
+    /** After a file was renamed or moved: the media index (what Drive, the share sheet and file pickers read the name from)
+     *  still holds a row under the OLD path with the OLD name, which shows up as the file's name (often a string of letters
+     *  and digits from wherever it was downloaded). The old row is deleted by path (its file is gone, so nothing on disk is
+     *  touched), the new path is scanned, and the new row's name and title are set to the file's current name. Quiet. */
+    private void reindexRenamed(File from, File to) {
+        final android.content.ContentResolver cr = getContext().getContentResolver();
+        final Uri files = android.provider.MediaStore.Files.getContentUri("external");
+        if (!from.equals(to) && !from.exists()) {
+            try {
+                cr.delete(files, android.provider.MediaStore.Files.FileColumns.DATA + "=?", new String[] { from.getAbsolutePath() });
+            } catch (Exception ignored) {
+            }
+        }
+        final String fileName = to.getName();
+        final int dot = fileName.lastIndexOf('.');
+        final String stem = dot > 0 ? fileName.substring(0, dot) : fileName;
+        MediaScannerConnection.scanFile(getContext(), new String[] { to.getAbsolutePath() }, null,
+                new MediaScannerConnection.OnScanCompletedListener() {
+                    @Override
+                    public void onScanCompleted(String path, Uri uri) {
+                        if (uri == null) return;
+                        try {
+                            android.content.ContentValues v = new android.content.ContentValues();
+                            v.put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, fileName);
+                            v.put(android.provider.MediaStore.MediaColumns.TITLE, stem);
+                            cr.update(uri, v, null, null);
+                        } catch (Exception ignored) {
+                        }
+                    }
+                });
+    }
+
     @PluginMethod
     public void refreshIndex(PluginCall call) {
         try {
@@ -386,10 +419,22 @@ public class DeviceBooksPlugin extends Plugin {
                         null)) {
                     while (c != null && c.moveToNext()) {
                         String p = c.getString(0);
-                        if (p != null && !new File(p).exists()) paths.add(p);
+                        if (p != null && !new File(p).exists()) {
+                            paths.add(p);
+                            try {
+                                getContext().getContentResolver().delete(
+                                        android.provider.MediaStore.Files.getContentUri("external"),
+                                        android.provider.MediaStore.Files.FileColumns.DATA + "=?", new String[] { p });
+                            } catch (Exception ignored) {
+                            }
+                        }
                     }
                 } catch (Exception ignored) {
                 }
+            }
+            for (String p : paths) {
+                File f = new File(p);
+                if (f.isFile()) reindexRenamed(f, f);
             }
             if (!paths.isEmpty()) MediaScannerConnection.scanFile(getContext(), paths.toArray(new String[0]), null, null);
         } catch (Exception ignored) {
@@ -426,7 +471,7 @@ public class DeviceBooksPlugin extends Plugin {
                 }
                 // the system's media index still holds the old name: drop it and add the new one, so the file manager
                 // and other readers show the new name at once
-                MediaScannerConnection.scanFile(getContext(), new String[] { from.getAbsolutePath(), to.getAbsolutePath() }, null, null);
+                reindexRenamed(from, to);
             }
             JSObject ret = new JSObject();
             ret.put("path", to.getAbsolutePath());
@@ -527,7 +572,7 @@ public class DeviceBooksPlugin extends Plugin {
                         return;
                     }
                 }
-                MediaScannerConnection.scanFile(getContext(), new String[] { from.getAbsolutePath(), to.getAbsolutePath() }, null, null);
+                reindexRenamed(from, to);
                 pruneEmpty(from.getParentFile());
             }
             JSObject ret = new JSObject();
