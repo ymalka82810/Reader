@@ -160,6 +160,13 @@ function fakePhone(files: Map<string, number>) {
         files.set(path, 1)
         return { path, name: options.name, size: 1, modified: 1 }
       }
+      if (method === 'rename') {
+        const dir = (options.path as string).slice(0, (options.path as string).lastIndexOf('/'))
+        const path = `${dir}/${options.name}`
+        files.delete(options.path as string)
+        files.set(path, 1)
+        return { path, name: options.name, size: 1, modified: 2 }
+      }
       if (method === 'remove') {
         if (!files.delete(options.path as string)) throw new Error('remove')
         return undefined
@@ -204,6 +211,25 @@ describe('downloading a book', () => {
     expect(save?.options.dir).toBeUndefined()
     expect(calls.some((c) => c.method === 'place' || c.method === 'rename')).toBe(false)
     expect(await phoneFileOf('d1')).toBe(inFolder)
+  })
+
+  it('renames the Download copy when the book is renamed, and leaves the book\'s file in the books folder to its own sync', async () => {
+    saveBook(record({ id: 'd2' }))
+    const inFolder = '/s/Documents/קורא ספרים/ריק ריירדן/גנב הברק.epub'
+    await rememberPhoneFile('d2', inFolder)
+    const files = new Map([[inFolder, 1]])
+    const calls = fakePhone(files)
+    await saveBookToPhone('d2')
+    const copy = '/s/Download/גנב הברק.epub'
+    expect(files.has(copy)).toBe(true)
+    // the book gets another name (an identification, an edit): both files follow it
+    saveBook(record({ id: 'd2', title: 'פרסי ג\'קסון 2 - ים המפלצות' }))
+    expect(await syncPhoneNames(['d2'])).toEqual({ renamed: 2, failed: 0 })
+    expect(calls.filter((c) => c.method === 'rename').map((c) => c.options.path)).toContain(copy)
+    expect(files.has("/s/Download/פרסי ג'קסון 2 - ים המפלצות.epub")).toBe(true)
+    expect(files.has(copy)).toBe(false)
+    // and only once: the next sync has nothing left to rename
+    expect((await syncPhoneNames(['d2'])).renamed).toBe(0)
   })
 })
 
