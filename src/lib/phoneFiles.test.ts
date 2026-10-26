@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { bookFileName, bookPhoneDir, forgetPhoneFile, placeBooksOnPhone, placeNewBook, matchPhoneFiles, phoneFileOf, placeVersions, tidyPhoneDuplicates, refreshPhoneFiles, rememberPhoneFile, saveBookToPhone, syncPhoneNames } from './phoneFiles'
+import { bookFileName, bookPhoneDir, forgetPhoneFile, placeBooksOnPhone, placeNewBook, matchPhoneFiles, phoneFileOf, phoneFilePathsInLibrary, placeVersions, tidyPhoneDuplicates, refreshPhoneFiles, rememberPhoneFile, saveBookToPhone, syncPhoneNames } from './phoneFiles'
 import type { BookRecord } from './db'
 
 // the test books, served in place of IndexedDB (whose fake loses a Blob's methods under jsdom)
@@ -313,5 +313,17 @@ describe('a book\'s versions follow it to another author\'s folder', () => {
     )
     // the next sync has nothing left to move
     expect((await syncPhoneNames(['w1'])).failed).toBe(0)
+  })
+})
+
+describe('phoneFilePathsInLibrary', () => {
+  it('leaves out the files of books deleted from the library, so a retry offers them again', async () => {
+    books.clear()
+    books.set('kept', { id: 'kept' })
+    await rememberPhoneFile('kept', 'Documents/kept.epub')
+    await rememberPhoneFile('gone', 'Documents/gone.epub')
+    const paths = await phoneFilePathsInLibrary()
+    expect(paths.has('Documents/kept.epub')).toBe(true)
+    expect(paths.has('Documents/gone.epub')).toBe(false)
   })
 })

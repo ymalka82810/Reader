@@ -923,7 +923,7 @@ export const en: Record<keyof typeof he, Message> = {
   'device.scanNow': 'Scan now',
   'device.scanNowHint': 'Adds the new books from the folders below',
   'device.retry': 'Books not added',
-  'device.retryHint': 'Also offers again the books whose adding was cancelled or failed. Books deleted from the library do not come back',
+  'device.retryHint': 'Also offers again the books whose adding was cancelled or failed, and books deleted from the library',
   'device.retryButton': 'Look again',
   'device.dupes': 'Clean up duplicates on the phone',
   'device.dupesHint': 'Finds a book that is in the folders more than once: the EPUB stays the main file, other formats move to the author\'s "Versions" folder, and surplus copies are deleted only with your approval',
