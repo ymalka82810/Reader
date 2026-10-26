@@ -12,7 +12,7 @@ import { repairEpub } from './epubRepair'
 
 const ALREADY_EXISTS = t('import.exists')
 
-const langMap = (v: unknown): string => {
+export const langMap = (v: unknown): string => {
   if (!v) return ''
   if (typeof v === 'string') return decodeEntities(v)
   if (typeof v === 'object') {
@@ -22,7 +22,7 @@ const langMap = (v: unknown): string => {
   return ''
 }
 
-const contributor = (v: unknown): string => {
+export const contributor = (v: unknown): string => {
   if (!v) return ''
   const arr = Array.isArray(v) ? v : [v]
   return arr
