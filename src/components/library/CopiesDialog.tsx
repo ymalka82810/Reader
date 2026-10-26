@@ -4,11 +4,12 @@ import { t } from '../../i18n'
 import type { BookMeta } from '../../lib/db'
 import { keeperOf, markNotCopies, mergeCopies } from '../../lib/bookCopies'
 import type { Confirm } from '../../hooks/useConfirm'
+import { Cover } from './Cover'
 
 const kindOf = (b: BookMeta) => (b.kind === 'pdf' ? 'PDF' : b.fromPdf ? 'EPUB (PDF)' : 'EPUB')
 const percent = (b: BookMeta) => Math.round((b.fraction ?? 0) * 100)
 
-/** The books the library has more than once (lib/bookCopies), each group shown with the copy that stays and the ones
+/** The books the library has more than once (lib/bookCopies), each group shown with its covers, the copy that stays and the ones
  *  that go, merged or set apart one group at a time, or all merged at once after a confirmation. */
 export function CopiesDialog({
   groups,
@@ -67,10 +68,15 @@ export function CopiesDialog({
                 {g.map((b) => {
                   const stays = keepers?.get(g) === b.id
                   return (
-                    <li key={b.id}>
-                      <strong>{stays ? t('copies.stays') : t('copies.goes')}</strong> {b.title}
-                      {b.author && ` · ${b.author}`} · {kindOf(b)}
-                      {percent(b) > 0 && ` · ${t('copies.read', { n: percent(b) })}`}
+                    <li key={b.id} className="copy-row">
+                      <div className="copy-thumb">
+                        <Cover book={b} />
+                      </div>
+                      <div>
+                        <strong>{stays ? t('copies.stays') : t('copies.goes')}</strong> {b.title}
+                        {b.author && ` · ${b.author}`} · {kindOf(b)}
+                        {percent(b) > 0 && ` · ${t('copies.read', { n: percent(b) })}`}
+                      </div>
                     </li>
                   )
                 })}
