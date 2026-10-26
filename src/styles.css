@@ -157,6 +157,12 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: var(--radius-sm); border:
 .modal label input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .modal label input[type=number]::-webkit-inner-spin-button, .modal label input[type=number]::-webkit-outer-spin-button { display: none; }
 .modal-actions { display: flex; gap: .5rem; justify-content: flex-end; }
+/* "download to phone": one large button per format */
+.format-list { display: flex; flex-direction: column; gap: .45rem; }
+.format-option { display: flex; flex-direction: column; align-items: flex-start; gap: .15rem; text-align: start; padding: .6rem .85rem; border-radius: var(--radius-lg); border: 1px solid var(--border); background: var(--fill); box-shadow: var(--shadow-sm); }
+.format-name { display: flex; align-items: center; gap: .45rem; font-weight: 700; }
+.format-badge { font-size: .72rem; font-weight: 600; padding: .05rem .5rem; border-radius: var(--radius-pill); background: color-mix(in srgb, currentColor 18%, transparent); }
+.format-hint { font-size: .82rem; opacity: .8; }
 
 /* reader */
 .reader { position: fixed; inset: 0; background: var(--bg); color: var(--fg); overflow: hidden; }

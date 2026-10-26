@@ -5,6 +5,7 @@ import { createStore, del, get, keys, set, values } from 'idb-keyval'
 import { getBook, getBookMeta, getFile, listBooks, type BookMeta } from './db'
 import { deviceBooksSupported, hasDeviceAccess, markSeen, requestDeviceAccess, type DeviceFile } from './deviceBooks'
 import { download } from './download'
+import { exportBook, sourceFormat, type BookFormat } from './bookExport'
 import { loadSettings } from './settings'
 import { safeFileName } from './notesExport'
 import { folderKey, folderName, groupFolders } from './folders'
@@ -28,10 +29,12 @@ export const phoneFilePaths = async () => new Set(await values<string>(pathStore
 const baseName = (path: string) => path.slice(path.lastIndexOf('/') + 1)
 
 /** The book's title, which follows the naming template ("פרסי ג'קסון 1 - גנב הברק.epub"), with the extension of the stored
- *  file (a converted PDF is an EPUB). The author is the folder's business, not the file's. */
+ *  file: its own name tells it (a PDF converted on import is kept as "….epub", a PDF too big or a scan kept as "….pdf",
+ *  a MOBI as "….mobi"). The author is the folder's business, not the file's. */
 export function bookFileName(b: Pick<BookMeta, 'title' | 'fileName' | 'fromPdf' | 'kind'>, extension?: string): string {
   const dot = b.fileName.lastIndexOf('.')
-  const ext = extension ?? (b.fromPdf || b.kind === 'epub' ? 'epub' : dot > 0 ? b.fileName.slice(dot + 1).toLowerCase() : '')
+  const own = dot > 0 ? b.fileName.slice(dot + 1).toLowerCase() : ''
+  const ext = extension ?? (own || (b.fromPdf || b.kind === 'epub' ? 'epub' : ''))
   const stem = safeFileName(b.title.trim(), 'book')
   return ext ? `${stem}.${ext}` : stem
 }
@@ -83,20 +86,30 @@ async function writeToPhone(id: string, file: Blob, name: string, dir?: string, 
 }
 
 /** Saves one book from the library to the phone, always into the Download folder (a normal download in the browser): it
- *  is the user's own copy, apart from the book's file in the books folder. A book with no file on the phone yet, while the
- *  books folder is off, is tied to the download so it follows the book's name. Resolves with the name it was saved under;
- *  undefined when the book is gone. */
-export async function saveBookToPhone(id: string): Promise<string | undefined> {
+ *  is the user's own copy, apart from the book's file in the books folder. `format` converts it first (lib/bookExport);
+ *  without one, or in the format it is kept in, the stored file itself is saved. A book with no file on the phone yet,
+ *  while the books folder is off, is tied to a download of its own file so it follows the book's name (a converted copy
+ *  never is). Resolves with the name it was saved under; undefined when the book is gone. */
+export async function saveBookToPhone(
+  id: string,
+  format?: BookFormat,
+  onProgress?: (done: number, total: number) => void,
+  signal?: AbortSignal,
+): Promise<string | undefined> {
   const rec = await getBook(id)
   if (!rec) return undefined
-  const name = bookFileName(rec)
+  const own = !format || format === sourceFormat(rec)
+  // asked first, so a refused permission does not wait for a long conversion
+  if (deviceBooksSupported() && !(await hasDeviceAccess()) && !(await requestDeviceAccess().catch(() => false))) throw new Error('permission')
+  const file = own ? rec.file : await exportBook(rec, format, onProgress, signal)
+  signal?.throwIfAborted()
+  const name = own ? bookFileName(rec) : bookFileName(rec, format)
   if (!deviceBooksSupported()) {
-    download(rec.file, name)
+    download(file, name)
     return name
   }
-  if (!(await hasDeviceAccess()) && !(await requestDeviceAccess().catch(() => false))) throw new Error('permission')
-  const link = !libraryFolderOn() && !(await phoneFileOf(id))
-  const saved = await writeToPhone(id, rec.file, name, undefined, link)
+  const link = own && !libraryFolderOn() && !(await phoneFileOf(id))
+  const saved = await writeToPhone(id, file, name, undefined, link)
   return saved.name
 }
 

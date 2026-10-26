@@ -13,6 +13,7 @@ import { useAutoBackup } from '../hooks/useAutoBackup'
 import { useUpdateCheck } from '../hooks/useUpdateCheck'
 import { useDeviceScan } from '../hooks/useDeviceScan'
 import { deviceBooksSupported } from '../lib/deviceBooks'
+import { ExportError, exportFormats, sourceFormat, type BookFormat } from '../lib/bookExport'
 import { autoSyncPhoneNames, openDownloadsFolder, phoneFileOf, saveBookToPhone, syncPhoneNames } from '../lib/phoneFiles'
 import { formatBookName, splitBookName, type BookName } from '../lib/bookName'
 import { libraryNames, type LibraryNames } from '../lib/bookLookup'
@@ -54,6 +55,7 @@ import {
   EditBookDialog,
   FolderNameDialog,
   MoveDialog,
+  FormatDialog,
   PasswordDialog,
 } from './library/Dialogs'
 import { BookLoader } from './BookLoader'
@@ -69,6 +71,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   const [busy, setBusy] = useState<string>()
   /** set while a long job can be cancelled from the wait dialog */
   const [cancelBusy, setCancelBusy] = useState<() => void>()
+  const [downloading, setDownloading] = useState<{ book: BookMeta; formats: BookFormat[] }>()
   const [error, setError] = useState<string>()
   const [drag, setDrag] = useState(false)
   const [query, setQuery] = useState('')
@@ -265,6 +268,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
     if (confirmAsk) confirmAsk.answer(false)
     else if (fo.folderDialog) fo.setFolderDialog(undefined)
     else if (fo.moving) fo.setMoving(undefined)
+    else if (downloading) setDownloading(undefined)
     else if (confirmDel) setConfirmDel(undefined)
     else if (editing) {
       editRun.current++
@@ -338,11 +342,30 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
     }
   }
 
-  const downloadBook = async (b: BookMeta) => {
-    setBusy(t(deviceBooksSupported() ? 'book.saving' : 'book.preparing'))
+  /** "download to phone": a book that can be saved in other formats asks which one first */
+  const downloadBook = (b: BookMeta) => {
+    const formats = exportFormats(b)
+    if (formats.length) setDownloading({ book: b, formats })
+    else void saveDownload(b)
+  }
+
+  const saveDownload = async (b: BookMeta, format?: BookFormat) => {
+    const converting = !!format && format !== sourceFormat(b)
+    const ctl = new AbortController()
+    if (converting) {
+      setCancelBusy(() => () => ctl.abort())
+      setBusy(t('book.converting', { format: t(`format.${format}`) }))
+    } else setBusy(t(deviceBooksSupported() ? 'book.saving' : 'book.preparing'))
     try {
-      const name = await saveBookToPhone(b.id)
+      const name = await saveBookToPhone(
+        b.id,
+        format,
+        (done, total) => setBusy(t('book.convertingPages', { done, total })),
+        ctl.signal,
+      )
+      if (ctl.signal.aborted) return
       if (name && deviceBooksSupported()) {
+        setCancelBusy(undefined)
         setBusy(undefined)
         const open = await confirm({
           title: t('book.savedTitle'),
@@ -353,9 +376,12 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
         if (open) await openDownloadsFolder().catch(() => {})
       } else if (name) showToast(t('book.downloaded', { name }), undefined, 5000)
     } catch (e) {
+      if (ctl.signal.aborted) return
       const code = e instanceof Error ? e.message : String(e)
-      setError(t('book.saveFailed', { msg: code === 'permission' ? t('book.savePermission') : code === 'save' ? t('book.saveWrite') : code }))
+      if (e instanceof ExportError) setError(t('book.saveFailed', { msg: t(code === 'noText' ? 'book.exportNoText' : 'book.exportBroken') }))
+      else setError(t('book.saveFailed', { msg: code === 'permission' ? t('book.savePermission') : code === 'save' ? t('book.saveWrite') : code }))
     } finally {
+      setCancelBusy(undefined)
       setBusy(undefined)
     }
   }
@@ -855,6 +881,17 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
       {imp.dupAsk && <DuplicateAskDialog ask={imp.dupAsk} onDone={() => imp.setDupAsk(undefined)} />}
       {confirmDel && (
         <ConfirmDeleteDialog books={confirmDel} onConfirm={doDelete} onCancel={() => setConfirmDel(undefined)} />
+      )}
+      {downloading && (
+        <FormatDialog
+          book={downloading.book}
+          formats={downloading.formats}
+          onPick={(f) => {
+            setDownloading(undefined)
+            void saveDownload(downloading.book, f)
+          }}
+          onCancel={() => setDownloading(undefined)}
+        />
       )}
       {fo.moving && (
         <MoveDialog
