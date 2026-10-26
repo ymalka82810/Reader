@@ -569,7 +569,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
 
   return (
     <div
-      className={'library' + (drag ? ' drag' : '')}
+      className={'library' + (drag ? ' drag' : '') + (books.length > 1 ? '' : ' no-search')}
       onDragOver={(e) => {
         e.preventDefault()
         setDrag(true)
