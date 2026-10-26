@@ -13,7 +13,7 @@ import { useAutoBackup } from '../hooks/useAutoBackup'
 import { useUpdateCheck } from '../hooks/useUpdateCheck'
 import { useDeviceScan } from '../hooks/useDeviceScan'
 import { deviceBooksSupported } from '../lib/deviceBooks'
-import { ExportError, exportFormats, sourceFormat, type BookFormat } from '../lib/bookExport'
+import { ExportError, exportFormats, isOwnFormat, type BookFormat } from '../lib/bookExport'
 import { autoSyncPhoneNames, openDownloadsFolder, phoneFileOf, saveBookToPhone, syncPhoneNames } from '../lib/phoneFiles'
 import { formatBookName, splitBookName, type BookName } from '../lib/bookName'
 import { libraryNames, type LibraryNames } from '../lib/bookLookup'
@@ -350,17 +350,17 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   }
 
   const saveDownload = async (b: BookMeta, format?: BookFormat) => {
-    const converting = !!format && format !== sourceFormat(b)
+    const converting = !isOwnFormat(b, format)
     const ctl = new AbortController()
     if (converting) {
       setCancelBusy(() => () => ctl.abort())
-      setBusy(t('book.converting', { format: t(`format.${format}`) }))
+      setBusy(t('book.converting', { format: t(`format.${format as Exclude<BookFormat, 'original'>}`) }))
     } else setBusy(t(deviceBooksSupported() ? 'book.saving' : 'book.preparing'))
     try {
       const name = await saveBookToPhone(
         b.id,
         format,
-        (done, total) => setBusy(t('book.convertingPages', { done, total })),
+        (stage, done, total) => setBusy(t(stage === 'pages' ? 'book.convertingPages' : 'book.buildingPdf', { done, total })),
         ctl.signal,
       )
       if (ctl.signal.aborted) return
@@ -378,7 +378,8 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
     } catch (e) {
       if (ctl.signal.aborted) return
       const code = e instanceof Error ? e.message : String(e)
-      if (e instanceof ExportError) setError(t('book.saveFailed', { msg: t(code === 'noText' ? 'book.exportNoText' : 'book.exportBroken') }))
+      if (e instanceof ExportError)
+        setError(t('book.saveFailed', { msg: t(code === 'noText' ? 'book.exportNoText' : code === 'script' ? 'book.exportScript' : code === 'empty' ? 'book.exportEmpty' : 'book.exportBroken') }))
       else setError(t('book.saveFailed', { msg: code === 'permission' ? t('book.savePermission') : code === 'save' ? t('book.saveWrite') : code }))
     } finally {
       setCancelBusy(undefined)

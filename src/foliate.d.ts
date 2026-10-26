@@ -9,6 +9,9 @@ declare module 'foliate-js/view.js' {
     /** source size in bytes, used to estimate page counts */
     size?: number
     linear?: string
+    /** the section as a blob URL the reader shows, its resources resolved to blob URLs of their own */
+    load?(): Promise<string>
+    unload?(): void
   }
 
   /** the paginator / scroller inside the view */

@@ -439,6 +439,9 @@ export function EditBookDialog({
   )
 }
 
+/** the stored file's own format, as its extension says (MOBI, AZW3, FB2, CBZ) */
+const formatName = (b: BookMeta) => (b.fileName.match(/\.([^.]+)$/)?.[1] ?? '').toUpperCase()
+
 /** "Download to phone": which format the book is saved in. Its own format comes first and is marked as the original. */
 export function FormatDialog({
   book,
@@ -467,10 +470,10 @@ export function FormatDialog({
           {formats.map((f, i) => (
             <button key={f} className={'format-option' + (i === 0 ? ' primary' : '')} onClick={() => onPick(f)} autoFocus={i === 0}>
               <span className="format-name">
-                {t(`format.${f}`)}
+                {f === 'original' ? formatName(book) : t(`format.${f}`)}
                 {i === 0 && <span className="format-badge">{t('book.formatOriginal')}</span>}
               </span>
-              <span className="format-hint">{t(`format.${f}Hint`)}</span>
+              <span className="format-hint">{t(f === 'original' ? 'format.originalHint' : `format.${f}Hint`)}</span>
             </button>
           ))}
         </div>
