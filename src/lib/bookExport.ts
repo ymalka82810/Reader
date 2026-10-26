@@ -10,7 +10,7 @@ export type BookFormat = 'epub' | 'pdf' | 'docx' | 'txt' | 'html'
 type Block = { t: 'h'; level: number; text: string } | { t: 'p'; text: string } | { t: 'img'; src: string; alt: string }
 
 /** a book's text in reading order: one list of blocks per EPUB section */
-export interface BookContent {
+interface BookContent {
   title: string
   author: string
   rtl: boolean
@@ -172,7 +172,7 @@ const clean = (s: string) => s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\
 const esc = (s: string) => clean(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
 /** plain text: a blank line between paragraphs, two around headings, a row of stars between sections */
-export function buildTxt(c: BookContent): Blob {
+function buildTxt(c: BookContent): Blob {
   const parts = c.sections.map((s) =>
     s
       .filter((b) => b.t !== 'img')
@@ -196,7 +196,7 @@ const dataUrl = (blob: Blob, path: string) =>
   })
 
 /** one web page holding the whole book, its images inside it */
-export async function buildHtml(c: BookContent): Promise<Blob> {
+async function buildHtml(c: BookContent): Promise<Blob> {
   const urls = new Map<string, string>()
   for (const [path, blob] of c.images) urls.set(path, await dataUrl(blob, path))
   const dir = c.rtl ? 'rtl' : 'ltr'
@@ -246,7 +246,7 @@ const R_NS = ['http:', '', 'schemas.openxmlformats.org', 'officeDocument/2006/re
 const PKG = ['http:', '', 'schemas.openxmlformats.org', 'package/2006'].join('/')
 
 /** a Word document: the book's headings as Word headings, each section starting a new page. Images are left out. */
-export async function buildDocx(c: BookContent, signal?: AbortSignal): Promise<Blob> {
+async function buildDocx(c: BookContent, signal?: AbortSignal): Promise<Blob> {
   const bidi = c.rtl ? '<w:bidi/>' : ''
   const rtl = c.rtl ? '<w:rtl/>' : ''
   const para = (text: string, style?: string) =>
