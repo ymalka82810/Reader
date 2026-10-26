@@ -609,7 +609,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
           type="file"
           hidden
           multiple
-          accept=".epub,.pdf,.txt,.docx,.mobi,.azw,.azw3,.fb2,.fbz,.cbz,.m4b,.mp3,.m4a,.ogg,.opus,.flac,.wav,application/epub+zip,application/pdf,text/plain,audio/*"
+          accept=".epub,.pdf,.txt,.docx,.mobi,.azw,.azw3,.fb2,.fbz,.cbz,.m4b,.mp3,.m4a,.ogg,.opus,.flac,.wav,application/epub+zip,application/pdf,text/plain,application/vnd.comicbook+zip,application/x-cbz,audio/*"
           onChange={(e) => {
             if (e.target.files) imp.addFiles(e.target.files)
             e.target.value = ''
