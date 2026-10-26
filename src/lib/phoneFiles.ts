@@ -26,6 +26,10 @@ const pathStore = createStore('reader-device-paths-db', 'paths')
 // a converted copy saved to Download (path -> the book it came from): the next scan moves it to the author's versions folder
 const versionStore = createStore('reader-device-versions-db', 'versions')
 
+// the versions already filed under an author's versions folder (path -> the book they belong to), so that they follow the
+// book when it moves to another author's folder
+const versionFilesStore = createStore('reader-device-version-files-db', 'files')
+
 /** the sub-folder of a book's folder that holds its other formats, one folder per format */
 const VERSIONS_DIR = VERSIONS_DIR_NAME
 
@@ -140,6 +144,40 @@ async function phoneDirNames(): Promise<Map<string, string>> {
 
 const libraryFolderOn = () => loadSettings().phoneLibraryFolder
 
+/** the filed versions, by the book each belongs to */
+async function versionsByBook(): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>()
+  for (const [path, id] of await entries<string, string>(versionFilesStore)) out.set(id, [...(out.get(id) ?? []), path])
+  return out
+}
+
+/** A book's filed versions follow it: each goes to its versions folder under the book's folder now (its author's, or the one the
+ *  user picked), named after the book's title. One that was moved or deleted on the phone is forgotten. Resolves with how
+ *  many were moved and how many could not be. */
+async function followVersions(id: string, meta: BookMeta, paths: string[], names: Map<string, string>): Promise<{ moved: number; failed: number }> {
+  const out = { moved: 0, failed: 0 }
+  for (const path of paths) {
+    const dot = path.lastIndexOf('.')
+    const ext = dot > path.lastIndexOf('/') + 1 ? path.slice(dot + 1).toLowerCase() : ''
+    if (!ext) continue
+    try {
+      const res = await call<DeviceFile>('place', { path, name: bookFileName(meta, ext), dir: versionPhoneDir(meta, ext, names) })
+      if (res.path === path) continue
+      await markSeen([res]).catch(() => {})
+      await repointPhoneFile(path, res.path)
+      await del(path, versionFilesStore)
+      await set(res.path, id, versionFilesStore)
+      out.moved++
+    } catch (e) {
+      if (e instanceof Error && e.message === 'missing') {
+        await del(path, versionFilesStore).catch(() => {})
+        await repointPhoneFile(path).catch(() => {})
+      } else out.failed++
+    }
+  }
+  return out
+}
+
 /** Gives the phone's file of each book the name of its title, and, with the books folder on, the sub-folder of its library
  *  folder (moving it there). Books never put on the phone, or whose file is no longer there, are left alone.
  *  Resolves with how many were changed and how many failed. */
@@ -148,8 +186,14 @@ export async function syncPhoneNames(ids: string[]): Promise<{ renamed: number; 
   if (!deviceBooksSupported()) return out
   const organise = libraryFolderOn()
   const names = organise ? await phoneDirNames() : undefined
+  const versions = organise ? await versionsByBook() : new Map<string, string[]>()
   for (const id of ids) {
     const [path, meta] = await Promise.all([phoneFileOf(id), getBookMeta(id)])
+    if (meta && organise) {
+      const r = await followVersions(id, meta, versions.get(id) ?? [], names!)
+      out.renamed += r.moved
+      out.failed += r.failed
+    }
     if (!path || !meta) continue
     // the phone's file keeps its own extension: a book converted from a PDF is an EPUB here, but its file there is still the PDF
     const dot = path.lastIndexOf('.')
@@ -253,6 +297,7 @@ export async function placeVersions(): Promise<number> {
     try {
       const res = await call<DeviceFile>('place', { path, name: bookFileName(meta, ext), dir: versionPhoneDir(meta, ext, names) })
       await markSeen([res]).catch(() => {})
+      await set(res.path, id, versionFilesStore).catch(() => {})
       await del(path, versionStore)
       moved++
     } catch (e) {
@@ -300,6 +345,7 @@ export async function tidyPhoneDuplicates(groups: DuplicateGroup[], approved: Se
         const res = await call<DeviceFile>('place', { path: v.path, name: `${safeFileName(g.title, 'book')}.${ext}`, dir: `${author}/${VERSIONS_DIR}/${ext.toUpperCase()}` })
         await markSeen([res]).catch(() => {})
         await repointPhoneFile(v.path, res.path)
+        if (known) await set(res.path, known.id, versionFilesStore).catch(() => {})
         out.moved++
       } catch {
         out.failed++
