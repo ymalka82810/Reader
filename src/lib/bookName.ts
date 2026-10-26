@@ -293,6 +293,20 @@ export function authorInName(s: string): string {
   return /\p{L}{2}/u.test(a) ? clean(a) : ''
 }
 
+/** A title that is the series run together with no space, and perhaps the volume after it ("הלביאההלוחמתחלקא" of the
+ *  series "הלביאה הלוחמת", a file name with no spaces): without the series, "חלק א'" or nothing. Any other title stays. */
+export function unglued(title: string, series: string): string {
+  const flat = (s: string) => s.replace(/[^\p{L}\p{N}]/gu, '')
+  const s = flat(series)
+  const t = flat(title)
+  // one word only; a short series could start any word
+  if (/\s/u.test(title.trim()) || s.length < 6 || !t.startsWith(s)) return title
+  const rest = t.slice(s.length)
+  if (!rest) return ''
+  const part = /^חלק(?:([א-ד])|(ראשון|שני|שלישי|רביעי|חמישי))$/u.exec(rest)
+  return part ? `חלק ${part[1] ? `${part[1]}'` : part[2]}` : title
+}
+
 export function tidyBookName(text: string): string {
   let s = clean(cap(text).replace(/_+/g, ' '))
   s = annasArchive(s) ?? s
@@ -321,6 +335,12 @@ export function tidyBookName(text: string): string {
   if (dash && latin(dash[1]!) && /[\u0590-\u05FF]/.test(dash[2]!)) s = clean(dash[2]!)
   const comma = /^(.+?\s\d{1,3}),\s+(.+)$/u.exec(s)
   if (comma) s = `${comma[1]} - ${comma[2]}`
+  // the series said twice, the second time run together: "הלביאה הלוחמת - הלביאההלוחמתחלקא"
+  const twice = /^(.+?)\s+[-–—]\s+(\S+)$/u.exec(s)
+  if (twice) {
+    const rest = unglued(twice[2]!, twice[1]!)
+    if (rest !== twice[2]) s = rest ? `${twice[1]} - ${rest}` : twice[1]!
+  }
   return s
 }
 

@@ -205,3 +205,10 @@ describe('a name run together by a scanner or a converter', () => {
     expect(withoutAuthor('גנב הברק', 'שרון חיון גינת')).toBe('גנב הברק')
   })
 })
+
+it('takes the series said a second time, run together, out of a name: what is left is the volume', () => {
+  expect(tidyBookName('הלביאה הלוחמת - הלביאההלוחמתחלקא')).toBe("הלביאה הלוחמת - חלק א'")
+  expect(tidyBookName('הלביאה הלוחמת - הלביאההלוחמת')).toBe('הלביאה הלוחמת')
+  // a title that only starts like the series stays
+  expect(tidyBookName('הלביאה הלוחמת - הלביאההלוחמתוהאגדה')).toBe('הלביאה הלוחמת - הלביאההלוחמתוהאגדה')
+})

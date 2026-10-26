@@ -5,7 +5,7 @@
 // when the name still has no series. Only the ISBN, the title and the author are sent, and only after the user agreed
 // (consent 'books').
 
-import { authorFromOpening, authorInName, guessBookName, isJunkTitle, nameFromOpening, seriesOf, tidyBookName, withoutAuthor, type BookName } from './bookName'
+import { authorFromOpening, authorInName, guessBookName, isJunkTitle, nameFromOpening, seriesOf, tidyBookName, unglued, withoutAuthor, type BookName } from './bookName'
 import { libraryAuthor, tidyAuthor } from './authorName'
 import type { EpubMeta } from './bookText'
 import { bookNumber, copyrightYear, seriesByWords, inLists, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, originalTitle, seriesByNames, soundOf, titleCase } from './bookInference'
@@ -1352,6 +1352,7 @@ export function tidyName<T extends BookName>(r: T): T {
       if (rest[1] && !r.number) r = { ...r, number: String(Number(rest[1])) }
     }
   }
+  title = unglued(title, series)
   if (!r.number) return title === r.title ? r : { ...r, title }
   const end = /^(.*?)\s+([IVXLivxl]{1,6}|\d{1,3})$/u.exec(title)
   if (end && bookNumber(end[2]!) === Number(r.number)) {
