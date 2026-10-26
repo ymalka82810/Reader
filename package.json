@@ -30,6 +30,7 @@
     "idb-keyval": "^6.3.0",
     "jszip": "^3.10.2",
     "music-metadata": "^12.2.2",
+    "node-unrar-js": "^2.0.2",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^6.4.299",
     "react": "^19.2.8",

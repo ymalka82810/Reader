@@ -13,6 +13,8 @@
                 <data android:mimeType="application/x-fictionbook" />
                 <data android:mimeType="application/vnd.comicbook+zip" />
                 <data android:mimeType="application/x-cbz" />
+                <data android:mimeType="application/vnd.comicbook-rar" />
+                <data android:mimeType="application/x-cbr" />
                 <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
                 <data android:mimeType="text/plain" />
                 <data android:mimeType="application/x-zip-compressed-fb2" />
@@ -87,6 +89,16 @@
                 <data android:pathPattern=".*\\..*\\..*\\.CBZ" />
                 <data android:pathPattern=".*\\..*\\..*\\..*\\.CBZ" />
                 <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\.CBZ" />
+                <data android:pathPattern=".*\\.cbr" />
+                <data android:pathPattern=".*\\..*\\.cbr" />
+                <data android:pathPattern=".*\\..*\\..*\\.cbr" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\.cbr" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\.cbr" />
+                <data android:pathPattern=".*\\.CBR" />
+                <data android:pathPattern=".*\\..*\\.CBR" />
+                <data android:pathPattern=".*\\..*\\..*\\.CBR" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\.CBR" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\.CBR" />
                 <data android:pathPattern=".*\\.fbz" />
                 <data android:pathPattern=".*\\..*\\.fbz" />
                 <data android:pathPattern=".*\\..*\\..*\\.fbz" />
@@ -139,6 +151,8 @@
                 <data android:mimeType="application/x-fictionbook+xml" />
                 <data android:mimeType="application/vnd.comicbook+zip" />
                 <data android:mimeType="application/x-cbz" />
+                <data android:mimeType="application/vnd.comicbook-rar" />
+                <data android:mimeType="application/x-cbr" />
                 <data android:mimeType="application/vnd.amazon.ebook" />
                 <data android:mimeType="application/x-fictionbook" />
                 <data android:mimeType="application/x-zip-compressed-fb2" />

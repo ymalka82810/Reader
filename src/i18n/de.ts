@@ -490,6 +490,8 @@ export const de: Record<keyof typeof he, Message> = {
   'docx.corrupt': 'Die DOCX-Datei ist beschädigt oder konnte nicht gelesen werden.',
   'err.pdfPassword': 'Das PDF ist passwortgeschützt. Entferne den Schutz und versuche es erneut.',
   'err.pdfInvalid': 'Die PDF-Datei ist beschädigt oder kein gültiges PDF.',
+  'err.cbrInvalid': 'Die CBR-Datei ist beschädigt oder kein gültiges RAR-Archiv.',
+  'err.cbrPassword': 'Die CBR-Datei ist passwortgeschützt und kann nicht gelesen werden.',
   'err.quota': 'Nicht genug Speicherplatz im Browser. Lösche Bücher oder schaffe Platz und versuche es erneut.',
   'err.aborted': 'Der Vorgang wurde abgebrochen.',
   'err.drm': 'Dieses Buch ist durch DRM geschützt und kann hier nicht geöffnet werden. Der Reader unterstützt nur Bücher ohne DRM. Besorge dir beim Verkäufer eine DRM-freie Kopie oder lies es in der App, in der du es gekauft hast.',

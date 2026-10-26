@@ -9,6 +9,7 @@ import { isScriptedBook } from './sandbox'
 import { decodeEntities } from './entities'
 import { realAuthor } from './authorName'
 import { repairEpub } from './epubRepair'
+import { cbrToCbz, isCbrName } from './cbrToCbz'
 
 const ALREADY_EXISTS = t('import.exists')
 
@@ -36,6 +37,8 @@ const isPdf = (f: File) => /\.pdf$/i.test(f.name) || f.type === 'application/pdf
 const isEpub = (f: File) => /\.epub$/i.test(f.name) || f.type === 'application/epub+zip'
 const isDocx = (f: File) =>
   /\.docx$/i.test(f.name) || f.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+/** a comic-book RAR: unpacked and packed again as a CBZ on import (the reader's engine reads only CBZ) */
+const isCbr = (f: File) => isCbrName(f.name)
 /** formats foliate-js reads as they are: MOBI/AZW/AZW3 (KF8), FictionBook and comic-book zips */
 const isNative = (f: File) => /\.(mobi|azw3?|fb2|fbz|fb2\.zip|cbz)$/i.test(f.name)
 
@@ -116,7 +119,7 @@ export async function importFile(
 ): Promise<BookRecord> {
   signal?.throwIfAborted()
   if (!file.size) throw new ImportError(t('import.empty'))
-  if (!isEpub(file) && !isPdf(file) && !isTxt(file) && !isDocx(file) && !isNative(file) && !isAudio(file))
+  if (!isEpub(file) && !isPdf(file) && !isTxt(file) && !isDocx(file) && !isNative(file) && !isCbr(file) && !isAudio(file))
     throw new ImportError(t('import.unsupported'))
   if (isTxt(file) && file.size > MAX_TXT_BYTES)
     throw new ImportError(t('import.txtTooBig', { mb: Math.round(MAX_TXT_BYTES / 1024 / 1024) }))
@@ -235,6 +238,12 @@ async function readIntoLibrary(
     knownWords = wordsOfExtracted(x)
     const blob = await buildEpub(x, signal)
     epub = new File([blob], file.name.replace(/\.docx$/i, '') + '.epub', { type: 'application/epub+zip' })
+  }
+
+  if (isCbr(file)) {
+    onProgress?.(t('import.converting'))
+    epub = await cbrToCbz(file, signal)
+    check()
   }
 
   check()

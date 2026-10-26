@@ -14,6 +14,7 @@ export function explainImportError(e: unknown): string {
   const name = e instanceof Error ? e.name : ''
   if (name === 'PasswordException') return t('err.pdfPassword')
   if (name === 'InvalidPDFException' || name === 'MissingPDFException') return t('err.pdfInvalid')
+  if (e instanceof Error && name === 'CbrError') return (e as { encrypted?: boolean }).encrypted ? t('err.cbrPassword') : t('err.cbrInvalid')
   if (name === 'QuotaExceededError') return t('err.quota')
   if (name === 'AbortError') return t('err.aborted')
   return t('err.generic')

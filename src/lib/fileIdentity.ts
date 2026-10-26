@@ -17,6 +17,7 @@ const keyOf = (f: DeviceFile) => `${f.path}|${f.size}|${f.modified}`
 const MAX_BYTES = 60 * 1024 * 1024
 
 const nativeBook = (f: File) => /\.(mobi|azw3?|fb2|fbz|fb2\.zip|cbz)$/i.test(f.name)
+const isCbr = (f: File) => /\.cbr$/i.test(f.name)
 
 /** the title and author inside a file; undefined when it cannot be read */
 async function readIdentity(file: File): Promise<Identity | undefined> {
@@ -37,6 +38,8 @@ async function readIdentity(file: File): Promise<Identity | undefined> {
       }
     }
     const { makeBook } = await import('foliate-js/view.js')
+    // a comic RAR is read as the CBZ it is converted to (what the library does when it adds it)
+    if (isCbr(file)) file = await (await import('./cbrToCbz')).cbrToCbz(file)
     const lower = nativeBook(file) && file.name !== file.name.toLowerCase() ? new File([file], file.name.toLowerCase(), { type: file.type }) : file
     const opened = await makeBook(/\.epub$/i.test(file.name) ? await repairEpub(file) : lower)
     try {
