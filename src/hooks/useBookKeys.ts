@@ -1,4 +1,5 @@
 import type { FoliateView } from 'foliate-js/view.js'
+import { turnDirection } from '../lib/bookEdge'
 import { useCallback, useEffect, useLayoutEffect, useRef, type MutableRefObject } from 'react'
 
 export type KeyPanel = 'toc' | 'notes' | 'settings' | 'search'
@@ -8,7 +9,8 @@ export interface KeyActions {
   gotoBookmark: (dir: 1 | -1) => void
   bump: (delta: number) => void
   panel: (p: KeyPanel) => void
-  hideBars: () => void
+  /** hide the bars; a page turn that goes nowhere (first/last page of the book) shows them instead */
+  hideBars: (turn?: 1 | -1) => void
   /** start / stop auto-reading */
   autoRead: () => void
   pace: (faster: boolean) => void
@@ -54,17 +56,17 @@ export function useBookKeys(deps: Deps) {
     if (e.ctrlKey || e.metaKey || e.altKey) return
     const a = actions.current
     if (e.key === 'ArrowLeft') {
-      a.hideBars()
+      a.hideBars(turnDirection(v, 'left'))
       v.goLeft()
     } else if (e.key === 'ArrowRight') {
-      a.hideBars()
+      a.hideBars(turnDirection(v, 'right'))
       v.goRight()
     } else if (e.key === 'PageDown' || e.key === ' ') {
       e.preventDefault()
-      a.hideBars()
+      a.hideBars(1)
       v.next()
     } else if (e.key === 'PageUp') {
-      a.hideBars()
+      a.hideBars(-1)
       v.prev()
     }
     else if (e.key === 'Escape') closePanel()
