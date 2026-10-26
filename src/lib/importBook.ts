@@ -4,7 +4,7 @@ import { sameBook } from './sameBook'
 import { t } from '../i18n'
 import { wordsOfBook, wordsOfExtracted } from './wordCount'
 import { isAudio, readAudioMeta, type AudioInfo } from './audioBook'
-import { isDrmEpub, isDrmMobi } from './drm'
+import { drmEpubReason, isDrmMobi } from './drm'
 import { isScriptedBook } from './sandbox'
 import { decodeEntities } from './entities'
 import { realAuthor } from './authorName'
@@ -121,7 +121,8 @@ export async function importFile(
   if (isTxt(file) && file.size > MAX_TXT_BYTES)
     throw new ImportError(t('import.txtTooBig', { mb: Math.round(MAX_TXT_BYTES / 1024 / 1024) }))
   try {
-    if (await hasDrm(file)) throw new ImportError(t('err.drm'))
+    const drm = await drmReason(file)
+    if (drm) throw new ImportError(`${t('err.drm')} (${drm})`)
     return await abortable(readIntoLibrary(file, onProgress, onDuplicate, signal), signal)
   } catch (e) {
     if (e instanceof DeferredDuplicate) throw e
@@ -132,14 +133,14 @@ export async function importFile(
 }
 
 /** only DRM-free books are supported; a protected one would otherwise open as gibberish or fail with a vague error */
-async function hasDrm(file: File): Promise<boolean> {
+async function drmReason(file: File): Promise<string | null> {
   try {
-    if (isEpub(file)) return await isDrmEpub(file)
-    if (/.(mobi|azw3?)$/i.test(file.name)) return await isDrmMobi(file)
+    if (isEpub(file)) return await drmEpubReason(file)
+    if (/.(mobi|azw3?)$/i.test(file.name)) return (await isDrmMobi(file)) ? 'mobi' : null
   } catch {
     /* unreadable: let the real import report what is wrong with the file */
   }
-  return false
+  return null
 }
 
 async function readIntoLibrary(
