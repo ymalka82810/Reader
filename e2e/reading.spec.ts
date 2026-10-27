@@ -68,9 +68,9 @@ test('import an EPUB, open it, turn a page, reload and keep the position', async
 
 for (const flow of ['paginated', 'scrolled'] as const) {
   test(`auto-reading moves the text by itself (${flow})`, async ({ page }) => {
-    // the fastest stored pace, so the test doesn't wait for a real reader's page time
+    // auto-reading at its fastest, so the test doesn't wait for a real reader's page time
     await page.addInitScript((f) => {
-      localStorage.setItem('reader:pace', '1')
+      localStorage.setItem('reader:autoPaceFactor', '0.05')
       localStorage.setItem('reader:settings', JSON.stringify({ flow: f, pageTransition: false }))
     }, flow)
     await page.goto('/')

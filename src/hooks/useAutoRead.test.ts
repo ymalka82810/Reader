@@ -5,8 +5,7 @@ import type { FoliateRelocateDetail, FoliateView } from 'foliate-js/view.js'
 import { useAutoRead } from './useAutoRead'
 import { DEFAULT_SECS_PER_KB, PACE_STEP } from '../lib/pace'
 
-const loadStats = vi.hoisted(() => vi.fn())
-vi.mock('../lib/stats', () => ({ loadStats }))
+const estimate = vi.hoisted(() => vi.fn())
 
 /** a paginated book of one 10 KB section with 3 content pages (`pages` counts the two padding ones) */
 function fakeView(over: Record<string, unknown> = {}) {
@@ -24,12 +23,12 @@ function setup(over: Record<string, unknown> = {}, paused = false) {
   const { view, next } = fakeView(over)
   const markActive = vi.fn()
   const props = {
-    id: 'book',
     viewRef: { current: view },
     lastDetail: { current: { section: { current: 0 } } as FoliateRelocateDetail },
     flow: 'paginated' as const,
     paused,
     markActive,
+    estimate,
   }
   const hook = renderHook((p: typeof props) => useAutoRead(p), { initialProps: props })
   return { ...hook, props, view, next, markActive }
@@ -38,7 +37,7 @@ function setup(over: Record<string, unknown> = {}, paused = false) {
 beforeEach(() => {
   vi.useFakeTimers()
   localStorage.clear()
-  loadStats.mockResolvedValue({ secs: 0, frac: 0 })
+  estimate.mockReturnValue(DEFAULT_SECS_PER_KB)
 })
 afterEach(() => vi.useRealTimers())
 
@@ -46,7 +45,7 @@ afterEach(() => vi.useRealTimers())
 const SCREEN_SECS = (DEFAULT_SECS_PER_KB * 10) / 3
 
 describe('useAutoRead', () => {
-  it('starts at the last pace used and shows the seconds per screen', async () => {
+  it('starts at the estimated pace and shows the seconds per screen', async () => {
     const { result } = setup()
     expect(result.current.active).toBe(false)
     expect(result.current.secsPerScreen).toBeNull()
@@ -55,8 +54,8 @@ describe('useAutoRead', () => {
     expect(result.current.secsPerScreen).toBe(Math.round(SCREEN_SECS))
   })
 
-  it("prefers the pace learned from the book's own stats", async () => {
-    loadStats.mockResolvedValue({ secs: 120, frac: 0.1 }) // 120 s/KB over a 10 KB book
+  it("follows the reader's estimated pace in the book", async () => {
+    estimate.mockReturnValue(120)
     const { result } = setup()
     await act(() => result.current.toggle())
     expect(result.current.secsPerScreen).toBe(400)
@@ -67,10 +66,18 @@ describe('useAutoRead', () => {
     await act(() => result.current.toggle())
     act(() => result.current.adjust(true))
     expect(result.current.secsPerScreen).toBe(Math.round(SCREEN_SECS / PACE_STEP))
-    expect(Number(localStorage.getItem('reader:pace'))).toBeCloseTo(DEFAULT_SECS_PER_KB / PACE_STEP)
+    expect(Number(localStorage.getItem('reader:autoPaceFactor'))).toBeCloseTo(1 / PACE_STEP)
     act(() => result.current.adjust(false))
     act(() => result.current.adjust(false))
     expect(result.current.secsPerScreen).toBe(Math.round(SCREEN_SECS * PACE_STEP))
+  })
+
+  it('remembers faster/slower as a factor of the estimate, so it carries to a book of another pace', async () => {
+    localStorage.setItem('reader:autoPaceFactor', '0.5')
+    estimate.mockReturnValue(120)
+    const { result } = setup()
+    await act(() => result.current.toggle())
+    expect(result.current.secsPerScreen).toBe(200)
   })
 
   it('does nothing without a view', async () => {
