@@ -6,6 +6,7 @@ import type { PendingName } from '../../lib/autoIdentify'
 import { formatBookName, isJunkTitle } from '../../lib/bookName'
 import { CATALOG_NAMES, catalogStats, resetCatalogStats, type CatalogStats, type Clue, type LibraryNames } from '../../lib/bookLookup'
 import { identifyWithCover } from '../../lib/coverIdentify'
+import { modelReady, predict } from '../../lib/identifyModel'
 import { bookDetails } from '../../lib/bookText'
 import { t } from '../../i18n'
 
@@ -90,6 +91,8 @@ export function IdentifyDialog({
     return () => ac.abort()
   }, [books, online, waiting, library])
 
+  // the model's own chance that a name is kept, shown once it has learnt enough from the user's answers
+  const ready = modelReady()
   const bookById = new Map(books.map((b) => [b.id, b]))
   const running = done < books.length
   const picked = found.filter((f) => f.pick)
@@ -167,6 +170,9 @@ export function IdentifyDialog({
                         </small>
                         {f.evidence?.length ? <small className="muted">{t('identify.evidence', { list: clues(f.evidence) })}</small> : null}
                         {f.conflicts?.length ? <small className="identify-conflicts">{t('identify.conflicts', { list: clues(f.conflicts) })}</small> : null}
+                        {!f.edited && ready && (f.evidence?.length || f.conflicts?.length) ? (
+                          <small className="muted">{t('identify.confidence', { p: Math.round(predict(f.evidence, f.conflicts) * 100) })}</small>
+                        ) : null}
                         {f.edited && <small className="muted">{t('identify.edited')}</small>}
                         {f.was !== f.title && <small className="muted identify-was">{f.was}</small>}
                       </span>

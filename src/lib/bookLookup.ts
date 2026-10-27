@@ -13,6 +13,7 @@ import { listsOf, rememberLists } from './bookKnowledge'
 import { bundledSeries, bundledTitle, loadSeriesDb } from './seriesDb'
 import { hasConsent } from './consent'
 import { blocks, clueStats, needsMoreProof, trusted } from './identifyLearning'
+import { modelAllows } from './identifyModel'
 import { bookIsbns } from './isbn'
 import { norm } from './sameBook'
 import { loadSettings } from './settings'
@@ -1420,7 +1421,8 @@ async function weigh(
   const all = [...new Set([...agreed, ...shown])]
   const out: Identified = { ...r, ...(all.length && { evidence: all }), ...(against.length && { conflicts: against }) }
   if (against.some((c) => blocks(c, stats))) delete out.sure
-  else if (strong >= (needsMoreProof() ? 3 : 2)) out.sure = true
+  // and once it has learnt enough from the user's answers, the model that weighs all the clues together must trust it too
+  else if (strong >= (needsMoreProof() ? 3 : 2) && modelAllows(all, against)) out.sure = true
   return out
 }
 

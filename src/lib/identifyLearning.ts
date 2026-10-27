@@ -8,6 +8,7 @@
 import { rememberName } from './bookKnowledge'
 import type { Clue } from './bookLookup'
 import { guessBookName, tidyBookName } from './bookName'
+import { learnAnswer } from './identifyModel'
 import { norm } from './sameBook'
 
 /** the clues that count toward a sure name before anything is learned about them */
@@ -166,6 +167,8 @@ export function recordOutcome(evidence: Clue[] = [], conflicts: Clue[] = [], rig
   for (const c of new Set(evidence)) bump(c, 'for', right)
   for (const c of new Set(conflicts)) bump(c, 'against', !right)
   write(CLUES_KEY, stats)
+  // the same answer trains the model that weighs all the clues together
+  learnAnswer(evidence, conflicts, right)
 }
 
 // as many answers as the starting belief is worth: a few answers move it, many outweigh it
