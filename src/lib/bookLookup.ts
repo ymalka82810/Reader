@@ -619,6 +619,54 @@ export function libraryNames(books: { title: string; author?: string; id?: strin
   return { series, titles, authors: [...authors].sort((x, y) => y.length - x.length) }
 }
 
+/** The series and number a file's name gives a book whose own title has neither (see findName). Words compared as norm
+ *  does; the series has to be two letters or more and no joining word, and the number one to three digits. */
+export function seriesInFileName(fileStem: string, title: string, author = ''): { series: string; number: string; title: string } | undefined {
+  const words = (x: string) => tidyBookName(x.replace(/_+/g, ' ')).replace(/\([^)]*\)/gu, ' ').split(/\s+/u).filter((w) => /[\p{L}\d]/u.test(w))
+  const f = words(fileStem)
+  // a Roman numeral after the title is the series' number again ("דם האולימפוס V"): the title is the words before it
+  const roman = /\s+[IVX]{1,5}$/u.test(title.trim())
+  if (roman) title = title.trim().replace(/\s+[IVX]{1,5}$/u, '')
+  const t = words(title)
+  if (!t.length || f.length <= t.length) return undefined
+  const n = (w: string) => norm(w)
+  const at = (i: number) => t.every((w, k) => n(f[i + k] ?? '') === n(w))
+  const series = (ws: string[]) => {
+    const name = ws.join(' ').replace(/[-–—:,]+$/u, '').trim()
+    return /\p{L}{2}/u.test(name) && !joining(name) && !/^(?:ה?חלק|ה?כרך|ה?ספר|ה?פרק|part|vol\.?|volume|book)$/iu.test(name) ? name : ''
+  }
+  const num = (w?: string) => (w && /^#?\d{1,3}$/.test(w) ? String(Number(w.replace('#', ''))) : '')
+  for (let i = 0; i + t.length <= f.length; i++) {
+    if (!at(i)) continue
+    // "בני קרטר 1 לשנוא אותו …"
+    const a0 = new Set(words(author).map(n))
+    const before = f.slice(0, i).filter((w) => !/^[-–—]$/.test(w))
+    // the author between the number and the title ("מדריך העצלה לקסם 1 הלן הרפר מכשפה עצלנית")
+    while (before.length > 2 && a0.has(n(before[before.length - 1]!))) before.pop()
+    const nb = num(before[before.length - 1])
+    if (nb && series(before.slice(0, -1))) return { series: series(before.slice(0, -1)), number: nb, title }
+    // "כובע מלא שמיים … עולם הדיסק 32"
+    const after = f.slice(i + t.length).filter((w) => !/^[-–—]$/.test(w))
+    const na = num(after[after.length - 1])
+    if (!before.length && na && after.length >= 2) {
+      // the words right before the number that are not the author's
+      const tail = after.slice(0, -1)
+      const a = new Set(words(author).map(n))
+      const own = tail.filter((w) => !a.has(n(w)))
+      if (own.length && own.length <= 4 && series(own)) return { series: series(own), number: na, title }
+    }
+    // "גורלו של אפולו 3 המבוך הבוער ריק ריירדן": the book's title is the series, the words after the number its title
+    if (i === 0) {
+      const nx = num(f[t.length])
+      const rest = f.slice(t.length + 1)
+      const a = new Set(words(author).map(n))
+      while (rest.length && a.has(n(rest[rest.length - 1]!))) rest.pop()
+      if (nx && rest.length && series(t)) return { series: series(t), number: nx, title: rest.join(' ') }
+    }
+  }
+  return undefined
+}
+
 /** a name with its number in the middle and no dash: "שיר של אש ושל קרח 1 משחקי הכס" */
 const MIDDLE = /^(.+?)\s+#?(\d{1,3})\s+(.+)$/u
 
@@ -824,6 +872,14 @@ async function findName(
       if (hit?.series && Number(hit.number) === Number(mid[2]))
         base = { series: asLibrarySeries(hit.series, b.author, library), number: String(Number(hit.number)), title: plain }
     }
+  }
+  // the file's name says the series and number the book's own title leaves out ("בני קרטר 1 לשנוא אותו - קלואי וולש.epub"
+  // for "לשנוא אותו", "כובע מלא שמיים (טרי פראצט) עולם הדיסק 32"): the title found in the file's name, with a series and a
+  // number right before it or at the end; or the title as the series before a number ("גורלו של אפולו 3 המבוך הבוער")
+  if (!base.number && !noTitle(base)) {
+    const named = seriesInFileName(stem(b.fileName), base.title, b.author)
+    // a series the name already has is only given its number, never another series
+    if (named && (!base.series || sameTitle(seriesKey(base.series), seriesKey(named.series)))) base = { series: base.series || asLibrarySeries(named.series, b.author, library), number: named.number, title: named.title }
   }
   // a list of the series' books that names this title, printed in this book or in another one read before
   if (meta?.lists?.length) rememberLists(meta.lists, b.author)

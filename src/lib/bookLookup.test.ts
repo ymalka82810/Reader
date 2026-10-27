@@ -873,3 +873,13 @@ describe('our own identification first', () => {
     expect(f).toHaveBeenCalled()
   })
 })
+
+describe('seriesInFileName', () => {
+  it('reads the series and number around the title, never from a title that is not in the name', async () => {
+    const { seriesInFileName } = await import('./bookLookup')
+    expect(seriesInFileName('בני קרטר 1 לשנוא אותו - קלואי וולש', 'לשנוא אותו', 'קלואי וולש')).toEqual({ series: 'בני קרטר', number: '1', title: 'לשנוא אותו' })
+    expect(seriesInFileName('שם אחר 3 - ספר אחר', 'לשנוא אותו')).toBeUndefined()
+    expect(seriesInFileName('חלק 2 לשנוא אותו', 'לשנוא אותו')).toBeUndefined()
+    expect(seriesInFileName('לחלום על 10', 'לחלום')).toBeUndefined()
+  })
+})
