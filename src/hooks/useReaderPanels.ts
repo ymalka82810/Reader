@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import type { KeyPanel } from './useBookKeys'
 import { useLatest } from './useLatest'
 
-export type Panel = KeyPanel | 'edit' | 'dict' | 'translate' | 'quote'
+export type Panel = KeyPanel | 'edit' | 'dict' | 'translate' | 'quote' | 'end' | 'recap'
 
 /** which side panel of the reader is open (at most one), and the note being edited */
 export function useReaderPanels() {

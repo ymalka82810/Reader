@@ -42,6 +42,8 @@ export interface BookEventsDeps {
   setSelection: Dispatch<SetStateAction<Selection | null>>
   setUiVisible: Dispatch<SetStateAction<boolean>>
   setPanel: (p: null) => void
+  /** a forward turn on the book's last page */
+  onBookEnd?: () => void
   /** single tap in the middle of the page */
 }
 
@@ -123,8 +125,10 @@ export function useBookEvents(deps: BookEventsDeps) {
       if (turn) {
         // a turn that goes nowhere (back on the first page, forward on the last) shows the bars instead of hiding them
         const view = viewRef.current
-        const dead = !!view && atBookEdge(view, turnDirection(view, zone === 'left' ? 'left' : 'right'), fractionRef.current)
+        const dir = view ? turnDirection(view, zone === 'left' ? 'left' : 'right') : 1
+        const dead = !!view && atBookEdge(view, dir, fractionRef.current)
         setUiVisible(dead)
+        if (dead && dir === 1) d.current.onBookEnd?.()
         requestAnimationFrame(() => requestAnimationFrame(() => viewRef.current?.[turn]()))
       } else if (detail === 1) {
         middleTap = window.setTimeout(() => {

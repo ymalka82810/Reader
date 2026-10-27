@@ -177,6 +177,7 @@ export const listBooks = async () => {
 export const updateProgress = (id: string, cfi: string, fraction: number) =>
   set(id, { cfi, fraction, lastOpened: Date.now() } satisfies Progress, progressStore)
 
+export const getProgress = (id: string) => get<Progress>(id, progressStore)
 export const getAllProgress = async () => Object.fromEntries(await entries<string, Progress>(progressStore))
 
 /** keeps whichever position was read most recently; returns true if `incoming` won */

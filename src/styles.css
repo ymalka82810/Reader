@@ -191,6 +191,7 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: var(--radius-sm); border:
 }
 .progress input { width: 100%; }
 .progress .label { font-size: .78rem; color: var(--fg-muted); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.progress .label.time { font-size: .72rem; margin-top: .1rem; }
 .overlay-msg { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 1rem; z-index: 4; }
 .cover-splash { position: absolute; inset: 0; z-index: 3; display: grid; place-content: center; padding: 1.5rem; margin: 0; border: 0; border-radius: 0; background: var(--bg); box-shadow: none; cursor: pointer; }
 .cover-splash img { max-width: min(100%, 28rem); max-height: 100%; object-fit: contain; border-radius: var(--radius-lg); border: 1px solid var(--border); box-shadow: var(--shadow-lg); }
@@ -198,6 +199,16 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: var(--radius-sm); border:
 
 .panel { position: absolute; z-index: 6; top: calc(3.4rem + var(--safe-top)); inset-inline: .6rem; max-width: 420px; margin-inline: auto; max-height: 60vh; overflow: auto; padding: 1rem; border-radius: var(--radius-lg); background: var(--bg); color: var(--fg); box-shadow: var(--shadow-lg); border: 1px solid var(--border); overflow-wrap: break-word; }
 .panel h3 { margin: 0 0 .6rem; }
+.recap h4, .end-of-book h4 { margin: .8rem 0 .3rem; font-size: .9rem; color: var(--fg-muted); }
+.recap blockquote { margin: 0; padding: .6rem .8rem; border-radius: var(--radius-md); background: var(--fill); border-inline-start: 3px solid var(--border-strong); line-height: 1.6; }
+.recap blockquote.hl { border-inline-start-color: var(--accent); }
+.recap > button.primary { margin-top: 1rem; width: 100%; }
+.end-of-book .end-name { margin: 0 0 .8rem; font-weight: 600; }
+.end-of-book .row { display: flex; align-items: center; gap: .5rem; }
+.end-of-book .end-next { margin: 1rem 0; }
+.end-of-book .end-next p { margin: 0 0 .4rem; }
+.end-of-book .end-next button { width: 100%; }
+.end-of-book .end-actions { justify-content: space-between; margin-top: 1rem; }
 .panel .muted { color: var(--fg-muted); }
 .dict-text { white-space: pre-wrap; line-height: 1.6; max-height: 38vh; overflow: auto; margin-bottom: .8rem; }
 .dict .row { display: flex; align-items: center; gap: .6rem; }

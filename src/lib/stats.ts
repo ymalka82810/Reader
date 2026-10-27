@@ -54,12 +54,6 @@ export function addStats(id: string, secs: number, frac: number): Promise<void> 
   })
 }
 
-/** minutes left at the reader's own pace, or null while there is too little data */
-export function minutesLeft({ secs, frac }: Stats, fraction: number): number | null {
-  if (secs < 120 || frac < 0.005) return null
-  return Math.max(1, Math.round(((1 - fraction) * (secs / frac)) / 60))
-}
-
 export function formatMinutes(m: number): string {
   if (m < 60) return t('time.min', { m })
   const h = Math.floor(m / 60)
