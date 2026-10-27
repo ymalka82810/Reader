@@ -48,9 +48,9 @@ export interface PendingName {
 // a publisher taken for the author, or a fingerprint of another author's series; "17" once more over the whole library, for
 // the names that carry their author ("מחבר - שם"), the names no one chose ("3EA41~1", "CamScanner …"), a number inside a
 // title the lists know, and the author a cover prints; "18" also the author that books of the library share across their names; "19" the series and number a file's name gives a
-// book whose own title has neither
+// book whose own title has neither; "20" without a series' title taken for its author ("מגנס צ'ייס … - פטיש הרעם")
 const KEY = 'reader:identify:pending13'
-const OLD_KEYS = ['pending', 'backfill', 'pending2', 'backfill2', 'pending3', 'backfill3', 'pending4', 'backfill4', 'pending5', 'backfill5', 'pending6', 'backfill6', 'pending7', 'backfill7', 'pending8', 'backfill8', 'pending9', 'backfill9', 'pending10', 'backfill10', 'pending11', 'backfill11', 'pending12', 'backfill12', 'backfill13', 'backfill14', 'backfill15', 'backfill16', 'backfill17', 'backfill18'].map(
+const OLD_KEYS = ['pending', 'backfill', 'pending2', 'backfill2', 'pending3', 'backfill3', 'pending4', 'backfill4', 'pending5', 'backfill5', 'pending6', 'backfill6', 'pending7', 'backfill7', 'pending8', 'backfill8', 'pending9', 'backfill9', 'pending10', 'backfill10', 'pending11', 'backfill11', 'pending12', 'backfill12', 'backfill13', 'backfill14', 'backfill15', 'backfill16', 'backfill17', 'backfill18', 'backfill19'].map(
   (k) => `reader:identify:${k}`,
 )
 const listeners = new Set<() => void>()
@@ -98,7 +98,7 @@ function addPending(items: PendingName[]) {
   savePending([...loadPending().filter((p) => !ids.has(p.id)), ...items])
 }
 
-const BACKFILL = 'reader:identify:backfill19'
+const BACKFILL = 'reader:identify:backfill20'
 
 /** The books the one-time identification of the library still has to go through: all of `allIds` before it started,
  *  what is left after it was stopped, and undefined once it is done (or was cancelled). */

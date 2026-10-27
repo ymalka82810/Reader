@@ -23,7 +23,7 @@ async function resetLibrary() {
 beforeEach(async () => {
   localStorage.clear()
   // the one-time identification of the library would ask about Google Books on every first render
-  localStorage.setItem('reader:identify:backfill19', 'done')
+  localStorage.setItem('reader:identify:backfill20', 'done')
   await resetLibrary()
 })
 afterEach(cleanup)
@@ -106,15 +106,15 @@ describe('Library', () => {
   })
 
   it('has nothing to identify once for a library that was empty when it first loaded', async () => {
-    localStorage.removeItem('reader:identify:backfill19')
+    localStorage.removeItem('reader:identify:backfill20')
     render(<Library onOpen={() => {}} />)
-    await waitFor(() => expect(localStorage.getItem('reader:identify:backfill19')).toBe('done'))
+    await waitFor(() => expect(localStorage.getItem('reader:identify:backfill20')).toBe('done'))
     await saveBook(book('b1', 'Dune', 'Herbert'))
     expect(screen.queryByRole('alertdialog')).toBeNull()
   })
 
   it('identifies the books already in the library once, after asking about Google Books', async () => {
-    localStorage.removeItem('reader:identify:backfill19')
+    localStorage.removeItem('reader:identify:backfill20')
     await saveBook(book('b1', 'Dune', ''))
     render(<Library onOpen={() => {}} />)
     const ask = await screen.findByRole('alertdialog')
@@ -123,7 +123,7 @@ describe('Library', () => {
     vi.stubGlobal('fetch', fetchMock)
     try {
       fireEvent.click(within(ask).getByRole('button', { name: 'אפשר' }))
-      await waitFor(() => expect(localStorage.getItem('reader:identify:backfill19')).toBe('done'))
+      await waitFor(() => expect(localStorage.getItem('reader:identify:backfill20')).toBe('done'))
       expect(String(fetchMock.mock.calls[0]?.[0])).toContain('googleapis.com/books')
     } finally {
       vi.unstubAllGlobals()

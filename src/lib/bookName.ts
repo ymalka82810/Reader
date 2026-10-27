@@ -332,8 +332,8 @@ export function personShaped(s: string): boolean {
 /**
  * The author a plain "A - B" name carries when it says no author: the two parts are told apart by evidence, never by
  * a particular name. First an author the library already has (either side); then the shape: the side that is a
- * person's name (two to four words of letters only) while the other is not (a title with a digit, or one word). Both
- * sides alike in shape, or neither, tell nothing: ''.
+ * person's name (two to four words of letters only) while the other is plainly a title (one word, or with a digit).
+ * Anything else tells nothing: ''.
  */
 export function authorByDash(name: string, known: readonly string[] = []): string {
   const parts = clean(name.replace(/_+/g, ' ')).split(/\s+[-–—]\s+/)
@@ -346,10 +346,13 @@ export function authorByDash(name: string, known: readonly string[] = []): strin
   const kb = have(b)
   if (ka && !kb) return ka
   if (kb && !ka) return kb
+  // by shape alone only against a side that is plainly a title: one word, or a number in it ("עוצר נשימה 3"). A long
+  // other side is more likely a series ("מגנס צ'ייס והאלים של אוסגרד - פטיש הרעם"), whose title looks like a name
+  const plainTitle = (x: string) => clean(x).split(' ').length === 1 || /\d/.test(x)
   const pa = personShaped(a)
   const pb = personShaped(b)
-  if (pa && !pb) return a
-  if (pb && !pa) return b
+  if (pa && !pb && plainTitle(b)) return a
+  if (pb && !pa && plainTitle(a)) return b
   return ''
 }
 
