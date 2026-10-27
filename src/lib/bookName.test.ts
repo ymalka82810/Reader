@@ -257,6 +257,9 @@ describe('authorByDash', () => {
     expect(authorByDash('גנב - הברק')).toBe('')
     expect(authorByDash('פרסי ג\'קסון 1 - גנב הברק')).toBe('')
     expect(authorByDash('a - b - c')).toBe('')
+    // a series before the dash, whose title looks like a name
+    expect(authorByDash("מגנס צ'ייס והאלים של אוסגרד - פטיש הרעם")).toBe('')
+    expect(authorByDash("מגנס צ'ייס והאלים של אוסגרד - ספינת המתים")).toBe('')
   })
 })
 
