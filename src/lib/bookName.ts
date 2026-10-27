@@ -385,6 +385,14 @@ export function tidyBookName(text: string): string {
     .replace(/\s+[-–—]\s+(?:הועל(?:ה|תה)|הוקלד|נסרק|סרק|הוכן|הוקלדה)(?=\s)[\s\S]*$/u, '')
     .replace(/\s*[|•·]+\s*$/u, '')
     .replace(AUTHOR_PAIR, ' ')
+  // a date (and a time) stamped on a file by a camera or a scanner, in front of the name or after it
+  const STAMP = String.raw`\d{1,4}[-_.]\d{1,2}[-_.]\d{1,4}(?:[-_.\s]+\d{1,2}[-_.:]\d{2}(?:[-_.:]\d{2})?)?`
+  const stamped = new RegExp(String.raw`^[-\s]*${STAMP}[-\s]+(?=\p{L})|(?<=\p{L})[-\s]+${STAMP}\s*$`, 'u')
+  if (stamped.test(s)) {
+    s = s.replace(stamped, '')
+    // what is left was written with hyphens for spaces ("בין-אור-לחושך")
+    if (!/\s/.test(s)) s = s.replace(/-+/g, ' ')
+  }
   s = clean(s)
   // "קלע הכשף #5 קוטל המלכה": the number in the middle, with no dash before the title
   const hash = /^(.+?)\s+#(\d{1,3})\s+([^-–—].*)$/u.exec(s)
@@ -411,7 +419,22 @@ export function isJunkTitle(title: string): boolean {
     .filter((w) => /\p{L}{2}/u.test(w))
   // the word for a part or a chapter alone ("פרק", "חלק ב", "Part 6") is a heading, not the book's name
   if (new RegExp(String.raw`^(?:ה?פרק|ה?חלק|chapter|part)(?: (?:${ORDINAL_WORD}|[\u05D0-\u05EA]))?$`, 'iu').test(words.join(' '))) return true
-  return !words.length || (words.length === 1 && words[0]!.length >= 14)
+  return !words.length || (words.length === 1 && words[0]!.length >= 14) || isGeneratedName(title)
+}
+
+/** a name no one chose: a DOS short name ("3EA41~1"), what a scanner or a converter calls its files ("CamScanner 06-06-2022
+ *  16.55", "Aspose", "IMG 2041", "Gilyon-0331147165"), or letters of a broken encoding ("Ûè") */
+function isGeneratedName(title: string): boolean {
+  // "Microsoft Word - …": the program's name in front of the document's title
+  const t = clean(title.replace(/^microsoft\s+(?:word|excel|powerpoint)\s*[-–—]\s*/iu, ''))
+  if (/^[0-9a-f]{3,8}~\d{1,2}$/i.test(t)) return true
+  if (/^[A-Za-z]+[-_ ]?\d{8,}$/.test(t)) return true
+  // only accented Latin letters: Hebrew read as Windows-1252, never a name
+  if (/[\u00C0-\u00FF]/.test(t) && !/[A-Za-z\u0590-\u05FF]/.test(t)) return true
+  const rest = t
+    .replace(/\b(?:camscanner|scanner|scanned|scan|img|image|photo|picture|document|doc|untitled|new|file|page|aspose|microsoft word|copy|pdf)\b/giu, ' ')
+    .replace(/[\d\s._:~()\-–—]+/gu, '')
+  return !rest && t !== ''
 }
 
 // lines of a title page that are not the book's name: the publisher, the credits, the copyright notice, the author's other books

@@ -258,3 +258,16 @@ describe('authorByDash', () => {
     expect(authorByDash('a - b - c')).toBe('')
   })
 })
+
+describe('names no one chose', () => {
+  it('are junk titles', () => {
+    for (const n of ['3EA41~1', 'CamScanner 06-06-2022 16.55', 'Aspose', 'Gilyon-0331147165', 'Microsoft Word - Ûè', 'IMG 2041']) expect(isJunkTitle(tidyBookName(n)), n).toBe(true)
+  })
+  it('leave a real title alone', () => {
+    for (const n of ['גנב הברק', 'Mort 4', 'The New Page of Life', 'בין אור לחושך']) expect(isJunkTitle(tidyBookName(n)), n).toBe(false)
+  })
+  it('lose a date stamp in front of the title and the hyphens that stood for spaces', () => {
+    expect(tidyBookName('-25-05-2022-12-06-50 בין-אור-לחושך')).toBe('בין אור לחושך')
+    expect(tidyBookName('גנב הברק 25-05-2022 12-06')).toBe('גנב הברק')
+  })
+})
