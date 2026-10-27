@@ -5,7 +5,7 @@
 // when the name still has no series. Only the ISBN, the title and the author are sent, and only after the user agreed
 // (consent 'books').
 
-import { authorByDash, authorFromOpening, authorInName, guessBookName, isJunkTitle, nameFromOpening, seriesOf, tidyBookName, unglued, withoutAuthor, type BookName } from './bookName'
+import { authorByDash, authorFromOpening, authorInName, guessBookName, isJunkTitle, nameFromOpening, personShaped, seriesOf, tidyBookName, unglued, withoutAuthor, type BookName } from './bookName'
 import { libraryAuthor, realAuthor, tidyAuthor } from './authorName'
 import type { EpubMeta } from './bookText'
 import { bookNumber, copyrightYear, seriesByWords, inLists, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, originalTitle, seriesByNames, soundOf, titleCase } from './bookInference'
@@ -598,6 +598,22 @@ export function libraryNames(books: { title: string; author?: string; id?: strin
     const longer = [...tails].some(([k, o]) => k !== key && k.endsWith(` ${key}`) && o.titles.size >= 2)
     if (!longer) series.set(key, { name: t.name, authors: t.authors })
   }
+  // a side that "A - B" names share, where the other side differs from book to book, is their author ("סטפני מאייר - מולד
+  // הירח", "סטפני מאייר - ליקוי חמה"): two words alike in shape cannot be told apart by one name, but the books of one author can
+  const sides = new Map<string, { name: string; others: Set<string> }>()
+  for (const b of books) {
+    if ((b.author ?? '').trim()) continue
+    const t = tidyBookName(b.title)
+    if (guessBookName(t).series) continue
+    const parts = t.split(/\s+[-–—]\s+/u)
+    if (parts.length !== 2) continue
+    for (const [x, y] of [[parts[0]!, parts[1]!], [parts[1]!, parts[0]!]] as const) {
+      const e = sides.get(norm(x)) ?? { name: x, others: new Set<string>() }
+      e.others.add(norm(y))
+      sides.set(norm(x), e)
+    }
+  }
+  for (const e of sides.values()) if (e.others.size >= 2 && personShaped(e.name)) authors.add(e.name)
   // the spelling most of the series' books have
   for (const [key, count] of spellings) series.get(key)!.name = [...count].sort((x, y) => y[1] - x[1])[0]![0]
   return { series, titles, authors: [...authors].sort((x, y) => y.length - x.length) }
