@@ -28,6 +28,7 @@ const ENTRIES: [PageId, MessageKey, boolean?][] = [
   ['language', 'prefs.offlineDict'],
   ['language', 'prefs.autoIdentify'],
   ['language', 'prefs.autoIdentifySave'],
+  ['language', 'prefs.identifyLibraryNow'],
   ['language', 'prefs.googleKey'],
   ['language', 'stats.title'],
   ['language', 'health.title'],

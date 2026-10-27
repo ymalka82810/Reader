@@ -480,6 +480,19 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
     void askLookup.current().then(() => imp.identifyLibrary(left))
   }, [loaded, imp, busy, books, askLookup])
 
+  /** the settings' button: every book of the library is identified again now, with what the identification knows today */
+  const identifyWholeLibrary = () => {
+    if (imp.running) {
+      showToast(t('identify.libraryBusy'))
+      return
+    }
+    const ids = books.map((b) => b.id)
+    if (!ids.length) return
+    setBackfillLeft(ids) // kept, so a run cut short by closing the app goes on at the next start
+    backfill.current = undefined
+    void askLookup.current().then(() => imp.identifyLibrary(ids))
+  }
+
   const reviewPending = () => {
     if (loaded) dropPending(pendingAll.filter((p) => !pending.includes(p)).map((p) => p.id))
     const ids = new Set(pending.map((p) => p.id))
@@ -949,6 +962,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
           }}
           onCheckUpdate={checkUpdate}
           onScanDevice={scanDevice}
+          onIdentifyLibrary={identifyWholeLibrary}
           backup={{
             busy: !!busy || imp.running,
             storage,

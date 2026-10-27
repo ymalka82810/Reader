@@ -22,8 +22,9 @@ const actions = (): BackupActions => ({
 })
 
 const renderScreen = (backup = actions(), onClose = vi.fn()) => {
-  render(<SettingsScreen onClose={onClose} backup={backup} onCheckUpdate={vi.fn()} onScanDevice={vi.fn()} />)
-  return { backup, onClose }
+  const onIdentifyLibrary = vi.fn()
+  render(<SettingsScreen onClose={onClose} backup={backup} onCheckUpdate={vi.fn()} onScanDevice={vi.fn()} onIdentifyLibrary={onIdentifyLibrary} />)
+  return { backup, onClose, onIdentifyLibrary }
 }
 
 beforeEach(() => {
@@ -67,6 +68,15 @@ describe('SettingsScreen', () => {
     expect(screen.getByRole('navigation')).toBeTruthy()
     expect(screen.getByRole('region', { name: 'מראה וקריאה' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'חזרה לרשימת ההגדרות' })).toBeNull()
+  })
+
+  it('closes the settings and identifies the whole library when its button is pressed', () => {
+    media(true)
+    const { onClose, onIdentifyLibrary } = renderScreen()
+    fireEvent.click(screen.getByText('שפה ולימוד'))
+    fireEvent.click(screen.getByRole('button', { name: 'זהה עכשיו' }))
+    expect(onClose).toHaveBeenCalled()
+    expect(onIdentifyLibrary).toHaveBeenCalled()
   })
 
   it('closes the settings before a backup starts, so its progress is visible', () => {

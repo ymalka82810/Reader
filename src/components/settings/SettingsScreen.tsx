@@ -42,11 +42,13 @@ type Props = {
   /** scans the phone for new books (Android app) */
   /** retry: also offer the books whose adding was cancelled or failed */
   onScanDevice: (retry?: boolean) => void
+  /** identifies every book of the library again, now (not only once per version) */
+  onIdentifyLibrary: () => void
   startPage?: PageId
 }
 
 /** full-screen settings: pages in a list, with each page's settings in sections */
-export function SettingsScreen({ onClose, backup, onCheckUpdate, onScanDevice, startPage }: Props) {
+export function SettingsScreen({ onClose, backup, onCheckUpdate, onScanDevice, onIdentifyLibrary, startPage }: Props) {
   const wide = useWide()
   const [settings, set] = useAppSettings()
   const [page, setPage] = useState<PageId | null>(() => startPage ?? PAGES.find(([id]) => id === rememberedSettings())?.[0] ?? null)
@@ -137,7 +139,7 @@ export function SettingsScreen({ onClose, backup, onCheckUpdate, onScanDevice, s
               <DevicePage settings={settings} set={set} busy={backup.busy} onScan={(retry) => { close(); onScanDevice(retry) }} />
             )}
             {current === 'goals' && <GoalsPage settings={settings} set={set} />}
-            {current === 'language' && <LanguagePage settings={settings} set={set} />}
+            {current === 'language' && <LanguagePage settings={settings} set={set} onIdentifyLibrary={() => { close(); onIdentifyLibrary() }} />}
             {current === 'privacy' && <PrivacyPage />}
             {current === 'backup' && <BackupPage actions={backup} leave={close} settings={settings} set={set} />}
             {current === 'about' && <AboutPage busy={backup.busy} onCheckUpdate={() => { close(); onCheckUpdate() }} />}
