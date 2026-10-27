@@ -798,6 +798,17 @@ async function findName(
   if (fromSeries)
     base = { series: fromSeries, number: original!.number, title: isJunkTitle(base.title) ? (bundledTitle(fromSeries, original!.number) ?? '') : base.title }
   else if (nameOnly) base = { series: nameOnly, number: '', title: isJunkTitle(base.title) ? '' : base.title }
+  // a number put into the middle of a title ("הארי פוטר 1 ואבן החכמים"): the title without it, when a list names that title
+  // at that very number (a list that agrees with the number is the evidence; no title is guessed from the number alone)
+  if (!base.series && !base.number && !/\s[-–—]\s/u.test(base.title)) {
+    const mid = /^(.+?)\s+#?(\d{1,3})\s+(\S.*)$/u.exec(base.title)
+    if (mid) {
+      const plain = `${mid[1]} ${mid[3]}`
+      const hit = inLists(plain, [...(meta?.lists ?? []), ...listsOf(b.author, undefined, plain)], norm)
+      if (hit?.series && Number(hit.number) === Number(mid[2]))
+        base = { series: asLibrarySeries(hit.series, b.author, library), number: String(Number(hit.number)), title: plain }
+    }
+  }
   // a list of the series' books that names this title, printed in this book or in another one read before
   if (meta?.lists?.length) rememberLists(meta.lists, b.author)
   if (!base.number && !isJunkTitle(base.title)) {
