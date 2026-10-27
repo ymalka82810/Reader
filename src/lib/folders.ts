@@ -1,6 +1,7 @@
 import type { BookMeta } from './db'
 import { localeTag } from '../i18n'
 import { decodeEntities } from './entities'
+import { authorsIn } from './authorList'
 
 export interface Folder {
   /** identity ignoring case and nikud/accents; '' is the "no author" folder */
@@ -11,8 +12,13 @@ export interface Folder {
 }
 
 const clean = (s: string | undefined) => decodeEntities(s ?? '').replace(/\s+/g, ' ').trim()
-/** nikud and accents are dropped so "משה" and "מֹשֶׁה" land in the same folder */
-const keyOf = (name: string) => name.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('he')
+/** nikud and accents are dropped so "משה" and "מֹשֶׁה" land in the same folder, and the authors of a shared book are put
+ *  in order so "א, ב" and "ב, א" are one folder */
+const keyOf = (name: string) => {
+  const k = name.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('he')
+  const authors = authorsIn(k)
+  return authors.length > 1 ? authors.sort().join(', ') : k
+}
 
 /** A book's folder name: the one the user picked (an empty pick means "no folder"), otherwise its author. */
 export const folderName = (b: Pick<BookMeta, 'author' | 'folder'>) => clean(b.folder ?? b.author)

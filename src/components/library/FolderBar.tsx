@@ -1,4 +1,5 @@
 import type { Folder } from '../../lib/folders'
+import type { FolderLink } from '../../lib/coAuthors'
 import { BookCard, type BookActions } from './BookGrid'
 import { Cover } from './Cover'
 import { FolderIcon } from './FolderIcon'
@@ -16,10 +17,13 @@ type ListProps = {
   onOpen: (key: string) => void
   onToggle: (key: string) => void
   list?: boolean
+  /** the links of a folder to its authors' shared books (shown under a loose book's card) */
+  linksOf: (f: Folder) => FolderLink[]
+  onFollow: (key: string) => void
 }
 
 /** the grid of folders shown at the top level of the library */
-export function FolderList({ folders, loose, bookActions, selecting, selectedFolders, onOpen, onToggle, list }: ListProps) {
+export function FolderList({ folders, loose, bookActions, selecting, selectedFolders, onOpen, onToggle, list, linksOf, onFollow }: ListProps) {
   return (
     <ul className={'grid folders' + (list ? ' list' : '')}>
       {folders.map((f) => {
@@ -33,6 +37,7 @@ export function FolderList({ folders, loose, bookActions, selecting, selectedFol
               selecting={selecting}
               onToggle={() => onToggle(f.key)}
               {...bookActions}
+              extra={selecting ? undefined : <FolderLinks links={linksOf(f)} onFolder={onFollow} onBook={bookActions.onOpen} small />}
             />
           )
         // the folder wears the cover of the first book that has one
@@ -90,6 +95,27 @@ export function FolderBar({ folder, onBack, onRename, onDelete, onShare }: BarPr
         {folder.books.length > 0 && <button onClick={onShare}>{t('folder.share')}</button>}
         <button className="danger" onClick={onDelete}>{t('folder.delete')}</button>
       </div>
+    </div>
+  )
+}
+
+const linkLabel = (l: FolderLink) => (l.kind === 'joint' ? t('folder.together', { names: l.names }) : t('folder.moreBy', { name: l.names }))
+
+/** links between a shared folder ("א, ב") and its authors' own books; `small`: under a book's card */
+export function FolderLinks({ links, onFolder, onBook, small }: {
+  links: FolderLink[]
+  onFolder: (key: string) => void
+  onBook: (id: string) => void
+  small?: boolean
+}) {
+  if (!links.length) return null
+  return (
+    <div className={'folder-links' + (small ? ' small' : '')}>
+      {links.map((l) => (
+        <button key={l.key} className="folder-link" onClick={() => (l.book ? onBook(l.book) : onFolder(l.key))}>
+          <FolderIcon /> <span>{linkLabel(l)}</span> <small>{t('books.count', { n: l.n })}</small>
+        </button>
+      ))}
     </div>
   )
 }

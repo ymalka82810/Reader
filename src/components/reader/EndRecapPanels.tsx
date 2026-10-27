@@ -1,5 +1,6 @@
 import { t } from '../../i18n'
 import type { SeriesPlace } from '../../lib/nextInSeries'
+import type { FolderLink } from '../../lib/coAuthors'
 import { Panel } from './shared'
 import { Stars } from '../Stars'
 
@@ -45,6 +46,8 @@ export function EndPanel({
   rating,
   readPct,
   place,
+  more = [],
+  onMore,
   onFinished,
   onRate,
   onOpen,
@@ -58,6 +61,9 @@ export function EndPanel({
   /** how much of the book was actually read, in percent; unknown for books read before this was kept */
   readPct?: number
   place?: SeriesPlace
+  /** a shared book's authors who have more books in the library */
+  more?: FolderLink[]
+  onMore?: (l: FolderLink) => void
   onFinished: (v: boolean) => void
   onRate: (r: number) => void
   onOpen?: (id: string) => void
@@ -87,6 +93,16 @@ export function EndPanel({
         </div>
       )}
       {place && !next && <p className="muted">{t('end.noNext', { series: place.series, n: String(place.number + 1) })}</p>}
+      {more.length > 0 && onMore && (
+        <div className="end-next end-more">
+          <p>{t('end.moreBy')}</p>
+          {more.map((l) => (
+            <button key={l.key} onClick={() => onMore(l)}>
+              {t('folder.moreBy', { name: l.names })} · {t('books.count', { n: l.n })}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="row end-actions">
         <button onClick={onLibrary}>{t('reader.backToLibrary')}</button>
         <button onClick={onClose}>{t('common.close')}</button>
