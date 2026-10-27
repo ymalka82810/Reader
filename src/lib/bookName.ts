@@ -319,7 +319,14 @@ export function authorInName(s: string): string {
 /** A name of a person as a file name writes it: two to four words of letters only (no digit, no "#", no mark of a part) */
 function personShaped(s: string): boolean {
   const w = clean(s).split(' ')
-  return w.length >= 2 && w.length <= 4 && w.every((x) => /^[\p{L}'׳".\u05F3\u05F4-]+$/u.test(x) && /\p{L}{2}/u.test(x)) && !/^(?:ה?חלק|ה?כרך|ה?ספר|part|vol\.?|volume|book)$/iu.test(w[0]!)
+  // initials count as words ("א ל ג'ייס"), but one word has to be a name and not only a letter
+  return (
+    w.length >= 2 &&
+    w.length <= 4 &&
+    w.every((x) => /^[\p{L}'׳".\u05F3\u05F4-]+$/u.test(x)) &&
+    w.some((x) => /\p{L}{2}/u.test(x)) &&
+    !/^(?:ה?חלק|ה?כרך|ה?ספר|part|vol\.?|volume|book)$/iu.test(w[0]!)
+  )
 }
 
 /**
