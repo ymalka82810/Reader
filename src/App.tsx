@@ -91,6 +91,7 @@ export default function App() {
           id={openId}
           startCfi={startCfi}
           onClose={close}
+          onOpenBook={(other) => open(other)}
           onSettings={() => {
             setSettingsPage('appearance')
             close()

@@ -33,7 +33,13 @@ import { clampFont, useBookEvents, type Selection } from '../hooks/useBookEvents
 import { firstWord } from '../lib/dictionary'
 import { saveWord } from '../lib/flashcards'
 import { atBookEdge } from '../lib/bookEdge'
-import { formatMinutes, loadStats, minutesLeft, type Stats } from '../lib/stats'
+import { formatMinutes, loadStats, type Stats } from '../lib/stats'
+import { getNotes, getProgress, isFinished, listBooks, setFinished } from '../lib/db'
+import { linearSizes, loadPace, paceFromStats } from '../lib/pace'
+import { timeLeft } from '../lib/readTime'
+import { daysAway, RECAP_AFTER_MS, textBefore } from '../lib/recap'
+import { nextInSeries, type SeriesPlace } from '../lib/nextInSeries'
+import { EndPanel, RecapPanel, type Recap } from './reader/EndRecapPanels'
 import { getLocale, isRtl, t } from '../i18n'
 import { customFontFace, customFontUrl, loadCustomFont, releaseCustomFontUrl, type CustomFont } from '../lib/customFont'
 import { EYE_SCROLL_AVAILABLE, loadViewModes, saveViewModes, type ViewModes } from '../lib/viewModes'
@@ -47,7 +53,20 @@ const TAP_HELP_KEY = 'reader:tapHelpSeen'
 /** in distraction-free mode the bars shown by a middle tap go away again after this long */
 const FOCUS_BARS_MS = 4000
 
-export default function Reader({ id, startCfi, onClose, onSettings }: { id: string; startCfi?: string; onClose: () => void; onSettings: () => void }) {
+export default function Reader({
+  id,
+  startCfi,
+  onClose,
+  onSettings,
+  onOpenBook,
+}: {
+  id: string
+  startCfi?: string
+  onClose: () => void
+  onSettings: () => void
+  /** opens another book of the library (the next one in the series, from the end-of-book panel) */
+  onOpenBook?: (id: string) => void
+}) {
   const host = useRef<HTMLDivElement>(null)
   const viewRef = useRef<FoliateView | null>(null)
   const [settings, setSettings] = useState<Settings>(loadSettings)
@@ -85,7 +104,15 @@ export default function Reader({ id, startCfi, onClose, onSettings }: { id: stri
   const [selection, setSelection] = useState<Selection | null>(null)
   const selectionRef = useLatest(selection)
   const lastAnnotationClick = useRef(0)
-  const [left, setLeft] = useState<number | null>(null)
+  const [left, setLeft] = useState<{ chapter: number | null; book: number | null }>({ chapter: null, book: null })
+  /** the reader's pace in seconds per KB of source, worked out on the first relocate (it needs the book's size) */
+  const pace = useRef<number | null>(null)
+  /** days since the book was last opened, when that was long enough ago for "where was I?" (0 = don't show it) */
+  const recapDays = useRef(0)
+  const lastHighlight = useRef('')
+  const [recap, setRecap] = useState<Recap | null>(null)
+  /** what the end-of-book panel shows: the read mark and where the book sits in its series */
+  const [end, setEnd] = useState<{ finished: boolean; place?: SeriesPlace } | null>(null)
   /** read once per book: the estimate does not need to track the stats written while reading */
   const stats = useRef<Stats>({ secs: 0, frac: 0 })
   const actions = useRef<KeyActions>({
@@ -110,6 +137,7 @@ export default function Reader({ id, startCfi, onClose, onSettings }: { id: stri
     setSelection,
     setUiVisible,
     setPanel,
+    onBookEnd: () => openEndRef.current(),
   })
 
   const tracker = useReadingTracker(id)
@@ -142,8 +170,13 @@ export default function Reader({ id, startCfi, onClose, onSettings }: { id: stri
 
   const { status, error, title, dir, toc, bookLang, lang: language, coverUrl } = useFoliateView(id, host, viewRef, settings, fontUrl ? customFontFace(fontUrl) : '', startCfi, {
     prepare: async () => {
-      const [, s] = await Promise.all([notes.load(), loadStats(id)])
+      const [, s, p, saved] = await Promise.all([notes.load(), loadStats(id), getProgress(id), getNotes(id)])
       stats.current = s
+      if (!startCfi && p?.cfi && Date.now() - p.lastOpened >= RECAP_AFTER_MS) {
+        recapDays.current = daysAway(p.lastOpened)
+        const highlights = saved.filter((n) => n.kind === 'highlight' && n.text.trim())
+        lastHighlight.current = highlights.reduce<(typeof highlights)[number] | undefined>((a, n) => (!a || n.createdAt > a.createdAt ? n : a), undefined)?.text ?? ''
+      }
     },
     load: (d) => attachDocHandlers(d, onKey),
     createOverlay: notes.drawAll,
@@ -157,7 +190,20 @@ export default function Reader({ id, startCfi, onClose, onSettings }: { id: stri
       estimate.relocate(d)
       const f = d.fraction ?? 0
       tracker.relocate(d)
-      setLeft(minutesLeft(stats.current, f))
+      const view = viewRef.current
+      if (view && pace.current === null) {
+        const total = linearSizes(view.book?.sections ?? []).reduce((a, b) => a + b, 0)
+        pace.current = paceFromStats(stats.current, total) ?? loadPace()
+      }
+      setLeft(timeLeft(d.time, pace.current ?? loadPace(), d.section?.total ?? 1))
+      if (recapDays.current && d.range) {
+        const text = textBefore(d.range)
+        if (text || lastHighlight.current) {
+          setRecap({ days: recapDays.current, chapter: d.tocItem?.label ?? '', text, highlight: lastHighlight.current })
+          setPanel('recap')
+        }
+        recapDays.current = 0
+      }
       setFraction(f)
       setChapter(d.tocItem?.label ?? '')
       setHere(d.cfi ?? '')
@@ -176,6 +222,23 @@ export default function Reader({ id, startCfi, onClose, onSettings }: { id: stri
     else onClose()
   }, 1)
   const close = onClose
+
+  /** the end-of-book panel: the read mark, and the next book of the series when the library has it */
+  const openEnd = async () => {
+    try {
+      const books = await listBooks()
+      const me = books.find((b) => b.id === id)
+      setEnd({
+        finished: me ? (me.finished ?? (isFinished(me) || fractionRef.current >= 0.98)) : true,
+        place: me ? nextInSeries(me, books) : undefined,
+      })
+    } catch (e) {
+      console.warn('end of book: library read failed', e)
+      setEnd({ finished: true })
+    }
+    setPanel('end')
+  }
+  const openEndRef = useLatest(openEnd)
   useEffect(
     () => () => {
       window.clearTimeout(backTimer.current)
@@ -374,7 +437,11 @@ export default function Reader({ id, startCfi, onClose, onSettings }: { id: stri
       gotoBookmark,
       bump: (d) => setSettings((s) => ({ ...s, fontSize: clampFont(s.fontSize + d) })),
       panel: togglePanel,
-      hideBars: (turn) => setUiVisible(!!turn && atBookEdge(viewRef.current, turn, fractionRef.current)),
+      hideBars: (turn) => {
+        const edge = !!turn && atBookEdge(viewRef.current, turn, fractionRef.current)
+        setUiVisible(edge)
+        if (edge && turn === 1) void openEnd()
+      },
       autoRead: toggleAuto,
       pace: auto.adjust,
       readAloud: toggleSpeech,
@@ -503,8 +570,14 @@ export default function Reader({ id, startCfi, onClose, onSettings }: { id: stri
           <div className="label" title={chapter || undefined}>
             {pages ? `${t('reader.pageOf', { current: pages.current, total: pages.total })} · ` : ''}
             {Math.round(shownFraction * 100)}%
-            {left ? ` · ${t('reader.timeLeft', { time: formatMinutes(left) })}` : ''}
           </div>
+          {(left.chapter || left.book) && (
+            <div className="time-left">
+              {left.chapter && left.book
+                ? t('reader.timeLeftBoth', { chapter: formatMinutes(left.chapter), book: formatMinutes(left.book) })
+                : t('reader.timeLeft', { time: formatMinutes((left.book ?? left.chapter)!) })}
+            </div>
+          )}
         </div>
         {readAloudSupported && (
           <button
@@ -648,6 +721,23 @@ export default function Reader({ id, startCfi, onClose, onSettings }: { id: stri
           fontFamily={settings.fontFamily}
           onClose={closePanel}
           flash={flash}
+        />
+      )}
+
+      {panel === 'recap' && recap && <RecapPanel recap={recap} onClose={closePanel} />}
+
+      {panel === 'end' && end && (
+        <EndPanel
+          title={title}
+          finished={end.finished}
+          place={end.place}
+          onFinished={(v) => {
+            setEnd((e) => e && { ...e, finished: v })
+            void setFinished(id, v).catch(console.error)
+          }}
+          onOpen={onOpenBook ? (other) => onOpenBook(other) : undefined}
+          onLibrary={close}
+          onClose={closePanel}
         />
       )}
 

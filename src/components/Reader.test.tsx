@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FoliateRelocateDetail } from 'foliate-js/view.js'
 import type { FoliateHandlers } from '../hooks/useFoliateView'
-import { getNotes } from '../lib/db'
+import { getNotes, mergeProgress } from '../lib/db'
 import Reader from './Reader'
 
 // the real hook opens the book in foliate's custom element, which needs a browser; the reader's own logic
@@ -101,6 +101,36 @@ describe('Reader', () => {
     expect(await screen.findByText('42%', { selector: '.label' })).toBeTruthy()
     expect(document.querySelector('.sr-only')!.textContent).toBe('Chapter 2, 42%')
     expect((screen.getByLabelText('מיקום בספר') as HTMLInputElement).value).toBe('0.42')
+  })
+
+  it('shows the time left to the end of the chapter and of the book', async () => {
+    await open()
+    // the default pace is 20 s per KB: 10 foliate units (16 KB) are about 5 minutes
+    await relocate({ fraction: 0.5, time: { section: 10, total: 100 }, section: { current: 1, total: 5 } })
+    expect(await screen.findByText('5 דק׳ לסוף הפרק · 53 דק׳ לסוף הספר')).toBeTruthy()
+  })
+
+  it('a book opened again after a few days shows where the reader stopped', async () => {
+    // a book of its own: the other tests save a fresh position for b1
+    await mergeProgress('away', { cfi: 'epubcfi(/6/4)', fraction: 0.3, lastOpened: Date.now() - 5 * 24 * 60 * 60 * 1000 })
+    await open({ id: 'away' })
+    // prepare reads the saved position; give it a moment
+    await act(async () => {
+      await stub.handlers!.prepare()
+    })
+    // the book's section is a document of its own
+    const doc = document.implementation.createHTMLDocument('')
+    const p = doc.createElement('p')
+    p.textContent = 'השורה האחרונה שנקראה לפני ההפסקה'
+    doc.body.append(p)
+    const range = doc.createRange()
+    range.setStart(p.firstChild!, p.textContent.length)
+    await relocate({ fraction: 0.3, range, tocItem: { label: 'Chapter 2', href: 'ch2' } })
+    expect(await screen.findByText('איפה הייתי?', { selector: 'h3' })).toBeTruthy()
+    expect(screen.getByText('עברו 5 ימים · Chapter 2')).toBeTruthy()
+    expect(screen.getByText('השורה האחרונה שנקראה לפני ההפסקה')).toBeTruthy()
+    fireEvent.click(screen.getByText('המשך לקרוא'))
+    expect(screen.queryByText('איפה הייתי?', { selector: 'h3' })).toBeNull()
   })
 
   it('dragging the position slider jumps to that fraction when released', async () => {

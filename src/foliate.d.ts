@@ -46,6 +46,8 @@ declare module 'foliate-js/view.js' {
     fraction?: number
     cfi?: string
     section?: { current: number; total: number }
+    /** what is left of the section and of the book, in foliate's time units (1,600 bytes of source each) */
+    time?: { section: number; total: number }
     tocItem?: { label?: string; href?: string }
     /** the text currently on screen */
     range?: Range
