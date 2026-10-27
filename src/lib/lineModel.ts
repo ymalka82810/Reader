@@ -87,7 +87,7 @@ export interface LineContext {
 }
 
 /** the lines the classifier reads: the first ones, cleaned, a title page the PDF joined into one line split back */
-export function lineUnits(lines: readonly string[], author = ''): string[] {
+function lineUnits(lines: readonly string[], author = ''): string[] {
   return lines
     .slice(0, 15)
     .flatMap((l) => pieces(l.replace(/_+/g, ' ').replace(/[\u200E\u200F]/g, '').replace(/\s+/g, ' ').trim(), author))
