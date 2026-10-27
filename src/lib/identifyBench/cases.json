@@ -1447,5 +1447,105 @@
    "number": "5",
    "title": "דם האולימפוס"
   }
+ },
+ {
+  "id": "lines: junk name, plain title page",
+  "input": {
+   "title": "1~2405 7",
+   "author": "",
+   "fileName": "1~2405 7.pdf",
+   "opening": [
+    "אליף שאפק",
+    "ארבעים כללי האהבה",
+    "מאנגלית: עדי מרקוזה-הס",
+    "הוצאת כנרת זמורה-ביתן"
+   ]
+  },
+  "expect": {
+   "series": "",
+   "number": "",
+   "title": "ארבעים כללי האהבה",
+   "author": "אליף שאפק"
+  }
+ },
+ {
+  "id": "lines: title above \"מאת\"",
+  "input": {
+   "title": "scan_0042",
+   "author": "",
+   "fileName": "scan_0042.pdf",
+   "opening": [
+    "הנערה מהאגם",
+    "מאת דנה כהן",
+    "עריכה: יעל לוי",
+    "כל הזכויות שמורות"
+   ]
+  },
+  "expect": {
+   "series": "",
+   "number": "",
+   "title": "הנערה מהאגם",
+   "author": "דנה כהן"
+  }
+ },
+ {
+  "id": "lines: cover with a review and a genre",
+  "input": {
+   "title": "IMG 2041",
+   "author": "",
+   "fileName": "IMG 2041.pdf",
+   "opening": [
+    "\"ספר שאי אפשר להניח מהיד\"",
+    "נועה לוי",
+    "בית בקצה השדה",
+    "רומן"
+   ]
+  },
+  "expect": {
+   "series": "",
+   "number": "",
+   "title": "בית בקצה השדה",
+   "author": "נועה לוי"
+  }
+ },
+ {
+  "id": "lines: English title page",
+  "input": {
+   "title": "3EA41~1",
+   "author": "",
+   "fileName": "3EA41~1.epub",
+   "opening": [
+    "THE MIDNIGHT LIBRARY",
+    "Matt Haig",
+    "Copyright © 2020 Matt Haig",
+    "All rights reserved"
+   ]
+  },
+  "expect": {
+   "series": "",
+   "number": "",
+   "title": "THE MIDNIGHT LIBRARY",
+   "author": "Matt Haig"
+  }
+ },
+ {
+  "id": "lines: author known, title page only",
+  "input": {
+   "title": "1~2406 1",
+   "author": "סאלי רוני",
+   "fileName": "1~2406 1.pdf",
+   "opening": [
+    "סאלי רוני",
+    "אנשים נורמליים",
+    "מאנגלית: קטיה בנוביץ'",
+    "ספרי עליית הגג"
+   ]
+  },
+  "expect": {
+   "series": "",
+   "number": "",
+   "title": "אנשים נורמליים",
+   "author": "סאלי רוני"
+  }
  }
 ]

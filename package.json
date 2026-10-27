@@ -13,7 +13,8 @@
     "knip": "knip",
     "typecheck": "tsc -b",
     "e2e": "playwright test",
-    "bench": "BENCH_REPORT=1 vitest run src/lib/identifyBench.test.ts"
+    "bench": "BENCH_REPORT=1 vitest run src/lib/identifyBench.test.ts",
+    "train:lines": "LINES_TRAIN=1 vitest run src/lib/lineModel.train.test.ts"
   },
   "dependencies": {
     "@fontsource/assistant": "^5.3.0",

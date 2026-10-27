@@ -15,6 +15,7 @@ import { hasConsent } from './consent'
 import { blocks, clueStats, needsMoreProof, trusted } from './identifyLearning'
 import { modelAllows } from './identifyModel'
 import { bookIsbns } from './isbn'
+import { readLines, type LineContext } from './lineModel'
 import { norm } from './sameBook'
 import { loadSettings } from './settings'
 
@@ -792,6 +793,30 @@ export async function lookupOnline(
  * an author already known; a book found by its ISBN also takes the catalog's title. A failed lookup falls back to what was
  * read; only an abort rejects.
  */
+/** what the line classifier is told besides the lines: the book's own author and title (when it says something), and the
+ *  library's authors and series */
+function linesContext(b: { title: string; author: string }, library?: LibraryNames): LineContext {
+  const own = identifyLocally({ ...b, fileName: '' }).title
+  return {
+    author: b.author,
+    ...(!isJunkTitle(own) && { title: own }),
+    ...(library && { authors: library.authors, series: [...library.series.values()].map((e) => e.name) }),
+  }
+}
+
+/** The line classifier's reading of the book's lines. When the cover is read as a title page (identifyWithCover puts its
+ *  lines before the pages), its lines are read as the cover's, beside the pages and checked against them, rather than
+ *  as more lines of the pages: the cover sets the title large on one book and the author on another, and the title page
+ *  tells which is which. */
+function readLinesOf(b: { title: string; author: string }, opening: string[], meta: EpubMeta | undefined, library?: LibraryNames) {
+  const cover = meta?.cover
+  const onCover = new Set([...(cover?.largest ? [cover.largest] : []), ...(cover?.lines ?? [])])
+  const asPage = !!cover && opening.some((l) => onCover.has(l))
+  const pages = asPage ? opening.filter((l) => !onCover.has(l)) : opening
+  const hebrewBook = hebrew(b.title) || opening.some(hebrew)
+  return readLines(pages, { ...linesContext(b, library), ...(asPage && { cover }) }, hebrewBook)
+}
+
 export async function identifyBook(
   b: { title: string; author: string; fileName: string },
   online: boolean,
@@ -827,7 +852,9 @@ async function findName(
     realAuthor(authorByDash(b.title, library?.authors)) ||
     realAuthor(authorByDash(stem(b.fileName), library?.authors)) ||
     // the name printed by the title on the title page, with the book's own title or the one read from the page
-    (opening.length ? authorFromOpening(opening, identifyLocally(b).title) || authorFromOpening(opening, nameFromOpening(opening, '').name?.title ?? '') || '' : '')
+    (opening.length ? authorFromOpening(opening, identifyLocally(b).title) || authorFromOpening(opening, nameFromOpening(opening, '').name?.title ?? '') || '' : '') ||
+    // and when the rules read none: the line the line classifier tags as the author (lineModel)
+    (opening.length ? (readLinesOf(b, opening, meta, library).author ?? '') : '')
   // the name the library has for the same author ("J.K. Rowling" when its books are by "ג'יי קיי רולינג")
   const author = (library && libraryAuthor(given, library.authors)) || given
   const lib = byLibrary(identifyLocally({ ...b, author }), author, library)
@@ -974,12 +1001,22 @@ async function findName(
     const he = await translatedTitle(originalName, signal)
     if (he) base = { ...base, title: he }
   }
+  // still no title: the line the line classifier tags as the title (lineModel), with its series when it tags one and the
+  // name has none. What the hand-written rules above read always comes first; this reads the title page they left unread
+  let fromLines = false
+  if (noTitle(base) && opening.length) {
+    const lined = readLinesOf(b, opening, meta, library)
+    if (lined.title) {
+      base = base.series ? { ...base, title: lined.title } : { series: lined.series ?? '', number: lined.series ? (lined.number ?? '') : '', title: lined.title }
+      fromLines = true
+    }
+  }
   const libSure = !!lib?.sure && base === local
   const mine: Identified = {
     ...base,
     author: b.author.trim(),
     online: false,
-    ...(fromText || fromOriginal || fromRunning ? { fromText: true } : fromMeta && { fromMeta, ...(metaSure && { sure: true }) }),
+    ...(fromText || fromOriginal || fromRunning || fromLines ? { fromText: true } : fromMeta && { fromMeta, ...(metaSure && { sure: true }) }),
     ...(libSure && { sure: true }),
     ...(numberedOnline && { sites: [SITE.wikidata] }),
   }
@@ -991,7 +1028,9 @@ async function findName(
   // (Google Books, Open Library) are asked only for the book it did not name. Wikidata, which has no such limit, still
   // completes the series.
   // (a book that prints its ISBN is still asked: that answer is exact)
-  if (known && b.author.trim() && !noTitle(base) && !bookIsbns([...(meta?.identifiers ?? []), ...opening], hebrewBook).length) return withWikidata(mine, hebrewBook, signal, library)
+  // (a title the line classifier read is still asked about: the catalog confirms it and gives its series)
+  if (known && b.author.trim() && !noTitle(base) && !fromLines && !bookIsbns([...(meta?.identifiers ?? []), ...opening], hebrewBook).length)
+    return withWikidata(mine, hebrewBook, signal, library)
   const isbns = bookIsbns([...(meta?.identifiers ?? []), ...opening], hebrewBook).slice(0, 2)
   const wants = [...(known ? [base.title] : []), ...read.candidates.filter((c) => norm(c) !== norm(base.title))].slice(0, 4)
   const middle = !base.series ? MIDDLE.exec(base.title) : null
@@ -1031,8 +1070,9 @@ async function findName(
     series: base.series || found.series,
     number: base.series ? base.number : found.number,
     // a fuller title ("הארי פוטר ואבן" -> "הארי פוטר ואבן החכמים"), never a shorter one; any title over one that says
-    // nothing; and the catalog's title for a book found by its ISBN, which is that very book
-    title: !known || thisBook || norm(found.title).includes(norm(base.title)) ? found.title : base.title,
+    // nothing; the catalog's title for a book found by its ISBN, which is that very book; and over a title the line
+    // classifier read, which was only its best guess at the line (the catalog was asked with that line)
+    title: !known || fromLines || thisBook || norm(found.title).includes(norm(base.title)) ? found.title : base.title,
     // a Hebrew book keeps a Hebrew author name, rather than the original's "Rick Riordan"
     author: mine.author || (hebrew(found.author) === (known ? hebrew(base.title) : hebrewBook) ? found.author : ''),
     online: true,

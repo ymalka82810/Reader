@@ -7,6 +7,7 @@ import { deviceBooksSupported } from '../../lib/deviceBooks'
 import { download } from '../../lib/download'
 import { clueReport, coverage, isConfirmed, outcomes } from '../../lib/identifyLearning'
 import { modelReport } from '../../lib/identifyModel'
+import { linesReport } from '../../lib/lineModel'
 import { saveBlobToPhone } from '../../lib/phoneFiles'
 import { loadSeriesDb, seriesDbSize } from '../../lib/seriesDb'
 import { Row } from './parts'
@@ -95,6 +96,7 @@ export function IdentifyStats() {
       </div>
       <h4>{t('stats.model')}</h4>
       <p>{t(model.ready ? 'stats.modelReady' : 'stats.modelLearning', { n: model.answers, wrong: model.wrong })}</p>
+      <p>{t('stats.lines', { n: linesReport() })}</p>
       <h4>{t('stats.knowledge')}</h4>
       <p>{t('stats.known', { books: k.books, printed: k.lists.book, wikidata: k.lists.wikidata, library: k.lists.library, sequel: k.lists.sequel, fingerprints: fingerprintBooks() })}</p>
       {bundled.series > 0 && <p>{t('stats.bundled', { series: bundled.series, books: bundled.books })}</p>}

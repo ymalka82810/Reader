@@ -280,6 +280,7 @@ export const fr: Record<keyof typeof he, Message> = {
   'stats.model': 'Le modèle d\'identification',
   'stats.modelReady': 'Le modèle a appris de {n} réponses ({wrong} étaient des noms erronés) et pèse tous les indices ensemble : un nom n\'est enregistré sans demander que si le modèle lui fait aussi confiance.',
   'stats.modelLearning': 'Le modèle apprend de vos réponses et ne décide pas encore : il a appris de {n} réponses ({wrong} étaient des noms erronés). Il décide après 30 réponses, dont au moins trois noms erronés.',
+  'stats.lines': 'Le classifieur de lignes étiquette chaque ligne de la page de titre et de la couverture comme titre, auteur, série, numéro ou bruit, et lit ce que les règles n’ont pas lu. Il est parti de ce qu’il a appris du banc d’essai et a appris sur cet appareil de {n} lignes de livres que vous avez approuvés.',
   'stats.clue': 'Indice',
   'stats.agreed': 'En accord',
   'stats.against': 'En désaccord',

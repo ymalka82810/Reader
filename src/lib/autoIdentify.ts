@@ -14,6 +14,7 @@ import { bookDetails } from './bookText'
 import { hasConsent } from './consent'
 import { getBookMeta, listBooks, updateMeta } from './db'
 import { isConfirmed, rememberAuto, wasDeclined } from './identifyLearning'
+import { keepOpening } from './lineModel'
 import { norm } from './sameBook'
 import { autoSyncPhoneNames } from './phoneFiles'
 import { loadSettings } from './settings'
@@ -296,6 +297,8 @@ export async function identifyNew(
         rememberSequels(b.title, b.author, meta?.next, meta?.prev)
         // a name the user gave stays as it is
         if (isConfirmed(id, b.title)) continue
+        // its opening lines, for the line classifier to learn from once the user answers about its name
+        keepOpening(id, opening, b)
         // a name that still says nothing is read once more with the cover's lines
         const r = await identifyWithCover(b, online, signal, opening, meta, library)
         if (r.failed) {
