@@ -302,6 +302,9 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: var(--radius-sm); border:
 .saved-as { overflow-wrap: anywhere; }
 .identify-item { display: flex; flex-direction: column; gap: .1rem; min-width: 0; overflow-wrap: anywhere; }
 .identify-was { text-decoration: line-through; }
+.identify-edit { gap: .4rem; }
+.identify-edit label { display: flex; flex-direction: column; gap: .15rem; font-size: .8rem; }
+.dup-list li > .quiet { flex: none; }
 /* identify dialog: the book's cover beside its suggestion */
 .dup-list li .identify-cover { flex: none; width: 3.25rem; overflow: visible; }
 .identify-cover .cover.placeholder { padding: .25rem; }
