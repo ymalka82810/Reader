@@ -1330,5 +1330,33 @@
    "number": "2.5",
    "title": "The End"
   }
+ },
+ {
+  "id": "author before dash, no author given",
+  "input": {
+   "title": "דנה לוי אלגרוד - התנפצות",
+   "author": "",
+   "fileName": "x.pdf"
+  },
+  "expect": {
+   "series": "",
+   "number": "",
+   "title": "התנפצות",
+   "author": "דנה לוי אלגרוד"
+  }
+ },
+ {
+  "id": "author after dash, no author given",
+  "input": {
+   "title": "התנפצות - דנה לוי אלגרוד",
+   "author": "",
+   "fileName": "x.pdf"
+  },
+  "expect": {
+   "series": "",
+   "number": "",
+   "title": "התנפצות",
+   "author": "דנה לוי אלגרוד"
+  }
  }
 ]

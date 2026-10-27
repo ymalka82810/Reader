@@ -5,7 +5,7 @@
 // when the name still has no series. Only the ISBN, the title and the author are sent, and only after the user agreed
 // (consent 'books').
 
-import { authorFromOpening, authorInName, guessBookName, isJunkTitle, nameFromOpening, seriesOf, tidyBookName, unglued, withoutAuthor, type BookName } from './bookName'
+import { authorByDash, authorFromOpening, authorInName, guessBookName, isJunkTitle, nameFromOpening, seriesOf, tidyBookName, unglued, withoutAuthor, type BookName } from './bookName'
 import { libraryAuthor, tidyAuthor } from './authorName'
 import type { EpubMeta } from './bookText'
 import { bookNumber, copyrightYear, seriesByWords, inLists, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, originalTitle, seriesByNames, soundOf, titleCase } from './bookInference'
@@ -758,6 +758,9 @@ async function findName(
     (/@/.test(b.author) ? '' : tidyAuthor(b.author)) ||
     authorInName(b.title) ||
     authorInName(stem(b.fileName)) ||
+    // a plain "author - title" name: told apart by the library's authors, then by the shape of a person's name
+    authorByDash(b.title, library?.authors) ||
+    authorByDash(stem(b.fileName), library?.authors) ||
     // the name printed by the title on the title page, with the book's own title or the one read from the page
     (opening.length ? authorFromOpening(opening, identifyLocally(b).title) || authorFromOpening(opening, nameFromOpening(opening, '').name?.title ?? '') || '' : '')
   // the name the library has for the same author ("J.K. Rowling" when its books are by "ג'יי קיי רולינג")
