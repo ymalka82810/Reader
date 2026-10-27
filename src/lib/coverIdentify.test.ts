@@ -34,8 +34,29 @@ it('takes the line in the largest letters as the title when the cover is no titl
   read.mockResolvedValue([['האגף הרביעי', 'רבקה יארוס', 'האגף הרביעי', 'רבי המכר של הניו יורק טיימס']])
   expect(await identifyWithCover({ ...book, author: 'רבקה יארוס' }, false, undefined, [], undefined)).toMatchObject({ title: 'האגף הרביעי', fromText: true })
   localStorage.clear()
+  // the author's name in the largest letters: the cover alone does not say which line is which, but the book's author
+  // does, so the other line is the title
   read.mockResolvedValue([['רבקה יארוס', 'רבקה יארוס', 'האגף הרביעי']])
-  expect(await identifyWithCover({ ...book, id: 'b2', author: 'רבקה יארוס' }, false, undefined, [], undefined)).toMatchObject({ title: '1~2402 1' })
+  expect(await identifyWithCover({ ...book, id: 'b2', author: 'רבקה יארוס' }, false, undefined, [], undefined)).toMatchObject({
+    title: 'האגף הרביעי',
+    author: 'רבקה יארוס',
+    fromText: true,
+  })
+})
+
+it('tells the title from the author on a cover by checking its lines against the title page', async () => {
+  // the largest line is the author's name, and nothing on the cover says so; the title page does ("מאת")
+  read.mockResolvedValue([['מירה אלון', 'מירה אלון', 'שביל הצפצפות']])
+  const r = await identifyWithCover({ ...book, id: 'x1', author: '' }, false, undefined, ['שביל הצפצפות', 'מאת מירה אלון', 'עריכה: נועה'], undefined)
+  expect(r).toMatchObject({ title: 'שביל הצפצפות', author: 'מירה אלון', fromText: true })
+  expect(r.sure).toBeUndefined()
+  // and the other way: the title in the largest letters, the author below it
+  localStorage.clear()
+  read.mockResolvedValue([['שביל הצפצפות', 'שביל הצפצפות', 'מירה אלון']])
+  expect(await identifyWithCover({ ...book, id: 'x2', author: '' }, false, undefined, ['שביל הצפצפות', 'מאת מירה אלון'], undefined)).toMatchObject({
+    title: 'שביל הצפצפות',
+    author: 'מירה אלון',
+  })
 })
 
 it('reads the cover of a book with a name too, as one more source, and keeps the name; reads nothing with no cover', async () => {

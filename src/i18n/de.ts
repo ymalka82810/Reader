@@ -280,6 +280,7 @@ export const de: Record<keyof typeof he, Message> = {
   'stats.model': 'Das Modell der Erkennung',
   'stats.modelReady': 'Das Modell hat aus {n} Antworten gelernt ({wrong} davon falsche Namen) und wägt alle Hinweise zusammen ab: Ein Name wird nur dann ungefragt gespeichert, wenn auch es ihm traut.',
   'stats.modelLearning': 'Das Modell lernt aus deinen Antworten und entscheidet noch nicht: Es hat aus {n} Antworten gelernt ({wrong} davon falsche Namen). Es entscheidet ab 30 Antworten, davon mindestens drei falsche Namen.',
+  'stats.lines': 'Der Zeilenklassifikator ordnet jede Zeile der Titelseite und des Umschlags als Titel, Autor, Reihe, Nummer oder Rauschen ein und liest, was die Regeln nicht gelesen haben. Er begann mit dem, was er aus dem Testbestand gelernt hat, und hat auf diesem Gerät aus {n} Zeilen von Büchern gelernt, die du bestätigt hast.',
   'stats.clue': 'Hinweis',
   'stats.agreed': 'Bei Übereinstimmung',
   'stats.against': 'Bei Widerspruch',

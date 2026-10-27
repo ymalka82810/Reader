@@ -280,6 +280,7 @@ export const es: Record<keyof typeof he, Message> = {
   'stats.model': 'El modelo de identificación',
   'stats.modelReady': 'El modelo aprendió de {n} respuestas ({wrong} de ellas nombres erróneos) y sopesa todas las pistas juntas: un nombre se guarda sin preguntar solo si también confía en él.',
   'stats.modelLearning': 'El modelo aprende de tus respuestas y aún no decide: aprendió de {n} respuestas ({wrong} de ellas nombres erróneos). Empieza a decidir tras 30 respuestas, al menos tres de ellas nombres erróneos.',
+  'stats.lines': 'El clasificador de líneas etiqueta cada línea de la portada y la cubierta como título, autor, serie, número o ruido, y lee lo que las reglas no leyeron. Partió de lo que aprendió del banco de pruebas y aprendió en este dispositivo de {n} líneas de libros que aprobaste.',
   'stats.clue': 'Pista',
   'stats.agreed': 'Cuando coincide',
   'stats.against': 'Cuando discrepa',

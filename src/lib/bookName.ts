@@ -441,12 +441,12 @@ function isGeneratedName(title: string): boolean {
 }
 
 // lines of a title page that are not the book's name: the publisher, the credits, the copyright notice, the author's other books
-const CREDIT =
+export const CREDIT =
   /מרגנית|הוצא(?:ת|ה)|תרגו?ם|תרגמ|מאנגלית|מצרפתית|מגרמנית|עריכ|עורכ|עיצוב|עטיפ|איור|הגהה|כל הזכויות|©|isbn|copyright|all rights|printed|published|translated|edition|מהדורה|נדפס|מודפס|דפוס|www\.|https?:|@|טל[׳']|^מאת\b|^מחבר|^מחברת|^מאותו|^ספרים נוספים|^עוד ספרים|^רב[-־ ]?המכר|^בסדרה\s*(?::|$)|^תוכן|^contents|^chapter|^פרק\b/iu
 
 // a publisher's address or phone ("רח' אגוז 6, פארק תעשיות חמן", "ת.ד. 163, קרית גת", "משק 33, מושב בן־שמן", a postal code or
 // phone number of five digits or more), a quoted line from a review on the cover ("יצירת מופת…"), or a sentence of the text
-const NOT_A_NAME =
+export const NOT_A_NAME =
   /^(?:רח['׳']|רחוב\s|ת\.\s?ד\.?|ת["״]ד|משק\s+\d|מושב\s|קיבוץ\s|מיקוד|פקס|tel\b|fax\b)|\d{5,}|\d{2,3}-\d{6,7}|^["״“”„']|[.!]["״”']?\s*$|(?<!(?:^|[\s.])\p{L}['׳]?)[.!]\s+\S/iu
 
 const HEBREW = /[\u05D0-\u05EA]/
@@ -457,7 +457,7 @@ const CREDIT_TAIL = /\s+(?:מאנגלית|מצרפתית|מגרמנית|תרגו
 
 /** A title page whose lines the PDF conversion joined into one ("ריק ריירדן גורלו של אפולו ספר שלישי המבוך הבוער מאנגלית: …")
  *  back in its lines: split at the author's name and at "ספר שלישי", and without the credits that follow. */
-function pieces(line: string, author: string): string[] {
+export function pieces(line: string, author: string): string[] {
   const a = clean(author)
   return (a ? line.split(a) : [line])
     .flatMap((p) => p.split(BOOK_PHRASE))
@@ -465,12 +465,12 @@ function pieces(line: string, author: string): string[] {
     .filter(Boolean)
 }
 
-const IN_SERIES = /^(?:מתוך\s+)?(?:ב|מ)?ה?סדר(?:ה|ת)\s+/u
+export const IN_SERIES = /^(?:מתוך\s+)?(?:ב|מ)?ה?סדר(?:ה|ת)\s+/u
 // "בסדרת רבי־המכר המועמדת": the praise is not the series' name
-const BESTSELLER = /^(?:של\s+)?(?:ה?רבי?[-־\s]?ה?מכר(?:ים)?|ה?מצליחה|ה?אהובה|ה?נודעת)\s+/u
+export const BESTSELLER = /^(?:של\s+)?(?:ה?רבי?[-־\s]?ה?מכר(?:ים)?|ה?מצליחה|ה?אהובה|ה?נודעת)\s+/u
 
 /** "ספר שלישי", "הספר השלישי", "כרך 2", "ספר ראשון: להב הקיץ": the number, and the title when it is on the same line */
-function bookLine(line: string): { number: string; title: string } | undefined {
+export function bookLine(line: string): { number: string; title: string } | undefined {
   const m = new RegExp(String.raw`^(?:ה?ספר|ה?כרך)\s+(ה?[\p{L}]+|#?\d{1,3})(?:\s*[-–—:,.]\s*(.+))?$`, 'u').exec(line)
   const number = m && numberOf(m[1]!)
   return number ? { number, title: clean(m[2] ?? '') } : undefined

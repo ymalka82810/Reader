@@ -7,8 +7,9 @@
 
 import { rememberName } from './bookKnowledge'
 import type { Clue } from './bookLookup'
-import { guessBookName, tidyBookName } from './bookName'
+import { guessBookName, splitBookName, tidyBookName } from './bookName'
 import { learnAnswer } from './identifyModel'
+import { learnLinesOf } from './lineModel'
 import { norm } from './sameBook'
 
 /** the clues that count toward a sure name before anything is learned about them */
@@ -64,6 +65,8 @@ function drop(key: string, id: string) {
 export function confirmName(id: string, title: string, author = '') {
   put(CONFIRMED_KEY, id, title)
   rememberName(title, author)
+  // the lines of its opening, tagged by this name, teach the line classifier
+  learnLinesOf(id, splitBookName(title), author)
   drop(DECLINED_KEY, id)
   drop(AUTO_KEY, id)
 }

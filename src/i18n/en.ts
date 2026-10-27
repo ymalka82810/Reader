@@ -280,6 +280,7 @@ export const en: Record<keyof typeof he, Message> = {
   'stats.model': 'The identification\'s model',
   'stats.modelReady': 'The model learnt from {n} answers ({wrong} of them wrong names) and weighs all the clues together: a name is saved without asking only if it trusts it too.',
   'stats.modelLearning': 'The model is learning from your answers and does not decide yet: it learnt from {n} answers ({wrong} of them wrong names). It starts deciding after 30 answers, at least three of them wrong names.',
+  'stats.lines': 'The line classifier tags each line of the title page and cover as title, author, series, number or noise, and reads what the rules left unread. It started from what it learnt from the benchmark, and has learnt from {n} lines of books you approved on this device.',
   'stats.clue': "Clue",
   'stats.agreed': "When agreeing",
   'stats.against': "When against",
