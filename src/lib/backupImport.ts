@@ -1,4 +1,4 @@
-import { addFolderName, getNotes, hasBook, listBooks, mergeProgress, saveBook, saveNotes, type BookRecord } from './db'
+import { addFolderName, fillReadDetails, getNotes, hasBook, listBooks, mergeProgress, saveBook, saveNotes, type BookRecord } from './db'
 import { sameBook } from './sameBook'
 import { mergeStats } from './stats'
 import { mergeReadingHours, mergeReadingLog } from './readingLog'
@@ -97,7 +97,7 @@ export async function importLibrary(
         const rec: BookRecord = { ...rest, file: fileBlob, cover: coverBlob }
         await saveBook(rec)
         known.push(rec)
-      }
+      } else if (rest.rating || rest.finishedAt) await fillReadDetails(rest.id, rest) // a rating or finish date it lacks still comes in
       // newest reading position wins, so restoring an old backup never rewinds a book
       const prog =
         header.progress?.[rest.id] ??

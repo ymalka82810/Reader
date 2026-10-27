@@ -1,6 +1,7 @@
 import { t } from '../../i18n'
 import type { SeriesPlace } from '../../lib/nextInSeries'
 import { Panel } from './shared'
+import { Stars } from '../Stars'
 
 export interface Recap {
   /** days since the book was last opened */
@@ -41,16 +42,24 @@ export function RecapPanel({ recap, onClose }: { recap: Recap; onClose: () => vo
 export function EndPanel({
   title,
   finished,
+  rating,
+  readPct,
   place,
   onFinished,
+  onRate,
   onOpen,
   onLibrary,
   onClose,
 }: {
   title: string
   finished: boolean
+  /** 1–5, 0 = not rated */
+  rating: number
+  /** how much of the book was actually read, in percent; unknown for books read before this was kept */
+  readPct?: number
   place?: SeriesPlace
   onFinished: (v: boolean) => void
+  onRate: (r: number) => void
   onOpen?: (id: string) => void
   onLibrary: () => void
   onClose: () => void
@@ -64,6 +73,11 @@ export function EndPanel({
         <input type="checkbox" checked={finished} onChange={(e) => onFinished(e.target.checked)} />
         {t('end.markRead')}
       </label>
+      {!finished && readPct !== undefined && readPct < 90 && <small className="muted">{t('end.partlyRead', { pct: readPct })}</small>}
+      <div className="rating-row">
+        <span>{t('rating.ask')}</span>
+        <Stars value={rating} onRate={onRate} />
+      </div>
       {place && next && onOpen && (
         <div className="end-next">
           <p>{place.nextNumber === place.number + 1 ? t('end.next') : t('end.nextGap', { missing: String(place.number + 1) })}</p>

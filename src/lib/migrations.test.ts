@@ -34,6 +34,20 @@ describe('migrate', () => {
     await migrate()
     expect((await getBook('old'))!.cfi).toBe('newer')
   })
+  it('gives a book already read the day it was last opened as its finish date, and leaves the rest alone', async () => {
+    const progress = createStore('reader-progress-db', 'progress')
+    const base = { author: '', kind: 'epub', fileName: 'x.epub', addedAt: 5 }
+    await set('read', { ...base, id: 'read', title: 'R' }, books)
+    await set('read', { cfi: 'c', fraction: 1, lastOpened: 77 }, progress)
+    await set('half', { ...base, id: 'half', title: 'H' }, books)
+    await set('half', { cfi: 'c', fraction: 0.5, lastOpened: 88 }, progress)
+    await set('mark', { ...base, id: 'mark', title: 'M', finished: true, finishedAt: 3 }, books)
+    await migrate()
+    const byId = new Map((await listBooks()).map((b) => [b.id, b]))
+    expect(byId.get('read')!.finishedAt).toBe(77)
+    expect(byId.get('half')!.finishedAt).toBeUndefined()
+    expect(byId.get('mark')!.finishedAt).toBe(3)
+  })
 })
 
 describe('explainImportError', () => {

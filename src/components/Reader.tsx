@@ -18,6 +18,8 @@ import { TocList } from './reader/TocPanel'
 import { useBookSearch } from './reader/useBookSearch'
 import { useAnnotations } from '../hooks/useAnnotations'
 import { useBookKeys, type KeyActions } from '../hooks/useBookKeys'
+import { useVolumeKeys } from '../hooks/useVolumeKeys'
+import { coveredBefore, readThrough, unionRanges } from '../lib/readCover'
 import { useFlash } from '../hooks/useFlash'
 import { useFoliateView } from '../hooks/useFoliateView'
 import { useLatest } from '../hooks/useLatest'
@@ -35,7 +37,7 @@ import { firstWord } from '../lib/dictionary'
 import { saveWord } from '../lib/flashcards'
 import { atBookEdge } from '../lib/bookEdge'
 import { formatMinutes, loadStats, type Stats } from '../lib/stats'
-import { getBookMeta, getNotes, getProgress, isFinished, listBooks, setFinished } from '../lib/db'
+import { getBookMeta, getNotes, getProgress, listBooks, setFinished, setRating, stampFinished } from '../lib/db'
 import { timeLeft } from '../lib/readTime'
 import { daysAway, RECAP_AFTER_MS, textBefore } from '../lib/recap'
 import { nextInSeries, type SeriesPlace } from '../lib/nextInSeries'
@@ -110,7 +112,7 @@ export default function Reader({
   const lastHighlight = useRef('')
   const [recap, setRecap] = useState<Recap | null>(null)
   /** what the end-of-book panel shows: the read mark and where the book sits in its series */
-  const [end, setEnd] = useState<{ finished: boolean; place?: SeriesPlace } | null>(null)
+  const [end, setEnd] = useState<{ finished: boolean; rating: number; readPct?: number; place?: SeriesPlace } | null>(null)
   /** the book's stats as they were when it was opened; what is read now comes from the tracker's session */
   const stats = useRef<Stats>({ secs: 0, frac: 0 })
   const actions = useRef<KeyActions>({
@@ -139,7 +141,12 @@ export default function Reader({
   })
 
   const pace = useReadingPace(id, viewRef)
-  const tracker = useReadingTracker(id, pace.learn)
+  /** a jump forward landed past a part not read: asks whether it was read before; `false` once the reader said no */
+  const [jumpAsk, setJumpAsk] = useState<number | false | null>(null)
+  const tracker = useReadingTracker(id, pace.learn, {
+    pageFraction: () => (pages?.total ? 1 / pages.total : 0),
+    onJump: (f) => setJumpAsk((a) => (a === false ? a : f)),
+  })
   /** this book's reading so far: stored stats plus this session */
   const bookStats = (): Stats => {
     const s = tracker.session()
@@ -232,13 +239,15 @@ export default function Reader({
     try {
       const books = await listBooks()
       const me = books.find((b) => b.id === id)
-      setEnd({
-        finished: me ? (me.finished ?? (isFinished(me) || fractionRef.current >= 0.98)) : true,
-        place: me ? nextInSeries(me, books) : undefined,
-      })
+      // read means most of the book was actually read, not only that its end was reached
+      const read = unionRanges(me?.read, tracker.readRanges())
+      const finished = me ? (me.finished ?? readThrough(Math.max(me.fraction ?? 0, fractionRef.current), read)) : true
+      setEnd({ finished, rating: me?.rating ?? 0, readPct: Math.round(coveredBefore(read) * 100), place: me ? nextInSeries(me, books) : undefined })
+      // the day the end was reached is the day it was finished, for "the books I finished this year"
+      if (finished) void stampFinished(id).catch(console.error)
     } catch (e) {
       console.warn('end of book: library read failed', e)
-      setEnd({ finished: true })
+      setEnd({ finished: true, rating: 0 })
     }
     setPanel('end')
   }
@@ -316,6 +325,14 @@ export default function Reader({
     lang: bookLang,
     title,
     onFail: (why) => why !== 'interrupted' && flash(t(why === 'no-voice' ? 'reader.ttsNoVoice' : 'reader.ttsUnsupported')),
+  })
+  // Android app: the volume keys turn pages (not while reading aloud plays: then they set its volume)
+  useVolumeKeys(settings.volumeKeys, status === 'ready' && !speech.active, (turn) => {
+    const v = viewRef.current
+    if (!v) return
+    tracker.markActive()
+    actions.current.hideBars(turn)
+    void (turn === 1 ? v.next() : v.prev())
   })
   const eye = useEyeScroll({
     enabled: EYE_SCROLL_AVAILABLE && modes.eyeScroll && status === 'ready',
@@ -631,6 +648,23 @@ export default function Reader({
           )}
         </div>
       )}
+      {typeof jumpAsk === 'number' && !panel && (
+        <div className="jump-ask" role="alertdialog" aria-label={t('jump.ask')}>
+          <span>{t('jump.ask')}</span>
+          <div className="row">
+            <button
+              className="primary"
+              onClick={() => {
+                tracker.markRead(0, jumpAsk)
+                setJumpAsk(null)
+              }}
+            >
+              {t('jump.yes')}
+            </button>
+            <button onClick={() => setJumpAsk(false)}>{t('jump.no')}</button>
+          </div>
+        </div>
+      )}
       {tapHelp && status === 'ready' && (
         <Dialog
           className="tap-help"
@@ -734,7 +768,13 @@ export default function Reader({
         <EndPanel
           title={title}
           finished={end.finished}
+          rating={end.rating}
+          readPct={end.readPct}
           place={end.place}
+          onRate={(r) => {
+            setEnd((e) => e && { ...e, rating: r })
+            void setRating(id, r).catch(console.error)
+          }}
           onFinished={(v) => {
             setEnd((e) => e && { ...e, finished: v })
             void setFinished(id, v).catch(console.error)

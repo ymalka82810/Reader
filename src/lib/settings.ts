@@ -40,6 +40,8 @@ export interface Settings {
   dyslexia: boolean
   /** animate page turns with a smooth slide instead of an instant jump */
   pageTransition: boolean
+  /** Android app: the volume keys turn pages in the reader ('down-next': volume down goes forward, 'up-next': volume up does) */
+  volumeKeys: VolumeKeys
   /** Wiktionary edition used by the dictionary lookup; 'auto' follows the book's language */
   dictLang: string
   /** language the translate action translates into; 'auto' is the interface language */
@@ -67,6 +69,8 @@ export interface Settings {
   /** the user's own Google Books API key, so identification does not depend on the shared quota of keyless requests */
   googleBooksKey: string
 }
+
+export type VolumeKeys = 'off' | 'down-next' | 'up-next'
 
 export type BackupRemind = 'default' | 'week' | 'month' | 'off'
 
@@ -109,6 +113,7 @@ const DEFAULTS: Settings = {
   contrast: false,
   dyslexia: false,
   pageTransition: true,
+  volumeKeys: 'down-next',
   dictLang: 'auto',
   translateLang: 'auto',
   dailyGoalMin: 0,

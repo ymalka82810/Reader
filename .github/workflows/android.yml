@@ -59,7 +59,7 @@ jobs:
           grep -q windowSplashScreenBackground android/app/src/main/res/values/styles.xml
       # Native plugins: self-update (+ install permission, FileProvider path), the books already on the phone
       # (+ storage and notification permissions, background scan worker), reading aloud (the WebView has no
-      # speechSynthesis), and versionCode = run number (tag v1.0.<n> ends with it).
+      # speechSynthesis), the volume keys turning pages (dispatchKeyEvent asks AppUpdaterPlugin first), and versionCode = run number (tag v1.0.<n> ends with it).
       - run: |
           pkg=android/app/src/main/java/com/yanivm/reader
           cp resources/android-updater/AppUpdaterPlugin.java $pkg/
@@ -69,7 +69,8 @@ jobs:
           cp resources/android-open-with/OpenWithPlugin.java $pkg/
           cp resources/android-tts/NativeTtsPlugin.java $pkg/
           cp resources/android-tts/ReadAloudService.java $pkg/
-          sed -i 's/^public class MainActivity extends BridgeActivity {}$/public class MainActivity extends BridgeActivity {\n    @Override\n    public void onCreate(android.os.Bundle savedInstanceState) {\n        registerPlugin(AppUpdaterPlugin.class);\n        registerPlugin(DeviceBooksPlugin.class);\n        registerPlugin(OpenWithPlugin.class);\n        registerPlugin(NativeTtsPlugin.class);\n        super.onCreate(savedInstanceState);\n    }\n}/' $pkg/MainActivity.java
+          sed -i 's/^public class MainActivity extends BridgeActivity {}$/public class MainActivity extends BridgeActivity {\n    @Override\n    public void onCreate(android.os.Bundle savedInstanceState) {\n        registerPlugin(AppUpdaterPlugin.class);\n        registerPlugin(DeviceBooksPlugin.class);\n        registerPlugin(OpenWithPlugin.class);\n        registerPlugin(NativeTtsPlugin.class);\n        super.onCreate(savedInstanceState);\n    }\n    @Override\n    public boolean dispatchKeyEvent(android.view.KeyEvent event) {\n        return AppUpdaterPlugin.onVolumeKey(event) || super.dispatchKeyEvent(event);\n    }\n}/' $pkg/MainActivity.java
+          grep -q 'AppUpdaterPlugin.onVolumeKey(event)' $pkg/MainActivity.java
           grep -q 'registerPlugin(DeviceBooksPlugin.class)' $pkg/MainActivity.java
           grep -q 'registerPlugin(OpenWithPlugin.class)' $pkg/MainActivity.java
           grep -q 'registerPlugin(NativeTtsPlugin.class)' $pkg/MainActivity.java

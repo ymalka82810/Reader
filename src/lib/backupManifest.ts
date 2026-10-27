@@ -1,9 +1,10 @@
 import { t } from '../i18n'
-import type { Annotation, BookRecord, Progress } from './db'
+import { validRating, validTime, type Annotation, type BookRecord, type Progress } from './db'
 import type { Stats } from './stats'
 import type { Settings } from './settings'
 import type { CardState, VocabWord } from './flashcards'
 import { isCustomFont, type CustomFont } from './customFont'
+import { cleanRanges } from './readCover'
 import type { PaceData } from './pace'
 
 /** Container format: [4-byte LE header length][JSON header][concatenated blob bytes].
@@ -46,6 +47,18 @@ export interface Manifest {
 
 export const CORRUPT = t('backup.corrupt')
 
+/** read stretches that aren't well-formed are dropped (the position itself is kept) */
+function cleanProgress(raw: Record<string, unknown>): Manifest['progress'] {
+  const out: Record<string, Progress> = {}
+  for (const [id, p] of Object.entries(raw)) {
+    if (!isObj(p)) continue
+    const { read, ...rest } = p as unknown as Progress
+    const ranges = read === undefined ? undefined : cleanRanges(read)
+    out[id] = { ...rest, ...(ranges && { read: ranges }) }
+  }
+  return out
+}
+
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 
 function checkRange(v: unknown, bodySize: number): [number, number] {
@@ -75,6 +88,8 @@ export function parseManifest(text: string, bodySize: number): Manifest {
       author: typeof b.author === 'string' ? b.author : '',
       fileName: typeof b.fileName === 'string' ? b.fileName : `${b.id}.epub`,
       addedAt: Number.isFinite(b.addedAt) ? (b.addedAt as number) : Date.now(),
+      rating: validRating(b.rating) ? b.rating : undefined,
+      finishedAt: validTime(b.finishedAt) ? b.finishedAt : undefined,
       // anything but a boolean is checked again on first open
       scripted: typeof b.scripted === 'boolean' ? b.scripted : undefined,
       fileType: typeof b.fileType === 'string' ? b.fileType : '',
@@ -89,7 +104,7 @@ export function parseManifest(text: string, bodySize: number): Manifest {
     version: 1,
     books,
     notes,
-    progress: isObj(raw.progress) ? (raw.progress as Manifest['progress']) : undefined,
+    progress: isObj(raw.progress) ? cleanProgress(raw.progress) : undefined,
     settings: isObj(raw.settings) ? (raw.settings as unknown as Settings) : undefined,
     stats: isObj(raw.stats) ? (raw.stats as Manifest['stats']) : undefined,
     readingLog: isObj(raw.readingLog) ? (raw.readingLog as Manifest['readingLog']) : undefined,

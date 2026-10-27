@@ -14,6 +14,7 @@ const ENTRIES: [PageId, MessageKey, boolean?][] = [
   ['appearance', 'settings.justify'],
   ['appearance', 'settings.bookStyles'],
   ['appearance', 'settings.pageAnim'],
+  ['appearance', 'prefs.volumeKeys', isNativeApp],
   ['appearance', 'prefs.colorsSection'],
   ['appearance', 'prefs.fontSection'],
   ['a11y', 'a11y.contrast'],

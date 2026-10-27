@@ -11,6 +11,7 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
+import android.view.KeyEvent;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResult;
@@ -55,6 +56,9 @@ import java.security.NoSuchAlgorithmException;
  *       "busy", "bad url", "download", "checksum", "not an update", "permission" or "no installer"
  *     exitApp() -> closes the app
  *     event "back" -> the system back gesture (the app never closes on back by itself)
+ *     setVolumeKeys({on}) -> while on, the volume keys turn pages instead of changing the volume
+ *     event "volumeKey" -> {key: "up" | "down"} for each volume key press while setVolumeKeys is on
+ *   For the volume keys MainActivity overrides dispatchKeyEvent and asks onVolumeKey(event) first.
  *     event "progress" -> {percent} while downloading (-1 when the size is unknown)
  */
 @CapacitorPlugin(name = "AppUpdater")
@@ -64,9 +68,15 @@ public class AppUpdaterPlugin extends Plugin {
     private static final String PREFS = "app-updater";
     private volatile boolean busy = false;
     private Runnable onResume; // the install dialog, waiting for the app to come back to the foreground
+    /** the running plugin, for MainActivity's dispatchKeyEvent */
+    private static volatile AppUpdaterPlugin instance;
+    /** the reader asked for page turning with the volume keys */
+    private static volatile boolean volumeKeys = false;
 
     @Override
     public void load() {
+        instance = this;
+        volumeKeys = false; // a reloaded page asks again when its reader opens
         // The system back gesture/button never closes the app by itself: it goes to the web side as a "back"
         // event, and the screen on top closes one layer (the library asks before calling exitApp()).
         // Without this, Capacitor's activity just finishes on back, since the @capacitor/app plugin isn't bundled.
@@ -101,6 +111,37 @@ public class AppUpdaterPlugin extends Plugin {
             ret.put("versionName", "");
         }
         call.resolve(ret);
+    }
+
+    /** the reader turns pages with the volume keys while it is open (and reading aloud is not playing) */
+    @PluginMethod
+    public void setVolumeKeys(PluginCall call) {
+        volumeKeys = Boolean.TRUE.equals(call.getBoolean("on", false));
+        call.resolve();
+    }
+
+    /** "up" / "down" for the volume keys, null for any other key */
+    static String volumeKeyName(int keyCode) {
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) return "up";
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) return "down";
+        return null;
+    }
+
+    /**
+     * Called by MainActivity.dispatchKeyEvent before anything else. While the reader wants the volume keys, a volume
+     * press goes to the web side as a "volumeKey" event and the key is consumed (down, repeat and up alike), so the
+     * volume doesn't change and the volume panel doesn't open. A held key turns one page only.
+     */
+    public static boolean onVolumeKey(KeyEvent e) {
+        AppUpdaterPlugin p = instance;
+        String name = volumeKeyName(e.getKeyCode());
+        if (name == null || !volumeKeys || p == null || !p.hasListeners("volumeKey")) return false;
+        if (e.getAction() == KeyEvent.ACTION_DOWN && e.getRepeatCount() == 0) {
+            JSObject ret = new JSObject();
+            ret.put("key", name);
+            p.notifyListeners("volumeKey", ret);
+        }
+        return true;
     }
 
     /** closes the app (the web side asks for it after the user confirms leaving from the library) */

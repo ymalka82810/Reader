@@ -2,6 +2,7 @@ package com.yanivm.reader;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 
 import android.content.pm.PackageInfo;
 
@@ -31,6 +32,14 @@ public class AppUpdaterPluginTest {
         File f = tmp.newFile();
         Files.write(f.toPath(), content);
         return f;
+    }
+
+    @Test
+    public void onlyTheVolumeKeysTurnPages() {
+        assertEquals("up", AppUpdaterPlugin.volumeKeyName(android.view.KeyEvent.KEYCODE_VOLUME_UP));
+        assertEquals("down", AppUpdaterPlugin.volumeKeyName(android.view.KeyEvent.KEYCODE_VOLUME_DOWN));
+        assertNull(AppUpdaterPlugin.volumeKeyName(android.view.KeyEvent.KEYCODE_VOLUME_MUTE));
+        assertNull(AppUpdaterPlugin.volumeKeyName(android.view.KeyEvent.KEYCODE_BACK));
     }
 
     @Test
