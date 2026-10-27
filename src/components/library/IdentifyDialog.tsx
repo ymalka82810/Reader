@@ -18,6 +18,8 @@ type Suggestion = NameChange & {
   fromText: boolean
   fromMeta: boolean
   pick: boolean
+  /** the user changed the offered name here: it is saved as a correction, and the identification learns from it */
+  edited?: boolean
   evidence?: Clue[]
   conflicts?: Clue[]
 }
@@ -62,6 +64,8 @@ export function IdentifyDialog({
   const [done, setDone] = useState(() => (waiting ? books.length : 0))
   // how the catalogs answered this run, so a run that found nothing says why
   const [answers, setAnswers] = useState<CatalogStats>()
+  // the suggestion being corrected right here, so a wrong name needs no trip to the book
+  const [editing, setEditing] = useState<string>()
 
   useEffect(() => {
     if (waiting) return
@@ -92,6 +96,9 @@ export function IdentifyDialog({
   const allPicked = picked.length === found.length
   const toggle = (id: string) => setFound((f) => f.map((x) => (x.id === id ? { ...x, pick: !x.pick } : x)))
   const unchanged = done - found.length
+  // a changed name is picked by the change itself: the user wrote it on purpose
+  const edit = (id: string, patch: Partial<Pick<Suggestion, 'title' | 'author'>>) =>
+    setFound((f) => f.map((x) => (x.id === id ? { ...x, ...patch, edited: true, pick: true } : x)))
 
   return (
     <div className="modal-backdrop" onClick={onCancel}>
@@ -114,23 +121,61 @@ export function IdentifyDialog({
           <ul className="dup-list">
             {found.map((f) => (
               <li key={f.id}>
-                <label className="pick-row">
-                  <input type="checkbox" checked={f.pick} onChange={() => toggle(f.id)} />
-                  {bookById.get(f.id) && (
-                    <span className="identify-cover">
-                      <Cover book={bookById.get(f.id)!} />
+                {editing === f.id ? (
+                  <div className="pick-row">
+                    {bookById.get(f.id) && (
+                      <span className="identify-cover">
+                        <Cover book={bookById.get(f.id)!} />
+                      </span>
+                    )}
+                    <span className="identify-item identify-edit">
+                      <label>
+                        {t('identify.fieldTitle')}
+                        <input
+                          autoFocus
+                          value={f.title}
+                          onChange={(e) => edit(f.id, { title: e.target.value })}
+                          onKeyDown={(e) => e.key === 'Enter' && (e.stopPropagation(), setEditing(undefined))}
+                        />
+                      </label>
+                      <label>
+                        {t('identify.fieldAuthor')}
+                        <input
+                          value={f.author}
+                          onChange={(e) => edit(f.id, { author: e.target.value })}
+                          onKeyDown={(e) => e.key === 'Enter' && (e.stopPropagation(), setEditing(undefined))}
+                        />
+                      </label>
+                      <button className="quiet" onClick={() => setEditing(undefined)}>
+                        {t('identify.editDone')}
+                      </button>
                     </span>
-                  )}
-                  <span className="identify-item">
-                    <span>{f.title}</span>
-                    <small className="muted">
-                      {[f.author, f.online ? f.sites?.join(' + ') || t('identify.fromWeb') : f.fromText ? t('identify.fromText') : f.fromMeta ? t('identify.fromMeta') : t('identify.fromName')].filter(Boolean).join(' · ')}
-                    </small>
-                    {f.evidence?.length ? <small className="muted">{t('identify.evidence', { list: clues(f.evidence) })}</small> : null}
-                    {f.conflicts?.length ? <small className="identify-conflicts">{t('identify.conflicts', { list: clues(f.conflicts) })}</small> : null}
-                    {f.was !== f.title && <small className="muted identify-was">{f.was}</small>}
-                  </span>
-                </label>
+                  </div>
+                ) : (
+                  <>
+                    <label className="pick-row">
+                      <input type="checkbox" checked={f.pick} onChange={() => toggle(f.id)} />
+                      {bookById.get(f.id) && (
+                        <span className="identify-cover">
+                          <Cover book={bookById.get(f.id)!} />
+                        </span>
+                      )}
+                      <span className="identify-item">
+                        <span>{f.title}</span>
+                        <small className="muted">
+                          {[f.author, f.online ? f.sites?.join(' + ') || t('identify.fromWeb') : f.fromText ? t('identify.fromText') : f.fromMeta ? t('identify.fromMeta') : t('identify.fromName')].filter(Boolean).join(' · ')}
+                        </small>
+                        {f.evidence?.length ? <small className="muted">{t('identify.evidence', { list: clues(f.evidence) })}</small> : null}
+                        {f.conflicts?.length ? <small className="identify-conflicts">{t('identify.conflicts', { list: clues(f.conflicts) })}</small> : null}
+                        {f.edited && <small className="muted">{t('identify.edited')}</small>}
+                        {f.was !== f.title && <small className="muted identify-was">{f.was}</small>}
+                      </span>
+                    </label>
+                    <button className="quiet" aria-label={t('identify.editName')} onClick={() => setEditing(f.id)}>
+                      {t('identify.editName')}
+                    </button>
+                  </>
+                )}
               </li>
             ))}
           </ul>
