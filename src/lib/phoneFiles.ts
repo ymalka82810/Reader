@@ -199,7 +199,19 @@ async function followVersions(id: string, meta: BookMeta, paths: string[], names
 /** Gives the phone's file of each book the name of its title, and, with the books folder on, the sub-folder of its library
  *  folder (moving it there). Books never put on the phone, or whose file is no longer there, are left alone.
  *  Resolves with how many were changed and how many failed. */
-export async function syncPhoneNames(ids: string[]): Promise<{ renamed: number; failed: number }> {
+export const syncPhoneNames = (ids: string[]): Promise<{ renamed: number; failed: number }> => serially(() => syncPhoneNamesNow(ids))
+
+/** Name syncs run one after the other: an import, an identification and a folder move can each ask for the same book at the
+ *  same moment, and two of them reading the book's old path would both try to move the file, the second one finding it
+ *  gone and dropping the link to the file the first one had just put in the book's folder (after which it was never renamed). */
+let syncQueue: Promise<unknown> = Promise.resolve()
+function serially<T>(job: () => Promise<T>): Promise<T> {
+  const run = syncQueue.then(job, job)
+  syncQueue = run.catch(() => {})
+  return run
+}
+
+async function syncPhoneNamesNow(ids: string[]): Promise<{ renamed: number; failed: number }> {
   const out = { renamed: 0, failed: 0 }
   if (!deviceBooksSupported()) return out
   const organise = libraryFolderOn()
@@ -228,8 +240,9 @@ export async function syncPhoneNames(ids: string[]): Promise<{ renamed: number; 
       if (organise) await markSeen([res as DeviceFile]).catch(() => {})
       out.renamed++
     } catch (e) {
-      // the file was moved or deleted on the phone: stop following it
-      if (e instanceof Error && e.message === 'missing') await forgetPhoneFile(id).catch(() => {})
+      // the file was moved or deleted on the phone: stop following it; but not when the book already follows another file
+      // (it was moved meanwhile, and the link now points at its new place)
+      if (e instanceof Error && e.message === 'missing' && (await phoneFileOf(id).catch(() => path)) === path) await forgetPhoneFile(id).catch(() => {})
       out.failed++
     }
   }
