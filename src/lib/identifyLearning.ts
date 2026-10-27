@@ -11,7 +11,7 @@ import { guessBookName, tidyBookName } from './bookName'
 import { norm } from './sameBook'
 
 /** the clues that count toward a sure name before anything is learned about them */
-const STRONG: Clue[] = ['name', 'meta', 'copyright', 'list', 'names', 'sequel', 'catalog']
+const STRONG: Clue[] = ['name', 'meta', 'copyright', 'list', 'names', 'sequel', 'catalog', 'page']
 
 const CONFIRMED_KEY = 'reader:identify:confirmed'
 const DECLINED_KEY = 'reader:identify:declined'
@@ -210,7 +210,7 @@ export function countOutcome(o: Outcome) {
 /** each clue's record: how often it was right when it agreed and when it spoke against, and how much it counts now */
 export function clueReport(): { clue: Clue; agreed: Tally; against: Tally; trust: number; counts: boolean; blocks: boolean }[] {
   const stats = clueStats()
-  const all: Clue[] = ['name', 'meta', 'copyright', 'list', 'names', 'words', 'sequel', 'catalog', 'order', 'running', 'cover']
+  const all: Clue[] = ['name', 'meta', 'copyright', 'list', 'names', 'words', 'sequel', 'catalog', 'order', 'running', 'cover', 'page']
   return all.map((c) => ({
     clue: c,
     agreed: stats[c]?.for ?? { right: 0, wrong: 0 },

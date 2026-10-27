@@ -69,6 +69,9 @@ export interface EpubMeta {
   prev?: string[]
   /** the lists of its series' books it prints ("ספרים נוספים בסדרה"), in its opening or its last pages */
   lists?: SeriesList[]
+  /** the cover's lines as OCR read them (its line in the largest letters, then the rest): a source of its own, compared with
+   *  the others (bookLookup's crossCheck) */
+  cover?: { largest?: string; lines: string[] }
   title: string
   authors: string[]
   series: string

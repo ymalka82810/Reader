@@ -52,7 +52,7 @@ describe('identifyNew', () => {
     add('b', 'שם רגיל')
     expect(await identifyNew(['a', 'b'], new AbortController().signal)).toEqual({ saved: 0, pending: 1 })
     expect(updateMeta).not.toHaveBeenCalled()
-    expect(loadPending()).toEqual([{ id: 'a', title: "מגנוס צ'ייס 3 - ספינת המתים", author: 'ריק ריירדן', was: '1~2402 3', source: 'text' }])
+    expect(loadPending()).toEqual([{ id: 'a', title: "מגנוס צ'ייס 3 - ספינת המתים", author: 'ריק ריירדן', was: '1~2402 3', source: 'text', evidence: ['page'] }])
   })
 
   it('saves by itself a name that only gains the mark keeping a Latin series before its number', async () => {
@@ -193,6 +193,6 @@ describe('identifyNew: the next book a book names', () => {
     details.set('a', { opening: [], meta: meta({ next: ['ים המפלצות'] }) })
     add('b', 'ים המפלצות', 'ריק ריירדן')
     expect(await identifyNew(['a', 'b'], new AbortController().signal)).toEqual({ saved: 0, pending: 1 })
-    expect(loadPending()[0]).toMatchObject({ id: 'b', title: "פרסי ג'קסון 2 - ים המפלצות", evidence: ['sequel'] })
+    expect(loadPending()[0]).toMatchObject({ id: 'b', title: "פרסי ג'קסון 2 - ים המפלצות", evidence: ['sequel', 'name'] })
   })
 })

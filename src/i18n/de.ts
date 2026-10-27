@@ -243,6 +243,7 @@ export const de: Record<keyof typeof he, Message> = {
   'identify.clue.order': 'die Reihennummerierung in der Bibliothek',
   'identify.clue.running': 'der Kolumnentitel',
   'identify.clue.cover': 'das Cover',
+  'identify.clue.page': 'die Titelseite',
   'identify.fromText': 'Aus dem Buch',
   'identify.fromName': 'Aus dem Dateinamen',
   'identify.fromMeta': 'Aus den Dateidetails',
