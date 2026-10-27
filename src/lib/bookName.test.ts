@@ -245,6 +245,8 @@ describe('authorByDash', () => {
     expect(authorByDash('אליס אוזמן - עוצר נשימה 3')).toBe('אליס אוזמן')
     expect(authorByDash('התנפצות - דנה לוי אלגרוד')).toBe('דנה לוי אלגרוד')
     expect(authorByDash('Terry Pratchett - Mort 4')).toBe('Terry Pratchett')
+    expect(authorByDash("האדון - א ל ג'ייס")).toBe("א ל ג'ייס")
+    expect(authorByDash('J K Rowling - Harry Potter 1')).toBe('J K Rowling')
   })
   it('prefers an author the library has', () => {
     expect(authorByDash('שרה כהן - דנה לוי', ['דנה לוי'])).toBe('דנה לוי')
