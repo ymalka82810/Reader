@@ -463,18 +463,26 @@ export function EditBookDialog({
 /** the stored file's own format, as its extension says (MOBI, AZW3, FB2, CBZ) */
 const formatName = (b: BookMeta) => (b.fileName.match(/\.([^.]+)$/)?.[1] ?? '').toUpperCase()
 
-/** "Download to phone": which format the book is saved in. Its own format comes first and is marked as the original. */
+/** "Download to phone" and "share": which format the books go out in. A single book's own format comes first and is
+ *  marked as the original; several books (picked or a folder's) get "as they are" first, each in its own format. */
 export function FormatDialog({
-  book,
+  books,
   formats,
+  mode = 'save',
   onPick,
   onCancel,
 }: {
-  book: BookMeta
+  books: BookMeta[]
   formats: BookFormat[]
+  mode?: 'save' | 'share'
   onPick: (f: BookFormat, pdf?: PdfOptions) => void
   onCancel: () => void
 }) {
+  const book = books[0]!
+  const many = books.length > 1
+  const heading = mode === 'share' ? t('book.share') : t('book.saveToPhone')
+  const question =
+    mode === 'save' ? t('book.formatText', { title: book.title }) : many ? t('share.formatMany', { n: books.length }) : t('share.formatText', { title: book.title })
   // the PDF is laid out by the reader's own choices, asked after the format is picked
   const [pdfStep, setPdfStep] = useState(false)
   const [opts, setOpts] = useState<PdfOptions>(loadPdfOptions)
@@ -553,20 +561,20 @@ export function FormatDialog({
         className="modal"
         role="dialog"
         aria-modal="true"
-        aria-label={t('book.saveToPhone')}
+        aria-label={heading}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.key === 'Escape' && onCancel()}
       >
-        <h2>{t('book.saveToPhone')}</h2>
-        <p>{t('book.formatText', { title: book.title })}</p>
-        <div className="format-list" role="group" aria-label={t('book.saveToPhone')}>
+        <h2>{heading}</h2>
+        <p>{question}</p>
+        <div className="format-list" role="group" aria-label={heading}>
           {formats.map((f, i) => (
             <button key={f} className={'format-option' + (i === 0 ? ' primary' : '')} onClick={() => (f === 'pdf' ? setPdfStep(true) : onPick(f))} autoFocus={i === 0}>
               <span className="format-name">
-                {f === 'original' ? formatName(book) : t(`format.${f}`)}
-                {i === 0 && <span className="format-badge">{t('book.formatOriginal')}</span>}
+                {f === 'original' ? (many ? t('share.asTheyAre') : formatName(book)) : t(`format.${f}`)}
+                {i === 0 && !many && <span className="format-badge">{t('book.formatOriginal')}</span>}
               </span>
-              <span className="format-hint">{t(f === 'original' ? 'format.originalHint' : `format.${f}Hint`)}</span>
+              <span className="format-hint">{t(f === 'original' ? (many ? 'share.asTheyAreHint' : 'format.originalHint') : `format.${f}Hint`)}</span>
             </button>
           ))}
         </div>

@@ -72,10 +72,12 @@ type BarProps = {
   onBack?: () => void
   onRename: () => void
   onDelete: () => void
+  /** sends every book of the folder through the share sheet */
+  onShare: () => void
 }
 
 /** the header above the books of the folder being viewed */
-export function FolderBar({ folder, onBack, onRename, onDelete }: BarProps) {
+export function FolderBar({ folder, onBack, onRename, onDelete, onShare }: BarProps) {
   return (
     <div className="folder-bar">
       <div className="folder-title">
@@ -85,6 +87,7 @@ export function FolderBar({ folder, onBack, onRename, onDelete }: BarProps) {
       <div className="folder-actions">
         {onBack && <button onClick={onBack}>{isRtl() ? '→' : '←'} {t('folder.all')}</button>}
         {folder.key && <button onClick={onRename}>{t('folder.renameBtn')}</button>}
+        {folder.books.length > 0 && <button onClick={onShare}>{t('folder.share')}</button>}
         <button className="danger" onClick={onDelete}>{t('folder.delete')}</button>
       </div>
     </div>
