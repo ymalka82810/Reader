@@ -74,8 +74,8 @@ async function read(cover: Blob, signal?: AbortSignal): Promise<string[]> {
 }
 
 /**
- * identifyBook, and when the name it found still says nothing, once more with the cover's lines before the opening
- * pages. The name the cover gives is never sure by itself: it waits for the user like any name read from the book.
+ * identifyBook with the cover's lines as a source of their own (crossCheck), and when the name it found still says
+ * nothing, once more with them before the opening pages. The name the cover gives is never sure by itself: it waits for the user like any name read from the book.
  * A cover that cannot be read (no cover, OCR unavailable) leaves the first answer as it is.
  */
 export async function identifyWithCover(
@@ -86,13 +86,26 @@ export async function identifyWithCover(
   meta: EpubMeta | undefined,
   library?: LibraryNames,
 ): Promise<Identified> {
-  const r = await identifyBook(b, online, signal, opening, meta, library)
-  if (!b.cover && !kept()[b.id]) return r
+  // every book's cover is read (once: what was read is kept) and is one more source the weighing compares with the others
+  let read: Awaited<ReturnType<typeof coverLines>> | undefined
+  if (b.cover || kept()[b.id]) {
+    try {
+      read = await coverLines(b, signal)
+    } catch (e) {
+      if (signal?.aborted) throw e
+      console.warn('OCR of the cover failed', e)
+    }
+  }
+  const withCover: EpubMeta | undefined = read && (read.largest || read.lines.length)
+    ? { ...(meta ?? { title: '', authors: [], series: '', number: '', identifiers: [] }), cover: read }
+    : meta
+  const r = await identifyBook(b, online, signal, opening, withCover, library)
+  if (!read) return r
   // a name with no author: the author the cover prints, when it prints one (waits for the user like any name read from the book)
   if (!saysNothing(r)) {
     if (r.author) return r
     try {
-      const lines = (await coverLines(b, signal)).lines
+      const lines = read.lines
       const printed = authorFromCover(lines, r.title, library?.authors)
       const author = printed && ((library && libraryAuthor(printed, library.authors)) || printed)
       return author ? { ...r, author, fromText: true, sure: undefined, evidence: [...(r.evidence ?? []), 'cover'] } : r
@@ -101,14 +114,7 @@ export async function identifyWithCover(
       return r
     }
   }
-  let cover: Awaited<ReturnType<typeof coverLines>>
-  try {
-    cover = await coverLines(b, signal)
-  } catch (e) {
-    if (signal?.aborted) throw e
-    console.warn('OCR of the cover failed', e)
-    return r
-  }
+  const cover = read
   // the volume the cover or the file name says ("חלק ב"): a title of its own that has none is the same for both volumes
   const part = partOf(cover.lines) ?? partOf([b.title.replace(/_+/g, ' ')], true)
   const found = (x: Identified): Identified => ({

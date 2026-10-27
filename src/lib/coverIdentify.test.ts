@@ -38,9 +38,14 @@ it('takes the line in the largest letters as the title when the cover is no titl
   expect(await identifyWithCover({ ...book, id: 'b2', author: 'רבקה יארוס' }, false, undefined, [], undefined)).toMatchObject({ title: '1~2402 1' })
 })
 
-it('leaves a book with a name alone, and one with no cover', async () => {
-  expect(await identifyWithCover({ ...book, title: 'גנב הברק' }, false, undefined, [], undefined)).toMatchObject({ title: 'גנב הברק' })
-  await identifyWithCover({ ...book, cover: undefined }, false, undefined, [], undefined)
+it('reads the cover of a book with a name too, as one more source, and keeps the name; reads nothing with no cover', async () => {
+  read.mockResolvedValue([['גנב הברק', 'ריק ריירדן']])
+  const r = await identifyWithCover({ ...book, id: 'named', title: 'גנב הברק', author: 'ריק ריירדן' }, false, undefined, [], undefined)
+  expect(read).toHaveBeenCalled()
+  expect(r).toMatchObject({ title: 'גנב הברק' })
+  expect(r.evidence).toContain('cover')
+  read.mockClear()
+  await identifyWithCover({ ...book, id: 'bare', cover: undefined }, false, undefined, [], undefined)
   expect(read).not.toHaveBeenCalled()
 })
 

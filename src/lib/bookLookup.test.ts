@@ -99,7 +99,7 @@ describe('identifyBook', () => {
       author: "ג'יי קיי רולינג",
       online: true,
       sites: ['Google Books'],
-      evidence: ['catalog'],
+      evidence: ['catalog', 'name'],
     })
   })
 
@@ -839,7 +839,8 @@ describe('identifyBook: the book before and the book after', () => {
     rememberSequels("פרסי ג'קסון 1 - גנב הברק", 'ריק ריירדן', ['ים המפלצות'])
     const r = await identifyBook({ title: 'ים המפלצות', author: 'ריק ריירדן', fileName: 'x.epub' }, false)
     expect(r).toMatchObject({ series: "פרסי ג'קסון", number: '2' })
-    expect(r.evidence).toEqual(['sequel'])
+    // the series from the book before; the title also agrees with the file's name
+    expect(r.evidence).toEqual(['sequel', 'name'])
   })
 })
 

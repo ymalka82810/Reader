@@ -5,7 +5,7 @@
 // when the name still has no series. Only the ISBN, the title and the author are sent, and only after the user agreed
 // (consent 'books').
 
-import { authorByDash, authorFromOpening, authorInName, guessBookName, isJunkTitle, nameFromOpening, personShaped, seriesOf, tidyBookName, unglued, withoutAuthor, type BookName } from './bookName'
+import { authorByDash, authorFromOpening, authorInName, guessBookName, isJunkTitle, nameFromOpening, people, personShaped, seriesOf, tidyBookName, unglued, withoutAuthor, type BookName } from './bookName'
 import { libraryAuthor, realAuthor, tidyAuthor } from './authorName'
 import type { EpubMeta } from './bookText'
 import { bookNumber, copyrightYear, seriesByWords, inLists, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, originalTitle, seriesByNames, soundOf, titleCase } from './bookInference'
@@ -1296,7 +1296,7 @@ function bySequels(meta: EpubMeta | undefined, author: string, library?: Library
 
 /** where a clue comes from: the file's or library's name, the file's package, the copyright page, a list of the series'
  *  books, the names its story shares with the series, a catalog, the numbers the library leaves free, a running head */
-export type Clue = 'name' | 'meta' | 'copyright' | 'list' | 'names' | 'words' | 'sequel' | 'catalog' | 'order' | 'running' | 'cover'
+export type Clue = 'name' | 'meta' | 'copyright' | 'list' | 'names' | 'words' | 'sequel' | 'catalog' | 'order' | 'running' | 'cover' | 'page'
 
 /** two titles that are one: the same words, or one the other's start ("דם האולימפוס" and "דם האולימפוס V") */
 function sameTitle(x: string, y: string): boolean {
@@ -1331,7 +1331,7 @@ async function weigh(
   library: LibraryNames | undefined,
   signal?: AbortSignal,
 ): Promise<Identified> {
-  if (!r.series || isJunkTitle(r.title) && !r.number) return r
+  if (isJunkTitle(r.title) && !r.number) return r
   const evidence: Clue[] = []
   const conflicts: Clue[] = []
   const count = (c: Clue, v: 'agree' | 'against' | undefined) => {
@@ -1340,71 +1340,131 @@ async function weigh(
   }
   // the name the book came with, read as it is
   const named = identifyLocally(b)
-  if (named.series) count('name', verdict(r, named.series, named.number))
-  if (meta?.series) count('meta', verdict(r, meta.series, meta.number))
-  // the copyright page's original series, when it is this series by its sound ("Throne of Glass" is not "כס הזכוכית",
-  // which says nothing either way)
-  const original = originalSeries(opening)
-  if (original && sameSeries(original.series, r.series)) count('copyright', verdict(r, r.series, original.number))
-  // a list of the series' books that names this title
-  if (!isJunkTitle(r.title)) {
-    // only lists printed in books: Wikidata's whole series is a catalog's word (not a second clue beside it), and the
-    // names saved in the library may be this book's own
-    const listed = inLists(r.title, [...(meta?.lists ?? []), ...listsOf(b.author, [undefined])], norm)
-    if (listed) count('list', verdict(r, listed.series || r.series, listed.number))
-    // what the books before and after it in the library said of it
-    const said = inLists(r.title, listsOf(b.author, ['sequel']), norm)
-    if (said) count('sequel', verdict(r, said.series || r.series, said.number))
-    // only for a title the book gave: a title taken from the list by its number (seriesDb's bundledTitle) is the list's
-    // own word, and agrees with it by itself
-    const given = [named.title, meta?.title, ...(meta?.running ?? []), ...opening].some((x) => !!x && norm(x) === norm(r.title))
-    const known = !r.online && given && inLists(r.title, listsOf(b.author, ['wikidata'], r.title), norm)
-    if (known && verdict(r, known.series, known.number) === 'agree') evidence.push('catalog')
-  }
-  // the names the story shares with the author's series in the library
-  if (meta?.names?.length && library && b.author.trim()) {
-    try {
-      const s = await seriesOfNames(meta.names, b.author, library, signal)
-      if (s) count('names', sameSeries(s, r.series) ? 'agree' : 'against')
-    } catch (e) {
-      if (signal?.aborted) throw e
+  // the series and its number: only a book that has one
+  if (r.series) {
+    if (named.series) count('name', verdict(r, named.series, named.number))
+    if (meta?.series) count('meta', verdict(r, meta.series, meta.number))
+    // the copyright page's original series, when it is this series by its sound ("Throne of Glass" is not "כס הזכוכית",
+    // which says nothing either way)
+    const original = originalSeries(opening)
+    if (original && sameSeries(original.series, r.series)) count('copyright', verdict(r, r.series, original.number))
+    // a list of the series' books that names this title
+    if (!isJunkTitle(r.title)) {
+      // only lists printed in books: Wikidata's whole series is a catalog's word (not a second clue beside it), and the
+      // names saved in the library may be this book's own
+      const listed = inLists(r.title, [...(meta?.lists ?? []), ...listsOf(b.author, [undefined])], norm)
+      if (listed) count('list', verdict(r, listed.series || r.series, listed.number))
+      // what the books before and after it in the library said of it
+      const said = inLists(r.title, listsOf(b.author, ['sequel']), norm)
+      if (said) count('sequel', verdict(r, said.series || r.series, said.number))
+      // only for a title the book gave: a title taken from the list by its number (seriesDb's bundledTitle) is the list's
+      // own word, and agrees with it by itself
+      const given = [named.title, meta?.title, ...(meta?.running ?? []), ...opening].some((x) => !!x && norm(x) === norm(r.title))
+      const known = !r.online && given && inLists(r.title, listsOf(b.author, ['wikidata'], r.title), norm)
+      if (known && verdict(r, known.series, known.number) === 'agree') evidence.push('catalog')
+    }
+    // the names the story shares with the author's series in the library
+    if (meta?.names?.length && library && b.author.trim()) {
+      try {
+        const s = await seriesOfNames(meta.names, b.author, library, signal)
+        if (s) count('names', sameSeries(s, r.series) ? 'agree' : 'against')
+      } catch (e) {
+        if (signal?.aborted) throw e
+      }
+    }
+    // the books it names as the one before and the next
+    const q = bySequels(meta, b.author, library)
+    if (q && !evidence.includes('sequel') && !conflicts.includes('sequel')) count('sequel', verdict(r, q.series, q.number))
+    // the series' fingerprint in the book's vocabulary: it only agrees (a vocabulary near another series' says too little
+    // to speak against)
+    if (meta?.words?.length && library) {
+      try {
+        // only against what is kept: a confirmation is not worth reading the series' books for
+        const s = await seriesOfWords(meta.words, b.author, library, (b as { id?: string }).id, signal, false)
+        if (s && sameSeries(s, r.series)) evidence.push('words')
+      } catch (e) {
+        if (signal?.aborted) throw e
+      }
+    }
+    if (r.online && r.sites?.length) evidence.push('catalog')
+    // the numbers the library leaves free, and the years: a number the library already has for another book of the series
+    // speaks against (unless that book is this one, under the same title)
+    const members = library?.series.get(seriesKey(r.series))?.members ?? []
+    if (r.number && members.length) {
+      // another book at this number: not this very book (by its id: its title in the library may be another, or the new
+      // name may have none), nor a second copy of it (the same title, as a PDF and an EPUB)
+      const self = (b as { id?: string }).id
+      const taken = members.some(
+        (m) => m.number && m.number === Number(r.number) && !(self && m.id === self) && !(m.title && sameTitle(m.title, r.title)),
+      )
+      if (taken) conflicts.push('order')
     }
   }
-  // the books it names as the one before and the next
-  const q = bySequels(meta, b.author, library)
-  if (q && !evidence.includes('sequel') && !conflicts.includes('sequel')) count('sequel', verdict(r, q.series, q.number))
-  // the series' fingerprint in the book's vocabulary: it only agrees (a vocabulary near another series' says too little
-  // to speak against)
-  if (meta?.words?.length && library) {
-    try {
-      // only against what is kept: a confirmation is not worth reading the series' books for
-      const s = await seriesOfWords(meta.words, b.author, library, (b as { id?: string }).id, signal, false)
-      if (s && sameSeries(s, r.series)) evidence.push('words')
-    } catch (e) {
-      if (signal?.aborted) throw e
-    }
+  // the title and the author, for every book: each source the book has, on its own (crossCheck). What they agree on is
+  // shown with the name but makes nothing sure (two of them are often one source twice: a file named after its package);
+  // what speaks against keeps the name from being saved without asking
+  const shown: Clue[] = []
+  for (const [c, v] of crossCheck(r, named, opening, meta)) {
+    if (v === 'against') conflicts.push(c)
+    else shown.push(c)
   }
-  if (r.online && r.sites?.length) evidence.push('catalog')
-  // the numbers the library leaves free, and the years: a number the library already has for another book of the series
-  // speaks against (unless that book is this one, under the same title)
-  const members = library?.series.get(seriesKey(r.series))?.members ?? []
-  if (r.number && members.length) {
-    // another book at this number: not this very book (by its id: its title in the library may be another, or the new
-    // name may have none), nor a second copy of it (the same title, as a PDF and an EPUB)
-    const self = (b as { id?: string }).id
-    const taken = members.some(
-      (m) => m.number && m.number === Number(r.number) && !(self && m.id === self) && !(m.title && sameTitle(m.title, r.title)),
-    )
-    if (taken) conflicts.push('order')
-  }
+
   if (meta?.running?.some((h) => norm(h) === norm(r.title))) evidence.push('running')
   // how much each clue counts is what the user's answers taught (identifyLearning): before any, the strong clues count
   // and every clue against blocks
   const stats = clueStats()
-  const strong = evidence.filter((c) => trusted(c, stats)).length
-  const out: Identified = { ...r, ...(evidence.length && { evidence }), ...(conflicts.length && { conflicts }) }
-  if (conflicts.some((c) => blocks(c, stats))) delete out.sure
+  const agreed = [...new Set(evidence)]
+  const against = [...new Set(conflicts)]
+  // only the series' clues count toward a sure name
+  const strong = agreed.filter((c) => trusted(c, stats)).length
+  const all = [...new Set([...agreed, ...shown])]
+  const out: Identified = { ...r, ...(all.length && { evidence: all }), ...(against.length && { conflicts: against }) }
+  if (against.some((c) => blocks(c, stats))) delete out.sure
   else if (strong >= (needsMoreProof() ? 3 : 2)) out.sure = true
+  return out
+}
+
+/**
+ * What each of the book's own sources says of the name found: the title and the author, each source on its own, so that
+ * they are compared with one another rather than taken one after the other. The book's package (`meta`) agrees or speaks
+ * against; the title page (`page`), the cover's lines (`cover`, read by OCR: it may misread, so it only agrees) and the
+ * file's name (`name`, which often holds more than the title) only agree, since a line they lack proves nothing.
+ */
+export function crossCheck(
+  r: { series: string; number?: string; title: string; author: string },
+  named: { title: string },
+  opening: string[],
+  meta: EpubMeta | undefined,
+): [Clue, 'agree' | 'against'][] {
+  const out: [Clue, 'agree' | 'against'][] = []
+  const title = norm(r.title)
+  if (!title || isJunkTitle(r.title)) return out
+  // one title holds the other ("דם האולימפוס V", "הסיכון - אוניברסיטת בראייר 2"), or the series and number name it
+  const sameT = (x?: string) => {
+    const n = norm(x ?? '')
+    return !!n && (n === title || n.includes(title) || (title.includes(n) && n.length >= 3))
+  }
+  // one name in two spellings: the letters that only stand for vowels (א ו י ה) left out, "לורה" and "לאורה" are one
+  const bare = (x: string) => people(x).replace(/(?<=\p{L})[אויה](?=\p{L})/gu, '')
+  const author = people(r.author)
+  const sameA = (x?: string) =>
+    !!author && !!x && (people(x) === author || people(x).includes(author) || author.includes(people(x)) || bare(x) === bare(r.author))
+  const lineHas = (lines: readonly string[], f: (l: string) => boolean) => lines.slice(0, 40).some(f)
+  // the package: an EPUB's own title and authors
+  // a package's title that is the book's series ("גורלו של אפולו" for its third book) says nothing against the title
+  const isSeries = (x: string) => !!r.series && (norm(x) === norm(r.series) || norm(x).startsWith(`${norm(r.series)} `))
+  if (meta?.title && !isJunkTitle(meta.title)) out.push(['meta', sameT(meta.title) || isSeries(meta.title) ? 'agree' : 'against'])
+  const authors = (meta?.authors ?? []).filter((a) => a && !/@/.test(a))
+  if (author && authors.length) out.push(['meta', authors.some(sameA) ? 'agree' : 'against'])
+  // the title page and the copyright page
+  if (lineHas(opening, (l) => norm(l) === title)) out.push(['page', 'agree'])
+  if (author && lineHas(opening, (l) => sameA(l) && people(l).length <= author.length + 12)) out.push(['page', 'agree'])
+  // the cover, as OCR read it
+  const cover = [...(meta?.cover?.largest ? [meta.cover.largest] : []), ...(meta?.cover?.lines ?? [])]
+  if (cover.length && (lineHas(cover, (l) => norm(l) === title) || sameT(meta?.cover?.largest))) out.push(['cover', 'agree'])
+  if (author && lineHas(cover, (l) => sameA(l) && people(l).length <= author.length + 12)) out.push(['cover', 'agree'])
+  // the file's name
+  if (named.title && !isJunkTitle(named.title) && sameT(named.title)) out.push(['name', 'agree'])
   return out
 }
 

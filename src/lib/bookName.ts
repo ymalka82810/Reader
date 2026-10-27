@@ -191,7 +191,7 @@ const fold = (s: string) =>
 
 /** a file name without the author it may carry ("גנב הברק - ריק ריירדן", "ריק ריירדן - גנב הברק") */
 /** a name of people folded for comparing: "הולי בלק & קסנדרה קלייר" is "הולי בלק וקסנדרה קלייר" ("and" is "ו") */
-const people = (s: string) =>
+export const people = (s: string) =>
   fold(s.replace(/\s+(?:&|and)\s+/giu, ' ו').replace(/['׳"״]/gu, '')).replace(/(^| )ו(?=\p{L}{2})/gu, '$1')
 
 /** "(טרי פראצט; Terry Pratchett)", "(טרי פראצט, Terry Pratchett)": an author's name in Hebrew and in English */
