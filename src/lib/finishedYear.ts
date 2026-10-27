@@ -2,7 +2,7 @@ import { isFinished, type BookMeta } from './db'
 import type { Stats } from './stats'
 
 /** when a finished book was finished: its stamp, else (finished before the date was kept) the last time it was opened */
-export const finishedDate = (b: BookMeta): number | undefined =>
+const finishedDate = (b: BookMeta): number | undefined =>
   isFinished(b) ? (b.finishedAt ?? b.lastOpened ?? b.addedAt) : undefined
 
 interface FinishedEntry {

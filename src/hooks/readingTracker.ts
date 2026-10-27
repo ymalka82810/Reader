@@ -18,7 +18,7 @@ export const MIN_PAGE_MS = 1500
 /** a page's share of the book when the page count isn't known yet */
 const DEFAULT_PAGE = 0.003
 /** a jump forward asks "did you read up to here?" when more than this of the book before the landing point is unread */
-export const ASK_UNREAD = 0.1
+const ASK_UNREAD = 0.1
 
 
 export interface RelocateDetail {
