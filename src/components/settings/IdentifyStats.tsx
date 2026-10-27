@@ -6,6 +6,7 @@ import { listBooks } from '../../lib/db'
 import { deviceBooksSupported } from '../../lib/deviceBooks'
 import { download } from '../../lib/download'
 import { clueReport, coverage, isConfirmed, outcomes } from '../../lib/identifyLearning'
+import { modelReport } from '../../lib/identifyModel'
 import { saveBlobToPhone } from '../../lib/phoneFiles'
 import { loadSeriesDb, seriesDbSize } from '../../lib/seriesDb'
 import { Row } from './parts'
@@ -45,6 +46,7 @@ export function IdentifyStats() {
   const answered = o.approved + o.corrected + o.declined
   const k = knowledgeReport()
   const bundled = seriesDbSize()
+  const model = modelReport()
   return (
     <div className="identify-stats">
       <Row label={t('stats.title')}>
@@ -91,6 +93,8 @@ export function IdentifyStats() {
           </tbody>
         </table>
       </div>
+      <h4>{t('stats.model')}</h4>
+      <p>{t(model.ready ? 'stats.modelReady' : 'stats.modelLearning', { n: model.answers, wrong: model.wrong })}</p>
       <h4>{t('stats.knowledge')}</h4>
       <p>{t('stats.known', { books: k.books, printed: k.lists.book, wikidata: k.lists.wikidata, library: k.lists.library, sequel: k.lists.sequel, fingerprints: fingerprintBooks() })}</p>
       {bundled.series > 0 && <p>{t('stats.bundled', { series: bundled.series, books: bundled.books })}</p>}
