@@ -327,3 +327,46 @@ describe('phoneFilePathsInLibrary', () => {
     expect(paths.has('Documents/gone.epub')).toBe(false)
   })
 })
+
+describe('two syncs of one book at the same moment', () => {
+  it('move the file once, and the book stays tied to it, so a later rename still finds it', async () => {
+    saveBook(record({ id: 'r1', title: 'גנב הברק' }))
+    const files = new Map([['/s/Download/a1b2c3.epub', 1]])
+    await rememberPhoneFile('r1', '/s/Download/a1b2c3.epub')
+    fakePhone(files)
+    // a file that is not there is reported as the real plugin does, and every call takes a moment
+    const fake = (globalThis as unknown as { Capacitor: { nativePromise: (p: string, m: string, o?: Record<string, unknown>) => Promise<unknown> } }).Capacitor
+    const inner = fake.nativePromise
+    fake.nativePromise = async (plugin, method, options = {}) => {
+      await new Promise((r) => setTimeout(r, 5))
+      if ((method === 'place' || method === 'rename') && !files.has(options.path as string)) throw new Error('missing')
+      return inner(plugin, method, options)
+    }
+    await Promise.all([syncPhoneNames(['r1']), syncPhoneNames(['r1'])])
+    const inFolder = '/s/Documents/קורא ספרים/ריק ריירדן/גנב הברק.epub'
+    expect(await phoneFileOf('r1')).toBe(inFolder)
+    // the book is renamed later: its file in the books folder follows
+    saveBook(record({ id: 'r1', title: 'ים המפלצות' }))
+    expect(await syncPhoneNames(['r1'])).toEqual({ renamed: 1, failed: 0 })
+    expect(files.has('/s/Documents/קורא ספרים/ריק ריירדן/ים המפלצות.epub')).toBe(true)
+  })
+
+  it('does not drop the link when the file it tried had already been moved by someone else', async () => {
+    saveBook(record({ id: 'r2' }))
+    const files = new Map<string, number>()
+    await rememberPhoneFile('r2', '/s/Download/gone.epub')
+    fakePhone(files)
+    const fake = (globalThis as unknown as { Capacitor: { nativePromise: (p: string, m: string, o?: Record<string, unknown>) => Promise<unknown> } }).Capacitor
+    const inner = fake.nativePromise
+    fake.nativePromise = async (plugin, method, options = {}) => {
+      if (method === 'place') {
+        // while the move is tried, another part of the app has already tied the book to the file's new place
+        await rememberPhoneFile('r2', '/s/Documents/קורא ספרים/ריק ריירדן/גנב הברק.epub')
+        throw new Error('missing')
+      }
+      return inner(plugin, method, options)
+    }
+    await syncPhoneNames(['r2'])
+    expect(await phoneFileOf('r2')).toBe('/s/Documents/קורא ספרים/ריק ריירדן/גנב הברק.epub')
+  })
+})
