@@ -572,7 +572,7 @@ export default function Reader({
             {Math.round(shownFraction * 100)}%
           </div>
           {(left.chapter || left.book) && (
-            <div className="label time">
+            <div className="time-left">
               {left.chapter && left.book
                 ? t('reader.timeLeftBoth', { chapter: formatMinutes(left.chapter), book: formatMinutes(left.book) })
                 : t('reader.timeLeft', { time: formatMinutes((left.book ?? left.chapter)!) })}
