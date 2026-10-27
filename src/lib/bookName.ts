@@ -499,6 +499,28 @@ export function authorFromOpening(lines: string[], title: string): string | unde
   return [ls[i - 1], ls[i + 1]].find(person)
 }
 
+/**
+ * The author a cover prints, when the book's name has none: among the cover's lines, the ones that are a person's name
+ * (not a credit, a series, a number or part of the title). An author the library has wins; otherwise the one such line, or
+ * nothing when there are several (the translator's name, the illustrator's) and no way to tell them apart.
+ */
+export function authorFromCover(lines: string[], title: string, known: readonly string[] = []): string | undefined {
+  const t = fold(title)
+  const names = [
+    ...new Set(
+      lines
+        .slice(0, 12)
+        .map((l) => clean(l.replace(/_+/g, ' ').replace(/^(?:מאת|by)\s*[:：]?\s*/iu, '')))
+        .filter(
+          (l) =>
+            personShaped(l) && !CREDIT.test(l) && !NOT_A_NAME.test(l) && !IN_SERIES.test(l) && !bookLine(l) && !(t && (t.includes(fold(l)) || fold(l).includes(t))),
+        ),
+    ),
+  ]
+  const have = names.map((n) => known.find((k) => people(k) === people(n))).find(Boolean)
+  return have ?? (names.length === 1 ? names[0] : undefined)
+}
+
 export function nameFromOpening(lines: string[], author: string): { name?: BookName; candidates: string[] } {
   const a = fold(author)
   const kept = lines

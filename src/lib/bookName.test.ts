@@ -2,6 +2,7 @@ import { splitGlued } from './bookName'
 import { describe, expect, it } from 'vitest'
 import {
   authorByDash,
+  authorFromCover,
   formatBookName,
   guessBookName,
   isJunkTitle,
@@ -269,5 +270,19 @@ describe('names no one chose', () => {
   it('lose a date stamp in front of the title and the hyphens that stood for spaces', () => {
     expect(tidyBookName('-25-05-2022-12-06-50 בין-אור-לחושך')).toBe('בין אור לחושך')
     expect(tidyBookName('גנב הברק 25-05-2022 12-06')).toBe('גנב הברק')
+  })
+})
+
+describe('authorFromCover', () => {
+  it('takes the one line that is a person\'s name', () => {
+    expect(authorFromCover(['עוצר נשימה', 'אליס אוזמן', 'תרגום: רחלה פנבנך'], 'עוצר נשימה')).toBe('אליס אוזמן')
+    expect(authorFromCover(['מאת: דנה לוי אלגרוד', 'התנפצות'], 'התנפצות')).toBe('דנה לוי אלגרוד')
+  })
+  it('prefers an author the library has, and tells nothing when two lines could be the author', () => {
+    expect(authorFromCover(['שרה כהן', 'דנה לוי'], 'ספר', ['דנה לוי'])).toBe('דנה לוי')
+    expect(authorFromCover(['שרה כהן', 'דנה לוי'], 'ספר')).toBeUndefined()
+  })
+  it('does not take a part of the title or a line with a number', () => {
+    expect(authorFromCover(['גנב הברק', 'ספר 1'], 'גנב הברק')).toBeUndefined()
   })
 })

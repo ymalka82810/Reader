@@ -5,7 +5,8 @@
 // any title (the library, the lists, the series that come with the app, the catalogs). OCR runs on the device (see
 // ocr.ts), only for these books, and once per book: what was read is kept (`reader:cover-lines`), even when nothing.
 import { identifyBook, type Identified, type LibraryNames } from './bookLookup'
-import { isJunkTitle, nameFromOpening, splitGlued } from './bookName'
+import { authorFromCover, isJunkTitle, nameFromOpening, splitGlued } from './bookName'
+import { libraryAuthor } from './authorName'
 import type { EpubMeta } from './bookText'
 
 // "2": a cover read as nothing before is read again, once
@@ -86,7 +87,20 @@ export async function identifyWithCover(
   library?: LibraryNames,
 ): Promise<Identified> {
   const r = await identifyBook(b, online, signal, opening, meta, library)
-  if (!saysNothing(r) || (!b.cover && !kept()[b.id])) return r
+  if (!b.cover && !kept()[b.id]) return r
+  // a name with no author: the author the cover prints, when it prints one (waits for the user like any name read from the book)
+  if (!saysNothing(r)) {
+    if (r.author) return r
+    try {
+      const lines = (await coverLines(b, signal)).lines
+      const printed = authorFromCover(lines, r.title, library?.authors)
+      const author = printed && ((library && libraryAuthor(printed, library.authors)) || printed)
+      return author ? { ...r, author, fromText: true, sure: undefined, evidence: [...(r.evidence ?? []), 'cover'] } : r
+    } catch (e) {
+      if (signal?.aborted) throw e
+      return r
+    }
+  }
   let cover: Awaited<ReturnType<typeof coverLines>>
   try {
     cover = await coverLines(b, signal)
