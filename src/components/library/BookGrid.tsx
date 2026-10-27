@@ -14,6 +14,8 @@ export type BookActions = {
   onMove: (b: BookMeta) => void
   /** saves this one book's file to the phone (a download in the browser) */
   onDownload: (b: BookMeta) => void
+  /** sends this book through the phone's share sheet, in a format asked first */
+  onShare: (b: BookMeta) => void
   /** reads a kept PDF (a scan) by OCR and turns it into a text book */
   onOcr: (b: BookMeta) => void
   onDelete: (b: BookMeta) => void
@@ -23,7 +25,7 @@ export type BookActions = {
 type CardProps = BookActions & { book: BookMeta; picked: boolean }
 
 /** one book's card with its "⋯" actions menu */
-export function BookCard({ book: b, picked, selecting, onOpen, onToggle, onEdit, onMove, onDownload, onOcr, onDelete, refresh }: CardProps) {
+export function BookCard({ book: b, picked, selecting, onOpen, onToggle, onEdit, onMove, onDownload, onShare, onOcr, onDelete, refresh }: CardProps) {
   const [menu, setMenu] = useState(false)
   // the phone's back swipe closes the open menu first
   useBackGesture(() => setMenu(false), 3, menu)
@@ -87,6 +89,7 @@ export function BookCard({ book: b, picked, selecting, onOpen, onToggle, onEdit,
                 <button role="menuitem" onClick={() => { close(); onEdit(b) }}>{t('book.editMeta')}</button>
                 <button role="menuitem" onClick={() => { close(); onMove(b) }}>{t('book.moveToFolder')}</button>
                 <button role="menuitem" onClick={() => { close(); onDownload(b) }}>{t('book.saveToPhone')}</button>
+                <button role="menuitem" onClick={() => { close(); onShare(b) }}>{t('book.share')}</button>
                 {isKeptPdf(b) && <button role="menuitem" onClick={() => { close(); onOcr(b) }}>{t('book.ocr')}</button>}
                 <div className="menu-sep" role="separator" />
                 <button role="menuitem" className="danger-item" onClick={() => { close(); onDelete(b) }}>{t('common.delete')}</button>

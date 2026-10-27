@@ -82,6 +82,10 @@ import org.json.JSONObject;
  *       partial wake lock) while the import queue runs with the app not on the screen
  *     updateImportService({title, text, done, total}) -> {}: the notification's texts and progress bar
  *     stopImportService() -> {}: the queue is finished or cancelled
+ *     shareStage({name, data, reset?}) / shareStage({path, data}) -> {path, name}: stages a file to share in the app's cache
+ *     share({paths, title}) -> {}: the phone's share sheet for staged files or book files in the shared storage; rejects
+ *       with "missing" (nothing opened) or "share". Needs a FileProvider "${applicationId}.fileprovider" whose paths include
+ *       <cache-path path="share/" /> and <external-path path="." />
  *     pickFolder() -> {folder?} relative to the root (absent when cancelled); rejects with "not local" for a folder
  *       outside the phone's own storage (SD card, cloud), or "no picker"
  */
@@ -633,6 +637,141 @@ public class DeviceBooksPlugin extends Plugin {
             call.resolve();
         } catch (Exception e) {
             call.reject("open", e);
+        }
+    }
+
+    /** where the files of a share wait for the app they are sent to (the app's own cache: needs no storage permission) */
+    private File shareDir() {
+        return new File(getContext().getCacheDir(), "share");
+    }
+
+    /** Stages a file to share from base64 `data`: shareStage({name, data, reset?}) starts a new file in the share folder
+     *  (`reset` first clears the files of the previous share; a name already taken gets " (2)"), shareStage({path, data})
+     *  appends the next piece to it. Rejects with "save". */
+    @PluginMethod
+    public void shareStage(PluginCall call) {
+        try {
+            File dir = shareDir();
+            String path = call.getString("path");
+            File f;
+            boolean append = path != null;
+            if (append) {
+                f = new File(path);
+                if (!inside(f, dir) || !f.isFile()) {
+                    call.reject("save");
+                    return;
+                }
+            } else {
+                if (Boolean.TRUE.equals(call.getBoolean("reset", false))) clearDir(dir);
+                String name = cleanName(call.getString("name"));
+                if (name.isEmpty()) {
+                    call.reject("save");
+                    return;
+                }
+                //noinspection ResultOfMethodCallIgnored
+                dir.mkdirs();
+                f = freeFile(dir, name, null);
+            }
+            try (FileOutputStream out = new FileOutputStream(f, append)) {
+                out.write(Base64.decode(call.getString("data", ""), Base64.DEFAULT));
+            }
+            JSObject ret = new JSObject();
+            ret.put("path", f.getAbsolutePath());
+            ret.put("name", f.getName());
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("save", e);
+        }
+    }
+
+    private static void clearDir(File dir) {
+        File[] old = dir.listFiles();
+        if (old == null) return;
+        for (File o : old) {
+            //noinspection ResultOfMethodCallIgnored
+            o.delete();
+        }
+    }
+
+    /** the type the share sheet is told: one type for files of one format, else any file */
+    static String shareType(java.util.List<File> files) {
+        String type = null;
+        for (File f : files) {
+            String n = f.getName().toLowerCase(Locale.ROOT);
+            int dot = n.lastIndexOf('.');
+            String ext = dot >= 0 ? n.substring(dot + 1) : "";
+            String t;
+            switch (ext) {
+                case "epub": t = "application/epub+zip"; break;
+                case "pdf": t = "application/pdf"; break;
+                case "docx": t = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"; break;
+                case "txt": t = "text/plain"; break;
+                case "html": case "htm": t = "text/html"; break;
+                case "mobi": t = "application/x-mobipocket-ebook"; break;
+                case "fb2": t = "application/x-fictionbook+xml"; break;
+                case "cbz": t = "application/vnd.comicbook+zip"; break;
+                case "cbr": t = "application/vnd.comicbook-rar"; break;
+                case "m4b": t = "audio/mp4"; break;
+                case "mp3": t = "audio/mpeg"; break;
+                default: t = "application/octet-stream";
+            }
+            if (type == null) type = t;
+            else if (!type.equals(t)) return "*/*";
+        }
+        return type == null ? "*/*" : type;
+    }
+
+    /** Opens the phone's share sheet for these files: ones staged by shareStage, or book files in the phone's own storage
+     *  (a book's own file, shared as it is with no copy). share({paths, title}) -> {} once the sheet is up; rejects with
+     *  "missing" (a file is gone: nothing is opened, so the caller can stage it instead) or "share". */
+    @PluginMethod
+    public void share(PluginCall call) {
+        try {
+            JSArray paths = call.getArray("paths");
+            if (paths == null || paths.length() == 0) {
+                call.reject("share");
+                return;
+            }
+            java.util.ArrayList<File> files = new java.util.ArrayList<>();
+            for (int i = 0; i < paths.length(); i++) {
+                File f = new File(paths.getString(i));
+                boolean ok = inside(f, shareDir()) || (hasAccess() && insideStorage(f));
+                if (!ok || !f.isFile()) {
+                    call.reject("missing");
+                    return;
+                }
+                files.add(f);
+            }
+            String authority = getContext().getPackageName() + ".fileprovider";
+            java.util.ArrayList<Uri> uris = new java.util.ArrayList<>();
+            for (File f : files) uris.add(androidx.core.content.FileProvider.getUriForFile(getContext(), authority, f));
+            Intent send;
+            if (uris.size() == 1) {
+                send = new Intent(Intent.ACTION_SEND);
+                send.putExtra(Intent.EXTRA_STREAM, uris.get(0));
+            } else {
+                send = new Intent(Intent.ACTION_SEND_MULTIPLE);
+                send.putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris);
+            }
+            send.setType(shareType(files));
+            String title = call.getString("title");
+            if (title != null && !title.isEmpty()) send.putExtra(Intent.EXTRA_SUBJECT, title);
+            // the receiving app reads every file: each one is in the clip, so the read grant covers all of them
+            android.content.ClipData clip = android.content.ClipData.newRawUri(files.get(0).getName(), uris.get(0));
+            for (int i = 1; i < uris.size(); i++) clip.addItem(new android.content.ClipData.Item(uris.get(i)));
+            send.setClipData(clip);
+            send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            Intent chooser = Intent.createChooser(send, title);
+            chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            Activity act = getActivity();
+            if (act != null) act.startActivity(chooser);
+            else {
+                chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(chooser);
+            }
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("share", e);
         }
     }
 

@@ -60,6 +60,8 @@ import {
   PasswordDialog,
 } from './library/Dialogs'
 import { BookLoader } from './BookLoader'
+/** the formats offered when several books are shared at once: each as it is, or all in one format */
+const MANY_FORMATS: BookFormat[] = ['original', 'epub', 'pdf', 'docx', 'txt', 'html']
 
 type Props = {
   onOpen: (id: string, cfi?: string) => void
@@ -72,7 +74,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   const [busy, setBusy] = useState<string>()
   /** set while a long job can be cancelled from the wait dialog */
   const [cancelBusy, setCancelBusy] = useState<() => void>()
-  const [downloading, setDownloading] = useState<{ book: BookMeta; formats: BookFormat[] }>()
+  const [downloading, setDownloading] = useState<{ books: BookMeta[]; formats: BookFormat[]; mode: 'save' | 'share' }>()
   const [error, setError] = useState<string>()
   const [drag, setDrag] = useState(false)
   const [query, setQuery] = useState('')
@@ -346,8 +348,54 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   /** "download to phone": a book that can be saved in other formats asks which one first */
   const downloadBook = (b: BookMeta) => {
     const formats = exportFormats(b)
-    if (formats.length) setDownloading({ book: b, formats })
+    if (formats.length) setDownloading({ books: [b], formats, mode: 'save' })
     else void saveDownload(b)
+  }
+
+  /** "share": one book, the picked ones or whole folders; the format is asked first, as for a download. Several books get
+   *  every format any of them can take; a book that can't take the one picked goes out as it is. */
+  const shareList = (list: BookMeta[]) => {
+    if (!list.length) return showToast(t('share.empty'), undefined, 4000)
+    const formats = list.length === 1 ? exportFormats(list[0]!) : list.some((b) => exportFormats(b).length) ? MANY_FORMATS : []
+    if (formats.length) setDownloading({ books: list, formats, mode: 'share' })
+    else void doShare(list)
+  }
+
+  const doShare = async (list: BookMeta[], format?: BookFormat, pdf?: PdfOptions) => {
+    const ctl = new AbortController()
+    setCancelBusy(() => () => ctl.abort())
+    const many = list.length > 1
+    setBusy(t('share.preparing'))
+    try {
+      const { shareBooks } = await import('../lib/share')
+      const res = await shareBooks(
+        list.map((b) => b.id),
+        format,
+        many ? t('share.subjectMany', { n: list.length }) : list[0]!.title,
+        (p) => {
+          const head = many ? t('share.bookOf', { done: p.done, total: p.total, title: p.title }) : ''
+          if (p.stage === 'book') setBusy(many ? head : t('share.preparing'))
+          else {
+            const step = t(p.stage === 'pages' ? 'book.convertingPages' : 'book.buildingPdf', { done: p.done, total: p.total })
+            setBusy(many ? `${t('share.bookTitle', { title: p.title })} ${step}` : step)
+          }
+        },
+        ctl.signal,
+        pdf,
+      )
+      if (ctl.signal.aborted) return
+      if (res.how === 'downloaded') showToast(t('share.downloaded', { n: res.sent }), undefined, 6000)
+      if (res.kept) showToast(t('share.kept', { n: res.kept }), undefined, 6000)
+    } catch (e) {
+      if (ctl.signal.aborted) return
+      const code = e instanceof Error ? e.message : String(e)
+      if (e instanceof ExportError)
+        setError(t('share.failed', { msg: t(code === 'noText' ? 'book.exportNoText' : code === 'script' ? 'book.exportScript' : code === 'empty' ? 'book.exportEmpty' : 'book.exportBroken') }))
+      else setError(t('share.failed', { msg: code === 'share' ? t('share.noSheet') : code }))
+    } finally {
+      setCancelBusy(undefined)
+      setBusy(undefined)
+    }
   }
 
   const saveDownload = async (b: BookMeta, format?: BookFormat, pdf?: PdfOptions) => {
@@ -711,6 +759,9 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
           {inFolderList ? (<>
             <span>{t('lib.foldersSelected', { n: selectedFolders.size })}</span>
             <button className="secondary" onClick={() => setSelectedFolders(new Set(folders.map((f) => f.key)))}>{t('lib.selectAllFolders')}</button>
+            <button className="secondary" disabled={pickedFolders.length === 0} onClick={() => shareList(pickedFolders.flatMap((f) => f.books))}>
+              {t('lib.shareBooks')}
+            </button>
             <button
               className="danger"
               disabled={pickedFolders.length === 0}
@@ -726,6 +777,9 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
             </button>
             <button className="secondary" disabled={selected.size === 0} onClick={() => void identifySelected()}>
               {t('lib.identifyBooks')}
+            </button>
+            <button className="secondary" disabled={selected.size === 0} onClick={() => shareList(books.filter((b) => selected.has(b.id)))}>
+              {t('lib.shareBooks')}
             </button>
             <button
               className="danger"
@@ -837,6 +891,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
             onEdit: openEdit,
             onMove: (b) => fo.setMoving([b]),
             onDownload: downloadBook,
+            onShare: (b) => shareList([b]),
             onOcr: ocrBookNow,
             onDelete: (b) => setConfirmDel([b]),
             refresh,
@@ -855,6 +910,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
               onBack={folders.length > 1 ? () => fo.setOpenFolder(undefined) : undefined}
               onRename={() => fo.setFolderDialog({ rename: current.name, name: current.name })}
               onDelete={() => fo.deleteFolders([current])}
+              onShare={() => shareList(current.books)}
             />
           )}
           {current && !current.books.length && !searching && (
@@ -870,6 +926,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
             onEdit={openEdit}
             onMove={(b) => fo.setMoving([b])}
             onDownload={downloadBook}
+            onShare={(b) => shareList([b])}
             onOcr={ocrBookNow}
             onDelete={(b) => setConfirmDel([b])}
             refresh={refresh}
@@ -902,11 +959,13 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
       )}
       {downloading && (
         <FormatDialog
-          book={downloading.book}
+          books={downloading.books}
           formats={downloading.formats}
+          mode={downloading.mode}
           onPick={(f, pdf) => {
             setDownloading(undefined)
-            void saveDownload(downloading.book, f, pdf)
+            if (downloading.mode === 'share') void doShare(downloading.books, f, pdf)
+            else void saveDownload(downloading.books[0]!, f, pdf)
           }}
           onCancel={() => setDownloading(undefined)}
         />
