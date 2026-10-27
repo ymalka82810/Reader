@@ -115,7 +115,7 @@ describe('Library', () => {
 
   it('identifies the books already in the library once, after asking about Google Books', async () => {
     localStorage.removeItem('reader:identify:backfill17')
-    await saveBook(book('b1', 'Dune', 'Herbert'))
+    await saveBook(book('b1', 'Dune', ''))
     render(<Library onOpen={() => {}} />)
     const ask = await screen.findByRole('alertdialog')
     expect(ask.textContent).toContain('ISBN')

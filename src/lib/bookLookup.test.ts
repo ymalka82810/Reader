@@ -177,11 +177,9 @@ describe('identifyBook by the ISBN and the package', () => {
 })
 
 describe('identifyBook: when a name is sure', () => {
-  it('is sure of a book found by its ISBN, and of one found by the same title and author', async () => {
+  it('is sure of a book found by its ISBN', async () => {
     stubFetch(answer({ title: 'גנב הברק', authors: ['ריק ריירדן'] }))
     expect((await identifyBook({ title: 'x', author: '', fileName: 'x.pdf' }, true, undefined, ['ISBN 978-965-0-00000-4'])).sure).toBe(true)
-    stubFetch(answer({ title: 'גנב הברק', subtitle: "פרסי ג'קסון 1", authors: ['ריק ריירדן'] }))
-    expect((await identifyBook({ title: 'גנב הברק', author: 'ריק ריירדן', fileName: 'x.epub' }, true)).sure).toBe(true)
   })
 
   it('is not sure of a fuller title by a partial match, nor of a name read from the opening pages alone', async () => {
@@ -368,9 +366,9 @@ describe('identifyBook: title pages joined into one line, and a busy Google Book
 describe('identifyBook: sparing Google Books', () => {
   it('asks each question once, and keeps the answer on the device', async () => {
     const f = stubFetch(answer({ title: 'גנב הברק', authors: ['ריק ריירדן'] }))
-    await identifyBook({ title: 'גנב הברק', author: 'ריק ריירדן', fileName: 'x.epub' }, true)
+    await identifyBook({ title: 'גנב הברק', author: '', fileName: 'x.epub' }, true)
     clearBooksCache() // as after a restart: read back from the device
-    expect(await identifyBook({ title: 'גנב הברק', author: 'ריק ריירדן', fileName: 'x.epub' }, true)).toMatchObject({ online: true })
+    expect(await identifyBook({ title: 'גנב הברק', author: '', fileName: 'x.epub' }, true)).toMatchObject({ online: true })
     expect(f).toHaveBeenCalledTimes(1)
   })
 
@@ -434,8 +432,8 @@ describe('identifyBook: Open Library and Wikidata', () => {
         : url.includes('wikidata') ? wikidata('גנב הברק', { series: "פרסי ג'קסון והאולימפיים", num: '1', author: 'ריק ריירדן' }) : empty,
     )
     f.mockResolvedValue(answer())
-    const r = await identifyBook({ title: 'גנב הברק', author: 'ריק ריירדן', fileName: 'x.epub' }, true)
-    expect(r).toMatchObject({ series: "פרסי ג'קסון והאולימפיים", number: '1', title: 'גנב הברק', online: true, sites: ['Open Library', 'Wikidata'], sure: true })
+    const r = await identifyBook({ title: 'גנב הברק', author: '', fileName: 'x.epub' }, true)
+    expect(r).toMatchObject({ series: "פרסי ג'קסון והאולימפיים", number: '1', title: 'גנב הברק', online: true, sites: ['Open Library', 'Wikidata'] })
     expect(r.failed).toBeUndefined()
   })
 
@@ -443,7 +441,7 @@ describe('identifyBook: Open Library and Wikidata', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     const f = stubCatalogs([], (url) => (url.includes('openlibrary.org/search.json') ? openLibrary({ docs: [{ title: 'The Lightning Thief', author_name: ['Rick Riordan'] }] }) : empty))
     f.mockResolvedValue({ ok: false, status: 429 } as Response)
-    const r = await identifyBook({ title: 'The Lightning Thief', author: 'Rick Riordan', fileName: 'x.epub' }, true)
+    const r = await identifyBook({ title: 'The Lightning Thief', author: '', fileName: 'x.epub' }, true)
     expect(r).toMatchObject({ online: true, sites: ['Open Library'] })
     expect(r.failed).toBeUndefined()
   })
@@ -461,8 +459,8 @@ describe('identifyBook: Open Library and Wikidata', () => {
     const f = stubCatalogs([answer({ title: 'גנב הברק', authors: ['ריק ריירדן'] })], (url) =>
       url.includes('wikidata') ? wikidata('גנב הברק', { series: "פרסי ג'קסון והאולימפיים", num: '1', author: 'ריק ריירדן' }) : empty,
     )
-    const r = await identifyBook({ title: 'גנב הברק', author: 'ריק ריירדן', fileName: 'x.epub' }, true)
-    expect(r).toMatchObject({ series: "פרסי ג'קסון והאולימפיים", number: '1', sites: ['Google Books', 'Wikidata'], sure: true })
+    const r = await identifyBook({ title: 'גנב הברק', author: '', fileName: 'x.epub' }, true)
+    expect(r).toMatchObject({ series: "פרסי ג'קסון והאולימפיים", number: '1', sites: ['Google Books', 'Wikidata'] })
     const urls = f.all.mock.calls.map((c) => new URL(String(c[0]))).filter((u) => u.host.includes('wikidata'))
     expect(urls[0]!.searchParams.get('search')).toBe('גנב הברק')
     expect(urls[1]!.searchParams.get('query')).toContain('wd:Q1')
@@ -537,8 +535,8 @@ describe('asLibrarySeries / withoutSeries', () => {
       return empty
     })
     f.mockResolvedValue(answer())
-    await identifyBook({ title: 'ספר אחד', author: 'מחבר', fileName: 'a.epub' }, true)
-    await identifyBook({ title: 'ספר שני', author: 'מחבר', fileName: 'b.epub' }, true)
+    await identifyBook({ title: 'ספר אחד', author: '', fileName: 'a.epub' }, true)
+    await identifyBook({ title: 'ספר שני', author: '', fileName: 'b.epub' }, true)
     expect(f.all.mock.calls.filter((c) => String(c[0]).includes('openlibrary'))).toHaveLength(1)
   })
 
@@ -546,7 +544,7 @@ describe('asLibrarySeries / withoutSeries', () => {
     localStorage.setItem('reader:books-blocked-until', String(Date.now() + 60_000))
     localStorage.setItem('reader:settings', JSON.stringify({ googleBooksKey: 'my-key' }))
     const f = stubFetch(answer({ title: 'גנב הברק', authors: ['ריק ריירדן'] }))
-    await identifyBook({ title: 'גנב הברק', author: 'ריק ריירדן', fileName: 'x.epub' }, true)
+    await identifyBook({ title: 'גנב הברק', author: '', fileName: 'x.epub' }, true)
     expect(new URL(String(f.mock.calls[0]![0])).searchParams.get('key')).toBe('my-key')
   })
 
@@ -856,5 +854,22 @@ describe('identifyBook: the number the library already has', () => {
     expect(mine.conflicts ?? []).not.toContain('order')
     const other = await identifyBook({ id: 'k9', title: 'ספר אחר', author: 'סבסטיאן דה קסטל', fileName: 'y.epub' } as never, false, undefined, [], meta, library)
     expect(other.conflicts ?? []).toContain('order')
+  })
+})
+
+describe('our own identification first', () => {
+  afterEach(() => setConsent('books', false))
+  it('does not ask Google Books about a book whose name gives a title and its author', async () => {
+    setConsent('books', true)
+    const f = stubFetch(answer({ title: 'x', authors: ['y'] }))
+    const r = await identifyBook({ title: 'אליס אוזמן - עוצר נשימה 3', author: '', fileName: 'x.pdf' }, true)
+    expect(f).not.toHaveBeenCalled()
+    expect(r.author).toBe('אליס אוזמן')
+  })
+  it('asks when the name gives no author', async () => {
+    setConsent('books', true)
+    const f = stubFetch(answer({ title: 'עוצר נשימה', authors: ['אליס אוזמן'] }))
+    await identifyBook({ title: 'עוצר נשימה', author: '', fileName: 'x.pdf' }, true)
+    expect(f).toHaveBeenCalled()
   })
 })
