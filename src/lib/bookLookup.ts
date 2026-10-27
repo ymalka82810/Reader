@@ -914,6 +914,11 @@ async function findName(
   const known = !isJunkTitle(base.title)
   // a book whose name already has a series, a title and an author has nothing to ask Google Books about
   if (known && base.series && b.author.trim() && !noTitle(base)) return mine
+  // our own identification comes first: a real title with its author is an answer, and the catalogs that limit the requests
+  // (Google Books, Open Library) are asked only for the book it did not name. Wikidata, which has no such limit, still
+  // completes the series.
+  // (a book that prints its ISBN is still asked: that answer is exact)
+  if (known && b.author.trim() && !noTitle(base) && !bookIsbns([...(meta?.identifiers ?? []), ...opening], hebrewBook).length) return withWikidata(mine, hebrewBook, signal, library)
   const isbns = bookIsbns([...(meta?.identifiers ?? []), ...opening], hebrewBook).slice(0, 2)
   const wants = [...(known ? [base.title] : []), ...read.candidates.filter((c) => norm(c) !== norm(base.title))].slice(0, 4)
   const middle = !base.series ? MIDDLE.exec(base.title) : null
