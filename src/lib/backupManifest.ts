@@ -4,6 +4,7 @@ import type { Stats } from './stats'
 import type { Settings } from './settings'
 import type { CardState, VocabWord } from './flashcards'
 import { isCustomFont, type CustomFont } from './customFont'
+import type { PaceData } from './pace'
 
 /** Container format: [4-byte LE header length][JSON header][concatenated blob bytes].
  *  Keeps the whole library (files, covers, metadata, reading progress) in one file,
@@ -32,6 +33,8 @@ export interface Manifest {
   readingLog?: Record<string, number>
   /** active reading seconds per hour ('YYYY-MM-DDTHH'), for the time-of-day heatmap */
   readingHours?: Record<string, number>
+  /** the learned reading pace and its monthly history (lib/pace) */
+  readingPace?: PaceData
   /** words looked up in the dictionary, and how well each flashcard is known */
   vocab?: VocabWord[]
   cardStates?: Record<string, CardState>
@@ -91,6 +94,7 @@ export function parseManifest(text: string, bodySize: number): Manifest {
     stats: isObj(raw.stats) ? (raw.stats as Manifest['stats']) : undefined,
     readingLog: isObj(raw.readingLog) ? (raw.readingLog as Manifest['readingLog']) : undefined,
     readingHours: isObj(raw.readingHours) ? (raw.readingHours as Manifest['readingHours']) : undefined,
+    readingPace: isObj(raw.readingPace) ? (raw.readingPace as unknown as PaceData) : undefined,
     vocab: Array.isArray(raw.vocab) ? (raw.vocab as VocabWord[]) : undefined,
     cardStates: isObj(raw.cardStates) ? (raw.cardStates as Manifest['cardStates']) : undefined,
     customFont: isCustomFont(raw.customFont) ? raw.customFont : undefined,

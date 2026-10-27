@@ -139,7 +139,7 @@ export default function Reader({
   })
 
   const pace = useReadingPace(id, viewRef)
-  const tracker = useReadingTracker(id, pace.wordsInBook)
+  const tracker = useReadingTracker(id, pace.learn)
   /** this book's reading so far: stored stats plus this session */
   const bookStats = (): Stats => {
     const s = tracker.session()
@@ -198,6 +198,7 @@ export default function Reader({
       estimate.relocate(d)
       const f = d.fraction ?? 0
       tracker.relocate(d)
+      pace.setLang(bookLang.current)
       setLeft(timeLeft(d.time, pace.secsPerKB(bookStats()), d.section?.total ?? 1))
       if (recapDays.current && d.range) {
         const text = textBefore(d.range)

@@ -1,4 +1,4 @@
-import { createStore, del, get, set } from 'idb-keyval'
+import { createStore, del, entries, get, set } from 'idb-keyval'
 import { t } from '../i18n'
 
 /** per-book reading speed: active seconds spent and the fraction of the book read in that time */
@@ -44,6 +44,17 @@ const enqueue = (fn: () => Promise<void>) => {
   // stats are best-effort: a failed write is logged and must not block later ones
   queue = queue.then(fn, fn).catch((e) => console.warn('stats write failed', e))
   return queue as Promise<void>
+}
+
+/** every book's stats, for comparing books (legacy localStorage entries are moved when a book is next opened) */
+export async function loadAllStats(): Promise<Map<string, Stats>> {
+  try {
+    await queue
+    return new Map((await entries<string, Stats>(store)).map(([k, v]) => [String(k), clean(v)]))
+  } catch (e) {
+    console.warn('stats read failed', e)
+    return new Map()
+  }
 }
 
 export function addStats(id: string, secs: number, frac: number): Promise<void> {
