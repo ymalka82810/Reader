@@ -1,6 +1,7 @@
 import { splitGlued } from './bookName'
 import { describe, expect, it } from 'vitest'
 import {
+  authorByDash,
   formatBookName,
   guessBookName,
   isJunkTitle,
@@ -236,5 +237,22 @@ describe('splitGlued', () => {
   it('gives up when a part is not a known word', () => {
     expect(splitGlued('הלביאההמסתורית', vocab)).toBeUndefined()
     expect(splitGlued('הלביאה', vocab)).toBeUndefined()
+  })
+})
+
+describe('authorByDash', () => {
+  it('takes the side that is a person\'s name, whichever side it is on', () => {
+    expect(authorByDash('אליס אוזמן - עוצר נשימה 3')).toBe('אליס אוזמן')
+    expect(authorByDash('התנפצות - דנה לוי אלגרוד')).toBe('דנה לוי אלגרוד')
+    expect(authorByDash('Terry Pratchett - Mort 4')).toBe('Terry Pratchett')
+  })
+  it('prefers an author the library has', () => {
+    expect(authorByDash('שרה כהן - דנה לוי', ['דנה לוי'])).toBe('דנה לוי')
+  })
+  it('tells nothing when both sides or neither look like a person', () => {
+    expect(authorByDash('שרה כהן - דנה לוי')).toBe('')
+    expect(authorByDash('גנב - הברק')).toBe('')
+    expect(authorByDash('פרסי ג\'קסון 1 - גנב הברק')).toBe('')
+    expect(authorByDash('a - b - c')).toBe('')
   })
 })

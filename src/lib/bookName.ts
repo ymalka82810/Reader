@@ -316,6 +316,36 @@ export function authorInName(s: string): string {
   return /\p{L}{2}/u.test(a) ? clean(a) : ''
 }
 
+/** A name of a person as a file name writes it: two to four words of letters only (no digit, no "#", no mark of a part) */
+function personShaped(s: string): boolean {
+  const w = clean(s).split(' ')
+  return w.length >= 2 && w.length <= 4 && w.every((x) => /^[\p{L}'׳".\u05F3\u05F4-]+$/u.test(x) && /\p{L}{2}/u.test(x)) && !/^(?:ה?חלק|ה?כרך|ה?ספר|part|vol\.?|volume|book)$/iu.test(w[0]!)
+}
+
+/**
+ * The author a plain "A - B" name carries when it says no author: the two parts are told apart by evidence, never by
+ * a particular name. First an author the library already has (either side); then the shape: the side that is a
+ * person's name (two to four words of letters only) while the other is not (a title with a digit, or one word). Both
+ * sides alike in shape, or neither, tell nothing: ''.
+ */
+export function authorByDash(name: string, known: readonly string[] = []): string {
+  const parts = clean(name.replace(/_+/g, ' ')).split(/\s+[-–—]\s+/)
+  if (parts.length !== 2) return ''
+  const [a, b] = parts as [string, string]
+  // a name the template already reads as "series number - title" ("פרסי ג'קסון ג' - …", "… חלק ב' - …") has no author in it
+  if (/\d/.test(a) || guessBookName(tidyBookName(name)).series) return ''
+  const have = (x: string) => known.find((k) => people(k) === people(x))
+  const ka = have(a)
+  const kb = have(b)
+  if (ka && !kb) return ka
+  if (kb && !ka) return kb
+  const pa = personShaped(a)
+  const pb = personShaped(b)
+  if (pa && !pb) return a
+  if (pb && !pa) return b
+  return ''
+}
+
 /** A title that is the series run together with no space, and perhaps the volume after it ("הלביאההלוחמתחלקא" of the
  *  series "הלביאה הלוחמת", a file name with no spaces): without the series, "חלק א'" or nothing. Any other title stays. */
 export function unglued(title: string, series: string): string {
