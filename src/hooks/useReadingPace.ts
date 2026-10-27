@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, type MutableRefObject } from 'react'
 import type { FoliateView } from 'foliate-js/view.js'
-import { estimatePace, linearSizes } from '../lib/pace'
+import { estimatePace, learnPace, linearSizes } from '../lib/pace'
 import type { Stats } from '../lib/stats'
 import { countWords } from '../lib/wordCount'
 
@@ -13,9 +13,11 @@ const MIN_SAMPLE_WORDS = 300
  */
 export function useReadingPace(id: string, viewRef: MutableRefObject<FoliateView | null>) {
   const words = useRef<number | null>(null)
+  const lang = useRef('')
   const sampled = useRef(new Map<number, number>())
   useEffect(() => {
     words.current = null
+    lang.current = ''
     sampled.current = new Map()
   }, [id])
 
@@ -44,9 +46,17 @@ export function useReadingPace(id: string, viewRef: MutableRefObject<FoliateView
       sample: (doc: Document, index: number) => {
         if (!sampled.current.has(index)) sampled.current.set(index, countWords(doc.body?.textContent ?? ''))
       },
-      wordsInBook,
+      /** the book's language, once foliate reports it */
+      setLang: (l: string) => {
+        lang.current = l
+      },
+      /** teaches the personal pace a stretch of reading in this book (`frac` of it in `secs`) */
+      learn: (secs: number, frac: number) => {
+        const w = wordsInBook()
+        if (w) learnPace(secs, frac * w, lang.current)
+      },
       /** seconds per KB in this book, from its reading so far (`stats`) and the personal pace */
-      secsPerKB: (stats: Stats) => estimatePace({ stats, totalBytes: totalBytes(), words: wordsInBook() }),
+      secsPerKB: (stats: Stats) => estimatePace({ stats, totalBytes: totalBytes(), words: wordsInBook(), lang: lang.current }),
     }
   }, [viewRef])
 }

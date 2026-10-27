@@ -8,7 +8,12 @@ import {
   learnPace,
   linearSizes,
   loadAutoFactor,
-  loadProfile,
+  loadPaceData,
+  mergePaceData,
+  monthlyWpm,
+  bookSpeeds,
+  wpmByLanguage,
+  paceLang,
   personalSecsPerWord,
   saveAutoFactor,
   screenSecs,
@@ -36,7 +41,7 @@ describe('personal pace', () => {
   it('keeps time read without moving on (words come with a later page turn)', () => {
     learnPace(300, 0)
     learnPace(0, 1000)
-    const p = loadProfile()
+    const p = loadPaceData().all
     expect(p.secs).toBeCloseTo(300 * 0.5 ** (1000 / HALF_LIFE_WORDS))
     expect(p.words).toBe(1000)
   })
@@ -107,5 +112,88 @@ describe('auto-reading factor', () => {
     expect(loadAutoFactor()).toBe(1)
     saveAutoFactor(0.8)
     expect(loadAutoFactor()).toBe(0.8)
+  })
+})
+
+describe('per language', () => {
+  const book = { stats: none, totalBytes: 1_000_000, words: 100_000 }
+
+  it('uses the pace of the book language once enough was read in it, else the overall one', () => {
+    learnPace(3000, 10_000, 'he') // 0.3 s per word in Hebrew
+    learnPace(1500, 10_000, 'en-US') // 0.15 s per word in English
+    expect(personalSecsPerWord('he')).toBeCloseTo(0.3)
+    expect(personalSecsPerWord('en')).toBeCloseTo(0.15)
+    expect(personalSecsPerWord('fr')).toBeCloseTo(4500 / 20_000)
+    expect(estimatePace({ ...book, lang: 'he' })).toBeCloseTo(30)
+    expect(estimatePace({ ...book, lang: 'en' })).toBeCloseTo(15)
+  })
+
+  it('reads language codes the way books write them', () => {
+    expect(paceLang('he-IL')).toBe('he')
+    expect(paceLang('iw')).toBe('he')
+    expect(paceLang('EN_gb')).toBe('en')
+    expect(paceLang('')).toBe('?')
+  })
+
+  it('lists words a minute per language, the most read first, leaving out unknown languages', () => {
+    learnPace(600, 2000, 'en') // 200 wpm
+    learnPace(1200, 3000, 'he') // 150 wpm
+    learnPace(600, 3000, null)
+    expect(wpmByLanguage(loadPaceData())).toEqual([
+      { lang: 'he', wpm: 150 },
+      { lang: 'en', wpm: 200 },
+    ])
+  })
+})
+
+describe('speed history', () => {
+  it('keeps words a minute per month, and leaves thin months empty', () => {
+    const now = new Date(2026, 9, 20).getTime()
+    learnPace(600, 2400, 'he', new Date(2026, 8, 5).getTime()) // September: 240 wpm
+    learnPace(60, 200, 'he', now) // October: too little
+    const months = monthlyWpm(loadPaceData(), now, 3)
+    expect(months).toEqual([
+      { key: '2026-08', wpm: null },
+      { key: '2026-09', wpm: 240 },
+      { key: '2026-10', wpm: null },
+    ])
+  })
+
+  it('reads the first stored version (only an overall profile)', () => {
+    localStorage.setItem('reader:readingPace', JSON.stringify({ secs: 900, words: 3000 }))
+    expect(loadPaceData()).toEqual({ all: { secs: 900, words: 3000 }, langs: {}, months: {} })
+  })
+
+  it('a restored backup keeps whichever side read more', () => {
+    learnPace(600, 2000, 'he', new Date(2026, 9, 1).getTime())
+    mergePaceData({ all: { secs: 6000, words: 20_000 }, langs: { en: { secs: 600, words: 3000 } }, months: { '2026-09': { en: { secs: 600, words: 3000 } } } })
+    const d = loadPaceData()
+    expect(d.all.words).toBe(20_000)
+    expect(d.langs.he!.words).toBe(2000)
+    expect(d.langs.en!.words).toBe(3000)
+    expect(Object.keys(d.months).sort()).toEqual(['2026-09', '2026-10'])
+  })
+})
+
+describe('bookSpeeds', () => {
+  it('compares books read long enough with the usual speed, the furthest from it first', () => {
+    const books = [
+      { id: 'fast', title: 'Fast', words: 100_000 },
+      { id: 'slow', title: 'Slow', words: 100_000 },
+      { id: 'short', title: 'Barely opened', words: 100_000 },
+      { id: 'uncounted', title: 'No count' },
+    ]
+    const stats = new Map([
+      ['fast', { secs: 1200, frac: 0.1 }], // 10,000 words in 20 min: 500 wpm
+      ['slow', { secs: 3000, frac: 0.05 }], // 5,000 words in 50 min: 100 wpm
+      ['short', { secs: 60, frac: 0.01 }],
+      ['uncounted', { secs: 3000, frac: 0.5 }],
+    ])
+    const r = bookSpeeds(books, stats, 250)
+    expect(r.map((b) => [b.id, b.wpm])).toEqual([
+      ['slow', 100],
+      ['fast', 500],
+    ])
+    expect(r[1]!.ratio).toBeCloseTo(2)
   })
 })

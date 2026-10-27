@@ -1,18 +1,17 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { updateProgress } from '../lib/db'
-import { learnPace } from '../lib/pace'
 import { addStats, type Stats } from '../lib/stats'
 import { addReadingTime } from '../lib/readingLog'
 import { createReadingTracker, TICK_MS, type RelocateDetail } from './readingTracker'
 import { useLatest } from './useLatest'
 
 /**
- * Saves the reading position (debounced) and reading-speed stats for one book, and teaches the personal reading pace
- * (lib/pace) the words read, when the book's word count is known (`wordsInBook`).
+ * Saves the reading position (debounced) and reading-speed stats for one book, and hands every saved stretch of
+ * reading to `onRead` (the personal reading pace learns from it).
  * `markActive`, `relocate` and `session` are stable, so callers can use them inside long-lived listeners.
  */
-export function useReadingTracker(id: string, wordsInBook: () => number | null = () => null) {
-  const words = useLatest(wordsInBook)
+export function useReadingTracker(id: string, onRead: (secs: number, frac: number) => void = () => {}) {
+  const read = useLatest(onRead)
   /** reading saved since the book was opened, so the pace estimate can follow it without re-reading storage */
   const session = useRef<Stats>({ secs: 0, frac: 0 })
   const impl = useRef<{ markActive: () => void; relocate: (d: RelocateDetail) => void }>({
@@ -30,8 +29,7 @@ export function useReadingTracker(id: string, wordsInBook: () => number | null =
         addStats(id, secs, frac)
         addReadingTime(secs)
         session.current = { secs: session.current.secs + secs, frac: session.current.frac + frac }
-        const w = words.current()
-        if (w) learnPace(secs, frac * w)
+        read.current(secs, frac)
       },
       setTimer: (fn, ms) => window.setTimeout(fn, ms),
       clearTimer: (h) => window.clearTimeout(h),
@@ -59,7 +57,7 @@ export function useReadingTracker(id: string, wordsInBook: () => number | null =
       window.removeEventListener('pagehide', tracker.flushProgress)
       document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [id, words])
+  }, [id, read])
 
   return useMemo(
     () => ({

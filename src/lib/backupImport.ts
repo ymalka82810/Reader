@@ -2,6 +2,7 @@ import { addFolderName, getNotes, hasBook, listBooks, mergeProgress, saveBook, s
 import { sameBook } from './sameBook'
 import { mergeStats } from './stats'
 import { mergeReadingHours, mergeReadingLog } from './readingLog'
+import { mergePaceData } from './pace'
 import { mergeReview } from './flashcards'
 import { mergeBackupSettings } from './settings'
 import { restoreCustomFont } from './customFont'
@@ -127,6 +128,7 @@ export async function importLibrary(
   }
   if (header.readingLog) await mergeReadingLog(header.readingLog)
   if (header.readingHours) await mergeReadingHours(header.readingHours)
+  if (header.readingPace) mergePaceData(header.readingPace)
   if (header.vocab || header.cardStates) await mergeReview(header.vocab ?? [], header.cardStates ?? {})
   // folders the user created (also empty ones) are merged by name; the font is needed when the settings point at it
   for (const name of header.folders ?? []) await addFolderName(name)

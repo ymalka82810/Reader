@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Dialog } from '../Dialog'
+import { ReadingSpeed } from './ReadingSpeed'
 import { localeTag, t } from '../../i18n'
 import { formatMinutes } from '../../lib/stats'
 import { loadSettings } from '../../lib/settings'
@@ -160,6 +161,7 @@ export function GoalsDialog({ onClose, onSettings }: { onClose: () => void; onSe
                 </div>
               </>
             )}
+            <ReadingSpeed />
             {log && Object.keys(log).length === 0 && (
               <small className="goals-note">{t('goals.note')}</small>
             )}

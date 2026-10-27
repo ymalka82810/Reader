@@ -1,6 +1,7 @@
 import { getAllProgress, getFile, getNotes, listBooks, listFolderNames, type Annotation } from './db'
 import { loadStats } from './stats'
 import { loadReadingHours, loadReadingLog } from './readingLog'
+import { loadPaceData } from './pace'
 import { listWords, loadCardStates } from './flashcards'
 import { loadSettings } from './settings'
 import { loadCustomFont } from './customFont'
@@ -92,6 +93,7 @@ async function buildPlain(onProgress?: (done: number, total: number) => void): P
     ),
     readingLog: await loadReadingLog(),
     readingHours: await loadReadingHours(),
+    readingPace: loadPaceData(),
     vocab: await listWords(),
     cardStates: Object.fromEntries(await loadCardStates()),
     customFont: await loadCustomFont(),
