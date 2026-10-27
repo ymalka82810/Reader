@@ -15,7 +15,7 @@
 | `public/` | אייקונים של ה-PWA וסקריפט ה-share-target |
 | `resources/` | קבצים לאנדרואיד שנוספים לפרויקט בזמן הבנייה: אייקוני אפליקציה, ‏`android-updater/`, ‏`android-device-books/`, ‏`android-open-with/` ו-`android-tts/` |
 | `e2e/` | בדיקות Playwright (`npm run e2e`, רצות ב-CI אחרי בדיקות היחידה), ובהן סריקת נגישות אוטומטית (axe, WCAG 2.1 AA) של הספרייה, כל דפי ההגדרות (בהיר וכהה) והקורא |
-| `docs/` | תיעוד מפורט: [identify.md](docs/identify.md) (זיהוי ספרים) |
+| `docs/` | תיעוד מפורט: [identify.md](docs/identify.md) (זיהוי ספרים), [wishlist.md](docs/wishlist.md) (רעיונות שעוד לא נבנו) |
 | `.github/workflows/` | CI, פריסה ובניית APK |
 
 ## יכולות
