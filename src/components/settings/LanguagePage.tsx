@@ -9,7 +9,7 @@ import { LibraryHealth } from './LibraryHealth'
 import { OfflineDictSection } from './OfflineDictSection'
 import { Row, Section, Toggle } from './parts'
 
-export function LanguagePage({ settings, set }: { settings: Settings; set: SetSetting }) {
+export function LanguagePage({ settings, set, onIdentifyLibrary }: { settings: Settings; set: SetSetting; onIdentifyLibrary: () => void }) {
   const langs = DICT_LANGS.map(([code, name]): [string, string] => [code, name])
   return (
     <>
@@ -52,6 +52,9 @@ export function LanguagePage({ settings, set }: { settings: Settings; set: SetSe
           />
         )}
         <GoogleKey value={settings.googleBooksKey} onChange={(v) => set('googleBooksKey', v)} />
+        <Row label={t('prefs.identifyLibraryNow')} hint={t('prefs.identifyLibraryNowHint')}>
+          <button onClick={onIdentifyLibrary}>{t('prefs.identifyLibraryNowButton')}</button>
+        </Row>
         <IdentifyStats />
         <LibraryHealth />
       </Section>
