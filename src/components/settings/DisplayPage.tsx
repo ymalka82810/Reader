@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { isNativeApp } from '../../lib/updater'
 import { EYE_SCROLL_AVAILABLE, loadViewModes, saveViewModes, type ViewModes } from '../../lib/viewModes'
 import { loadAppTheme, saveAppTheme, type AppTheme } from '../../lib/appTheme'
+import { applyNightAppTheme } from '../../lib/nightMode'
 import { t } from '../../i18n'
 import { Seg } from '../reader/shared'
 import { Section, Toggle } from './parts'
@@ -18,6 +19,7 @@ export function DisplayPage() {
   }
   const pickTheme = (v: AppTheme) => {
     saveAppTheme(v)
+    applyNightAppTheme()
     setTheme(v)
   }
   return (

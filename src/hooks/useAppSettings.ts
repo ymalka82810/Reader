@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { SETTINGS_EVENT } from '../lib/nightMode'
 import { applyA11yClasses, loadSettings, saveSettings, type Settings } from '../lib/settings'
 
 /** the display settings as state: every change is saved, and the app-wide accessibility classes are re-applied */
@@ -9,6 +10,7 @@ export function useAppSettings() {
     saveSettings(next)
     applyA11yClasses(next)
     setSettings(next)
+    window.dispatchEvent(new Event(SETTINGS_EVENT))
   }
   return [settings, set] as const
 }

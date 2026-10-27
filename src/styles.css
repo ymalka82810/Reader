@@ -169,6 +169,8 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: var(--radius-sm); border:
 /* reader */
 .reader { position: fixed; inset: 0; background: var(--bg); color: var(--fg); overflow: hidden; }
 .view-host { position: absolute; inset: 0; }
+/* night mode: a warm amber layer over the whole reader that takes out blue light; taps go through it */
+.night-warm { position: fixed; inset: 0; z-index: 50; pointer-events: none; background: #ff9329; mix-blend-mode: multiply; }
 :root { --safe-top: env(safe-area-inset-top); }
 /* The Android WebView often reports 0 for the inset under the status bar / camera cutout, so keep a minimum in the app only (main.tsx sets .native-app). */
 :root.native-app { --safe-top: max(env(safe-area-inset-top), 1.75rem); }

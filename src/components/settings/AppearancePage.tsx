@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { loadCustomFont, removeCustomFont, saveCustomFont, type CustomFont } from '../../lib/customFont'
 import type { Settings, VolumeKeys } from '../../lib/settings'
+import type { NightMode, NightTheme } from '../../lib/nightMode'
+import { deviceCoords, sunTimes } from '../../lib/sun'
 import { isNativeApp } from '../../lib/updater'
 import { Select } from '../Select'
 import type { SetSetting } from '../../hooks/useAppSettings'
-import { t } from '../../i18n'
+import { localeTag, t } from '../../i18n'
 import { Row, Section, Toggle } from './parts'
 
 /** the reading look that is set once: spacing, column, margins, alignment, the custom theme's colors and the custom font.
@@ -97,6 +99,8 @@ export function AppearancePage({ settings, set }: { settings: Settings; set: Set
         )}
       </Section>
 
+      <NightSection settings={settings} set={set} />
+
       <Section title={t('prefs.colorsSection')}>
         <small className="muted">{t('prefs.colorsNote')}</small>
         <Row label={t('settings.bg')}>
@@ -122,5 +126,73 @@ export function AppearancePage({ settings, set }: { settings: Settings; set: Set
         {fontError && <div role="alert" className="muted">{fontError}</div>}
       </Section>
     </>
+  )
+}
+
+/** today's sunset and sunrise where the device's time zone says it is, as a line for the settings */
+function sunLine(): string {
+  const [lat, lon] = deviceCoords()
+  const sun = sunTimes(new Date(), lat, lon)
+  if (sun.kind !== 'normal') return t(sun.kind === 'night' ? 'night.polarNight' : 'night.polarDay')
+  const fmt = new Intl.DateTimeFormat(localeTag(), { hour: '2-digit', minute: '2-digit' })
+  return t('night.sunToday', { set: fmt.format(sun.set), rise: fmt.format(sun.rise) })
+}
+
+/** night mode: when it comes on, which theme the book takes, and how warm the screen gets */
+function NightSection({ settings, set }: { settings: Settings; set: SetSetting }) {
+  const on = settings.nightMode !== 'off'
+  return (
+    <Section title={t('night.title')}>
+      <Row label={t('night.when')} hint={t('night.whenNote')}>
+        <Select<NightMode>
+          label={t('night.when')}
+          value={settings.nightMode}
+          onChange={(v) => set('nightMode', v)}
+          options={[
+            ['off', t('night.off')],
+            ['sun', t('night.sun')],
+            ['schedule', t('night.schedule')],
+          ]}
+        />
+      </Row>
+      {settings.nightMode === 'sun' && <small className="muted">{sunLine()}</small>}
+      {settings.nightMode === 'schedule' && (
+        <>
+          <Row label={t('night.start')}>
+            <input type="time" value={settings.nightStart} aria-label={t('night.start')} onChange={(e) => e.target.value && set('nightStart', e.target.value)} />
+          </Row>
+          <Row label={t('night.end')}>
+            <input type="time" value={settings.nightEnd} aria-label={t('night.end')} onChange={(e) => e.target.value && set('nightEnd', e.target.value)} />
+          </Row>
+        </>
+      )}
+      {on && (
+        <>
+          <Row label={t('night.theme')}>
+            <Select<NightTheme>
+              label={t('night.theme')}
+              value={settings.nightTheme}
+              onChange={(v) => set('nightTheme', v)}
+              options={[
+                ['dark', t('theme.dark')],
+                ['sepia', t('theme.sepia')],
+                ['custom', t('theme.custom')],
+              ]}
+            />
+          </Row>
+          <Row label={t('night.warmth')} hint={t('night.warmthNote')}>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={settings.nightWarmth}
+              aria-label={t('night.warmth')}
+              onChange={(e) => set('nightWarmth', parseFloat(e.target.value))}
+            />
+          </Row>
+        </>
+      )}
+    </Section>
   )
 }
