@@ -43,9 +43,12 @@ export function SettingsPanel({
   bump,
   customFont,
   onAllSettings,
+  night = false,
   children,
 }: {
   settings: Settings
+  /** night mode is on: the theme picked here is the night theme */
+  night?: boolean
   set: <K extends keyof Settings>(k: K, v: Settings[K]) => void
   bump: (delta: number) => void
   customFont: CustomFont | undefined
@@ -104,8 +107,14 @@ export function SettingsPanel({
         label={t('a11y.theme')}
         value={settings.theme}
         onChange={(v) => set('theme', v)}
-        options={[['light', t('theme.light')], ['sepia', t('theme.sepia')], ['dark', t('theme.dark')], ['custom', t('theme.custom')]]}
+        options={[
+          ...(night ? [] : [['light', t('theme.light')] as [Theme, string]]),
+          ['sepia', t('theme.sepia')],
+          ['dark', t('theme.dark')],
+          ['custom', t('theme.custom')],
+        ]}
       />
+      {night && <small className="muted">{t('night.panelNote')}</small>}
       <div className="row">
         <label htmlFor="bright">{t('settings.brightness')}</label>
         <input id="bright" type="range" min={0.3} max={1} step={0.05} value={settings.brightness} onChange={(e) => set('brightness', parseFloat(e.target.value))} />

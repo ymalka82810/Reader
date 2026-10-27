@@ -47,6 +47,8 @@ import { customFontFace, customFontUrl, loadCustomFont, releaseCustomFontUrl, ty
 import { EYE_SCROLL_AVAILABLE, loadViewModes, saveViewModes, type ViewModes } from '../lib/viewModes'
 import { isNativeApp } from '../lib/updater'
 import { applyA11yClasses, loadSettings, saveSettings, themeColors, type Settings } from '../lib/settings'
+import { SETTINGS_EVENT, shownSettings } from '../lib/nightMode'
+import { useNightMode } from '../hooks/useNightMode'
 import { BookLoader } from './BookLoader'
 import { ScrollStrip } from './ScrollStrip'
 
@@ -73,6 +75,9 @@ export default function Reader({
   const viewRef = useRef<FoliateView | null>(null)
   const [settings, setSettings] = useState<Settings>(loadSettings)
   const settingsRef = useLatest(settings)
+  const night = useNightMode(settings)
+  /** what the book is shown with: the night theme replaces the chosen one at night */
+  const shown = useMemo(() => shownSettings(settings, night), [settings, night])
   const [modes, setModes] = useState<ViewModes>(() => {
     const m = loadViewModes()
     return isNativeApp ? { ...m, focus: false } : m // the app is already full screen: no distraction-free mode there
@@ -179,7 +184,7 @@ export default function Reader({
     }
   }, [])
 
-  const { status, error, title, dir, toc, bookLang, lang: language, coverUrl } = useFoliateView(id, host, viewRef, settings, fontUrl ? customFontFace(fontUrl) : '', startCfi, {
+  const { status, error, title, dir, toc, bookLang, lang: language, coverUrl } = useFoliateView(id, host, viewRef, shown, fontUrl ? customFontFace(fontUrl) : '', startCfi, {
     prepare: async () => {
       const [, s, p, saved, meta] = await Promise.all([notes.load(), loadStats(id), getProgress(id), getNotes(id), getBookMeta(id)])
       stats.current = s
@@ -263,6 +268,7 @@ export default function Reader({
   useEffect(() => {
     saveSettings(settings)
     applyA11yClasses(settings)
+    window.dispatchEvent(new Event(SETTINGS_EVENT))
     if (!viewRef.current) return
     resetCalibration() // layout changed: page size must be re-measured
     const t = window.setTimeout(() => recompute(), 400)
@@ -450,6 +456,12 @@ export default function Reader({
   }
 
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) => setSettings((s) => ({ ...s, [k]: v }))
+  /** in the Aa panel at night, picking a theme picks the night theme (light is not one) */
+  const panelSet: typeof set = (k, v) => {
+    if (night && k === 'theme') {
+      if (v !== 'light') set('nightTheme', v as Settings['nightTheme'])
+    } else set(k, v)
+  }
   const bump = (d: number) => set('fontSize', clampFont(settings.fontSize + d))
 
   useLayoutEffect(() => {
@@ -474,7 +486,7 @@ export default function Reader({
   const editingNote = notes.notes.find((x) => x.id === editingId)
   const bookmarked = !!here && notes.notes.some((n) => n.kind === 'bookmark' && n.cfi === here)
   const navOpen = panel === 'toc' || panel === 'notes'
-  const colors = themeColors(settings)
+  const colors = themeColors(shown)
   const shownFraction = dragFraction ?? fraction
   const positionText = (f: number) =>
     pages ? t('a11y.position', { current: pages.current, total: pages.total, pct: Math.round(f * 100) }) : t('a11y.positionNoPages', { pct: Math.round(f * 100) })
@@ -493,11 +505,12 @@ export default function Reader({
 
   return (
     <div
-      className={`reader theme-${settings.theme}${modes.focus ? ' focus' : ''}`}
+      className={`reader theme-${shown.theme}${modes.focus ? ' focus' : ''}`}
       dir={isRtl() ? 'rtl' : 'ltr'}
       style={{ ['--bg' as string]: colors.bg, ['--fg' as string]: colors.fg }}
     >
       <div className="view-host" ref={host} role="region" aria-label={t('a11y.book', { title })} style={settings.brightness < 1 ? { filter: `brightness(${settings.brightness})` } : undefined} />
+      {night && settings.nightWarmth > 0 && <div className="night-warm" aria-hidden="true" style={{ opacity: settings.nightWarmth * 0.4 }} />}
 
       <div className="sr-only" role="status" aria-live="polite">
         {status === 'ready' ? [chapter, positionText(fraction)].filter(Boolean).join(', ') : ''}
@@ -803,7 +816,7 @@ export default function Reader({
       )}
 
       {panel === 'settings' && (
-        <SettingsPanel settings={settings} set={set} bump={bump} customFont={customFont} onAllSettings={onSettings}>
+        <SettingsPanel settings={shown} set={panelSet} night={night} bump={bump} customFont={customFont} onAllSettings={onSettings}>
           <ZoomSection viewRef={viewRef} />
           <ViewModesSection
             modes={modes}

@@ -6,6 +6,7 @@ import heeboHebrew700 from '@fontsource/heebo/files/heebo-hebrew-700-normal.woff
 import heeboLatin400 from '@fontsource/heebo/files/heebo-latin-400-normal.woff2?url'
 import heeboLatin700 from '@fontsource/heebo/files/heebo-latin-700-normal.woff2?url'
 import { CUSTOM_FONT_FAMILY } from './customFont'
+import type { NightMode, NightTheme } from './nightMode'
 
 export type Flow = 'scrolled' | 'paginated'
 export type Theme = 'light' | 'sepia' | 'dark' | 'custom'
@@ -25,6 +26,15 @@ export interface Settings {
   margin: number
   /** screen brightness multiplier, 1 = unchanged */
   brightness: number
+  /** night mode: switch the book to `nightTheme` (and warm the screen) between set hours, or between sunset and sunrise */
+  nightMode: NightMode
+  /** "HH:MM" when night starts and ends, for nightMode 'schedule' */
+  nightStart: string
+  nightEnd: string
+  /** the theme the book takes at night */
+  nightTheme: NightTheme
+  /** warm amber filter over the reader at night, 0 = none, 1 = strongest */
+  nightWarmth: number
   /** colors of the 'custom' theme */
   customBg: string
   customFg: string
@@ -104,6 +114,11 @@ const DEFAULTS: Settings = {
   columnWidth: 0,
   margin: 5,
   brightness: 1,
+  nightMode: 'off',
+  nightStart: '22:00',
+  nightEnd: '07:00',
+  nightTheme: 'dark',
+  nightWarmth: 0.3,
   customBg: '#fdf6e3',
   customFg: '#2b2b2b',
   customLink: '#1a5fb4',
