@@ -389,6 +389,9 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: var(--radius-sm); border:
 .jump-chips > * { pointer-events: auto; }
 .jump-chips > button, .hit-nav { border-radius: var(--radius-pill); background: var(--bg); color: var(--fg); border: 1px solid var(--border); box-shadow: var(--shadow-md); }
 .jump-chips > button { padding: .45rem .9rem; }
+.jump-ask { position: absolute; z-index: 7; top: calc(4.2rem + env(safe-area-inset-top)); inset-inline: 0; margin: 0 auto; width: max-content; max-width: min(92vw, 420px); display: flex; flex-direction: column; align-items: center; gap: .5rem; padding: .7rem 1rem; border-radius: var(--radius-lg); background: var(--bg); color: var(--fg); border: 1px solid var(--border); box-shadow: var(--shadow-md); text-align: center; }
+.jump-ask .row { display: flex; gap: .5rem; }
+.hc .jump-ask { border: 2px solid #fff; box-shadow: none; }
 .hit-nav { display: flex; align-items: center; gap: .4rem; padding: .2rem .4rem; font-size: .85rem; }
 .hit-nav button { background: transparent; min-width: 44px; min-height: 44px; padding: .2rem .6rem; font-size: 1.2rem; }
 .tap-help { position: absolute; inset: 0; z-index: 9; display: grid; grid-template-columns: 1fr 1.2fr 1fr; align-items: center; text-align: center; background: rgba(0,0,0,.72); color: #fff; font-size: 1.05rem; line-height: 1.6; cursor: pointer; }
@@ -431,6 +434,24 @@ i.lv4 { background: var(--accent) !important; }
 .goals-stats div { display: flex; flex-direction: column; gap: .15rem; padding: .5rem .3rem; border-radius: var(--radius-lg); background: rgba(128,128,128,.12); }
 .goals-stats strong { font-size: 1.1rem; }
 .goals-stats small { color: var(--fg-muted); font-size: .72rem; }
+
+/* star rating (end-of-book panel, book details, the finished-this-year list) */
+.stars { display: inline-flex; gap: .15rem; direction: ltr; }
+.stars button { min-width: 2.2rem; min-height: 2.2rem; padding: 0; border-radius: var(--radius-md); font-size: 1.35rem; line-height: 1; color: var(--fg-muted); background: transparent; border-color: transparent; box-shadow: none; }
+.stars button.on, .stars i.on { color: #e0a100; }
+.stars i { font-style: normal; color: rgba(128,128,128,.45); font-size: .85rem; }
+.stars.small i { font-size: .8rem; }
+.rating-row { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+
+/* "the books I finished this year" */
+.finished-year { width: min(92vw, 440px); max-height: 90vh; overflow-y: auto; display: flex; flex-direction: column; gap: .6rem; }
+.finished-head { display: flex; align-items: center; justify-content: space-between; gap: .4rem; }
+.finished-head h2 { text-align: center; flex: 1; }
+.finished-month h3 { margin: .3rem 0; font-size: .9rem; }
+.finished-month ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .3rem; }
+.finished-book { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: .5rem; text-align: start; padding: .45rem .6rem; border-radius: var(--radius-md); }
+.finished-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.finished-meta { display: flex; flex-direction: column; align-items: flex-end; gap: .1rem; flex-shrink: 0; }
 .goals-range { display: flex; gap: .4rem; }
 .goals-range button { flex: 1; padding: .3rem .5rem; font-size: .85rem; }
 .goals-range button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }

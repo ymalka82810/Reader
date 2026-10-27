@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { getAllNotes, getFile, hideFromResume, isFinished, setWords, updateMeta, type Annotation, type BookMeta } from '../lib/db'
+import { getAllNotes, getFile, hideFromResume, isFinished, setRating, setWords, updateMeta, type Annotation, type BookMeta } from '../lib/db'
 import { searchNotes } from '../lib/noteSearch'
 import { backupDue } from '../lib/backupReminder'
 import { getStorageStatus, requestPersistence, type StorageStatus } from '../lib/storage'
@@ -33,6 +33,8 @@ import { useLatest } from '../hooks/useLatest'
 import { hasTag, listTags, parseTags } from '../lib/tags'
 import { localeTag, t } from '../i18n'
 import { GoalsDialog } from './library/GoalsDialog'
+import { FinishedYearDialog } from './library/FinishedYearDialog'
+import { byRating } from '../lib/finishedYear'
 import { ReviewDialog } from './library/ReviewDialog'
 import { BackupMenu } from './library/BackupMenu'
 import { SettingsScreen, type PageId } from './settings/SettingsScreen'
@@ -128,6 +130,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   }
   const [goalsOpen, setGoalsOpen] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
+  const [finishedOpen, setFinishedOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(() => !!startSettings || rememberedSettings() !== null)
   const [settingsPage, setSettingsPage] = useState(startSettings)
   const [confirmDel, setConfirmDel] = useState<BookMeta[]>()
@@ -234,6 +237,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
     else if (sort === 'author') list.sort(by((b) => b.author || '￿'))
     else if (sort === 'added') list.sort((a, b) => b.addedAt - a.addedAt)
     else if (sort === 'longest') list.sort(byLength(lengths))
+    else if (sort === 'loved') list.sort((a, b) => byRating(a, b) || by((x) => x.title)(a, b))
     return list // 'recent' keeps the order listBooks returns
   }, [scoped, query, sort, lengths])
 
@@ -278,6 +282,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
     else if (picking) setPicking(false)
     else if (goalsOpen) setGoalsOpen(false)
     else if (reviewOpen) setReviewOpen(false)
+    else if (finishedOpen) setFinishedOpen(false)
     else if (selecting) exitSelect()
     else if (fo.openFolder !== undefined) fo.setOpenFolder(undefined)
     else if (query || isFiltering(filter) || tag) {
@@ -646,6 +651,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
           onRestore={() => restoreInput.current?.click()}
           onGoals={() => setGoalsOpen(true)}
           onReview={() => setReviewOpen(true)}
+          onFinished={() => setFinishedOpen(true)}
           onClearFilter={books.length > 1 && isFiltering(filter) ? () => setFilter(NO_FILTER) : undefined}
         />
         <input
@@ -993,12 +999,28 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
         />
       )}
       {reviewOpen && <ReviewDialog books={books} onClose={() => setReviewOpen(false)} />}
+      {finishedOpen && (
+        <FinishedYearDialog
+          books={books}
+          onOpen={(id) => {
+            setFinishedOpen(false)
+            onOpen(id)
+          }}
+          onClose={() => setFinishedOpen(false)}
+        />
+      )}
       {editing && (
         <EditBookDialog
           name={editName}
           author={editAuthor}
           tags={editTags}
           words={editing.kind === 'audio' ? null : (editing.words ?? (counted?.id === editing.id ? counted.n : undefined))}
+          rating={editing.rating ?? 0}
+          onRate={(r) => {
+            const id = editing.id
+            setEditing((e) => e && e.id === id ? { ...e, rating: r || undefined } : e)
+            void setRating(id, r).then(refresh, console.error)
+          }}
           knownTags={tags.map((x) => x.name)}
           phoneFile={editPhone ? { sync: editSync, onSync: setEditSync } : undefined}
           identify={{ ...editLookup, run: () => void identifyEditing() }}

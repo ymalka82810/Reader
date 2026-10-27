@@ -10,6 +10,7 @@ import type { PwAsk } from '../../hooks/useBackup'
 import type { ConfirmAsk } from '../../hooks/useConfirm'
 import type { FolderDialogState } from '../../hooks/useFolders'
 import { FolderIcon } from './FolderIcon'
+import { Stars } from '../Stars'
 import type { BookFormat } from '../../lib/bookExport'
 import { loadCustomFont } from '../../lib/customFont'
 import {
@@ -339,6 +340,8 @@ export function EditBookDialog({
   author,
   tags,
   words,
+  rating,
+  onRate,
   knownTags,
   phoneFile,
   identify,
@@ -356,6 +359,9 @@ export function EditBookDialog({
   tags: string
   /** words in the book, shown read-only; undefined while still being counted, null for a book with no text (audio) */
   words: number | null | undefined
+  /** 1–5, 0 = not rated; a tap saves it at once (not with the dialog's save) */
+  rating: number
+  onRate: (r: number) => void
   /** tags already used elsewhere, offered as suggestions */
   knownTags: string[]
   /** the book's file on the phone, when it has one: whether it is renamed along with the book */
@@ -428,6 +434,10 @@ export function EditBookDialog({
             />
           </label>
         )}
+        <div className="rating-row">
+          <span>{t('rating.label')}</span>
+          <Stars value={rating} onRate={onRate} />
+        </div>
         {phoneFile && (
           <label className="check-row">
             <input type="checkbox" checked={phoneFile.sync} onChange={(e) => phoneFile.onSync(e.target.checked)} />

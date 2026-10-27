@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { loadCustomFont, removeCustomFont, saveCustomFont, type CustomFont } from '../../lib/customFont'
-import type { Settings } from '../../lib/settings'
+import type { Settings, VolumeKeys } from '../../lib/settings'
+import { isNativeApp } from '../../lib/updater'
+import { Select } from '../Select'
 import type { SetSetting } from '../../hooks/useAppSettings'
 import { t } from '../../i18n'
 import { Row, Section, Toggle } from './parts'
@@ -79,6 +81,20 @@ export function AppearancePage({ settings, set }: { settings: Settings; set: Set
 
       <Section title={t('prefs.pagesSection')}>
         <Toggle label={t('settings.pageAnim')} hint={t('prefs.pageAnimNote')} checked={settings.pageTransition} onChange={(on) => set('pageTransition', on)} />
+        {isNativeApp && (
+          <Row label={t('prefs.volumeKeys')} hint={t('prefs.volumeKeysNote')}>
+            <Select<VolumeKeys>
+              label={t('prefs.volumeKeys')}
+              value={settings.volumeKeys}
+              onChange={(v) => set('volumeKeys', v)}
+              options={[
+                ['down-next', t('prefs.volumeKeys.downNext')],
+                ['up-next', t('prefs.volumeKeys.upNext')],
+                ['off', t('prefs.volumeKeys.off')],
+              ]}
+            />
+          </Row>
+        )}
       </Section>
 
       <Section title={t('prefs.colorsSection')}>

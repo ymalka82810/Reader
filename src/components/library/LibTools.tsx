@@ -5,7 +5,7 @@ import { t } from '../../i18n'
 import type { Tag } from '../../lib/tags'
 import { SMARTS, typeLabel, type LibraryFilter, type ReadState, type Smart } from '../../lib/libraryFilter'
 
-export type Sort = 'recent' | 'title' | 'author' | 'added' | 'longest'
+export type Sort = 'recent' | 'title' | 'author' | 'added' | 'longest' | 'loved'
 
 const FILTERS: [ReadState, string][] = [
   ['all', t('filter.all')],
@@ -18,6 +18,7 @@ const SORTS: [Sort, string][] = [
   ['added', t('sort.added')],
   ['title', t('sort.title')],
   ['author', t('sort.author')],
+  ['loved', t('sort.loved')],
 ]
 
 const ANY = '*'

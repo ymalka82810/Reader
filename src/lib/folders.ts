@@ -43,7 +43,7 @@ export const folderToStore = (b: Pick<BookMeta, 'author'>, name: string): string
   return keyOf(n) === keyOf(clean(b.author)) ? undefined : n
 }
 
-export type FolderSort = 'recent' | 'added' | 'title' | 'author' | 'longest'
+export type FolderSort = 'recent' | 'added' | 'title' | 'author' | 'longest' | 'loved'
 
 /**
  * Orders the folder list the way the sort picker says. A folder holding a single author's only book is shown as that book
@@ -56,7 +56,9 @@ export function sortFolders(folders: Folder[], loose: Set<string>, sort: FolderS
   const label = (f: Folder) => (sort === 'title' && loose.has(f.key) ? f.books[0]!.title : f.name)
   const byName = (a: Folder, b: Folder) => (!a.key ? 1 : !b.key ? -1 : label(a).localeCompare(label(b), localeTag()))
   const byDate = (at: (b: BookMeta) => number) => (a: Folder, b: Folder) => newest(b, at) - newest(a, at) || byName(a, b)
-  const order = sort === 'recent' ? byDate(opened) : sort === 'added' ? byDate((b) => b.addedAt) : byName
+  // "loved most": the folder's best-rated book decides; unrated folders by name after the rated ones
+  const order =
+    sort === 'recent' ? byDate(opened) : sort === 'added' ? byDate((b) => b.addedAt) : sort === 'loved' ? byDate((b) => b.rating ?? 0) : byName
   const sorted = [...folders].sort(order)
   const real = sorted.filter((f) => !loose.has(f.key))
   const single = sorted.filter((f) => loose.has(f.key))

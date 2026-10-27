@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ACTIVE_MS, createReadingTracker, FLUSH_TICKS, MAX_READ_STEP, MIN_ACTIVE_MS, SAVE_DELAY_MS, TICK_MS } from './readingTracker'
+import { ACTIVE_MS, createReadingTracker, FLUSH_TICKS, MAX_READ_STEP, MIN_ACTIVE_MS, MIN_PAGE_MS, SAVE_DELAY_MS, TICK_MS } from './readingTracker'
 
 function setup() {
   let t = 1_000_000
@@ -8,7 +8,10 @@ function setup() {
   let nextId = 1
   const saveProgress = vi.fn()
   const saveStats = vi.fn()
+  const onJump = vi.fn()
   const tracker = createReadingTracker({
+    pageFraction: () => 0.01,
+    onJump,
     now: () => t,
     isHidden: () => hidden,
     saveProgress,
@@ -30,7 +33,7 @@ function setup() {
       }
     }
   }
-  return { tracker, saveProgress, saveStats, advance, setHidden: (h: boolean) => (hidden = h) }
+  return { tracker, saveProgress, saveStats, onJump, advance, setHidden: (h: boolean) => (hidden = h) }
 }
 
 describe('reading tracker', () => {
@@ -102,7 +105,7 @@ describe('reading tracker', () => {
     expect(saveProgress).not.toHaveBeenCalled()
     advance(200)
     expect(saveProgress).toHaveBeenCalledOnce()
-    expect(saveProgress).toHaveBeenCalledWith('b', 0.2)
+    expect(saveProgress).toHaveBeenCalledWith('b', 0.2, [])
   })
 
   it('flushProgress saves immediately, once', () => {
@@ -120,4 +123,52 @@ describe('reading tracker', () => {
     tracker.flushProgress()
     expect(saveProgress).not.toHaveBeenCalled()
   })
+
+  describe('what was actually read', () => {
+    it('credits pages that had their time, not pages flicked through', () => {
+      const { tracker, advance } = setup()
+      tracker.relocate({ fraction: 0 })
+      for (let i = 1; i <= 10; i++) {
+        advance(MIN_PAGE_MS + 100) // reading: each page (1% of the book) got its time
+        tracker.relocate({ fraction: i * 0.01 })
+      }
+      for (let i = 11; i <= 30; i++) {
+        advance(200) // flicking
+        tracker.relocate({ fraction: i * 0.01 })
+      }
+      const read = tracker.readRanges()
+      expect(read).toHaveLength(1)
+      expect(read[0]![0]).toBe(0)
+      expect(read[0]![1]).toBeCloseTo(0.1)
+    })
+
+    it('saves the read stretches along with the position', () => {
+      const { tracker, advance, saveProgress } = setup()
+      tracker.relocate({ fraction: 0.2, cfi: 'a' })
+      advance(MIN_PAGE_MS * 2)
+      tracker.relocate({ fraction: 0.21, cfi: 'b' })
+      advance(SAVE_DELAY_MS)
+      expect(saveProgress).toHaveBeenLastCalledWith('b', 0.21, [[0.2, 0.21]])
+    })
+
+    it('asks about a jump forward over an unread part, and counts it read when told so', () => {
+      const { tracker, onJump } = setup()
+      tracker.seed([[0, 0.3]])
+      tracker.relocate({ fraction: 0.3, cfi: 'a' })
+      tracker.relocate({ fraction: 0.3 + MAX_READ_STEP + 0.01, cfi: 'b' }) // little unread before it
+      expect(onJump).not.toHaveBeenCalled()
+      tracker.relocate({ fraction: 0.9, cfi: 'c' })
+      expect(onJump).toHaveBeenCalledWith(0.9)
+      tracker.markRead(0, 0.9)
+      expect(tracker.readRanges()).toEqual([[0, 0.9]])
+    })
+
+    it('never asks about a jump back', () => {
+      const { tracker, onJump } = setup()
+      tracker.relocate({ fraction: 0.9 })
+      tracker.relocate({ fraction: 0.1 })
+      expect(onJump).not.toHaveBeenCalled()
+    })
+  })
 })
+

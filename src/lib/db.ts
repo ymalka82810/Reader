@@ -4,6 +4,7 @@ import { folderKey } from './folders'
 import { decodeEntities } from './entities'
 import { realAuthor } from './authorName'
 import type { AudioInfo } from './audioBook'
+import { readThrough, unionRanges, type ReadRanges } from './readCover'
 
 export interface BookRecord {
   id: string
@@ -24,11 +25,17 @@ export interface BookRecord {
   addedAt: number
   /** manual "read" mark, see isFinished */
   finished?: boolean
+  /** when the book was finished (marked read, or its end reached); unset = not finished, or finished before this was kept */
+  finishedAt?: number
+  /** the user's rating, 1–5 stars; unset = not rated */
+  rating?: number
   lastOpened?: number
   /** when the user removed the book from the "continue reading" carousel; it comes back once the book is opened again */
   resumeHiddenAt?: number
   cfi?: string
   fraction?: number
+  /** the stretches actually read (from the progress store, like `cfi`); see lib/readCover */
+  read?: ReadRanges
   /** folder picked by the user; unset = filed by author, '' = deliberately in no folder */
   folder?: string
   /** words in the text, counted when the book is added; unset = not counted yet (books from before) */
@@ -46,12 +53,14 @@ export interface Progress {
   cfi: string
   fraction: number
   lastOpened: number
+  /** the stretches of the book actually read; unset for audiobooks and books read before they were kept */
+  read?: ReadRanges
 }
 
 const progressStore = createStore('reader-progress-db', 'progress')
 
 const withProgress = <T extends BookMeta>(b: T, p?: Progress): T =>
-  p ? { ...b, cfi: p.cfi, fraction: p.fraction, lastOpened: p.lastOpened } : b
+  p ? { ...b, cfi: p.cfi, fraction: p.fraction, lastOpened: p.lastOpened, ...(p.read && { read: p.read }) } : b
 
 /** a book without its file: what the library list needs, cheap to read for every book */
 export type BookMeta = Omit<BookRecord, 'file'>
@@ -124,7 +133,8 @@ export async function replaceBook(oldId: string, rec: BookRecord) {
     if (progress) await mergeProgress(rec.id, progress)
   }
   if (stats.secs > 0) await mergeStats(rec.id, stats)
-  if (old.finished !== undefined) await setFinished(rec.id, old.finished)
+  if (old.finished !== undefined) await setFinished(rec.id, old.finished, old.finishedAt)
+  if (old.rating || old.finishedAt) await fillReadDetails(rec.id, old)
   await deleteBook(oldId)
 }
 /** Ids of files merged into another book (lib/bookCopies), so adding the same file again finds the book it went into. */
@@ -159,6 +169,8 @@ export async function mergeBooks(keepId: string, dropId: string, name?: { title:
         ...(tags.length && { tags }),
         ...(b.folder === undefined && drop.folder !== undefined && { folder: drop.folder }),
         ...((b.finished || drop.finished) && { finished: true }),
+        ...(!b.rating && drop.rating && { rating: drop.rating }),
+        ...(!b.finishedAt && drop.finishedAt && { finishedAt: drop.finishedAt }),
       },
       store,
     )
@@ -174,8 +186,8 @@ export const listBooks = async () => {
     .sort((a, b) => (b.lastOpened ?? b.addedAt) - (a.lastOpened ?? a.addedAt))
 }
 
-export const updateProgress = (id: string, cfi: string, fraction: number) =>
-  set(id, { cfi, fraction, lastOpened: Date.now() } satisfies Progress, progressStore)
+export const updateProgress = (id: string, cfi: string, fraction: number, read?: ReadRanges) =>
+  set(id, { cfi, fraction, lastOpened: Date.now(), ...(read && { read }) } satisfies Progress, progressStore)
 
 export const getProgress = (id: string) => get<Progress>(id, progressStore)
 export const getAllProgress = async () => Object.fromEntries(await entries<string, Progress>(progressStore))
@@ -184,8 +196,13 @@ export const getAllProgress = async () => Object.fromEntries(await entries<strin
 export async function mergeProgress(id: string, incoming: Progress): Promise<boolean> {
   if (!incoming.cfi) return false
   const cur = await get<Progress>(id, progressStore)
-  if (cur && cur.lastOpened >= incoming.lastOpened) return false
-  await set(id, incoming, progressStore)
+  // what was read on either side stays read, whichever position wins
+  const read = unionRanges(cur?.read, incoming.read)
+  if (cur && cur.lastOpened >= incoming.lastOpened) {
+    if (read && read !== cur.read) await set(id, { ...cur, read }, progressStore)
+    return false
+  }
+  await set(id, { ...incoming, ...(read && { read }) }, progressStore)
   return true
 }
 
@@ -262,16 +279,52 @@ export const renameFolder = (oldName: string, newName: string, setAuthor = false
     await set(FOLDERS_KEY, [...names, newName], folderStore)
   })
 
-/** explicit "read" mark; when unset a book counts as read once its position passes 98% */
-export const isFinished = (b: BookMeta) => b.finished ?? (b.fraction ?? 0) >= 0.98
+/** explicit "read" mark; when unset a book counts as read once its end is reached and most of it was actually read
+ *  (a position dragged to the end is not reading it) */
+export const isFinished = (b: BookMeta) => b.finished ?? readThrough(b.fraction ?? 0, b.read)
 
-export const setFinished = (id: string, finished: boolean) =>
+/** sets the "read" mark; marking a book read stamps when (`at`, else now) unless it already has a date, unmarking clears it */
+export const setFinished = (id: string, finished: boolean, at?: number) =>
   serial(async () => {
     const b = await get<BookMeta>(id, store)
     if (!b) return
     b.finished = finished
+    if (finished) b.finishedAt ??= at ?? Date.now()
+    else delete b.finishedAt
     await set(id, b, store)
   })
+
+/** the end of a book was reached and it counts as read: remembers when, the first time only */
+export const stampFinished = (id: string) =>
+  serial(async () => {
+    const b = await get<BookMeta>(id, store)
+    if (!b || b.finishedAt || b.finished === false) return
+    await set(id, { ...b, finishedAt: Date.now() }, store)
+  })
+
+/** a rating of 1–5 stars; 0 removes it */
+export const setRating = (id: string, rating: number) =>
+  serial(async () => {
+    const b = await get<BookMeta>(id, store)
+    if (!b) return
+    const r = Math.round(rating)
+    if (r >= 1 && r <= 5) b.rating = r
+    else delete b.rating
+    await set(id, b, store)
+  })
+
+/** a rating or finish date from elsewhere (a backup, a replaced copy) fills in only what this book doesn't have yet */
+export const fillReadDetails = (id: string, from: Pick<BookMeta, 'rating' | 'finishedAt'>) =>
+  serial(async () => {
+    const b = await get<BookMeta>(id, store)
+    if (!b) return
+    const rating = !b.rating && validRating(from.rating) ? from.rating : undefined
+    const finishedAt = !b.finishedAt && b.finished !== false && validTime(from.finishedAt) ? from.finishedAt : undefined
+    if (rating || finishedAt) await set(id, { ...b, ...(rating && { rating }), ...(finishedAt && { finishedAt }) }, store)
+  })
+
+export const validRating = (r: unknown): r is number => typeof r === 'number' && Number.isInteger(r) && r >= 1 && r <= 5
+export const validTime = (t: unknown): t is number => typeof t === 'number' && Number.isFinite(t) && t > 0
 
 export const hideFromResume = (id: string) =>
   serial(async () => {
@@ -359,6 +412,16 @@ const migrations: (() => Promise<void>)[] = [
       const next = { ...b, title: decodeEntities(b.title ?? ''), author: realAuthor(b.author) }
       if (b.folder !== undefined) next.folder = decodeEntities(b.folder)
       if (next.title !== b.title || next.author !== b.author || next.folder !== b.folder) await set(id, next, store)
+    }
+  },
+  // 4: finish dates are kept since "the books I finished this year": a book already read gets the day it was last opened
+  async () => {
+    const progress = new Map(await entries<string, Progress>(progressStore))
+    for (const [id, b] of await entries<string, BookMeta>(store)) {
+      if (b.finishedAt) continue
+      const p = progress.get(id)
+      if (!isFinished(withProgress(b, p))) continue
+      await set(id, { ...b, finishedAt: p?.lastOpened ?? b.lastOpened ?? b.addedAt }, store)
     }
   },
 ]
