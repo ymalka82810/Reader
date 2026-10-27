@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState, type MutableRefObject } from 'react'
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react'
 import type { FoliateRelocateDetail, FoliateView } from 'foliate-js/view.js'
-import { clampPace, linearSizes, loadPace, PACE_STEP, paceFromStats, savePace, screenSecs } from '../lib/pace'
+import { clampPace, linearSizes, loadAutoFactor, PACE_STEP, saveAutoFactor, screenSecs } from '../lib/pace'
 import type { Flow } from '../lib/settings'
-import { loadStats } from '../lib/stats'
+import { useLatest } from './useLatest'
 
 /** foliate reports the scrolled position only 250 ms after scrolling stops, so the steady scroll
  *  rests this briefly every PULSE_MS (and then catches up) to keep progress and stats current */
@@ -14,13 +14,14 @@ const USER_HOLD_MS = 1500
 const ACTIVE_PING_MS = 30_000
 
 interface Deps {
-  id: string
   viewRef: MutableRefObject<FoliateView | null>
   lastDetail: MutableRefObject<FoliateRelocateDetail | null>
   flow: Flow
   /** a panel, selection or the bars are up: hold still until they are gone */
   paused: boolean
   markActive: () => void
+  /** the reader's estimated pace in this book, in seconds per KB (lib/pace) */
+  estimate: () => number
 }
 
 /** the element that scrolls the book in scrolled mode; it sits in foliate's closed shadow root,
@@ -47,33 +48,35 @@ function secsFor(view: FoliateView, detail: FoliateRelocateDetail | null, secsPe
 
 /**
  * Moves the text by itself at the reader's own pace: a steady scroll in scrolled mode, timed page
- * turns in paginated mode. The pace comes from this book's reading stats (or the last pace used
- * anywhere) and the faster/slower controls adjust it.
+ * turns in paginated mode. The pace starts from the reader's estimated pace, times how much faster or slower
+ * auto-reading was last set to (remembered across books), and the faster/slower controls adjust it.
  */
-export function useAutoRead({ id, viewRef, lastDetail, flow, paused, markActive }: Deps) {
+export function useAutoRead({ viewRef, lastDetail, flow, paused, markActive, estimate }: Deps) {
   const [active, setActive] = useState(false)
   /** seconds per KB of source */
   const [pace, setPace] = useState<number | null>(null)
   const [secsPerScreen, setSecsPerScreen] = useState<number | null>(null)
 
+  /** the estimate auto-reading started from, so faster/slower can be remembered as a factor of it */
+  const base = useRef(0)
+  const estimateRef = useLatest(estimate)
+
   const toggle = useCallback(async () => {
     if (active) return setActive(false)
-    const view = viewRef.current
-    if (!view) return
-    const total = linearSizes(view.book.sections).reduce((a, b) => a + b, 0)
-    setPace(paceFromStats(await loadStats(id), total) ?? loadPace())
+    if (!viewRef.current) return
+    base.current = estimateRef.current()
+    setPace(clampPace(base.current * loadAutoFactor()))
     setActive(true)
-  }, [active, id, viewRef])
+  }, [active, viewRef, estimateRef])
 
-  const adjust = useCallback(
-    (faster: boolean) => setPace((p) => (p === null ? p : clampPace(faster ? p / PACE_STEP : p * PACE_STEP))),
-    [],
-  )
-
-  // the pace in use becomes the starting point for books without stats of their own
-  useEffect(() => {
-    if (pace !== null) savePace(pace)
-  }, [pace])
+  const adjust = useCallback((faster: boolean) => {
+    setPace((p) => {
+      if (p === null) return p
+      const next = clampPace(faster ? p / PACE_STEP : p * PACE_STEP)
+      if (base.current > 0) saveAutoFactor(next / base.current)
+      return next
+    })
+  }, [])
 
   // the shown time follows faster/slower at once, even while the bars are up and the reading is held
   useEffect(() => {

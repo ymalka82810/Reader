@@ -26,6 +26,7 @@ import { useReaderPanels } from '../hooks/useReaderPanels'
 import { useEyeScroll } from '../hooks/useEyeScroll'
 import { useViewModes } from '../hooks/useViewModes'
 import { useReadingTracker } from '../hooks/useReadingTracker'
+import { useReadingPace } from '../hooks/useReadingPace'
 import { useAutoRead } from '../hooks/useAutoRead'
 import { MAX_RATE, MIN_RATE, RATE_STEP, readAloudSupported, useReadAloud } from '../hooks/useReadAloud'
 import { useBackGesture } from '../hooks/useBackGesture'
@@ -34,8 +35,7 @@ import { firstWord } from '../lib/dictionary'
 import { saveWord } from '../lib/flashcards'
 import { atBookEdge } from '../lib/bookEdge'
 import { formatMinutes, loadStats, type Stats } from '../lib/stats'
-import { getNotes, getProgress, isFinished, listBooks, setFinished } from '../lib/db'
-import { linearSizes, loadPace, paceFromStats } from '../lib/pace'
+import { getBookMeta, getNotes, getProgress, isFinished, listBooks, setFinished } from '../lib/db'
 import { timeLeft } from '../lib/readTime'
 import { daysAway, RECAP_AFTER_MS, textBefore } from '../lib/recap'
 import { nextInSeries, type SeriesPlace } from '../lib/nextInSeries'
@@ -105,15 +105,13 @@ export default function Reader({
   const selectionRef = useLatest(selection)
   const lastAnnotationClick = useRef(0)
   const [left, setLeft] = useState<{ chapter: number | null; book: number | null }>({ chapter: null, book: null })
-  /** the reader's pace in seconds per KB of source, worked out on the first relocate (it needs the book's size) */
-  const pace = useRef<number | null>(null)
   /** days since the book was last opened, when that was long enough ago for "where was I?" (0 = don't show it) */
   const recapDays = useRef(0)
   const lastHighlight = useRef('')
   const [recap, setRecap] = useState<Recap | null>(null)
   /** what the end-of-book panel shows: the read mark and where the book sits in its series */
   const [end, setEnd] = useState<{ finished: boolean; place?: SeriesPlace } | null>(null)
-  /** read once per book: the estimate does not need to track the stats written while reading */
+  /** the book's stats as they were when it was opened; what is read now comes from the tracker's session */
   const stats = useRef<Stats>({ secs: 0, frac: 0 })
   const actions = useRef<KeyActions>({
     bookmark: () => {},
@@ -140,7 +138,13 @@ export default function Reader({
     onBookEnd: () => openEndRef.current(),
   })
 
-  const tracker = useReadingTracker(id)
+  const pace = useReadingPace(id, viewRef)
+  const tracker = useReadingTracker(id, pace.wordsInBook)
+  /** this book's reading so far: stored stats plus this session */
+  const bookStats = (): Stats => {
+    const s = tracker.session()
+    return { secs: stats.current.secs + s.secs, frac: stats.current.frac + s.frac }
+  }
   const onKey = useBookKeys({ viewRef, actions, closePanel, markActive: tracker.markActive })
 
   const { message: toast, flash } = useFlash()
@@ -170,15 +174,19 @@ export default function Reader({
 
   const { status, error, title, dir, toc, bookLang, lang: language, coverUrl } = useFoliateView(id, host, viewRef, settings, fontUrl ? customFontFace(fontUrl) : '', startCfi, {
     prepare: async () => {
-      const [, s, p, saved] = await Promise.all([notes.load(), loadStats(id), getProgress(id), getNotes(id)])
+      const [, s, p, saved, meta] = await Promise.all([notes.load(), loadStats(id), getProgress(id), getNotes(id), getBookMeta(id)])
       stats.current = s
+      pace.setWords(meta?.words)
       if (!startCfi && p?.cfi && Date.now() - p.lastOpened >= RECAP_AFTER_MS) {
         recapDays.current = daysAway(p.lastOpened)
         const highlights = saved.filter((n) => n.kind === 'highlight' && n.text.trim())
         lastHighlight.current = highlights.reduce<(typeof highlights)[number] | undefined>((a, n) => (!a || n.createdAt > a.createdAt ? n : a), undefined)?.text ?? ''
       }
     },
-    load: (d) => attachDocHandlers(d, onKey),
+    load: (d) => {
+      pace.sample(d.doc, d.index)
+      attachDocHandlers(d, onKey)
+    },
     createOverlay: notes.drawAll,
     showAnnotation: (cfi) => {
       const n = notes.findByCfi(cfi)
@@ -190,12 +198,7 @@ export default function Reader({
       estimate.relocate(d)
       const f = d.fraction ?? 0
       tracker.relocate(d)
-      const view = viewRef.current
-      if (view && pace.current === null) {
-        const total = linearSizes(view.book?.sections ?? []).reduce((a, b) => a + b, 0)
-        pace.current = paceFromStats(stats.current, total) ?? loadPace()
-      }
-      setLeft(timeLeft(d.time, pace.current ?? loadPace(), d.section?.total ?? 1))
+      setLeft(timeLeft(d.time, pace.secsPerKB(bookStats()), d.section?.total ?? 1))
       if (recapDays.current && d.range) {
         const text = textBefore(d.range)
         if (text || lastHighlight.current) {
@@ -295,12 +298,12 @@ export default function Reader({
 
   const search = useBookSearch(viewRef, panel === 'search')
   const auto = useAutoRead({
-    id,
     viewRef,
     lastDetail,
     flow: settings.flow,
     paused: uiVisible || !!panel || !!selection,
     markActive: tracker.markActive,
+    estimate: () => pace.secsPerKB(bookStats()),
   })
   // search marks stay only while the search panel or the result stepper is open
   useEffect(() => {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ACTIVE_MS, createReadingTracker, FLUSH_TICKS, MAX_READ_STEP, SAVE_DELAY_MS, TICK_MS } from './readingTracker'
+import { ACTIVE_MS, createReadingTracker, FLUSH_TICKS, MAX_READ_STEP, MIN_ACTIVE_MS, SAVE_DELAY_MS, TICK_MS } from './readingTracker'
 
 function setup() {
   let t = 1_000_000
@@ -64,6 +64,25 @@ describe('reading tracker', () => {
     tracker.tick()
     tracker.flushStats()
     expect(saveStats).toHaveBeenCalledWith((2 * TICK_MS) / 1000, 0)
+  })
+
+  it("once the reader's page time is known, a phone left on counts only a few page times", () => {
+    const { tracker, saveStats, advance } = setup()
+    // a reader who turns a page every 10 s
+    for (let i = 0; i <= 5; i++) {
+      tracker.relocate({ fraction: 0.1 + i * 0.001 })
+      advance(10_000)
+    }
+    tracker.relocate({ fraction: 0.2 })
+    tracker.flushStats()
+    // then the phone is put down: ticks for the full old window
+    for (let i = 0; i < ACTIVE_MS / TICK_MS; i++) {
+      advance(TICK_MS)
+      tracker.tick()
+    }
+    tracker.flushStats()
+    // counted until the shortest window (three page times would be 30 s, below the floor)
+    expect(saveStats.mock.calls.reduce((a, c) => a + c[0], 0)).toBe(MIN_ACTIVE_MS / 1000 - TICK_MS / 1000)
   })
 
   it('writes stats every FLUSH_TICKS ticks and resets the counters', () => {
