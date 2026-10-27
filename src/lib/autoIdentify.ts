@@ -47,7 +47,7 @@ export interface PendingName {
 // the device and the book before and after; "14" (with a new waiting list, "13") again, without the series said twice,
 // a publisher taken for the author, or a fingerprint of another author's series
 const KEY = 'reader:identify:pending13'
-const OLD_KEYS = ['pending', 'backfill', 'pending2', 'backfill2', 'pending3', 'backfill3', 'pending4', 'backfill4', 'pending5', 'backfill5', 'pending6', 'backfill6', 'pending7', 'backfill7', 'pending8', 'backfill8', 'pending9', 'backfill9', 'pending10', 'backfill10', 'pending11', 'backfill11', 'pending12', 'backfill12', 'backfill13', 'backfill14'].map(
+const OLD_KEYS = ['pending', 'backfill', 'pending2', 'backfill2', 'pending3', 'backfill3', 'pending4', 'backfill4', 'pending5', 'backfill5', 'pending6', 'backfill6', 'pending7', 'backfill7', 'pending8', 'backfill8', 'pending9', 'backfill9', 'pending10', 'backfill10', 'pending11', 'backfill11', 'pending12', 'backfill12', 'backfill13', 'backfill14', 'backfill15'].map(
   (k) => `reader:identify:${k}`,
 )
 const listeners = new Set<() => void>()
@@ -95,7 +95,7 @@ function addPending(items: PendingName[]) {
   savePending([...loadPending().filter((p) => !ids.has(p.id)), ...items])
 }
 
-const BACKFILL = 'reader:identify:backfill15'
+const BACKFILL = 'reader:identify:backfill16'
 
 /** The books the one-time identification of the library still has to go through: all of `allIds` before it started,
  *  what is left after it was stopped, and undefined once it is done (or was cancelled). */
