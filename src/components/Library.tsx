@@ -44,12 +44,13 @@ import { PickBooksDialog } from './library/PickBooksDialog'
 import { wordsOfFile } from '../lib/wordCount'
 import { bookType, byLength, inResume, isFiltering, isStale, longestOf, NO_FILTER, typesOf, type LibraryFilter } from '../lib/libraryFilter'
 import { folderKey, groupFolders } from '../lib/folders'
+import { folderLinks } from '../lib/coAuthors'
 import { remainingText } from '../lib/formatDuration'
 import { BookGrid } from './library/BookGrid'
 import { readFoldersFirst, readListView, saveFoldersFirst, saveListView } from '../lib/listView'
 import { NoteHits } from './library/NoteHits'
 import { ResumeCarousel } from './library/ResumeCarousel'
-import { FolderBar, FolderList } from './library/FolderBar'
+import { FolderBar, FolderLinks, FolderList } from './library/FolderBar'
 import {
   ConfirmDeleteDialog,
   ConfirmDialog,
@@ -286,7 +287,7 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
     else if (reviewOpen) setReviewOpen(false)
     else if (finishedOpen) setFinishedOpen(false)
     else if (selecting) exitSelect()
-    else if (fo.openFolder !== undefined) fo.setOpenFolder(undefined)
+    else if (fo.openFolder !== undefined) fo.folderBack()
     else if (query || isFiltering(filter) || tag) {
       setQuery('')
       setFilter(NO_FILTER)
@@ -892,6 +893,8 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
         <FolderList
           folders={folders}
           loose={fo.loose}
+          linksOf={(f) => folderLinks(f, fo.allFolders, fo.loose)}
+          onFollow={fo.followFolder}
           bookActions={{
             onOpen,
             onEdit: openEdit,
@@ -918,6 +921,9 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
               onDelete={() => fo.deleteFolders([current])}
               onShare={() => shareList(current.books)}
             />
+          )}
+          {current && !searching && (
+            <FolderLinks links={folderLinks(current, fo.allFolders, fo.loose)} onFolder={fo.followFolder} onBook={onOpen} />
           )}
           {current && !current.books.length && !searching && (
             <div className="empty"><p>{t('lib.folderEmpty')}</p></div>

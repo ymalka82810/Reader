@@ -41,6 +41,8 @@ import { getBookMeta, getNotes, getProgress, listBooks, setFinished, setRating, 
 import { timeLeft } from '../lib/readTime'
 import { daysAway, RECAP_AFTER_MS, textBefore } from '../lib/recap'
 import { nextInSeries, type SeriesPlace } from '../lib/nextInSeries'
+import { moreByAuthors, type FolderLink } from '../lib/coAuthors'
+import { openFolderNext } from '../hooks/useFolders'
 import { EndPanel, RecapPanel, type Recap } from './reader/EndRecapPanels'
 import { getLocale, isRtl, t } from '../i18n'
 import { customFontFace, customFontUrl, loadCustomFont, releaseCustomFontUrl, type CustomFont } from '../lib/customFont'
@@ -117,7 +119,7 @@ export default function Reader({
   const lastHighlight = useRef('')
   const [recap, setRecap] = useState<Recap | null>(null)
   /** what the end-of-book panel shows: the read mark and where the book sits in its series */
-  const [end, setEnd] = useState<{ finished: boolean; rating: number; readPct?: number; place?: SeriesPlace } | null>(null)
+  const [end, setEnd] = useState<{ finished: boolean; rating: number; readPct?: number; place?: SeriesPlace; more?: FolderLink[] } | null>(null)
   /** the book's stats as they were when it was opened; what is read now comes from the tracker's session */
   const stats = useRef<Stats>({ secs: 0, frac: 0 })
   const actions = useRef<KeyActions>({
@@ -247,7 +249,7 @@ export default function Reader({
       // read means most of the book was actually read, not only that its end was reached
       const read = unionRanges(me?.read, tracker.readRanges())
       const finished = me ? (me.finished ?? readThrough(Math.max(me.fraction ?? 0, fractionRef.current), read)) : true
-      setEnd({ finished, rating: me?.rating ?? 0, readPct: Math.round(coveredBefore(read) * 100), place: me ? nextInSeries(me, books) : undefined })
+      setEnd({ finished, rating: me?.rating ?? 0, readPct: Math.round(coveredBefore(read) * 100), place: me ? nextInSeries(me, books) : undefined, more: me ? moreByAuthors(me, books) : [] })
       // the day the end was reached is the day it was finished, for "the books I finished this year"
       if (finished) void stampFinished(id).catch(console.error)
     } catch (e) {
@@ -784,6 +786,12 @@ export default function Reader({
           rating={end.rating}
           readPct={end.readPct}
           place={end.place}
+          more={end.more}
+          onMore={(l) => {
+            if (l.book && onOpenBook) return onOpenBook(l.book)
+            openFolderNext(l.key)
+            close()
+          }}
           onRate={(r) => {
             setEnd((e) => e && { ...e, rating: r })
             void setRating(id, r).catch(console.error)

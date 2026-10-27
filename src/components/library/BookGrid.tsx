@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { useBackGesture } from '../../hooks/useBackGesture'
 import { isFinished, setFinished, type BookMeta } from '../../lib/db'
 import { isKeptPdf } from '../../lib/pdfOcr'
@@ -22,10 +22,10 @@ export type BookActions = {
   refresh: () => void
 }
 
-type CardProps = BookActions & { book: BookMeta; picked: boolean }
+type CardProps = BookActions & { book: BookMeta; picked: boolean; /** shown under the card (links to the author's shared books) */ extra?: ReactNode }
 
 /** one book's card with its "⋯" actions menu */
-export function BookCard({ book: b, picked, selecting, onOpen, onToggle, onEdit, onMove, onDownload, onShare, onOcr, onDelete, refresh }: CardProps) {
+export function BookCard({ book: b, picked, extra, selecting, onOpen, onToggle, onEdit, onMove, onDownload, onShare, onOcr, onDelete, refresh }: CardProps) {
   const [menu, setMenu] = useState(false)
   // the phone's back swipe closes the open menu first
   useBackGesture(() => setMenu(false), 3, menu)
@@ -58,6 +58,7 @@ export function BookCard({ book: b, picked, selecting, onOpen, onToggle, onEdit,
           {!!b.tags?.length && <small className="tags">{b.tags.map((n) => `#${n}`).join(' ')}</small>}
         </div>
       </button>
+      {extra}
       {selecting ? (
         <span className="sel-mark" aria-hidden="true">{picked ? '☑' : '☐'}</span>
       ) : (

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { addFolderName, removeFolderName, renameFolder, setFolder, type BookMeta } from '../lib/db'
 import { autoSyncPhoneNames } from '../lib/phoneFiles'
 import { folderKey, folderToStore, groupFolders, sortFolders, type Folder, type FolderSort } from '../lib/folders'
@@ -25,16 +25,31 @@ type Deps = {
 
 const FOLDER_KEY = 'reader:folder'
 
+/** the folder the library opens in next time it is shown (from the end of a book: "more by this author") */
+export const openFolderNext = (key: string) => sessionStorage.setItem(FOLDER_KEY, key)
+
 /** folder grouping, the folder being viewed, and moving books between folders */
 export function useFolders({ books, shown, createdNames, searching, refresh, showToast, exitSelect, deleteBooks, confirm, sort, foldersFirst }: Deps) {
   // the folder being viewed (its key; '' = books without an author) and the books being moved
   // kept for the session: opening a book unmounts the library, and back from the book returns to this folder
   const [openFolder, setOpenFolderState] = useState<string | undefined>(() => sessionStorage.getItem(FOLDER_KEY) ?? undefined)
-  const setOpenFolder = (key: string | undefined) => {
+  const show = (key: string | undefined) => {
     if (key === undefined) sessionStorage.removeItem(FOLDER_KEY)
     else sessionStorage.setItem(FOLDER_KEY, key)
     setOpenFolderState(key)
   }
+  // the folders left by following a link between a shared folder and its authors, so back returns to each in turn
+  const trail = useRef<string[]>([])
+  const setOpenFolder = (key: string | undefined) => {
+    trail.current = []
+    show(key)
+  }
+  const followFolder = (key: string) => {
+    if (openFolder !== undefined) trail.current.push(openFolder)
+    show(key)
+  }
+  /** one step back: the folder a link was followed from, else the folder list */
+  const folderBack = () => show(trail.current.pop())
   const [moving, setMoving] = useState<BookMeta[]>()
   const [newFolder, setNewFolder] = useState('')
   // creating a folder, or renaming the one being viewed (name typed so far; `author`: its books take the new name as author)
@@ -123,7 +138,7 @@ export function useFolders({ books, shown, createdNames, searching, refresh, sho
   }
 
   return {
-    allFolders, folders, loose, current, openFolder, setOpenFolder,
+    allFolders, folders, loose, current, openFolder, setOpenFolder, followFolder, folderBack,
     moving, setMoving, newFolder, setNewFolder,
     folderDialog, setFolderDialog, moveTo, saveFolderDialog, deleteFolders,
   }
