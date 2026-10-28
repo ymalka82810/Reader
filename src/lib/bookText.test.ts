@@ -71,6 +71,20 @@ describe('epubDetails', () => {
     expect(got.opening).toEqual(['שורה'])
     expect(got.meta?.title).toBe('שם')
   })
+
+  it("reads the file's make: its generator, style sheet and the shape of its parts", async () => {
+    const zip = new JSZip()
+    zip.file('META-INF/container.xml', '<container><rootfiles><rootfile full-path="OEBPS/content.opf"/></rootfiles></container>')
+    zip.file(
+      'OEBPS/content.opf',
+      '<package><metadata><dc:title>שם</dc:title><meta name="generator" content="calibre (7.1)"/></metadata><manifest><item id="x1" href="Text/ch01.xhtml" media-type="application/xhtml+xml"/><item id="css" href="style.css" media-type="text/css"/></manifest><spine><itemref idref="x1"/></spine></package>',
+    )
+    zip.file('OEBPS/Text/ch01.xhtml', '<html><body><p>שורה</p></body></html>')
+    zip.file('OEBPS/style.css', 'body { margin: 0; padding: 0; text-align: right }')
+    const got = await epubDetails(await zip.generateAsync({ type: 'blob' }))
+    expect(got.meta?.make).toEqual(expect.arrayContaining(['g:calibre 7.1', 'm:text/ch#.xhtml|x#']))
+    expect(got.meta?.make?.some((k) => k.startsWith('c:'))).toBe(true)
+  })
 })
 
 describe('coverHref', () => {

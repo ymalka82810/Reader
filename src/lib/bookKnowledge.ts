@@ -81,6 +81,15 @@ export function rememberWork(series: string, number: string, title: string, auth
   keep([...kept, list])
 }
 
+// a title kept from the lists given out while a book is identified as if it were new (blindTest): the name the user
+// gave it is saved among the library's names, and would otherwise give the answer away
+let hidden: string | undefined
+
+/** hides a book's own title from the library's lists (undefined shows it again); nothing kept is changed */
+export function hideTitle(title?: string) {
+  hidden = title ? norm(title) || undefined : undefined
+}
+
 /** keeps a name saved in the library, when it is a series' book with a number and a title of its own */
 export function rememberName(name: string, author = '') {
   const g = guessBookName(tidyBookName(name))
@@ -92,7 +101,9 @@ export function rememberName(name: string, author = '') {
 /** the lists that may hold a book of this author (any, with no author), from where `from` says (anywhere by default);
  *  Wikidata's lists include the series that come with the app (seriesDb), which with no author need the `title` */
 export function listsOf(author: string, from?: (From | undefined)[], title?: string): KeptList[] {
-  const kept = keptLists().filter((l) => sameAuthor(l.author, author) && (!from || from.includes(l.from)))
+  const kept = keptLists()
+    .filter((l) => sameAuthor(l.author, author) && (!from || from.includes(l.from)))
+    .map((l) => (hidden && l.from === 'library' ? { ...l, books: l.books.filter((b) => norm(b.title) !== hidden) } : l))
   return !from || from.includes('wikidata') ? [...kept, ...bundledLists(author, title ?? '')] : kept
 }
 

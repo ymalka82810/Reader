@@ -679,6 +679,66 @@ describe('asLibrarySeries / withoutSeries', () => {
       expect(r.sure).toBeUndefined()
     })
 
+    it('is not sure when another reading of the book is near it (the second hypothesis), and says which', async () => {
+      const own = [{ series: 'עולם אחר', books: [{ title: 'מגדל הזהב', number: '5' }] }]
+      const meta = { lists: own, title: '', authors: [], series: '', number: '', identifiers: [] }
+      const r = await identifyBook({ ...book, title: 'עולם אחר 5 - מגדל הזהב' }, false, undefined, opening, meta, library())
+      expect(formatBookName(r)).toBe('עולם אחר 5 - מגדל הזהב')
+      expect(r.evidence).toEqual(expect.arrayContaining(['name', 'list']))
+      // the copyright page puts it in the library's מגיסטריום: one source against two, too near to save it alone
+      expect(r.rival).toBe('מגיסטריום 5 - מגדל הזהב')
+      expect(r.sure).toBeUndefined()
+    })
+
+    it('stays sure when the other readings have no clue of their own', async () => {
+      const meta = { lists, title: '', authors: [], series: '', number: '', identifiers: [] }
+      // the title page numbers it 4, but no clue says so
+      const r = await identifyBook(book, false, undefined, [...opening, 'הספר הרביעי בסדרה'], meta, library())
+      expect(formatBookName(r)).toBe('מגיסטריום 5 - מגדל הזהב')
+      expect(r.rival).toBeUndefined()
+      expect(r.sure).toBe(true)
+    })
+
+    it("speaks weakly against a book from before the author's years (the timeline), and stays sure", async () => {
+      const lib = libraryNames(['א', 'ב', 'ג'].map((t, i) => ({ id: `t${i}`, title: t, author: 'הולי בלק וקסנדרה קלייר', kind: 'epub' })))
+      localStorage.setItem('reader:book-facts', JSON.stringify({ t0: { year: 2030 }, t1: { year: 2032 }, t2: { year: 2035 } }))
+      const meta = { lists, title: '', authors: [], series: '', number: '', identifiers: [] }
+      const r = await identifyBook(book, false, undefined, opening, meta, lib)
+      expect(r.conflicts).toContain('timeline')
+      expect(r.sure).toBe(true)
+      localStorage.removeItem('reader:book-facts')
+    })
+
+    it('gives a book with no author the one author whose translator, publisher and years it shares', async () => {
+      const lib = libraryNames([
+        { id: 'd0', title: 'ספר ראשון', author: 'דנה כהן', kind: 'epub' },
+        { id: 'd1', title: 'ספר שני', author: 'דנה כהן', kind: 'epub' },
+        { id: 'e0', title: 'ספר אחר', author: 'אלי לוי', kind: 'epub' },
+      ])
+      const house = ['t:רון לוי', 'p:כנרת']
+      localStorage.setItem('reader:book-facts', JSON.stringify({ d0: { year: 2010, house }, d1: { year: 2014, house }, e0: { year: 2012, house: ['p:כנרת'] } }))
+      const pages = ['ספר שלישי', 'תרגום מאנגלית: רון לוי', 'הוצאת כנרת', 'Copyright © 2012']
+      const r = await identifyBook({ title: 'ספר שלישי', author: '', fileName: 'x.epub' }, false, undefined, pages, undefined, lib)
+      expect(r.author).toBe('דנה כהן')
+      expect(r.evidence).toContain('timeline')
+      expect(r.sure).toBeUndefined()
+      localStorage.removeItem('reader:book-facts')
+    })
+
+    it("agrees when the book's file was made the way the series' files were, and that is rare in the library", async () => {
+      const ids = ['m0', 'm1', ...Array.from({ length: 20 }, (_, i) => `o${i}`)]
+      const lib = libraryNames([
+        { id: 'm0', title: 'מגיסטריום 1 - מבחן הברזל', author: 'הולי בלק וקסנדרה קלייר', kind: 'epub' },
+        { id: 'm1', title: 'מגיסטריום 2 - יד הנחושת', author: 'הולי בלק וקסנדרה קלייר', kind: 'epub' },
+      ])
+      const make = (id: string) => (id.startsWith('m') ? ['c:0badc0de', 'g:converter'] : ['g:converter'])
+      localStorage.setItem('reader:book-facts', JSON.stringify(Object.fromEntries(ids.map((id) => [id, { year: null, n: null, words: [], house: [], make: make(id) }]))))
+      const meta = { lists, title: '', authors: [], series: '', number: '', identifiers: [], make: ['c:0badc0de', 'g:converter'] }
+      const r = await identifyBook(book, false, undefined, opening, meta, lib)
+      expect(r.evidence).toContain('make')
+      localStorage.removeItem('reader:book-facts')
+    })
+
     it('speaks against a number the library already has for another book', async () => {
       const lib = libraryNames([{ title: 'מגיסטריום 5 - ספר אחר', author: 'הולי בלק וקסנדרה קלייר' }])
       const r = await identifyBook(book, false, undefined, opening, undefined, lib)

@@ -5,6 +5,7 @@
 import type { BookMeta } from './db'
 import { getFile } from './db'
 import { seriesLists, sequels, wordsIn, type SeriesList } from './bookInference'
+import { makeOf, pdfMake } from './fileMake'
 
 /** how much of the book is read: enough for the half-title, the title page and the copyright page */
 const SECTIONS = 6
@@ -74,6 +75,8 @@ export interface EpubMeta {
   cover?: { largest?: string; lines: string[] }
   /** the cover's print (its layout and colours; seriesLinks' coverPrint): what the series' covers share */
   print?: string
+  /** how the file was made (fileMake's makeOf, pdfMake): what the files of one series share */
+  make?: string[]
   title: string
   authors: string[]
   series: string
@@ -192,27 +195,32 @@ export async function epubDetails(file: Blob, signal?: AbortSignal): Promise<{ o
   if (letters(lines) < MIN_LETTERS) lines.push(...(await coverLines(zip, opf, base, signal)))
   // the chapters after the opening, for the names the story repeats
   const story: string[] = []
+  // and the first line of each, how its chapters are headed (the file's make)
+  const heads: string[] = []
   for (const id of spine.slice(SECTIONS, SECTIONS + NAME_SECTIONS)) {
     signal?.throwIfAborted()
     const html = await zip.file(base + decodeURIComponent(hrefs.get(id)!.split('#')[0]!))?.async('string')
-    if (html) story.push(...htmlLines(html))
+    const text = html ? htmlLines(html) : []
+    story.push(...text)
+    if (text[0]) heads.push(text[0])
     if (story.length >= NAME_LINES) break
   }
+  const make = await makeOfZip(zip, opf, base, heads)
   const words = wordsIn([...lines, ...story].slice(0, MAX_LINES + NAME_LINES))
   const names = words.slice(0, 20)
   // the last sections, where the other books of the series are often listed
   const end: string[] = []
-  const heads: string[] = []
+  const teasers: string[] = []
   const last = spine.slice(Math.max(SECTIONS, spine.length - Math.max(END_SECTIONS, TEASER_SECTIONS)))
   for (const [i, id] of last.entries()) {
     const html = await zip.file(base + decodeURIComponent(hrefs.get(id)!.split('#')[0]!))?.async('string')
     if (!html) continue
     const text = htmlLines(html)
-    heads.push(...text.slice(0, TEASER_LINES))
+    teasers.push(...text.slice(0, TEASER_LINES))
     if (i >= last.length - END_SECTIONS) end.push(...text.slice(-END_LINES))
   }
   const lists = seriesLists([...lines, ...end])
-  const { next, prev } = sequels(lines, [...heads, ...end])
+  const { next, prev } = sequels(lines, [...teasers, ...end])
   return {
     opening: lines.slice(0, MAX_LINES),
     meta: {
@@ -221,7 +229,23 @@ export async function epubDetails(file: Blob, signal?: AbortSignal): Promise<{ o
       ...(lists.length && { lists }),
       ...(next.length && { next }),
       ...(prev.length && { prev }),
+      ...(make.length && { make }),
     },
+  }
+}
+
+/** the EPUB's make (fileMake): its package, three of its style sheets, its fonts' names, its NCX and its chapter heads */
+async function makeOfZip(zip: { file(path: string): { async(type: 'string'): Promise<string> } | null }, opf: string, base: string, heads: string[]) {
+  try {
+    const items = (opf.match(/<item\b[^>]*>/gi) ?? []).map((i) => ({ href: attr(i, 'href') ?? '', type: (attr(i, 'media-type') ?? '').toLowerCase() }))
+    const read = async (href: string) => (await zip.file(base + decodeURIComponent(href.split('#')[0]!))?.async('string')) ?? ''
+    const css = await Promise.all(items.filter((i) => i.type === 'text/css').slice(0, 3).map((i) => read(i.href)))
+    const fonts = items.filter((i) => /font|opentype|truetype/.test(i.type) || /\.(?:ttf|otf|woff2?)$/i.test(i.href)).map((i) => i.href)
+    const ncxItem = items.find((i) => i.type === 'application/x-dtbncx+xml')
+    const ncx = ncxItem ? await read(ncxItem.href) : undefined
+    return makeOf({ opf, css: css.filter((c) => c.length < 200_000), fonts, ...(ncx && { ncx }), heads })
+  } catch {
+    return [] // an unreadable part says nothing of the make
   }
 }
 
@@ -271,6 +295,7 @@ async function pdfOpening(
   lists?: SeriesList[]
   next?: string[]
   prev?: string[]
+  make?: string[]
 }> {
   const [pdfjs, { default: workerUrl }, layout, { visualOrder, fixLine }] = await Promise.all([
     import('pdfjs-dist/legacy/build/pdf.mjs'),
@@ -282,6 +307,8 @@ async function pdfOpening(
   const task = pdfjs.getDocument({ data: await file.arrayBuffer(), wasmUrl: new URL('pdfjs-wasm/', document.baseURI).href })
   try {
     const pdf = await task.promise
+    // the tools that made it (its producer and creator): the file's make
+    const make = pdfMake(((await pdf.getMetadata().catch(() => null))?.info ?? {}) as Record<string, unknown>)
     const pages: Awaited<ReturnType<typeof layout.buildLines>>[] = []
     for (let i = 1; i <= Math.min(PAGES, pdf.numPages); i++) {
       signal?.throwIfAborted()
@@ -292,7 +319,7 @@ async function pdfOpening(
     const order = visualOrder(pages)
     const lines = pages.flat().map((l) => fixLine(l.text, order)).slice(0, MAX_LINES)
     // a scan has no text layer: the first pages are drawn and read by OCR
-    if (letters(lines) < MIN_LETTERS) return { opening: await scannedOpening(pdf, signal) }
+    if (letters(lines) < MIN_LETTERS) return { opening: await scannedOpening(pdf, signal), make }
     // the first and last lines of the pages further in, for a running head, and all their lines for the names
     const ends: string[][] = []
     const story: string[] = []
@@ -322,6 +349,7 @@ async function pdfOpening(
       lists: seriesLists([...lines, ...end.slice(-END_LINES)]),
       ...(next.length && { next }),
       ...(prev.length && { prev }),
+      make,
     }
   } finally {
     void task.destroy().catch(() => {})
@@ -336,12 +364,13 @@ export async function bookDetails(b: Pick<BookMeta, 'id' | 'kind'>, signal?: Abo
     const file = await getFile(b.id)
     if (!file) return { opening: [] }
     if (b.kind === 'epub') return await epubDetails(file, signal)
-    const { opening, running, names, words, lists, next, prev } = await pdfOpening(file, signal)
-    return running?.length || names?.length || lists?.length || next?.length || prev?.length
+    const { opening, running, names, words, lists, next, prev, make } = await pdfOpening(file, signal)
+    return running?.length || names?.length || lists?.length || next?.length || prev?.length || make?.length
       ? {
           opening,
           meta: {
             ...(running?.length && { running }),
+            ...(make?.length && { make }),
             ...(names?.length && { names, words }),
             ...(lists?.length && { lists }),
             ...(next?.length && { next }),

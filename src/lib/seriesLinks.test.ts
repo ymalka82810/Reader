@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { debutGaps, debutVerdict, designVerdict, houseOf, houseVerdict, jointVerdict, placeSeries, printDistance, printOf, type Placed } from './seriesLinks'
+import { debutGaps, debutVerdict, designVerdict, houseOf, houseVerdict, jointVerdict, lengthVerdict, lengthWorks, placeSeries, printDistance, printOf, type Placed } from './seriesLinks'
 
 describe('houseOf', () => {
   it('reads the translator, the publisher and the ISBN block of a copyright page', () => {
@@ -100,5 +100,28 @@ describe('placeSeries', () => {
     const books: Placed[] = [{ id: 'a', number: 2, anchored: true }, { id: 'me', own: 2 }]
     expect(placeSeries(books, 'me', { total: 3 })?.number).not.toBe(2)
     expect(jointVerdict([{ id: 'a', number: 1, anchored: true }, { id: 'me' }], 'me', 2, { total: 3 })).toBeUndefined()
+  })
+})
+
+describe('the length along the series', () => {
+  // a series that grows longer book by book
+  const growing = [60, 70, 82, 95, 110].map((k, i) => ({ number: i + 1, words: k * 1000 }))
+
+  it('knows whether length follows the order in a series', () => {
+    expect(lengthWorks(growing)).toBe(true)
+    expect(lengthWorks([60, 120, 55, 130, 58].map((k, i) => ({ number: i + 1, words: k * 1000 })))).toBe(false)
+    expect(lengthWorks(growing.slice(0, 3))).toBe(false)
+  })
+
+  it('agrees with a number whose place the length fits, and with no other', () => {
+    const rest = growing.filter((b) => b.number !== 3)
+    expect(lengthVerdict(rest, 3, 81_000)).toBe('agree')
+    expect(lengthVerdict(rest, 5, 81_000)).toBeUndefined()
+    expect(lengthVerdict(rest, 3, undefined)).toBeUndefined()
+  })
+
+  it('places a book with no number by its length, where length follows the order', () => {
+    const books: Placed[] = [...growing.filter((b) => b.number !== 4).map((b) => ({ id: `b${b.number}`, number: b.number, anchored: true, length: b.words })), { id: 'x', length: 96_000 }]
+    expect(placeSeries(books, 'x', { total: 5 })?.number).toBe(4)
   })
 })
