@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bookNumber, copyrightYear, inLists, namesIn, originalTitle, seriesByNames, seriesByWords, sequels, seriesLists, librarySeriesFor, numberByGaps, yearsVerdict, originalSeries, originalSeriesName, soundOf, titleCase } from './bookInference'
+import { bookNumber, copyrightYear, inLists, namesIn, originalTitle, seriesByNames, seriesByWords, sequels, seriesLists, librarySeriesFor, numberByGaps, numberByRhythm, numberedByRhythm, rhythmVerdict, yearsVerdict, originalSeries, originalSeriesName, soundOf, titleCase } from './bookInference'
 import { norm } from './sameBook'
 
 describe('soundOf', () => {
@@ -299,5 +299,37 @@ describe('yearsVerdict', () => {
     expect(yearsVerdict(books, 5, 2020)).toBeUndefined() // nothing after it
     expect(yearsVerdict(books, 3)).toBeUndefined()
     expect(yearsVerdict([{ number: 1 }, { number: 4 }], 3, 2016)).toBeUndefined()
+  })
+})
+
+describe('the series\' pace', () => {
+  const run = (from: number, years: number[]) => years.map((year, i) => ({ number: from + i, year }))
+  it('gives the next number to a book of the year after a run of three or more', () => {
+    expect(numberByRhythm(run(1, [2014, 2015, 2016]), 2017)).toBe(4)
+    expect(numberByRhythm(run(1, [2014, 2015, 2016, 2017, 2018]), 2019)).toBe(6)
+    // and the one before, to a book of the year before the run
+    expect(numberByRhythm(run(2, [2015, 2016, 2017]), 2014)).toBe(1)
+  })
+  it('gives none for a run of two, a year off the run, or a year another book has', () => {
+    expect(numberByRhythm(run(1, [2014, 2015]), 2016)).toBeUndefined()
+    expect(numberByRhythm(run(1, [2014, 2015, 2016]), 2018)).toBeUndefined()
+    expect(numberByRhythm(run(1, [2014, 2015, 2016]), 2016)).toBeUndefined()
+    expect(numberByRhythm([...run(1, [2014, 2015, 2016]), { number: 4, year: 2019 }], 2017)).toBeUndefined() // 4 is taken
+    // a run broken by a year skipped is no run
+    expect(numberByRhythm(run(1, [2014, 2015, 2017]), 2018)).toBeUndefined()
+  })
+  it('numbers the unnumbered books of a run by a numbered one in it', () => {
+    const books = [{ number: 0, year: 2014 }, { number: 2, year: 2015 }, { number: 0, year: 2016 }]
+    expect(numberedByRhythm(books).map((b) => b.number)).toEqual([1, 2, 3])
+    expect(numberByRhythm(books, 2017)).toBe(4)
+    // no numbered book in the run: where it starts is not known
+    expect(numberedByRhythm([{ number: 0, year: 2014 }, { number: 0, year: 2015 }, { number: 0, year: 2016 }]).map((b) => b.number)).toEqual([0, 0, 0])
+    // numbered books that do not agree with a run of one a year: none is numbered by it
+    expect(numberedByRhythm([{ number: 1, year: 2014 }, { number: 0, year: 2015 }, { number: 4, year: 2016 }]).map((b) => b.number)).toEqual([1, 0, 4])
+  })
+  it('cross-checks a number found otherwise (read in the book) with the pace', () => {
+    expect(rhythmVerdict(run(1, [2014, 2015, 2016]), 4, 2017)).toBe('agree')
+    expect(rhythmVerdict(run(1, [2014, 2015, 2016]), 3, 2017)).toBe('against')
+    expect(rhythmVerdict(run(1, [2014, 2015]), 3, 2016)).toBeUndefined()
   })
 })

@@ -707,6 +707,22 @@ describe('asLibrarySeries / withoutSeries', () => {
     expect(r.conflicts).toBeUndefined()
   })
 
+  it('cross-checks the number a book gives itself with the series\' pace', async () => {
+    const library = libraryNames([
+      { title: 'מגיסטריום 1 - מבחן הברזל', author: 'הולי בלק וקסנדרה קלייר', id: 'b1', kind: 'pdf' },
+      { title: 'מגיסטריום 2 - יד הנחושת', author: 'הולי בלק וקסנדרה קלייר', id: 'b2', kind: 'pdf' },
+      { title: 'מגיסטריום 3 - מפתח הארד', author: 'הולי בלק וקסנדרה קלייר', id: 'b3', kind: 'pdf' },
+    ])
+    localStorage.setItem('reader:book-facts', JSON.stringify({ b1: { year: 2014, n: 1 }, b2: { year: 2015, n: 2 }, b3: { year: 2016, n: 3 } }))
+    const book = (n: number) => ({ title: `מגיסטריום ${n} - מסכת הכסף`, author: 'הולי בלק וקסנדרה קלייר', fileName: 'x.pdf' })
+    const opening = ['Copyright © 2017 by Holly Black and Cassandra Clare LLC']
+    const right = await identifyBook(book(4), false, undefined, opening, undefined, library)
+    expect(right.evidence).toContain('rhythm')
+    const wrong = await identifyBook(book(5), false, undefined, opening, undefined, library)
+    expect(wrong.conflicts).toContain('rhythm')
+    expect(wrong.sure).toBeUndefined()
+  })
+
   it('numbers a book of a series by its original title on Wikidata', async () => {
     const library = libraryNames([{ title: 'פרויקט X 1 - פרויקט X', author: 'גרג הורביץ', id: 'x1', kind: 'epub' }])
     const names = (ws: string[]): [string, number][] => ws.map((w, i) => [w, 50 - i])

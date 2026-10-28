@@ -16,8 +16,8 @@ export interface BenchCase {
   /** the name the book should get; a part left out is not checked */
   expect: { series?: string; number?: string; title?: string; author?: string }
   /** other books the library has (their names in the template), when the case depends on them; `year`: the year its
-   *  copyright page gives (as if the identification had read it already) */
-  library?: { title: string; author?: string; year?: number }[]
+   *  copyright page gives, `n`: the number its own pages give (both as if the identification had read them already) */
+  library?: { title: string; author?: string; year?: number; n?: number }[]
   /** the series database the case runs with (none otherwise) */
   seriesDb?: SeriesEntry[]
 }
@@ -57,7 +57,7 @@ export async function runBench(cases: BenchCase[]): Promise<BenchResult> {
     setSeriesDb(c.seriesDb ?? [])
     // the library's books, each with an id, and the years their copyright pages give kept as if read already
     const books = (c.library ?? []).map((x, i) => ({ ...x, id: `bench-${i}`, kind: 'epub' }))
-    const years = Object.fromEntries(books.filter((x) => x.year).map((x) => [x.id, { year: x.year, words: [] }]))
+    const years = Object.fromEntries(books.filter((x) => x.year || x.n).map((x) => [x.id, { year: x.year ?? null, n: x.n ?? null, words: [] }]))
     if (Object.keys(years).length) localStorage.setItem('reader:book-facts', JSON.stringify(years))
     const library = books.length ? libraryNames(books) : undefined
     const r = await identifyBook(c.input, false, undefined, c.input.opening ?? [], c.input.meta, library)
