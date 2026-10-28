@@ -102,7 +102,7 @@ select { font: inherit; padding: .4rem .6rem; border-radius: var(--radius-lg); b
 .book-loader .bl-icon { position: relative; width: var(--bl-size); aspect-ratio: 1; border-radius: 22%; overflow: hidden; box-shadow: var(--shadow-md), 0 0 0 1px rgba(255,255,255,.06); }
 .book-loader .bl-icon > svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .book-loader .bl-book { position: absolute; inset: 0; perspective: 900px; }
-.book-loader .bl-leaf { position: absolute; left: 21.296%; top: 25.463%; width: 28.704%; height: 50.926%; transform-origin: 100% 50%; transform-style: preserve-3d; animation: bl-flip 4.5s cubic-bezier(.45,.05,.35,1) infinite; }
+.book-loader .bl-leaf { position: absolute; left: 21.296%; top: 22.222%; width: 28.704%; height: 50.926%; transform-origin: 100% 50%; transform-style: preserve-3d; animation: bl-flip 4.5s cubic-bezier(.45,.05,.35,1) infinite; }
 .book-loader .bl-leaf:nth-child(2), .book-loader .bl-leaf:nth-child(2) .bl-face, .book-loader .bl-leaf:nth-child(2) .bl-face::after { animation-delay: 1.5s; }
 .book-loader .bl-leaf:nth-child(3), .book-loader .bl-leaf:nth-child(3) .bl-face, .book-loader .bl-leaf:nth-child(3) .bl-face::after { animation-delay: 3s; }
 .book-loader .bl-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; animation: bl-fade 4.5s linear infinite; }
