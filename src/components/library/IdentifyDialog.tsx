@@ -24,6 +24,8 @@ type Suggestion = NameChange & {
   edited?: boolean
   evidence?: Clue[]
   conflicts?: Clue[]
+  /** the second hypothesis: the best other reading of the book, near enough to this name to ask */
+  rival?: string
 }
 
 /** Identifies the books one after another and offers the new names; only the ticked ones are saved. With `waiting`,
@@ -57,6 +59,7 @@ export function IdentifyDialog({
         sites: w.sites,
         evidence: w.evidence,
         conflicts: w.conflicts,
+        rival: w.rival,
         fromText: w.source === 'text',
         fromMeta: w.source === 'meta',
         // a name a clue speaks against is offered unchecked: the user picks it on purpose
@@ -83,7 +86,7 @@ export function IdentifyDialog({
         const title = r && formatBookName(r)
         const author = r?.author ?? ''
         if (r && title && (!isJunkTitle(r.title) || (r.series && r.number)) && (title !== b.title || author !== (b.author ?? '').trim())) {
-          setFound((f) => [...f, { id: b.id, title, author, was: b.title, online: r.online, sites: r.sites, fromText: !!r.fromText, fromMeta: !!r.fromMeta, evidence: r.evidence, conflicts: r.conflicts, pick: !r.conflicts?.length }])
+          setFound((f) => [...f, { id: b.id, title, author, was: b.title, online: r.online, sites: r.sites, fromText: !!r.fromText, fromMeta: !!r.fromMeta, evidence: r.evidence, conflicts: r.conflicts, rival: r.rival, pick: !r.conflicts?.length }])
         }
         setAnswers(structuredClone(catalogStats()))
         setDone((n) => n + 1)
@@ -171,6 +174,7 @@ export function IdentifyDialog({
                         </small>
                         {f.evidence?.length ? <small className="muted">{t('identify.evidence', { list: clues(f.evidence) })}</small> : null}
                         {f.conflicts?.length ? <small className="identify-conflicts">{t('identify.conflicts', { list: clues(f.conflicts) })}</small> : null}
+                        {!f.edited && f.rival ? <small className="muted">{t('identify.rival', { name: f.rival })}</small> : null}
                         {!f.edited && ready && (f.evidence?.length || f.conflicts?.length) ? (
                           <small className="muted">{t('identify.confidence', { p: Math.round(predict(f.evidence, f.conflicts) * 100) })}</small>
                         ) : null}

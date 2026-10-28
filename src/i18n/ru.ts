@@ -251,6 +251,7 @@ export const ru: Record<keyof typeof he, Message> = {
   'identify.statNetwork': { one: 'не ответил {n} раз', few: 'не ответил {n} раза', many: 'не ответил {n} раз', other: 'не ответил {n} раза' },
   'identify.evidence': 'Согласны: {list}',
   'identify.conflicts': 'Не согласны: {list}',
+  'identify.rival': "Близкая вторая версия: {name}",
   'identify.clue.name': 'имя файла',
   'identify.clue.meta': 'данные файла',
   'identify.clue.copyright': 'страница с авторскими правами',

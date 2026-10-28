@@ -249,6 +249,7 @@ export const he = {
   'identify.fromText': 'מתוך הספר',
   'identify.evidence': 'מאשרים: {list}',
   'identify.conflicts': 'סותרים: {list}',
+  'identify.rival': "השערה שנייה קרובה: {name}",
   'identify.clue.name': 'שם הקובץ',
   'identify.clue.meta': 'פרטי הקובץ',
   'identify.clue.copyright': 'עמוד הזכויות',

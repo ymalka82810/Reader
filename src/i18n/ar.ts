@@ -253,6 +253,7 @@ export const ar: Record<keyof typeof he, Message> = {
   'identify.statNetwork': { one: 'لم يستجب مرة واحدة', two: 'لم يستجب مرتين', few: 'لم يستجب {n} مرات', many: 'لم يستجب {n} مرة', other: 'لم يستجب {n} مرة' },
   'identify.evidence': 'متفقة: {list}',
   'identify.conflicts': 'مختلفة: {list}',
+  'identify.rival': "قراءة ثانية قريبة: {name}",
   'identify.clue.name': 'اسم الملف',
   'identify.clue.meta': 'تفاصيل الملف',
   'identify.clue.copyright': 'صفحة حقوق النشر',

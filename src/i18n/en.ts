@@ -250,6 +250,7 @@ export const en: Record<keyof typeof he, Message> = {
   'identify.statNetwork': { one: 'did not answer once', other: 'did not answer {n} times' },
   'identify.evidence': 'Agree: {list}',
   'identify.conflicts': 'Disagree: {list}',
+  'identify.rival': "A close second reading: {name}",
   'identify.clue.name': 'the file name',
   'identify.clue.meta': 'the file details',
   'identify.clue.copyright': 'the copyright page',

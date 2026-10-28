@@ -5,7 +5,7 @@
 // when the name still has no series. Only the ISBN, the title and the author are sent, and only after the user agreed
 // (consent 'books').
 
-import { authorByDash, authorFromOpening, authorInName, guessBookName, isJunkTitle, nameFromOpening, people, personShaped, seriesOf, tidyBookName, unglued, withoutAuthor, type BookName } from './bookName'
+import { authorByDash, authorFromOpening, formatBookName, authorInName, guessBookName, isJunkTitle, nameFromOpening, people, personShaped, seriesOf, tidyBookName, unglued, withoutAuthor, type BookName } from './bookName'
 import { libraryAuthor, realAuthor, tidyAuthor } from './authorName'
 import type { EpubMeta } from './bookText'
 import type { Clue } from './clues'
@@ -45,6 +45,8 @@ export interface Identified extends BookName {
   sure?: boolean
   /** the library's books the name leaned on (their numbers, years and words placed it) */
   leaned?: string[]
+  /** the best other reading of the book, too near this name for it to be saved without asking (the second hypothesis) */
+  rival?: string
 }
 
 type VolumeInfo = {
@@ -1511,15 +1513,19 @@ function verdict(r: BookName, series: string, number: string): 'agree' | 'agains
   return Number(number) === Number(r.number) ? 'agree' : 'against'
 }
 
-async function weigh(
+/** what every clue the book gives says of a name: the clues that agree, those that speak against, the book's own
+ *  sources that agree with its title and author (crossCheck: shown, but never making it sure), and the library's books
+ *  the name leaned on */
+type Said = { agreed: Clue[]; against: Clue[]; shown: Clue[]; leaned: Set<string> }
+
+async function cluesOf(
   r: Identified,
   b: { title: string; author: string; fileName: string },
   opening: string[],
   meta: EpubMeta | undefined,
   library: LibraryNames | undefined,
   signal?: AbortSignal,
-): Promise<Identified> {
-  if (isJunkTitle(r.title) && !r.number) return r
+): Promise<Said> {
   const evidence: Clue[] = []
   const conflicts: Clue[] = []
   const count = (c: Clue, v: 'agree' | 'against' | undefined) => {
@@ -1675,14 +1681,29 @@ async function weigh(
   }
 
   if (meta?.running?.some((h) => norm(h) === norm(r.title))) evidence.push('running')
+  return { agreed: [...new Set(evidence)], against: [...new Set(conflicts)], shown, leaned }
+}
+
+/** the sources that agree with a name and count toward a sure one: only the series' clues, each trusted by what the
+ *  user's answers taught, and the clues of one source (the file's name and its package, say) once */
+const strength = (said: Said, stats = clueStats()) => sources(said.agreed.filter((c) => trusted(c, stats)), stats)
+
+async function weigh(
+  r: Identified,
+  b: { title: string; author: string; fileName: string },
+  opening: string[],
+  meta: EpubMeta | undefined,
+  library: LibraryNames | undefined,
+  signal?: AbortSignal,
+): Promise<Identified> {
+  if (isJunkTitle(r.title) && !r.number) return r
+  const said = await cluesOf(r, b, opening, meta, library, signal)
+  const { agreed, against, shown, leaned } = said
   // how much each clue counts is what the user's answers taught (identifyLearning): before any, the strong clues count
   // and every clue against blocks
   const stats = clueStats()
-  const agreed = [...new Set(evidence)]
-  const against = [...new Set(conflicts)]
-  // only the series' clues count toward a sure name, and clues of one source (the file's name and its package, say)
-  // count once: a sure name needs independent sources that agree
-  const strong = sources(agreed.filter((c) => trusted(c, stats)), stats)
+  // a sure name needs independent sources that agree
+  const strong = strength(said, stats)
   const all = [...new Set([...agreed, ...shown])]
   const out: Identified = {
     ...r,
@@ -1693,7 +1714,99 @@ async function weigh(
   if (against.some((c) => blocks(c, stats))) delete out.sure
   // and once it has learnt enough from the user's answers, the model that weighs all the clues together must trust it too
   else if (strong >= (needsMoreProof() ? 3 : 2) && modelAllows(all, against)) out.sure = true
+  // the second hypothesis: the best other reading of the book, weighed by the same clues. A name is saved by itself only
+  // when it is far ahead of it (RIVAL_GAP sources), since clues that agree with it may agree as well with the other
+  if (out.sure) {
+    const rival = await secondHypothesis(r, b, opening, meta, library, signal, strong, shown, stats)
+    if (rival) {
+      delete out.sure
+      out.rival = formatBookName(rival)
+    }
+  }
   return out
+}
+
+/** how many more agreeing sources a name needs than the best other reading of the book to be saved without asking */
+const RIVAL_GAP = 2
+
+/**
+ * The other readings of the book its own sources give, beside the name found: another series (the file's name, the
+ * package, the copyright page, a list, the story's names or vocabulary), another number in the series (any source that
+ * numbers it), and for a book of no series another title (the package's, the file's name's, the cover's). The best of
+ * them by the same clues, when the name is not far enough ahead of it; else undefined.
+ */
+async function secondHypothesis(
+  r: Identified,
+  b: { title: string; author: string; fileName: string },
+  opening: string[],
+  meta: EpubMeta | undefined,
+  library: LibraryNames | undefined,
+  signal: AbortSignal | undefined,
+  strong: number,
+  shown: Clue[],
+  stats: ReturnType<typeof clueStats>,
+): Promise<BookName | undefined> {
+  const named = identifyLocally(b)
+  const rivals: BookName[] = []
+  const add = (x: BookName) => {
+    if (!x.series && !x.title) return
+    if (rivals.some((y) => norm(y.series) === norm(x.series) && Number(y.number || 0) === Number(x.number || 0) && norm(y.title) === norm(x.title))) return
+    rivals.push(x)
+  }
+  if (r.series) {
+    const original = originalSeries(opening)
+    const listed = !isJunkTitle(r.title) ? inLists(r.title, [...(meta?.lists ?? []), ...listsOf(b.author, [undefined])], norm) : undefined
+    const read: { series?: string; number?: string }[] = [
+      { series: named.series, number: named.number },
+      { series: meta?.series, number: meta?.number },
+      // the copyright page's original series only as a series the library has under its own name (\"Throne of Glass\" is
+      // most often this very series, in its original language)
+      ...(original && library ? [{ series: librarySeriesFor(original.series, b.author, library.series.values(), norm), number: original.number }] : []),
+      ...(listed ? [{ series: listed.series || r.series, number: listed.number }] : []),
+      { series: r.series, number: String(ownNumber(opening, meta) ?? '') },
+    ]
+    try {
+      if (meta?.names?.length && library && b.author.trim()) read.push({ series: await seriesOfNames(meta.names, b.author, library, signal) })
+      if (meta?.words?.length && library) read.push({ series: await seriesOfWords(meta.words, b.author, library, (b as { id?: string }).id, signal, false) })
+    } catch (e) {
+      if (signal?.aborted) throw e
+    }
+    for (const x of read) {
+      if (!x.series) continue
+      const series = sameSeries(x.series, r.series) ? r.series : x.series
+      const number = x.number || ''
+      // the same place is no other reading; a series given with no number is the same series and its number
+      if (series === r.series && (!number || Number(number) === Number(r.number))) continue
+      add({ series, number, title: r.title })
+    }
+  } else {
+    // a book of no series: another title its own sources give (not a shorter or longer form of this one)
+    const near = (x: string) => {
+      const a = norm(x)
+      const t = norm(r.title)
+      return !a || a.includes(t) || t.includes(a)
+    }
+    for (const x of [meta?.title, named.title, meta?.cover?.largest]) if (x && !isJunkTitle(x) && !near(x)) add({ series: '', number: '', title: x })
+  }
+  let best: { name: BookName; gap: number } | undefined
+  for (const x of rivals.slice(0, 6)) {
+    let gap: number
+    if (r.series) {
+      const said = await cluesOf({ ...r, ...x }, b, opening, meta, library, signal)
+      const theirs = strength(said, stats)
+      // a reading no clue gives a source of its own is no rival
+      if (!theirs) continue
+      gap = strong - theirs
+    } else {
+      // a title: what the book's own sources say of each (crossCheck), as many sources for the other as for this one
+      const mine = new Set(shown).size
+      const theirs = new Set(crossCheck({ ...r, ...x }, named, opening, meta).filter(([, v]) => v === 'agree').map(([c]) => c)).size
+      if (!theirs) continue
+      gap = mine - theirs
+    }
+    if (gap < RIVAL_GAP && (!best || gap < best.gap)) best = { name: x, gap }
+  }
+  return best?.name
 }
 
 /**

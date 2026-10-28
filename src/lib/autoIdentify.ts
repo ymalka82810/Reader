@@ -32,6 +32,8 @@ export interface PendingName {
   /** the clues that agree with the name, and those that say otherwise */
   evidence?: Clue[]
   conflicts?: Clue[]
+  /** the best other reading of the book, too near this name to save it without asking */
+  rival?: string
 }
 
 // "3" (and "2" before it): the names found before the identification learned to tell a title from a publisher's address or a review were
@@ -342,6 +344,7 @@ export async function identifyNew(
               ...(r.online && r.sites && { sites: r.sites }),
               ...(r.evidence && { evidence: r.evidence }),
               ...(r.conflicts && { conflicts: r.conflicts }),
+              ...(r.rival && { rival: r.rival }),
             },
           ])
           pending++

@@ -679,6 +679,26 @@ describe('asLibrarySeries / withoutSeries', () => {
       expect(r.sure).toBeUndefined()
     })
 
+    it('is not sure when another reading of the book is near it (the second hypothesis), and says which', async () => {
+      const own = [{ series: 'עולם אחר', books: [{ title: 'מגדל הזהב', number: '5' }] }]
+      const meta = { lists: own, title: '', authors: [], series: '', number: '', identifiers: [] }
+      const r = await identifyBook({ ...book, title: 'עולם אחר 5 - מגדל הזהב' }, false, undefined, opening, meta, library())
+      expect(formatBookName(r)).toBe('עולם אחר 5 - מגדל הזהב')
+      expect(r.evidence).toEqual(expect.arrayContaining(['name', 'list']))
+      // the copyright page puts it in the library's מגיסטריום: one source against two, too near to save it alone
+      expect(r.rival).toBe('מגיסטריום 5 - מגדל הזהב')
+      expect(r.sure).toBeUndefined()
+    })
+
+    it('stays sure when the other readings have no clue of their own', async () => {
+      const meta = { lists, title: '', authors: [], series: '', number: '', identifiers: [] }
+      // the title page numbers it 4, but no clue says so
+      const r = await identifyBook(book, false, undefined, [...opening, 'הספר הרביעי בסדרה'], meta, library())
+      expect(formatBookName(r)).toBe('מגיסטריום 5 - מגדל הזהב')
+      expect(r.rival).toBeUndefined()
+      expect(r.sure).toBe(true)
+    })
+
     it('speaks against a number the library already has for another book', async () => {
       const lib = libraryNames([{ title: 'מגיסטריום 5 - ספר אחר', author: 'הולי בלק וקסנדרה קלייר' }])
       const r = await identifyBook(book, false, undefined, opening, undefined, lib)

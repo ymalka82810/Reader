@@ -250,6 +250,7 @@ export const fr: Record<keyof typeof he, Message> = {
   'identify.statNetwork': { one: 'n’a pas répondu une fois', other: 'n’a pas répondu {n} fois' },
   'identify.evidence': 'D’accord : {list}',
   'identify.conflicts': 'Pas d’accord : {list}',
+  'identify.rival': "Une seconde lecture proche : {name}",
   'identify.clue.name': 'le nom du fichier',
   'identify.clue.meta': 'les détails du fichier',
   'identify.clue.copyright': 'la page de copyright',
