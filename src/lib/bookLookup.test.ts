@@ -853,7 +853,26 @@ describe('identifyBook: the book before and the book after', () => {
   it('places a book one after the book it says it follows, and one before the book it says is next', async () => {
     const r = await identifyBook({ title: 'ים המפלצות', author: 'ריק ריירדן', fileName: 'x.epub' }, false, undefined, [], meta({ prev: ['גנב הברק'], next: ['קללת הטיטאן'] }), library())
     expect(r).toMatchObject({ series: "פרסי ג'קסון", number: '2', title: 'ים המפלצות', fromText: true })
+    // only this book says so: a link one side gives is a weak clue
+    expect(r.evidence).toContain('neighbour')
+    expect(r.evidence).not.toContain('sequel')
+  })
+
+  it('takes a link both sides give as the strong clue', async () => {
+    const { rememberSequels } = await import('./bookKnowledge')
+    rememberSequels("פרסי ג'קסון 1 - גנב הברק", 'ריק ריירדן', ['ים המפלצות'])
+    const r = await identifyBook({ title: 'ים המפלצות', author: 'ריק ריירדן', fileName: 'x.epub' }, false, undefined, [], meta({ prev: ['גנב הברק'] }), library())
+    expect(r).toMatchObject({ series: "פרסי ג'קסון", number: '2' })
     expect(r.evidence).toContain('sequel')
+    expect(r.evidence).not.toContain('neighbour')
+  })
+
+  it('has either side speak against another number', async () => {
+    const { rememberSequels } = await import('./bookKnowledge')
+    rememberSequels("פרסי ג'קסון 3 - קללת הטיטאן", 'ריק ריירדן', [], ['ים המפלצות'])
+    const r = await identifyBook({ title: "פרסי ג'קסון 4 - ים המפלצות", author: 'ריק ריירדן', fileName: 'x.epub' }, false, undefined, [], meta({}), library())
+    expect(r.conflicts).toContain('sequel')
+    expect(r.sure).toBeUndefined()
   })
 
   it('takes nothing when its neighbours do not agree', async () => {
@@ -866,8 +885,8 @@ describe('identifyBook: the book before and the book after', () => {
     rememberSequels("פרסי ג'קסון 1 - גנב הברק", 'ריק ריירדן', ['ים המפלצות'])
     const r = await identifyBook({ title: 'ים המפלצות', author: 'ריק ריירדן', fileName: 'x.epub' }, false)
     expect(r).toMatchObject({ series: "פרסי ג'קסון", number: '2' })
-    // the series from the book before; the title also agrees with the file's name
-    expect(r.evidence).toEqual(['sequel', 'name'])
+    // the series from the book before (only it says so); the title also agrees with the file's name
+    expect(r.evidence).toEqual(['neighbour', 'name'])
   })
 })
 
@@ -909,5 +928,41 @@ describe('seriesInFileName', () => {
     expect(seriesInFileName('שם אחר 3 - ספר אחר', 'לשנוא אותו')).toBeUndefined()
     expect(seriesInFileName('חלק 2 לשנוא אותו', 'לשנוא אותו')).toBeUndefined()
     expect(seriesInFileName('לחלום על 10', 'לחלום')).toBeUndefined()
+  })
+})
+
+describe('identifyBook: the links of a series beyond its names', () => {
+  const meta = (m: object) => ({ title: '', authors: [], series: '', number: '', identifiers: [], ...m })
+  const library = () =>
+    libraryNames([
+      { id: 'h1', title: 'הממלכה 1 - האש', author: 'נועה כהן', kind: 'epub' },
+      { id: 'h2', title: 'הממלכה 2 - המים', author: 'נועה כהן', kind: 'epub' },
+      { id: 'h4', title: 'הממלכה 4 - האוויר', author: 'נועה כהן', kind: 'epub' },
+    ])
+  const facts = (extra: Record<string, object> = {}) =>
+    localStorage.setItem(
+      'reader:book-facts',
+      JSON.stringify({
+        h1: { year: 2010, n: null, words: [], house: ['t:דנה לוי'] },
+        h2: { year: 2011, n: null, words: [], house: ['t:דנה לוי'] },
+        h4: { year: 2013, n: null, words: [], house: ['t:דנה לוי'] },
+        ...extra,
+      }),
+    )
+
+  it('has the translator the series shares agree with the series', async () => {
+    facts()
+    const r = await identifyBook({ title: 'הממלכה 3 - האדמה', author: 'נועה כהן', fileName: 'x.epub' }, false, undefined, ['תרגום: דנה לוי'], meta({}), library())
+    expect(r.evidence).toContain('house')
+    // the books it leaned on are kept with it
+    expect(r.leaned?.sort()).toEqual(['h1', 'h2', 'h4'])
+  })
+
+  it('has the whole series placed together speak against a number its year does not fit', async () => {
+    facts()
+    // printed in 2012, between book 2 (2011) and book 4 (2013): the number 5 does not fit where the series leaves room
+    const r = await identifyBook({ title: 'הממלכה 5 - האדמה', author: 'נועה כהן', fileName: 'x.epub' }, false, undefined, ['Copyright © 2012'], meta({}), library())
+    expect(r.conflicts).toContain('joint')
+    expect(r.sure).toBeUndefined()
   })
 })

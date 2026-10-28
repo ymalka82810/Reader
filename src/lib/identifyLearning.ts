@@ -6,20 +6,18 @@
 // tunes itself to the library it actually meets instead of to fixed rules. Kept on the device.
 
 import { rememberName } from './bookKnowledge'
-import type { Clue } from './bookLookup'
+import { CLUES, STRONG, type Clue } from './clues'
 import { guessBookName, splitBookName, tidyBookName } from './bookName'
 import { learnAnswer } from './identifyModel'
 import { learnLinesOf } from './lineModel'
 import { norm } from './sameBook'
-
-/** the clues that count toward a sure name before anything is learned about them */
-const STRONG: Clue[] = ['name', 'meta', 'copyright', 'list', 'names', 'sequel', 'catalog', 'page']
 
 const CONFIRMED_KEY = 'reader:identify:confirmed'
 const DECLINED_KEY = 'reader:identify:declined'
 const AUTO_KEY = 'reader:identify:auto'
 const CLUES_KEY = 'reader:identify:clues'
 const OUTCOMES_KEY = 'reader:identify:outcomes'
+const PAIRS_KEY = 'reader:identify:pairs'
 const MAX = 3000
 
 type Tally = { right: number; wrong: number }
@@ -71,6 +69,11 @@ export function confirmName(id: string, title: string, author = '') {
   drop(AUTO_KEY, id)
 }
 
+/** the books the user gave a name (whatever their name is now): the anchors a series is placed around */
+export function confirmedIds(): Set<string> {
+  return new Set(Object.keys(read<Record<string, string>>(CONFIRMED_KEY, {})))
+}
+
 /** whether the book still has the name the user gave it (a book renamed since by anything else is not) */
 export function isConfirmed(id: string, title: string): boolean {
   return read<Record<string, string>>(CONFIRMED_KEY, {})[id] === title
@@ -89,11 +92,24 @@ export function wasDeclined(id: string, offered: string): boolean {
 
 // ---- names saved without asking: a later edit of the user's tells whether they were right
 
-/** a sure name the identification saved by itself, and the clues that made it sure */
-export function rememberAuto(id: string, title: string, evidence: Clue[] = [], conflicts: Clue[] = []) {
-  put(AUTO_KEY, id, { title, evidence, conflicts })
+type Auto = { title: string; evidence: Clue[]; conflicts: Clue[]; leaned?: string[] }
+
+/** a sure name the identification saved by itself, the clues that made it sure, and the other books of the library it
+ *  leaned on (their numbers and years placed it): when one of them is corrected, this name is gone over again */
+export function rememberAuto(id: string, title: string, evidence: Clue[] = [], conflicts: Clue[] = [], leaned: string[] = []) {
+  put(AUTO_KEY, id, { title, evidence, conflicts, ...(leaned.length && { leaned: [...new Set(leaned)].filter((x) => x !== id).slice(0, 40) }) })
   countOutcome('autoSaved')
   setRecent(id, true)
+}
+
+/** The names saved by themselves that leaned on these books (see rememberAuto): a correction of one of these books takes
+ *  away what they stood on, so they are identified again, whatever series the corrected book has moved to. */
+export function dependents(ids: Iterable<string>): string[] {
+  const changed = new Set(ids)
+  const auto = read<Record<string, Auto>>(AUTO_KEY, {})
+  return Object.entries(auto)
+    .filter(([id, a]) => !changed.has(id) && a.leaned?.some((x) => changed.has(x)))
+    .map(([id]) => id)
 }
 
 // ---- how right the names saved by themselves have been lately
@@ -141,7 +157,7 @@ export function samePlace(a: string, b: string): boolean {
  * behind that one are judged by whether the user kept its place; either way the user's name is the book's from now on.
  */
 export function learnFromEdit(id: string, title: string, author = '') {
-  const auto = read<Record<string, { title: string; evidence: Clue[]; conflicts: Clue[] }>>(AUTO_KEY, {})[id]
+  const auto = read<Record<string, Auto>>(AUTO_KEY, {})[id]
   if (auto) {
     const kept = samePlace(auto.title, title)
     recordOutcome(auto.evidence, auto.conflicts, kept)
@@ -170,8 +186,68 @@ export function recordOutcome(evidence: Clue[] = [], conflicts: Clue[] = [], rig
   for (const c of new Set(evidence)) bump(c, 'for', right)
   for (const c of new Set(conflicts)) bump(c, 'against', !right)
   write(CLUES_KEY, stats)
+  // the clues that agreed with a wrong name together: two that are wrong together again and again are one source
+  if (!right) {
+    const wrong = [...new Set(evidence)].sort()
+    if (wrong.length > 1) {
+      const pairs = pairStats()
+      for (const [i, a] of wrong.entries()) for (const b of wrong.slice(i + 1)) pairs[`${a}|${b}`] = (pairs[`${a}|${b}`] ?? 0) + 1
+      write(PAIRS_KEY, pairs)
+    }
+  }
   // the same answer trains the model that weighs all the clues together
   learnAnswer(evidence, conflicts, right)
+}
+
+// ---- sources: clues that come from one place say one thing, however many of them say it
+
+/** the clues known to come from one source before anything is learnt: the file's name and its package are mostly named
+ *  by the same hand; the story's names and its vocabulary are one reading of it; the years and the pace are one set of
+ *  years */
+const SOURCE: Partial<Record<Clue, string>> = { name: 'file', meta: 'file', names: 'story', words: 'story', debut: 'story', years: 'years', rhythm: 'years' }
+
+/** how many wrong names two clues agreed with together, by "a|b" (sorted) */
+function pairStats(): Record<string, number> {
+  return read<Record<string, number>>(PAIRS_KEY, {})
+}
+
+/** wrong together this often (of the names either was wrong about), and this many times at least: one source */
+const TOGETHER = 0.6
+const TOGETHER_MIN = 3
+
+/** the pairs of clues the user's answers show to be one source: they were wrong together on most of the names either was
+ *  wrong about (each clue's record counts its wrong names) */
+export function learntSources(stats: ClueStats = clueStats()): [Clue, Clue][] {
+  const out: [Clue, Clue][] = []
+  for (const [k, both] of Object.entries(pairStats())) {
+    const [a, b] = k.split('|') as [Clue, Clue]
+    const wa = stats[a]?.for?.wrong ?? 0
+    const wb = stats[b]?.for?.wrong ?? 0
+    const either = wa + wb - both
+    if (both >= TOGETHER_MIN && either > 0 && both / either >= TOGETHER) out.push([a, b])
+  }
+  return out
+}
+
+/** How many independent sources these clues are: the clues of one source (SOURCE, and the pairs learnt to be one) count
+ *  once. A sure name needs agreeing sources, not agreeing names of clues. */
+export function sources(clues: readonly Clue[], stats: ClueStats = clueStats()): number {
+  const root = new Map<string, string>()
+  const find = (x: string): string => {
+    const r = root.get(x) ?? x
+    if (r === x) return x
+    const top = find(r)
+    root.set(x, top)
+    return top
+  }
+  const join = (a: string, b: string) => {
+    const x = find(a)
+    const y = find(b)
+    if (x !== y) root.set(x, y)
+  }
+  const of = (c: Clue) => SOURCE[c] ?? c
+  for (const [a, b] of learntSources(stats)) join(of(a), of(b))
+  return new Set(clues.map((c) => find(of(c)))).size
 }
 
 // as many answers as the starting belief is worth: a few answers move it, many outweigh it
@@ -216,8 +292,7 @@ export function countOutcome(o: Outcome) {
 /** each clue's record: how often it was right when it agreed and when it spoke against, and how much it counts now */
 export function clueReport(): { clue: Clue; agreed: Tally; against: Tally; trust: number; counts: boolean; blocks: boolean }[] {
   const stats = clueStats()
-  const all: Clue[] = ['name', 'meta', 'copyright', 'list', 'names', 'words', 'sequel', 'catalog', 'order', 'running', 'cover', 'page', 'years', 'rhythm']
-  return all.map((c) => ({
+  return CLUES.map((c) => ({
     clue: c,
     agreed: stats[c]?.for ?? { right: 0, wrong: 0 },
     against: stats[c]?.against ?? { right: 0, wrong: 0 },

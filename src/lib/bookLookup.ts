@@ -8,11 +8,13 @@
 import { authorByDash, authorFromOpening, authorInName, guessBookName, isJunkTitle, nameFromOpening, people, personShaped, seriesOf, tidyBookName, unglued, withoutAuthor, type BookName } from './bookName'
 import { libraryAuthor, realAuthor, tidyAuthor } from './authorName'
 import type { EpubMeta } from './bookText'
+import type { Clue } from './clues'
 import { bookNumber, copyrightYear, seriesByWords, inLists, librarySeriesFor, numberByGaps, numberByRhythm, numberedByRhythm, rhythmVerdict, yearsVerdict, type KnownSeries, originalSeries, originalSeriesName, originalTitle, seriesByNames, soundOf, titleCase } from './bookInference'
 import { listsOf, rememberLists } from './bookKnowledge'
+import { debutVerdict, designVerdict, houseOf, houseVerdict, jointVerdict, placeSeries, type Placed } from './seriesLinks'
 import { bundledLists, bundledSeries, bundledTitle, loadSeriesDb } from './seriesDb'
 import { hasConsent } from './consent'
-import { blocks, clueStats, needsMoreProof, trusted } from './identifyLearning'
+import { blocks, clueStats, confirmedIds, needsMoreProof, sources, trusted } from './identifyLearning'
 import { modelAllows } from './identifyModel'
 import { bookIsbns } from './isbn'
 import { readLines, type LineContext } from './lineModel'
@@ -41,6 +43,8 @@ export interface Identified extends BookName {
   /** whether the name can be saved without asking: the book was found by its ISBN, or Google Books has it under the
    *  same title and author, or the series came from the EPUB's package */
   sure?: boolean
+  /** the library's books the name leaned on (their numbers, years and words placed it) */
+  leaned?: string[]
 }
 
 type VolumeInfo = {
@@ -961,7 +965,9 @@ async function findName(
     const entry = library.series.get(seriesKey(base.series))
     if (entry && self.id && !entry.members?.some((m) => m.id === self.id))
       (entry.members ??= []).push({ number: 0, title: base.title, id: self.id, ...(self.kind && { kind: self.kind }) })
-    const n = await numberInLibrary(base.series, copyrightYear(opening), library, b.author, signal, self.id)
+    const n =
+      (await numberInLibrary(base.series, copyrightYear(opening), library, b.author, signal, self.id)) ??
+      numberByJoint(base.series, base.title, opening, meta, library, b.author, self.id)
     if (n) {
       // the number is given: the next book of this run is not offered it too
       const me = entry?.members?.find((m) => self.id && m.id === self.id)
@@ -1182,7 +1188,16 @@ async function translatedTitle(title: string, signal?: AbortSignal): Promise<str
 const FACTS_KEY = 'reader:book-facts'
 /** `n`: the number the book itself gives (its package, its copyright page, its title page), null when none; a book
  *  read before it was kept has none, and is read again for it */
-type Facts = { year: number | null; n?: number | null; names?: [string, number][]; words?: [string, number][] }
+type Facts = {
+  year: number | null
+  n?: number | null
+  names?: [string, number][]
+  words?: [string, number][]
+  /** who made the edition: its translator, publisher and ISBN block (seriesLinks' houseOf); a book kept before has none */
+  house?: string[]
+  /** its cover's print (seriesLinks' coverPrint) */
+  print?: string
+}
 // read many times for each book identified, so parsed once for as long as the stored text stays the same
 let factsRaw: string | null | undefined
 let factsParsed: Record<string, Facts> = {}
@@ -1208,7 +1223,13 @@ const namesOf = (f: Facts | undefined) => (f?.words ? f.words.slice(0, 20) : (f?
 
 function factsFrom(opening: string[], meta?: EpubMeta): Facts {
   // `words` is kept even when empty (a scan, a book with no text of its own), so the book is not read again for it
-  return { year: copyrightYear(opening) ?? null, n: ownNumber(opening, meta) ?? null, words: meta?.words ?? [] }
+  return {
+    year: copyrightYear(opening) ?? null,
+    n: ownNumber(opening, meta) ?? null,
+    words: meta?.words ?? [],
+    house: houseOf(opening),
+    ...(meta?.print && { print: meta.print }),
+  }
 }
 
 /** The number a book gives itself, whatever its name says: its package's (calibre's series index), its copyright
@@ -1232,8 +1253,22 @@ function keepFactsOf(id: string, f: Facts) {
 
 /** keeps what a book the identification just read says of it, for the books compared with it later */
 export function keepFacts(id: string, opening: string[], meta?: EpubMeta) {
-  if (facts()[id]?.words) return
-  keepFactsOf(id, factsFrom(opening, meta))
+  const known = facts()[id]
+  if (known?.words && known.house) return
+  // a book kept before its house was: only what is new is added
+  keepFactsOf(id, known?.words ? { ...known, house: houseOf(opening) } : factsFrom(opening, meta))
+}
+
+/** keeps a book's cover print (read with its cover, see coverIdentify), for the books compared with it later */
+export function keepPrint(id: string, print: string) {
+  const known = facts()[id]
+  if (known?.print === print) return
+  keepFactsOf(id, { ...(known ?? { year: null }), print })
+}
+
+/** the cover print kept for a book */
+export function keptPrint(id: string): string | undefined {
+  return facts()[id]?.print
 }
 
 /** a book's facts: those kept, else read from its file (and kept); with `vocabulary`, kept facts from before the
@@ -1242,7 +1277,7 @@ async function factsOf(m: { id?: string; kind?: string }, signal?: AbortSignal, 
   if (!m.id || (m.kind !== 'epub' && m.kind !== 'pdf')) return undefined
   const known = facts()[m.id]
   // a book kept before its own number was: read again, once
-  if (known && (!vocabulary || known.words) && known.n !== undefined) return known
+  if (known && (!vocabulary || known.words) && known.n !== undefined && known.house) return known
   let d: Awaited<ReturnType<typeof import('./bookText').bookDetails>>
   try {
     const { bookDetails } = await import('./bookText')
@@ -1259,6 +1294,7 @@ async function factsOf(m: { id?: string; kind?: string }, signal?: AbortSignal, 
         ...known,
         year: fresh.year ?? known.year,
         n: fresh.n,
+        house: fresh.house,
         // a book kept with its names (and no vocabulary yet) keeps them: an empty vocabulary would hide them
         words: fresh.words?.length ? fresh.words : known.words !== undefined ? known.words : known.names ? undefined : fresh.words,
       }
@@ -1371,6 +1407,56 @@ async function numberInLibrary(
   return numberByGaps(paced, year, known) ?? numberByRhythm(paced, year)
 }
 
+/**
+ * The number the whole series gives a book with none, when the years alone did not: every book of the series the library
+ * has placed together with this one, by all their clues at once (seriesLinks' placeSeries) — the number each gives
+ * itself, the lists, the years and the order their words first appear in. Only a number no book of the library holds,
+ * and only by a clear margin; it waits for the user's approval.
+ */
+function numberByJoint(
+  series: string,
+  title: string,
+  opening: string[],
+  meta: EpubMeta | undefined,
+  library: LibraryNames,
+  author: string,
+  self?: string,
+): number | undefined {
+  const members = (library.series.get(seriesKey(series))?.members ?? []).filter((m) => m.id && m.id !== self && !(m.title && sameTitle(m.title, title)))
+  if (members.length < 2) return undefined
+  const kept = facts()
+  const anchors = confirmedIds()
+  const lists = [...(meta?.lists ?? []), ...listsOf(author, [undefined, 'wikidata'], title)]
+  const listedOf = (t?: string) => {
+    const l = t && !isJunkTitle(t) ? inLists(t, lists, norm) : undefined
+    return l && (!l.series || sameSeries(l.series, series)) ? Number(l.number) || undefined : undefined
+  }
+  const placed: Placed[] = members.map((m) => {
+    const f = kept[m.id!]
+    return {
+      id: m.id!,
+      ...(m.number && { number: m.number }),
+      ...(anchors.has(m.id!) && { anchored: true }),
+      ...(f?.year && { year: f.year }),
+      ...(f?.n && { own: f.n }),
+      ...(listedOf(m.title) && { listed: listedOf(m.title) }),
+      ...(f?.words?.length && { words: f.words.map(([w]) => w) }),
+    }
+  })
+  const me = '\u0000self'
+  const year = copyrightYear(opening)
+  const listed = listedOf(title)
+  const words = (meta?.words ?? []).map(([w]) => w)
+  placed.push({ id: me, ...(year && { year }), ...(listed && { listed }), ...(words.length && { words }) })
+  const known = knownSeries(series, author)
+  const p = placeSeries(placed, me, known)
+  if (!p?.number || p.margin < 2 || members.some((m) => m.number === p.number)) return undefined
+  // as with the years: never a number after the last the library has, unless the series is known to reach it (a book
+  // the library lacks may come before)
+  const last = Math.max(0, ...members.map((m) => m.number || 0))
+  return p.number < last || p.number <= (known.total ?? 0) ? p.number : undefined
+}
+
 /** where a title stands in its series, by what the library has under that title or the lists kept (bookKnowledge) */
 function placeOfTitle(title: string, author: string, library?: LibraryNames): { series: string; number: number } | undefined {
   const t = norm(title)
@@ -1398,9 +1484,7 @@ function bySequels(meta: EpubMeta | undefined, author: string, library?: Library
 // A name two independent clues agree on, and none speaks against, is sure enough to save without asking; a clue that
 // speaks against it keeps it for the user to approve, saying which.
 
-/** where a clue comes from: the file's or library's name, the file's package, the copyright page, a list of the series'
- *  books, the names its story shares with the series, a catalog, the numbers the library leaves free, a running head */
-export type Clue = 'name' | 'meta' | 'copyright' | 'list' | 'names' | 'words' | 'sequel' | 'catalog' | 'order' | 'running' | 'cover' | 'page' | 'years' | 'rhythm'
+export type { Clue } from './clues'
 
 /** two titles that are one: the same words, or one the other's start ("דם האולימפוס" and "דם האולימפוס V") */
 function sameTitle(x: string, y: string): boolean {
@@ -1444,8 +1528,12 @@ async function weigh(
   }
   // the name the book came with, read as it is
   const named = identifyLocally(b)
+  // the library's books the name leaned on (their numbers, years and words placed it): a correction of one of them has
+  // this name gone over again (identifyLearning's dependents)
+  const leaned = new Set<string>()
   // the series and its number: only a book that has one
   if (r.series) {
+    let saidOf: 'agree' | 'against' | undefined
     if (named.series) count('name', verdict(r, named.series, named.number))
     if (meta?.series) count('meta', verdict(r, meta.series, meta.number))
     // the copyright page's original series, when it is this series by its sound ("Throne of Glass" is not "כס הזכוכית",
@@ -1458,9 +1546,9 @@ async function weigh(
       // names saved in the library may be this book's own
       const listed = inLists(r.title, [...(meta?.lists ?? []), ...listsOf(b.author, [undefined])], norm)
       if (listed) count('list', verdict(r, listed.series || r.series, listed.number))
-      // what the books before and after it in the library said of it
+      // what the books before and after it in the library said of it (weighed with what it says of them, below)
       const said = inLists(r.title, listsOf(b.author, ['sequel']), norm)
-      if (said) count('sequel', verdict(r, said.series || r.series, said.number))
+      if (said) saidOf = verdict(r, said.series || r.series, said.number)
       // only for a title the book gave: a title taken from the list by its number (seriesDb's bundledTitle) is the list's
       // own word, and agrees with it by itself
       const given = [named.title, meta?.title, ...(meta?.running ?? []), ...opening].some((x) => !!x && norm(x) === norm(r.title))
@@ -1478,7 +1566,12 @@ async function weigh(
     }
     // the books it names as the one before and the next
     const q = bySequels(meta, b.author, library)
-    if (q && !evidence.includes('sequel') && !conflicts.includes('sequel')) count('sequel', verdict(r, q.series, q.number))
+    const saysOf = q ? verdict(r, q.series, q.number) : undefined
+    // a link both sides say (the book before names this one as the next, and this one names it as the one before) is a
+    // strong clue; one only the one side says is a weak one; either side against speaks against
+    if (saidOf === 'against' || saysOf === 'against') conflicts.push('sequel')
+    else if (saidOf === 'agree' && saysOf === 'agree') evidence.push('sequel')
+    else if (saidOf === 'agree' || saysOf === 'agree') evidence.push('neighbour')
     // the series' fingerprint in the book's vocabulary: it only agrees (a vocabulary near another series' says too little
     // to speak against)
     if (meta?.words?.length && library) {
@@ -1518,6 +1611,59 @@ async function weigh(
       // the series' pace, against the number found (read in the book, or by any other way): the two cross-checked
       count('rhythm', rhythmVerdict(paced, Number(r.number), year))
     }
+    // what the series' books share beyond their names, and the whole series placed at once (seriesLinks)
+    if (members.length) {
+      const self = (b as { id?: string }).id
+      const kept = facts()
+      const others = members.filter((m) => !(self && m.id === self) && !(m.title && sameTitle(m.title, r.title)))
+      const own = (id?: string) => (id ? kept[id] : undefined)
+      // the house: the translator, the publisher or the ISBN block most of the series' books share (it only agrees)
+      const house = houseOf(opening)
+      if (house.length) {
+        const all = Object.values(kept).map((f) => f.house ?? [])
+        if (houseVerdict(house, others.map((m) => own(m.id)?.house ?? []), all) === 'agree') evidence.push('house')
+      }
+      // the cover's design, nearer the series' covers than nearly all the library's (it only agrees)
+      if (meta?.print) {
+        const ids = new Set(members.map((m) => m.id))
+        const mine = others.map((m) => own(m.id)?.print).filter((x): x is string => !!x)
+        const rest = Object.entries(kept)
+          .filter(([id, f]) => f.print && !ids.has(id) && id !== self)
+          .map(([, f]) => f.print!)
+        if (designVerdict(meta.print, mine, rest) === 'agree') evidence.push('design')
+      }
+      if (r.number) {
+        const numbered = others.map((m) => ({ id: m.id, number: m.number || own(m.id)?.n || 0, words: (own(m.id)?.words ?? []).map(([w]) => w) }))
+        const words = (meta?.words ?? []).map(([w]) => w)
+        // the order the series' words first appear in (it only agrees: a prequel is out of order on purpose)
+        if (words.length && debutVerdict(numbered, words, Number(r.number)) === 'agree') evidence.push('debut')
+        // the whole series placed at once: this book and the rest of the series' books, every clue of each together
+        const anchors = confirmedIds()
+        const titled = [...(meta?.lists ?? []), ...listsOf(b.author, [undefined, 'wikidata'], r.title)]
+        const listedOf = (t?: string) => {
+          const l = t && !isJunkTitle(t) ? inLists(t, titled, norm) : undefined
+          return l && (!l.series || sameSeries(l.series, r.series)) ? Number(l.number) || undefined : undefined
+        }
+        const placed: Placed[] = others
+          .filter((m) => m.id)
+          .map((m) => ({
+            id: m.id!,
+            ...(m.number && { number: m.number }),
+            ...(anchors.has(m.id!) && { anchored: true }),
+            ...(own(m.id)?.year && { year: own(m.id)!.year! }),
+            ...(own(m.id)?.n && { own: own(m.id)!.n! }),
+            ...(listedOf(m.title) && { listed: listedOf(m.title) }),
+            ...(own(m.id)?.words?.length && { words: own(m.id)!.words!.map(([w]) => w) }),
+          }))
+        const me = '\u0000self'
+        const year = copyrightYear(opening)
+        const n = ownNumber(opening, meta)
+        const listed = listedOf(r.title)
+        placed.push({ id: me, ...(year && { year }), ...(n && { own: n }), ...(listed && { listed }), ...(words.length && { words }) })
+        if (placed.length >= 2) count('joint', jointVerdict(placed, me, Number(r.number), knownSeries(r.series, r.author || b.author)))
+        for (const m of placed) if (m.id !== me) leaned.add(m.id)
+      }
+    }
   }
   // the title and the author, for every book: each source the book has, on its own (crossCheck). What they agree on is
   // shown with the name but makes nothing sure (two of them are often one source twice: a file named after its package);
@@ -1534,10 +1680,16 @@ async function weigh(
   const stats = clueStats()
   const agreed = [...new Set(evidence)]
   const against = [...new Set(conflicts)]
-  // only the series' clues count toward a sure name
-  const strong = agreed.filter((c) => trusted(c, stats)).length
+  // only the series' clues count toward a sure name, and clues of one source (the file's name and its package, say)
+  // count once: a sure name needs independent sources that agree
+  const strong = sources(agreed.filter((c) => trusted(c, stats)), stats)
   const all = [...new Set([...agreed, ...shown])]
-  const out: Identified = { ...r, ...(all.length && { evidence: all }), ...(against.length && { conflicts: against }) }
+  const out: Identified = {
+    ...r,
+    ...(all.length && { evidence: all }),
+    ...(against.length && { conflicts: against }),
+    ...(leaned.size && { leaned: [...leaned] }),
+  }
   if (against.some((c) => blocks(c, stats))) delete out.sure
   // and once it has learnt enough from the user's answers, the model that weighs all the clues together must trust it too
   else if (strong >= (needsMoreProof() ? 3 : 2) && modelAllows(all, against)) out.sure = true
