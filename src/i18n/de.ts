@@ -260,6 +260,7 @@ export const de: Record<keyof typeof he, Message> = {
   'identify.clue.catalog': 'ein Katalog',
   'identify.clue.order': 'die Reihennummerierung in der Bibliothek',
   'identify.clue.running': 'der Kolumnentitel',
+  'identify.clue.years': 'die Erscheinungsjahre der Reihe',
   'identify.clue.cover': 'das Cover',
   'identify.clue.page': 'die Titelseite',
   'identify.fromText': 'Aus dem Buch',

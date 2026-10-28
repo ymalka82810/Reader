@@ -1,3 +1,4 @@
+import { setSeriesDb } from './seriesDb'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { asLibrarySeries, clearBooksCache, tidyName, identifyBook, identifyLocally, libraryNames, lookupOnline, openLibrarySeries, withoutSeries } from './bookLookup'
 import { formatBookName, splitBookName } from './bookName'
@@ -601,7 +602,12 @@ describe('asLibrarySeries / withoutSeries', () => {
     localStorage.setItem('reader:book-facts', JSON.stringify({ b1: { year: 2014, names: [] }, b3: { year: 2016, names: [] }, b4: { year: 2017, names: [] } }))
     const opening = ['Holly Black and Cassandra Clare', 'THE GOLDEN TOWER', 'MAGISTERIUM', 'Copyright © 2018 by Holly Black and Cassandra Clare LLC']
     const meta = { running: ['מגדל הזהב'], title: '', authors: [], series: '', number: '', identifiers: [] }
+    // after the library's last book: the next one, or one after a book the library lacks — no number
+    expect((await identifyBook(book, false, undefined, opening, meta, library)).number).toBe('')
+    // a catalog that knows the series has five books: the one gap left is the book's
+    setSeriesDb([{ s: 'מגיסטריום', a: 'הולי בלק וקסנדרה קלייר', b: [['1', 'מבחן הברזל'], ['2', 'א'], ['3', 'מפתח הארד'], ['4', 'מסכת הכסף'], ['5', 'ב']] }])
     const r = await identifyBook(book, false, undefined, opening, meta, library)
+    setSeriesDb([])
     expect(formatBookName(r)).toBe('מגיסטריום 5 - מגדל הזהב')
     expect(r.sure).toBeUndefined()
   })
@@ -622,8 +628,13 @@ describe('asLibrarySeries / withoutSeries', () => {
       }),
     )
     const meta = { names: names(['קאל', 'ארון', 'טמרה', "ג'ספר", 'השמידו']), title: '', authors: [], series: '', number: '', identifiers: [] }
+    // the catalog's years for the series' books: 2016 is the third's
+    setSeriesDb([{ s: 'מגיסטריום', a: 'הולי בלק וקסנדרה קלייר', b: [['1', 'מבחן הברזל', 2014], ['2', 'יד הנחושת', 2015], ['3', 'א', 2016], ['4', 'ב', 2017]] }])
     const r = await identifyBook({ title: 'מפתח הארד', author: 'הולי בלק וקסנדרה קלייר', fileName: 'x.pdf' }, false, undefined, ['Copyright © 2016 by Holly Black'], meta, library)
+    setSeriesDb([])
     expect(formatBookName(r)).toBe('מגיסטריום 3 - מפתח הארד')
+    // and the years are a clue of their own: books 1 and 2 came out before it, 4 after
+    expect(r.evidence).toContain('years')
     expect(r.sure).toBeUndefined()
   })
 

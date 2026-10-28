@@ -7,11 +7,12 @@ import { authorKey } from './authorName'
 import type { SeriesList } from './bookInference'
 import { norm } from './sameBook'
 
-/** a series as the file keeps it: its name, its author, and its books as [number, title] */
+/** a series as the file keeps it: its name, its author, and its books as [number, title], or [number, title, year] with
+ *  the year the book was first published (Wikidata's P577) */
 export interface SeriesEntry {
   s: string
   a?: string
-  b: [string, string][]
+  b: ([string, string] | [string, string, number])[]
 }
 
 type Bundled = SeriesList & { author?: string; from: 'wikidata'; key: string }
@@ -37,7 +38,7 @@ export function setSeriesDb(data: SeriesEntry[]) {
     .filter((e) => e && typeof e.s === 'string' && Array.isArray(e.b) && e.b.length)
     .map((e) => ({
       series: e.s,
-      books: e.b.map(([number, title]) => ({ number: String(number), title })),
+      books: e.b.map(([number, title, year]) => ({ number: String(number), title, ...(typeof year === 'number' && year > 0 && { year }) })),
       ...(e.a && { author: e.a }),
       from: 'wikidata' as const,
       key: e.a ? authorKey(e.a) : '',

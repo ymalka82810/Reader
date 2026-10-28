@@ -31,3 +31,16 @@ describe('the identification model learnt from the user', () => {
     expect(modelReport().answers).toBe(0)
   })
 })
+
+describe('a model learnt before a clue was added', () => {
+  it('keeps what it learnt and starts the new clue from the rules', () => {
+    // 12 clues: bias, 12 "agrees", 12 "speaks against"; the bias learnt far from the rules' 0.5
+    const w = [3, ...Array<number>(12).fill(1), ...Array<number>(12).fill(-1.5)]
+    localStorage.setItem('reader:identify:model', JSON.stringify({ w, n: 40, wrong: 5 }))
+    expect(modelReady()).toBe(true)
+    // the learnt bias still counts: with no clue at all the chance is the bias's
+    expect(predict([], [])).toBeCloseTo(1 / (1 + Math.exp(-3)), 5)
+    // the new clue, against, weighs as the rules say (-1.5)
+    expect(predict([], ['years'])).toBeCloseTo(1 / (1 + Math.exp(-1.5)), 5)
+  })
+})

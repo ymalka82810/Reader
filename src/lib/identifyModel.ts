@@ -8,7 +8,7 @@
 import type { Clue } from './bookLookup'
 
 const KEY = 'reader:identify:model'
-const CLUES: Clue[] = ['name', 'meta', 'copyright', 'list', 'names', 'words', 'sequel', 'catalog', 'order', 'running', 'cover', 'page']
+const CLUES: Clue[] = ['name', 'meta', 'copyright', 'list', 'names', 'words', 'sequel', 'catalog', 'order', 'running', 'cover', 'page', 'years']
 const STRONG: Clue[] = ['name', 'meta', 'copyright', 'list', 'names', 'sequel', 'catalog', 'page']
 
 /** answers needed before the model decides, and how many of them were wrong names */
@@ -34,7 +34,17 @@ function start(): Model {
 function load(): Model {
   try {
     const v = JSON.parse(localStorage.getItem(KEY) ?? 'null') as Model | null
-    if (v && Array.isArray(v.w) && v.w.length === SIZE && v.w.every((x) => Number.isFinite(x))) return v
+    if (v && Array.isArray(v.w) && v.w.every((x) => Number.isFinite(x))) {
+      if (v.w.length === SIZE) return v
+      // a model learnt before clues were added (the newest come last): what it learnt is kept, and each new clue starts
+      // from the weight the rules give it
+      const old = (v.w.length - 1) / 2
+      if (Number.isInteger(old) && old < CLUES.length) {
+        const s = start().w
+        const w = [v.w[0]!, ...CLUES.map((_, i) => (i < old ? v.w[1 + i]! : s[1 + i]!)), ...CLUES.map((_, i) => (i < old ? v.w[1 + old + i]! : s[1 + CLUES.length + i]!))]
+        return { ...v, w }
+      }
+    }
   } catch {
     /* unreadable: start again from the rules */
   }

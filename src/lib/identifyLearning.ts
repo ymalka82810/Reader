@@ -216,7 +216,7 @@ export function countOutcome(o: Outcome) {
 /** each clue's record: how often it was right when it agreed and when it spoke against, and how much it counts now */
 export function clueReport(): { clue: Clue; agreed: Tally; against: Tally; trust: number; counts: boolean; blocks: boolean }[] {
   const stats = clueStats()
-  const all: Clue[] = ['name', 'meta', 'copyright', 'list', 'names', 'words', 'sequel', 'catalog', 'order', 'running', 'cover', 'page']
+  const all: Clue[] = ['name', 'meta', 'copyright', 'list', 'names', 'words', 'sequel', 'catalog', 'order', 'running', 'cover', 'page', 'years']
   return all.map((c) => ({
     clue: c,
     agreed: stats[c]?.for ?? { right: 0, wrong: 0 },
