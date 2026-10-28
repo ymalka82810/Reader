@@ -521,9 +521,9 @@
    "fileName": "x.epub"
   },
   "expect": {
-   "series": "",
-   "number": "",
-   "title": "המועמדת 1",
+   "series": "המועמדת",
+   "number": "1",
+   "title": "",
    "author": "קיארה קאס"
   },
   "library": [
@@ -1957,5 +1957,81 @@
     "year": 2017
    }
   ]
+ },
+ {
+  "id": "first book named after its series",
+  "input": {
+   "title": "שומרת הערים האבודות",
+   "author": "שאנון מסנג'ר",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "שומרת הערים האבודות",
+   "number": "1",
+   "title": "שומרת הערים האבודות",
+   "author": "שאנון מסנג'ר"
+  },
+  "library": [
+   {
+    "title": "שומרת הערים האבודות 2 - גלות",
+    "author": "שאנון מסנג'ר"
+   },
+   {
+    "title": "שומרת הערים האבודות 3 - שערי השכחה",
+    "author": "שאנון מסנג'ר"
+   }
+  ]
+ },
+ {
+  "id": "first book named after its series, in the template",
+  "input": {
+   "title": "שומרת הערים האבודות 1 - שומרת הערים האבודות",
+   "author": "שאנון מסנג'ר",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "שומרת הערים האבודות",
+   "number": "1",
+   "title": "שומרת הערים האבודות",
+   "author": "שאנון מסנג'ר"
+  }
+ },
+ {
+  "id": "series said twice",
+  "input": {
+   "title": "שומרת הערים האבודות - שומרת הערים האבודות",
+   "author": "שאנון מסנג'ר",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "שומרת הערים האבודות",
+   "number": "1",
+   "title": "שומרת הערים האבודות",
+   "author": "שאנון מסנג'ר"
+  },
+  "library": [
+   {
+    "title": "שומרת הערים האבודות 2 - גלות",
+    "author": "שאנון מסנג'ר"
+   },
+   {
+    "title": "שומרת הערים האבודות 3 - שערי השכחה",
+    "author": "שאנון מסנג'ר"
+   }
+  ]
+ },
+ {
+  "id": "a later book named only after its series",
+  "input": {
+   "title": "שומרת הערים האבודות 3 - שומרת הערים האבודות",
+   "author": "שאנון מסנג'ר",
+   "fileName": "x.epub"
+  },
+  "expect": {
+   "series": "שומרת הערים האבודות",
+   "number": "3",
+   "title": "",
+   "author": "שאנון מסנג'ר"
+  }
  }
 ]

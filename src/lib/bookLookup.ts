@@ -588,6 +588,18 @@ export function libraryNames(books: { title: string; author?: string; id?: strin
     count.set(name, (count.get(name) ?? 0) + 1)
     spellings.set(key, count)
   }
+  // a book named only after a series of the library ("שומרת הערים האבודות" by the author of "שומרת הערים האבודות 2 -
+  // גלות"): that series' book named after it, its number still open (0)
+  for (const b of books) {
+    const guess = unjoined(guessBookName(tidyBookName(b.title)))
+    const entry = !guess.series ? series.get(seriesKey(guess.title)) : undefined
+    const a = norm(b.author ?? '')
+    if (!entry || (a && !/@/.test(a) && entry.authors.size && !entry.authors.has(a))) continue
+    if (b.id && entry.members!.some((m) => m.id === b.id)) continue
+    entry.members!.push({ number: 0, title: guess.title, ...(b.id && { id: b.id }), ...(b.kind && { kind: b.kind }), ...(b.words && { words: b.words }) })
+    const mine = b.id ? all.find((x) => x.id === b.id) : undefined
+    if (mine) mine.series = entry.name
+  }
   // a series named after the title, with no dash: the same words before a number at the end of two books or more
   // ("הצבע של הקסם עולם הדיסק 1", "מורט עולם הדיסק 4")
   const tails = new Map<string, { name: string; titles: Set<string>; authors: Set<string> }>()
@@ -723,6 +735,17 @@ function byLibrary(name: BookName, author: string, lib?: LibraryNames): { name: 
     }
   }
   const sureOf = (s: { authors: Set<string> }) => !!who && s.authors.has(norm(who))
+  // a name that is a whole series the library has, alone or with a number ("שומרת הערים האבודות", "שומרת הערים
+  // האבודות 1" when the library has "שומרת הערים האבודות 2 - גלות"), also said twice ("שומרת הערים האבודות - שומרת
+  // הערים האבודות"): the book of that series the series is named after, or the one at that number. Not a series of
+  // another author: a book of one's own may share another series' name
+  const twice = /^(.+?)\s+[-–—]\s+(.+)$/u.exec(title)
+  const bare = /^(.+?)(?:\s+(?:#\s*)?(\d{1,3})|\s*\((\d{1,3})\))?$/u.exec(twice && seriesKey(twice[1]!) === seriesKey(twice[2]!) ? twice[1]! : title)
+  const whole = bare ? lib.series.get(seriesKey(bare[1]!)) : undefined
+  if (bare && whole && whole.members?.length && (!who || !whole.authors.size || whole.authors.has(norm(who)))) {
+    const n = bare[2] ?? bare[3]
+    return { name: { series: whole.name, number: n ? String(Number(n)) : '', title: n ? '' : bare[1]! }, author: who, sure: false }
+  }
   const m = MIDDLE.exec(title)
   const known = m ? lib.series.get(seriesKey(m[1]!)) : undefined
   if (m && known) return { name: { series: known.name, number: String(Number(m[2])), title: m[3]! }, author: who, sure: sureOf(known) }
@@ -1007,6 +1030,16 @@ async function findName(
       if (me) me.number = n
       else entry?.members?.push({ number: n, title: base.title })
       base = { ...base, number: String(n) }
+      fromOriginal = true
+    }
+  }
+  // still no number, for the book named after its series: the first, the book the series took its name from, unless the
+  // library already has another first book of the series (then it may be a collection of the whole series)
+  if (base.series && !base.number && namedAfterSeries(base.title, base)) {
+    const self = (b as { id?: string }).id
+    const firsts = (library?.series.get(seriesKey(base.series))?.members ?? []).filter((m) => m.number === 1 && (!self || m.id !== self))
+    if (!firsts.some((m) => !namedAfterSeries(m.title ?? '', base))) {
+      base = { ...base, number: '1' }
       fromOriginal = true
     }
   }
@@ -1963,6 +1996,10 @@ export function tidyName<T extends BookName>(r: T): T {
       if (rest[1] && !r.number) r = { ...r, number: String(Number(rest[1])) }
     }
   }
+  // the first book of a series may be named after it, the series having taken its name from that book ("שומרת הערים
+  // האבודות" 1 of the series "שומרת הערים האבודות"): its title, the series' whole name, is its own. Only the first book
+  // or one with no number yet; a later book named only after its series names nothing of its own
+  if (namedAfterSeries(title, r)) return title === r.title ? r : { ...r, title }
   title = unglued(title, series)
   if (!r.number) return title === r.title ? r : { ...r, title }
   const end = /^(.*?)\s+([IVXLivxl]{1,6}|\d{1,3})$/u.exec(title)
@@ -1980,6 +2017,13 @@ export function tidyName<T extends BookName>(r: T): T {
  *  number on Wikidata, by translating the original's. */
 function noTitle(r: BookName): boolean {
   return isJunkTitle(r.title) || (!!r.series && !!r.number && !tidyName(r).title)
+}
+
+/** a title that is the series' whole name (not a shorter form of it), of the series' first book or of one with no number:
+ *  the book the series is named after (see tidyName) */
+function namedAfterSeries(title: string, r: { series: string; number: string }): boolean {
+  const t = seriesKey(title)
+  return !!t && t === seriesKey(r.series) && (!r.number.trim() || bookNumber(r.number.trim().split(/\s+/)[0]!) === 1)
 }
 
 /** a title that is the series' name, or a shorter form of it ("משפחת קיין" of "משפחת קיין והאלים המצריים"), not one that

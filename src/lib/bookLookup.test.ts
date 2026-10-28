@@ -268,7 +268,8 @@ describe('identifyBook: a name with its number in the middle', () => {
   it('splits it at a series the library has, and takes off an author it has; sure when the series is the same author\'s', async () => {
     const r = await id("שיר_של_אש_ושל_קרח_1_משחקי_הכס_ג'ורג'_ר_ר_מרטין")
     expect(r).toMatchObject({ series: 'שיר של אש ושל קרח', number: '1', title: 'משחקי הכס', author: "ג'ורג' ר ר מרטין", sure: true })
-    expect(await id('המועמדת 1 קיארה קאס')).toMatchObject({ series: '', title: 'המועמדת 1', author: 'קיארה קאס' })
+    // the series the library has, said with a number alone: that book of it, its title still to be found
+    expect(await id('המועמדת 1 קיארה קאס')).toMatchObject({ series: 'המועמדת', number: '1', title: '', author: 'קיארה קאס' })
   })
 
   it('leaves it whole when the library knows neither the series nor the author', async () => {
@@ -1024,5 +1025,50 @@ describe('identifyBook: the links of a series beyond its names', () => {
     const r = await identifyBook({ title: 'הממלכה 5 - האדמה', author: 'נועה כהן', fileName: 'x.epub' }, false, undefined, ['Copyright © 2012'], meta({}), library())
     expect(r.conflicts).toContain('joint')
     expect(r.sure).toBeUndefined()
+  })
+})
+
+describe('identifyBook: the first book named after its series', () => {
+  const A = "שאנון מסנג'ר"
+  const S = 'שומרת הערים האבודות'
+  const library = libraryNames([
+    { title: `${S} 2 - גלות`, author: A, id: 'b2' },
+    { title: `${S} 3 - שערי השכחה`, author: A, id: 'b3' },
+    { title: 'המסע', author: 'סופר אחר', id: 'c1' },
+    { title: 'המסע 2 - החזרה', author: 'סופר אחר', id: 'c2' },
+  ])
+  const id = (title: string, author = A, lib = library) => identifyBook({ title, author, fileName: 'x.epub' }, false, undefined, [], undefined, lib)
+
+  it('places a book named only after a series the library has as its first, keeping the series as its title', async () => {
+    expect(await id(S)).toMatchObject({ series: S, number: '1', title: S })
+    expect(await id(`${S} - ${S}`)).toMatchObject({ series: S, number: '1', title: S })
+    expect(await id(`${S} 1`)).toMatchObject({ series: S, number: '1', title: '' })
+  })
+
+  it('keeps the title of a first book that is the series again, but not of a later one', async () => {
+    expect(await id(`${S} 1 - ${S}`)).toMatchObject({ series: S, number: '1', title: S })
+    expect(tidyName({ series: S, number: '1', title: S }).title).toBe(S)
+    expect(tidyName({ series: S, number: '', title: S }).title).toBe(S)
+    expect(tidyName({ series: S, number: '3', title: S }).title).toBe('')
+    // a shorter form of the series is still no title of its own
+    expect(tidyName({ series: 'משפחת קיין והאלים המצריים', number: '1', title: 'משפחת קיין' }).title).toBe('')
+  })
+
+  it("gives no number when the library already has another first book, and pulls in no other author's book", async () => {
+    const withFirst = libraryNames([
+      { title: `${S} 1 - ספר ראשון אחר`, author: A },
+      { title: `${S} 2 - גלות`, author: A },
+    ])
+    expect(await id(S, A, withFirst)).toMatchObject({ series: S, number: '', title: S })
+    expect(await id('המסע', A)).toMatchObject({ series: '', title: 'המסע' })
+  })
+
+  it("counts a book named after its series among the series' books in the library", () => {
+    const lib = libraryNames([
+      { title: S, author: A, id: 'b1' },
+      { title: `${S} 2 - גלות`, author: A, id: 'b2' },
+    ])
+    expect(lib.series.get(S)?.members?.map((m) => m.id).sort()).toEqual(['b1', 'b2'])
+    expect(lib.books?.find((b) => b.id === 'b1')?.series).toBe(S)
   })
 })
