@@ -32,6 +32,17 @@ export function formatBookName({ series, number, title }: BookName): string {
   return name ? `${head} - ${name}` : head
 }
 
+/** The name as it is shown: the first book named after its series ("שומרת הערים האבודות 1 - שומרת הערים האבודות")
+ *  shows its name once, "שומרת הערים האבודות", since the series' name is the book's; its number stays in the saved
+ *  name, which keeps its place in the series. Any other name shows as it is saved. */
+export function shownName(name: string): string {
+  const n = splitBookName(name)
+  const key = (x: string) => x.replace(/[^\p{L}\p{N}]/gu, '').toLowerCase()
+  if (!n.series || !key(n.title) || key(n.title) !== key(n.series)) return name
+  const first = !n.number.trim() || bookNumber(n.number.trim().split(/\s+/)[0]!) === 1
+  return first ? clean(n.title) : formatBookName({ ...n, title: '' })
+}
+
 // a series number has up to three digits, so a year in a title ("1984", "מלחמת 1948") is not taken for one
 const TEMPLATE = /^(.+?)\s+(\d{1,3}(?:\s+[^\s\-–—][^\-–—]*?)?)\s+[-–—]\s+(.+)$/u
 

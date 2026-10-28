@@ -5,6 +5,7 @@ import { localeTag, t } from '../../i18n'
 import type { BookMeta } from '../../lib/db'
 import { finishedInYear, finishedYears } from '../../lib/finishedYear'
 import { formatMinutes, loadAllStats, type Stats } from '../../lib/stats'
+import { shownName } from '../../lib/bookName'
 
 const monthName = (year: number, month: number) => new Date(year, month, 1).toLocaleDateString(localeTag(), { month: 'long' })
 
@@ -75,7 +76,7 @@ export function FinishedYearDialog({ books, onOpen, onClose }: { books: BookMeta
                     <li key={book.id}>
                       <button className="finished-book" onClick={() => onOpen(book.id)}>
                         <span className="finished-name">
-                          {book.title}
+                          {shownName(book.title)}
                           {book.author && <small className="muted"> · {book.author}</small>}
                         </span>
                         <span className="finished-meta">

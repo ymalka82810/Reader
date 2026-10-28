@@ -1,5 +1,6 @@
 import { MAX_NOTE_HITS, type NoteHit, type Snippet } from '../../lib/noteSearch'
 import { t } from '../../i18n'
+import { shownName } from '../../lib/bookName'
 
 const Marked = ({ parts }: { parts: Snippet }) => (
   <>
@@ -20,7 +21,7 @@ export function NoteHits({ hits, onOpen }: { hits: NoteHit[]; onOpen: (id: strin
             <button className="note-main" onClick={() => onOpen(book.id, note.cfi)}>
               <span className="note-kind" style={{ background: note.color }} />
               <span>
-                <small className="note-book">{book.title}</small>
+                <small className="note-book">{shownName(book.title)}</small>
                 <Marked parts={text} />
                 {comment && (
                   <small className="note-text">

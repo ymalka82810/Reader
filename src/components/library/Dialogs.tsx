@@ -3,7 +3,7 @@ import { Dialog } from '../Dialog'
 import { t } from '../../i18n'
 import { Dropdown } from '../Dropdown'
 import type { BookMeta } from '../../lib/db'
-import { formatBookName, type BookName } from '../../lib/bookName'
+import { formatBookName, shownName, type BookName } from '../../lib/bookName'
 import { folderKey, type Folder } from '../../lib/folders'
 import type { DupAsk, DupBatch } from '../../hooks/useImport'
 import type { PwAsk } from '../../hooks/useBackup'
@@ -482,7 +482,7 @@ export function FormatDialog({
   const many = books.length > 1
   const heading = mode === 'share' ? t('book.share') : t('book.saveToPhone')
   const question =
-    mode === 'save' ? t('book.formatText', { title: book.title }) : many ? t('share.formatMany', { n: books.length }) : t('share.formatText', { title: book.title })
+    mode === 'save' ? t('book.formatText', { title: shownName(book.title) }) : many ? t('share.formatMany', { n: books.length }) : t('share.formatText', { title: shownName(book.title) })
   // the PDF is laid out by the reader's own choices, asked after the format is picked
   const [pdfStep, setPdfStep] = useState(false)
   const [opts, setOpts] = useState<PdfOptions>(loadPdfOptions)

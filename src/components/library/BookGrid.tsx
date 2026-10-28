@@ -5,6 +5,7 @@ import { isKeptPdf } from '../../lib/pdfOcr'
 import { Cover } from './Cover'
 import { t } from '../../i18n'
 import { menuKeyDown } from '../menuKeys'
+import { shownName } from '../../lib/bookName'
 
 export type BookActions = {
   selecting: boolean
@@ -52,7 +53,7 @@ export function BookCard({ book: b, picked, extra, selecting, onOpen, onToggle, 
           )}
         </div>
         <div className="meta">
-          <strong>{b.title}</strong>
+          <strong>{shownName(b.title)}</strong>
           {b.author && <small>{b.author}</small>}
           <small className="kind">{b.fromPdf ? 'PDF' : b.kind === 'audio' ? t('audio.kind') : b.kind.toUpperCase()}</small>
           {!!b.tags?.length && <small className="tags">{b.tags.map((n) => `#${n}`).join(' ')}</small>}

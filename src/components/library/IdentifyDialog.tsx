@@ -3,7 +3,7 @@ import { Dialog } from '../Dialog'
 import { Cover } from './Cover'
 import type { BookMeta } from '../../lib/db'
 import type { PendingName } from '../../lib/autoIdentify'
-import { formatBookName, isJunkTitle } from '../../lib/bookName'
+import { formatBookName, isJunkTitle, shownName } from '../../lib/bookName'
 import { CATALOG_NAMES, catalogStats, resetCatalogStats, type CatalogStats, type Clue, type LibraryNames } from '../../lib/bookLookup'
 import { identifyWithCover } from '../../lib/coverIdentify'
 import { nameWithoutCredits } from '../../lib/nameCredits'
@@ -168,7 +168,7 @@ export function IdentifyDialog({
                         </span>
                       )}
                       <span className="identify-item">
-                        <span>{f.title}</span>
+                        <span>{shownName(f.title)}</span>
                         <small className="muted">
                           {[f.author, f.online ? f.sites?.join(' + ') || t('identify.fromWeb') : f.fromText ? t('identify.fromText') : f.fromMeta ? t('identify.fromMeta') : t('identify.fromName')].filter(Boolean).join(' · ')}
                         </small>

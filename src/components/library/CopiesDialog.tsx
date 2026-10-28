@@ -5,6 +5,7 @@ import type { BookMeta } from '../../lib/db'
 import { keeperOf, markNotCopies, mergeCopies } from '../../lib/bookCopies'
 import type { Confirm } from '../../hooks/useConfirm'
 import { Cover } from './Cover'
+import { shownName } from '../../lib/bookName'
 
 const kindOf = (b: BookMeta) => (b.kind === 'pdf' ? 'PDF' : b.fromPdf ? 'EPUB (PDF)' : 'EPUB')
 const percent = (b: BookMeta) => Math.round((b.fraction ?? 0) * 100)
@@ -73,7 +74,7 @@ export function CopiesDialog({
                         <Cover book={b} />
                       </div>
                       <div>
-                        <strong>{stays ? t('copies.stays') : t('copies.goes')}</strong> {b.title}
+                        <strong>{stays ? t('copies.stays') : t('copies.goes')}</strong> {shownName(b.title)}
                         {b.author && ` · ${b.author}`} · {kindOf(b)}
                         {percent(b) > 0 && ` · ${t('copies.read', { n: percent(b) })}`}
                       </div>

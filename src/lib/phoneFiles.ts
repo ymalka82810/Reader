@@ -13,6 +13,7 @@ import { folderKey, folderName, groupFolders } from './folders'
 import { VERSIONS_DIR_NAME, authorDirOf, type DuplicateGroup } from './phoneDuplicates'
 import { sameBook } from './sameBook'
 import { t } from '../i18n'
+import { shownName } from './bookName'
 
 interface CapacitorBridge {
   nativePromise: <T>(plugin: string, method: string, options?: object) => Promise<T>
@@ -64,7 +65,7 @@ export function bookFileName(b: Pick<BookMeta, 'title' | 'fileName' | 'fromPdf' 
   const dot = b.fileName.lastIndexOf('.')
   const own = dot > 0 ? b.fileName.slice(dot + 1).toLowerCase() : ''
   const ext = extension ?? (own || (b.fromPdf || b.kind === 'epub' ? 'epub' : ''))
-  const stem = safeFileName(b.title.trim(), 'book')
+  const stem = safeFileName(shownName(b.title.trim()), 'book')
   return ext ? `${stem}.${ext}` : stem
 }
 
