@@ -4,7 +4,8 @@
 // largest letters as the book's title (bySize: the title is set larger than anything else on a cover), looked up like
 // any title (the library, the lists, the series that come with the app, the catalogs). OCR runs on the device (see
 // ocr.ts), only for these books, and once per book: what was read is kept (`reader:cover-lines`), even when nothing.
-import { identifyBook, type Identified, type LibraryNames } from './bookLookup'
+import { identifyBook, tidyName, type Identified, type LibraryNames } from './bookLookup'
+import { withoutCredits } from './nameCredits'
 import { authorFromCover, isJunkTitle, nameFromOpening, splitGlued } from './bookName'
 import { libraryAuthor } from './authorName'
 import type { EpubMeta } from './bookText'
@@ -79,6 +80,19 @@ async function read(cover: Blob, signal?: AbortSignal): Promise<string[]> {
  * A cover that cannot be read (no cover, OCR unavailable) leaves the first answer as it is.
  */
 export async function identifyWithCover(
+  b: { id: string; title: string; author: string; fileName: string; cover?: Blob },
+  online: boolean,
+  signal: AbortSignal | undefined,
+  opening: string[],
+  meta: EpubMeta | undefined,
+  library?: LibraryNames,
+): Promise<Identified> {
+  // whatever way the name was found, the author, the publisher and the year it carries are taken out of it last
+  const r = await identifyAll(b, online, signal, opening, meta, library)
+  return tidyName(withoutCredits(r, b.author))
+}
+
+async function identifyAll(
   b: { id: string; title: string; author: string; fileName: string; cover?: Blob },
   online: boolean,
   signal: AbortSignal | undefined,

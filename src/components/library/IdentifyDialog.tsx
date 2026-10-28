@@ -6,6 +6,7 @@ import type { PendingName } from '../../lib/autoIdentify'
 import { formatBookName, isJunkTitle } from '../../lib/bookName'
 import { CATALOG_NAMES, catalogStats, resetCatalogStats, type CatalogStats, type Clue, type LibraryNames } from '../../lib/bookLookup'
 import { identifyWithCover } from '../../lib/coverIdentify'
+import { nameWithoutCredits } from '../../lib/nameCredits'
 import { modelReady, predict } from '../../lib/identifyModel'
 import { bookDetails } from '../../lib/bookText'
 import { t } from '../../i18n'
@@ -49,8 +50,8 @@ export function IdentifyDialog({
     () =>
       waiting?.map((w) => ({
         id: w.id,
-        title: w.title,
-        author: w.author,
+        // names found before the author, the publisher and the year were taken out of them are cleaned here too
+        ...nameWithoutCredits(w.title, w.author),
         was: w.was,
         online: w.source === 'web',
         sites: w.sites,
