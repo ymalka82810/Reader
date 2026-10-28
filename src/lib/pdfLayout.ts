@@ -57,6 +57,8 @@ const WORD_GAP = 0.2
 function needsSpace(a: RawItem, b: RawItem): boolean {
   if (/\s$/.test(a.str) || /^\s/.test(b.str)) return false
   if (a.str.length < 2 && b.str.length < 2) return false
+  // a vowel point or other combining mark belongs to the letter before it, never to a new word
+  if (/^\p{M}/u.test(b.str) || /^\p{M}+$/u.test(a.str)) return false
   // text runs right to left in Hebrew PDFs, so the next run may lie on either side of the last one
   const gap = Math.max(b.x - (a.x + a.w), a.x - (b.x + b.w))
   return gap > Math.max(a.h, b.h) * WORD_GAP
