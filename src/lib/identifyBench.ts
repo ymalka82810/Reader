@@ -7,6 +7,7 @@ import { identifyBook, libraryNames } from './bookLookup'
 import { formatBookName, splitBookName } from './bookName'
 import type { EpubMeta } from './bookText'
 import { norm } from './sameBook'
+import { setSeriesDb, type SeriesEntry } from './seriesDb'
 
 export interface BenchCase {
   /** a short name for the case, shown when it fails */
@@ -14,8 +15,11 @@ export interface BenchCase {
   input: { title: string; author: string; fileName: string; opening?: string[]; meta?: EpubMeta }
   /** the name the book should get; a part left out is not checked */
   expect: { series?: string; number?: string; title?: string; author?: string }
-  /** other books the library has (their names in the template), when the case depends on them */
-  library?: { title: string; author?: string }[]
+  /** other books the library has (their names in the template), when the case depends on them; `year`: the year its
+   *  copyright page gives (as if the identification had read it already) */
+  library?: { title: string; author?: string; year?: number }[]
+  /** the series database the case runs with (none otherwise) */
+  seriesDb?: SeriesEntry[]
 }
 
 export const FIELDS = ['series', 'number', 'title', 'author'] as const
@@ -50,7 +54,12 @@ export async function runBench(cases: BenchCase[]): Promise<BenchResult> {
     } catch {
       /* no storage: nothing kept between cases anyway */
     }
-    const library = c.library?.length ? libraryNames(c.library) : undefined
+    setSeriesDb(c.seriesDb ?? [])
+    // the library's books, each with an id, and the years their copyright pages give kept as if read already
+    const books = (c.library ?? []).map((x, i) => ({ ...x, id: `bench-${i}`, kind: 'epub' }))
+    const years = Object.fromEntries(books.filter((x) => x.year).map((x) => [x.id, { year: x.year, words: [] }]))
+    if (Object.keys(years).length) localStorage.setItem('reader:book-facts', JSON.stringify(years))
+    const library = books.length ? libraryNames(books) : undefined
     const r = await identifyBook(c.input, false, undefined, c.input.opening ?? [], c.input.meta, library)
     let all = true
     for (const f of FIELDS) {
@@ -67,6 +76,7 @@ export async function runBench(cases: BenchCase[]): Promise<BenchResult> {
     whole.of++
     if (all) whole.right++
   }
+  setSeriesDb([])
   return { score, whole, failures }
 }
 

@@ -135,35 +135,71 @@ export function originalSeriesName(
   return undefined
 }
 
-/** The number a book of a series has, from the numbers the library already has in it and the years its books were first
- *  published: of the numbers missing (2 or 5 after 1, 3 and 4), the one the years agree with — a book first published
- *  after the others comes after them. Undefined without the book's year, or when the years do not decide it. */
-export function numberByGaps(members: { number: number; year?: number }[], year?: number): number | undefined {
-  if (!members.length) return undefined
-  // books of the series the library has with no number at all ("פרויקט X - הבן האובד"): the order of their years is the
-  // order of the series, when every one of them has a year and none shares this book's
+/** What is known of a series beyond the library: how many books it has (a catalog's list of it) and the year each of
+ *  them was first published (the series database, from Wikidata's publication dates) */
+export interface KnownSeries {
+  total?: number
+  years?: Map<number, number>
+}
+
+/** The number a book of a series has, from the years its books were first published: the year the catalog gives one of
+ *  the series' numbers, when this book's is that year; else from the numbers the library already has and their years.
+ *  The library's books only decide a place that books are known on both sides of — a gap between two numbers the
+ *  library has, each with a year that agrees — or one up to the number of books the series is known to have: a book
+ *  first published after the last one the library has may be the next, or one after a book the library lacks.
+ *  Undefined without the book's year, or when the years do not decide it. */
+export function numberByGaps(members: { number: number; year?: number }[], year?: number, known: KnownSeries = {}): number | undefined {
   if (!year) return undefined
+  const taken = new Set(members.filter((m) => m.number).map((m) => m.number))
+  // the catalog's years: the one free number first published that year (a year off, when no number has that very year:
+  // a copyright notice and a publication date may fall on either side of a new year)
+  if (known.years?.size) {
+    const free = [...known.years].filter(([n]) => !taken.has(n))
+    const exact = free.filter(([, y]) => y === year)
+    if (exact.length === 1) return exact[0]![0]
+    if (!exact.length && ![...known.years.values()].includes(year)) {
+      const near = free.filter(([, y]) => Math.abs(y - year) === 1)
+      if (near.length === 1) return near[0]![0]
+    }
+  }
+  if (!members.length) return undefined
+  const total = known.total && known.total >= Math.max(0, ...taken) ? known.total : undefined
   // when every book of the series the library has, numbered or not, has a year, and none shares this book's: its place
-  // among them by year, if the numbered ones are at their own places too (no book of the series missing before them)
+  // among them by year, if the numbered ones are at their own places too (no book of the series missing before them),
+  // and a numbered one after it says that no book is missing before it either (or the library has the whole series)
   if (members.every((m) => m.year !== undefined && m.year !== year)) {
     const place = 1 + members.filter((m) => m.year! < year).length
     const at = (m: { year?: number }) => 1 + members.filter((o) => o.year! < m.year!).length + (m.year! > year ? 1 : 0)
-    if (members.every((m) => !m.number || m.number === at(m))) return place
+    const inPlace = members.every((m) => !m.number || m.number === at(m))
+    const bounded = members.some((m) => m.number && m.year! > year) || (total !== undefined && members.length + 1 === total)
+    if (inPlace && bounded) return place
   }
   // unnumbered books whose order is unknown leave the numbers open
   if (members.some((m) => !m.number)) return undefined
-  const have = new Set(members.map((m) => m.number))
-  const max = Math.max(...have)
+  const max = Math.max(...taken)
+  // the gaps: between the library's numbers, and after them only up to the number of books the series has
+  const top = total ?? max
   const gaps: number[] = []
-  for (let i = 1; i <= max + 1; i++) if (!have.has(i)) gaps.push(i)
-  // without the book's year it is only a guess (2 or 4 after 1 and 3; and a book the library lacks may come before the
-  // next one): no number then
-  if (!year) return undefined
-  const fits = gaps.filter((g) => members.every((m) => m.year === undefined || (m.number < g ? m.year <= year : m.year >= year)))
-  // years that decide need a year on the other side of the gap: "after 4" with no year past it is still only a guess
+  for (let i = 1; i <= top; i++) if (!taken.has(i)) gaps.push(i)
   const dated = members.filter((m) => m.year !== undefined)
-  const sure = (g: number) => !year || g < max || dated.some((m) => m.number < g)
-  return fits.length === 1 && sure(fits[0]!) ? fits[0] : undefined
+  const fits = gaps.filter((g) => members.every((m) => m.year === undefined || (m.number < g ? m.year <= year : m.year >= year)))
+  // the years must decide: a dated book before the gap, and one after it (or the end of the series, when it is known)
+  const bound = (g: number) => (g === 1 || dated.some((m) => m.number < g)) && (dated.some((m) => m.number > g) || (total !== undefined && g === total))
+  return fits.length === 1 && bound(fits[0]!) ? fits[0] : undefined
+}
+
+/** Whether the book's year agrees with its number among the series' books the library has: 'against' when a book
+ *  before it was first published after it, or one after it before it; 'agree' when dated books on both sides (or the
+ *  next one, for the first) are in order; nothing when the years cannot tell. */
+export function yearsVerdict(members: { number: number; year?: number }[], number: number, year?: number): 'agree' | 'against' | undefined {
+  if (!year || !number) return undefined
+  const dated = members.filter((m) => m.number && m.number !== number && m.year !== undefined)
+  const before = dated.filter((m) => m.number < number)
+  const after = dated.filter((m) => m.number > number)
+  if (before.some((m) => m.year! > year) || after.some((m) => m.year! < year)) return 'against'
+  const later = after.some((m) => m.year! > year)
+  if (later && (number === 1 || before.some((m) => m.year! < year))) return 'agree'
+  return undefined
 }
 
 // Common Hebrew words that every story has, so two books sharing them says nothing about a series. The names a series
@@ -320,7 +356,8 @@ export function originalTitle(opening: string[]): string | undefined {
 export interface SeriesList {
   /** the series' name when the heading gives it (\"סדרת כס הזכוכית\"); empty for \"ספרים נוספים בסדרה\" */
   series: string
-  books: { title: string; number: string }[]
+  /** `year`: the year the book was first published, when the list's source gives it (the series database) */
+  books: { title: string; number: string; year?: number }[]
 }
 
 const ORDINALS: Record<string, number> = {

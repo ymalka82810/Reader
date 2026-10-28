@@ -8,9 +8,9 @@
 import { authorByDash, authorFromOpening, authorInName, guessBookName, isJunkTitle, nameFromOpening, people, personShaped, seriesOf, tidyBookName, unglued, withoutAuthor, type BookName } from './bookName'
 import { libraryAuthor, realAuthor, tidyAuthor } from './authorName'
 import type { EpubMeta } from './bookText'
-import { bookNumber, copyrightYear, seriesByWords, inLists, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, originalTitle, seriesByNames, soundOf, titleCase } from './bookInference'
+import { bookNumber, copyrightYear, seriesByWords, inLists, librarySeriesFor, numberByGaps, yearsVerdict, type KnownSeries, originalSeries, originalSeriesName, originalTitle, seriesByNames, soundOf, titleCase } from './bookInference'
 import { listsOf, rememberLists } from './bookKnowledge'
-import { bundledSeries, bundledTitle, loadSeriesDb } from './seriesDb'
+import { bundledLists, bundledSeries, bundledTitle, loadSeriesDb } from './seriesDb'
 import { hasConsent } from './consent'
 import { blocks, clueStats, needsMoreProof, trusted } from './identifyLearning'
 import { modelAllows } from './identifyModel'
@@ -961,7 +961,7 @@ async function findName(
     const entry = library.series.get(seriesKey(base.series))
     if (entry && self.id && !entry.members?.some((m) => m.id === self.id))
       (entry.members ??= []).push({ number: 0, title: base.title, id: self.id, ...(self.kind && { kind: self.kind }) })
-    const n = await numberInLibrary(base.series, copyrightYear(opening), library, signal, self.id)
+    const n = await numberInLibrary(base.series, copyrightYear(opening), library, b.author, signal, self.id)
     if (n) {
       // the number is given: the next book of this run is not offered it too
       const me = entry?.members?.find((m) => self.id && m.id === self.id)
@@ -1293,19 +1293,42 @@ async function seriesOfNames(names: [string, number][], author: string, library:
   return seriesByNames(names, series)
 }
 
-/** The number a book of this series has, from the numbers its other books in the library have and their years */
+/** What the catalogs know of a series: how many books it has and the year each was first published — the series
+ *  database that comes with the app, and Wikidata's lists kept on the device */
+function knownSeries(series: string, author: string): KnownSeries {
+  const lists = [...bundledLists(author), ...listsOf(author, ['wikidata'])].filter((l) => l.series && sameSeries(l.series, series))
+  if (!lists.length) return {}
+  const numbers = lists.flatMap((l) => l.books.map((b) => Number(b.number))).filter((n) => Number.isInteger(n) && n > 0)
+  const years = new Map<number, number>()
+  for (const l of lists)
+    for (const b of l.books) {
+      const n = Number(b.number)
+      if (b.year && n > 0 && !(years.get(n)! <= b.year)) years.set(n, b.year)
+    }
+  return { ...(numbers.length && { total: Math.max(...numbers) }), ...(years.size && { years }) }
+}
+
+/** The years of the series' books in the library, read once from their copyright pages and kept */
+async function datedMembers(series: string, library: LibraryNames, signal?: AbortSignal, self?: string) {
+  const members = (library.series.get(seriesKey(series))?.members ?? []).filter((m) => !self || m.id !== self)
+  return Promise.all(members.map(async (m) => ({ number: m.number, title: m.title, year: (await factsOf(m, signal))?.year ?? undefined })))
+}
+
+/** The number a book of this series has, from the years: the catalog's for the series' books, and the library's books
+ *  of it with their numbers and years */
 async function numberInLibrary(
   series: string,
   year: number | undefined,
   library: LibraryNames,
+  author: string,
   signal?: AbortSignal,
   self?: string,
 ): Promise<number | undefined> {
-  const members = (library.series.get(seriesKey(series))?.members ?? []).filter((m) => !self || m.id !== self)
-  if (!members.length) return undefined
-  const dated = year ? await Promise.all(members.map(async (m) => ({ number: m.number, year: (await factsOf(m, signal))?.year ?? undefined }))) : members
-  const n = numberByGaps(dated, year)
-  return n
+  if (!year) return undefined
+  const known = knownSeries(series, author)
+  const members = await datedMembers(series, library, signal, self)
+  if (!members.length && !known.years) return undefined
+  return numberByGaps(members, year, known)
 }
 
 /** where a title stands in its series, by what the library has under that title or the lists kept (bookKnowledge) */
@@ -1337,7 +1360,7 @@ function bySequels(meta: EpubMeta | undefined, author: string, library?: Library
 
 /** where a clue comes from: the file's or library's name, the file's package, the copyright page, a list of the series'
  *  books, the names its story shares with the series, a catalog, the numbers the library leaves free, a running head */
-export type Clue = 'name' | 'meta' | 'copyright' | 'list' | 'names' | 'words' | 'sequel' | 'catalog' | 'order' | 'running' | 'cover' | 'page'
+export type Clue = 'name' | 'meta' | 'copyright' | 'list' | 'names' | 'words' | 'sequel' | 'catalog' | 'order' | 'running' | 'cover' | 'page' | 'years'
 
 /** two titles that are one: the same words, or one the other's start ("דם האולימפוס" and "דם האולימפוס V") */
 function sameTitle(x: string, y: string): boolean {
@@ -1439,6 +1462,18 @@ async function weigh(
         (m) => m.number && m.number === Number(r.number) && !(self && m.id === self) && !(m.title && sameTitle(m.title, r.title)),
       )
       if (taken) conflicts.push('order')
+    }
+    // the years: the book's first publication against those of the series' books before and after it (the library's, and
+    // the catalog's for the numbers it dates); a clue of its own, so how often it is right is measured
+    const year = copyrightYear(opening)
+    if (r.number && year) {
+      const self = (b as { id?: string }).id
+      const kept = facts()
+      const dated = members
+        .filter((m) => m.number && !(self && m.id === self) && !(m.title && sameTitle(m.title, r.title)))
+        .map((m) => ({ number: m.number, year: (m.id && kept[m.id]?.year) || undefined }))
+      for (const [n, y] of knownSeries(r.series, r.author || b.author).years ?? []) if (n !== Number(r.number)) dated.push({ number: n, year: y })
+      count('years', yearsVerdict(dated, Number(r.number), year))
     }
   }
   // the title and the author, for every book: each source the book has, on its own (crossCheck). What they agree on is

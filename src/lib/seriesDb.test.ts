@@ -36,3 +36,9 @@ it("looks up a one-word title only with its author, and another author's series 
   expect(bundledLists('ריק ריירדן').map((l) => l.series)).toEqual(["פרסי ג'קסון והאולימפיים"])
   expect(bundledLists('Rick Riordan').map((l) => l.series)).toEqual(["פרסי ג'קסון והאולימפיים"])
 })
+
+it('reads the year each book was first published, when the file gives it, and takes no year that is not one', () => {
+  setSeriesDb([{ s: 'סדרה', a: 'מישהו', b: [['1', 'א', 2014], ['2', 'ב'], ['3', 'ג', 0]] }])
+  const books = bundledLists('מישהו')[0]!.books
+  expect(books.map((b) => b.year)).toEqual([2014, undefined, undefined])
+})

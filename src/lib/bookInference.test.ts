@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bookNumber, copyrightYear, inLists, namesIn, originalTitle, seriesByNames, seriesByWords, sequels, seriesLists, librarySeriesFor, numberByGaps, originalSeries, originalSeriesName, soundOf, titleCase } from './bookInference'
+import { bookNumber, copyrightYear, inLists, namesIn, originalTitle, seriesByNames, seriesByWords, sequels, seriesLists, librarySeriesFor, numberByGaps, yearsVerdict, originalSeries, originalSeriesName, soundOf, titleCase } from './bookInference'
 import { norm } from './sameBook'
 
 describe('soundOf', () => {
@@ -73,9 +73,28 @@ describe('numberByGaps', () => {
     expect(numberByGaps([{ number: 1 }, { number: 3 }])).toBeUndefined()
     expect(numberByGaps([{ number: 1 }, { number: 2 }, { number: 3 }])).toBeUndefined()
   })
-  it('takes the next number only when a book before it has a year', () => {
+  it('takes the number after the last only up to the number of books the series is known to have', () => {
     expect(numberByGaps([{ number: 1 }, { number: 2 }], 2020)).toBeUndefined()
-    expect(numberByGaps([{ number: 1, year: 2014 }, { number: 2, year: 2015 }], 2020)).toBe(3)
+    // the library lacks book 3: a book after 2 may as well be 4
+    expect(numberByGaps([{ number: 1, year: 2014 }, { number: 2, year: 2015 }], 2020)).toBeUndefined()
+    expect(numberByGaps([{ number: 1, year: 2014 }, { number: 2, year: 2015 }], 2020, { total: 3 })).toBe(3)
+    // a series of four: 3 or 4, the years cannot tell
+    expect(numberByGaps([{ number: 1, year: 2014 }, { number: 2, year: 2015 }], 2020, { total: 4 })).toBeUndefined()
+  })
+  it('fills a gap only when dated books on both sides agree', () => {
+    expect(numberByGaps([{ number: 1 }, { number: 3 }], 2015)).toBeUndefined()
+    expect(numberByGaps([{ number: 1, year: 2014 }, { number: 3 }], 2015)).toBeUndefined()
+    expect(numberByGaps([{ number: 1, year: 2014 }, { number: 3, year: 2016 }], 2015)).toBe(2)
+    expect(numberByGaps([{ number: 1, year: 2014 }, { number: 3, year: 2016 }], 2017)).toBeUndefined()
+  })
+  it('takes the number whose year the catalog gives', () => {
+    const years = new Map([[1, 2014], [2, 2015], [3, 2017], [4, 2019]])
+    expect(numberByGaps([], 2017, { years, total: 4 })).toBe(3)
+    // a year off, when no book has that very year
+    expect(numberByGaps([{ number: 1, year: 2014 }], 2018, { years, total: 4 })).toBeUndefined() // 3 and 4 are both a year off
+    expect(numberByGaps([{ number: 3, year: 2017 }], 2018, { years, total: 4 })).toBe(4)
+    // the number of that year is taken by another book of the library: the years say nothing more
+    expect(numberByGaps([{ number: 3, year: 2017 }], 2017, { years, total: 4 })).toBeUndefined()
   })
   it('decides between the gaps by the years', () => {
     const series = [
@@ -83,7 +102,8 @@ describe('numberByGaps', () => {
       { number: 3, year: 2016 },
       { number: 4, year: 2017 },
     ]
-    expect(numberByGaps(series, 2018)).toBe(5)
+    expect(numberByGaps(series, 2018)).toBeUndefined()
+    expect(numberByGaps(series, 2018, { total: 5 })).toBe(5)
     expect(numberByGaps(series, 2015)).toBe(2)
     expect(numberByGaps(series)).toBeUndefined()
   })
@@ -200,10 +220,12 @@ describe('originalTitle', () => {
 describe('numberByGaps with no numbers yet', () => {
   it('orders a series\' unnumbered books by their years', () => {
     const books = [{ number: 0, year: 2016 }, { number: 0, year: 2018 }, { number: 0, year: 2019 }]
-    expect(numberByGaps(books, 2017)).toBe(2)
-    expect(numberByGaps(books, 2015)).toBe(1)
-    expect(numberByGaps([...books, { number: 0 }], 2017)).toBeUndefined() // one with no year
-    expect(numberByGaps(books, 2018)).toBeUndefined() // a year two books share
+    // a book of the series the library lacks would move every place: only when the library has the whole series
+    expect(numberByGaps(books, 2017)).toBeUndefined()
+    expect(numberByGaps(books, 2017, { total: 4 })).toBe(2)
+    expect(numberByGaps(books, 2015, { total: 4 })).toBe(1)
+    expect(numberByGaps([...books, { number: 0 }], 2017, { total: 5 })).toBeUndefined() // one with no year
+    expect(numberByGaps(books, 2018, { total: 4 })).toBeUndefined() // a year two books share
   })
 })
 
@@ -211,10 +233,13 @@ describe('numberByGaps by the places of all the series\' books', () => {
   it('counts the unnumbered books with years among those before', () => {
     // Off-Campus: 1 numbered (2015), the others unnumbered (2015, 2016, 2016); "The Legacy" (2019) is 5, not 2
     const books = [{ number: 1, year: 2014 }, { number: 0, year: 2015 }, { number: 0, year: 2016 }, { number: 0, year: 2017 }]
-    expect(numberByGaps(books, 2019)).toBe(5)
+    expect(numberByGaps(books, 2019)).toBeUndefined()
+    expect(numberByGaps(books, 2019, { total: 5 })).toBe(5)
+    // a numbered book after it says no book is missing before it
+    expect(numberByGaps([{ number: 1, year: 2014 }, { number: 0, year: 2015 }, { number: 4, year: 2018 }], 2016)).toBe(3)
   })
   it('takes no place when a numbered book is not at its own (a book of the series missing before it)', () => {
-    expect(numberByGaps([{ number: 1, year: 2014 }, { number: 3, year: 2016 }, { number: 0, year: 2015 }], 2018)).toBe(4)
+    expect(numberByGaps([{ number: 1, year: 2014 }, { number: 3, year: 2016 }, { number: 0, year: 2015 }], 2018, { total: 4 })).toBe(4)
     expect(numberByGaps([{ number: 1, year: 2014 }, { number: 3, year: 2016 }, { number: 0 }], 2018)).toBeUndefined()
   })
 })
@@ -257,5 +282,22 @@ describe('sequels', () => {
   it('finds a title quoted in a sentence, and takes nothing from the story itself', () => {
     expect(sequels(['בספר הקודם, ״גנב הברק״, פרסי גילה מי אביו.'], ['ובספר הבא, ״ים המפלצות״, הוא יפליג.']).next).toEqual(['ים המפלצות'])
     expect(sequels(['ההמשך היה ארוך ומייגע, והוא הלך הביתה לאט לאט בלי לומר מילה לאיש.'], ['הוא הביט בספר הבא שעל המדף והניח אותו בצד.'])).toEqual({ next: [], prev: [] })
+  })
+})
+
+describe('yearsVerdict', () => {
+  const books = [{ number: 1, year: 2014 }, { number: 2, year: 2015 }, { number: 4, year: 2018 }]
+  it('agrees when the books on both sides came out before and after it', () => {
+    expect(yearsVerdict(books, 3, 2016)).toBe('agree')
+    expect(yearsVerdict([{ number: 2, year: 2015 }], 1, 2013)).toBe('agree')
+  })
+  it('speaks against a book first published before one it should follow', () => {
+    expect(yearsVerdict(books, 3, 2013)).toBe('against')
+    expect(yearsVerdict(books, 3, 2019)).toBe('against')
+  })
+  it('says nothing when the years cannot tell', () => {
+    expect(yearsVerdict(books, 5, 2020)).toBeUndefined() // nothing after it
+    expect(yearsVerdict(books, 3)).toBeUndefined()
+    expect(yearsVerdict([{ number: 1 }, { number: 4 }], 3, 2016)).toBeUndefined()
   })
 })

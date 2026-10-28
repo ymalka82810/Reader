@@ -263,6 +263,7 @@ export const ar: Record<keyof typeof he, Message> = {
   'identify.clue.catalog': 'فهرس',
   'identify.clue.order': 'ترقيم السلسلة في المكتبة',
   'identify.clue.running': 'الترويسة الجارية',
+  'identify.clue.years': 'سنوات صدور السلسلة',
   'identify.clue.cover': 'الغلاف',
   'identify.clue.page': 'صفحة العنوان',
   'identify.fromText': 'من الكتاب',
