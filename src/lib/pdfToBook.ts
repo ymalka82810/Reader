@@ -1,7 +1,8 @@
 import { t } from '../i18n'
 import type { PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import { buildLines, looksTabular, normalizeStreamOrder, rawItems, readingGroups, type Line } from './pdfLayout'
-import { detectHeadings, isBlankPixels, isPoorPage, joinPages, stripRunningLines, toParagraphs, visualOrder } from './pdfText'
+import { laidLines, looksLaidLtr, mergeWrappedRows } from './pdfLaid'
+import { detectHeadings, fixLine, isBlankPixels, isPoorPage, joinPages, stripRunningLines, toParagraphs, visualOrder } from './pdfText'
 
 const PAGES_PER_SECTION = 8
 /** a page with less text than this is treated as an image (a scan) */
@@ -160,6 +161,8 @@ export async function extractPdf(
   }
   const total = pdf.numPages
   let pages: Line[][] = []
+  // the same pages read as Hebrew set left to right (see pdfLaid), kept until the layout is known
+  let laid: Line[][] = []
   let info: Record<string, string>
   let bookmarks: Map<number, string>
   let cover: Blob | null = null
@@ -172,6 +175,7 @@ export async function extractPdf(
       const items = normalizeStreamOrder(await rawItems(p))
       if (looksTabular(items)) hasTables = true
       pages.push(readingGroups(items).flatMap(buildLines))
+      laid.push(laidLines(items))
       p.cleanup()
       onProgress?.(i, total)
     }
@@ -212,7 +216,12 @@ export async function extractPdf(
 
   const chars = pages.flat().map((l) => l.text).join('')
 
-  const reversed = visualOrder(pages)
+  let reversed = visualOrder(pages)
+  if (reversed === 'chars' && looksLaidLtr(pages.flat().map((l) => fixLine(l.text, 'chars')), laid.flat().map((l) => l.text))) {
+    pages = mergeWrappedRows(laid)
+    reversed = null
+  }
+  laid = []
   const hebCount = (chars.match(/[֐-׿]/g) ?? []).length
   const rtl = hebCount > chars.length * 0.3
 

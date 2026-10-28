@@ -297,11 +297,12 @@ async function pdfOpening(
   prev?: string[]
   make?: string[]
 }> {
-  const [pdfjs, { default: workerUrl }, layout, { visualOrder, fixLine }] = await Promise.all([
+  const [pdfjs, { default: workerUrl }, layout, { visualOrder, fixLine }, laidOut] = await Promise.all([
     import('pdfjs-dist/legacy/build/pdf.mjs'),
     import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'),
     import('./pdfLayout'),
     import('./pdfText'),
+    import('./pdfLaid'),
   ])
   pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
   const task = pdfjs.getDocument({ data: await file.arrayBuffer(), wasmUrl: new URL('pdfjs-wasm/', document.baseURI).href })
@@ -310,14 +311,23 @@ async function pdfOpening(
     // the tools that made it (its producer and creator): the file's make
     const make = pdfMake(((await pdf.getMetadata().catch(() => null))?.info ?? {}) as Record<string, unknown>)
     const pages: Awaited<ReturnType<typeof layout.buildLines>>[] = []
+    const laid: typeof pages = []
     for (let i = 1; i <= Math.min(PAGES, pdf.numPages); i++) {
       signal?.throwIfAborted()
       const p = await pdf.getPage(i)
-      pages.push(layout.readingGroups(layout.normalizeStreamOrder(await layout.rawItems(p))).flatMap(layout.buildLines))
+      const items = layout.normalizeStreamOrder(await layout.rawItems(p))
+      pages.push(layout.readingGroups(items).flatMap(layout.buildLines))
+      laid.push(laidOut.laidLines(items))
       p.cleanup()
     }
-    const order = visualOrder(pages)
-    const lines = pages.flat().map((l) => fixLine(l.text, order)).slice(0, MAX_LINES)
+    let order = visualOrder(pages)
+    // Hebrew set left to right: each page is read piece by piece, its wrapped lines joined (see pdfLaid)
+    const isLaid =
+      order === 'chars' && laidOut.looksLaidLtr(pages.flat().map((l) => fixLine(l.text, 'chars')), laid.flat().map((l) => l.text))
+    if (isLaid) order = null
+    const pageLines = (items: Awaited<ReturnType<typeof layout.rawItems>>) =>
+      isLaid ? laidOut.mergeWrappedRows([laidOut.laidLines(items)])[0]! : layout.readingGroups(items).flatMap(layout.buildLines)
+    const lines = (isLaid ? laidOut.mergeWrappedRows(laid) : pages).flat().map((l) => fixLine(l.text, order)).slice(0, MAX_LINES)
     // a scan has no text layer: the first pages are drawn and read by OCR
     if (letters(lines) < MIN_LETTERS) return { opening: await scannedOpening(pdf, signal), make }
     // the first and last lines of the pages further in, for a running head, and all their lines for the names
@@ -326,7 +336,7 @@ async function pdfOpening(
     for (let i = RUNNING_FROM; i < RUNNING_FROM + RUNNING_PAGES && i <= pdf.numPages; i++) {
       signal?.throwIfAborted()
       const p = await pdf.getPage(i)
-      const page = layout.readingGroups(layout.normalizeStreamOrder(await layout.rawItems(p))).flatMap(layout.buildLines)
+      const page = pageLines(layout.normalizeStreamOrder(await layout.rawItems(p)))
       p.cleanup()
       const texts = page.map((l) => fixLine(l.text, order))
       if (texts.length) ends.push([texts[0]!, texts[texts.length - 1]!])
@@ -336,7 +346,7 @@ async function pdfOpening(
     for (let i = Math.max(RUNNING_FROM + RUNNING_PAGES, pdf.numPages - END_PAGES + 1); i <= pdf.numPages; i++) {
       signal?.throwIfAborted()
       const p = await pdf.getPage(i)
-      end.push(...layout.readingGroups(layout.normalizeStreamOrder(await layout.rawItems(p))).flatMap(layout.buildLines).map((l) => fixLine(l.text, order)))
+      end.push(...pageLines(layout.normalizeStreamOrder(await layout.rawItems(p))).map((l) => fixLine(l.text, order)))
       p.cleanup()
     }
     const words = wordsIn([...lines, ...story])

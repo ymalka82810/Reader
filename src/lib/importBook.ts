@@ -50,9 +50,10 @@ const lowerName = (f: File) =>
 export const LARGE_PDF_BYTES = 20 * 1024 * 1024
 /**
  * Version of the PDF→EPUB conversion (lib/pdfToBook), stored on each converted book. Raise it whenever the conversion's text
- * gets better (2: words no longer glued together; 3: each table-of-contents entry on its own line): adding the same PDF again then converts it afresh instead of refusing it.
+ * gets better (2: words no longer glued together; 3: each table-of-contents entry on its own line; 4: Hebrew set left to right,
+ * see lib/pdfLaid): adding the same PDF again then converts it afresh instead of refusing it.
  */
-export const PDF_CONVERSION = 3
+export const PDF_CONVERSION = 4
 /** a text file this big is a whole collection, not a book; converting it would freeze a phone and take hundreds of MB of memory */
 export const MAX_TXT_BYTES = 15 * 1024 * 1024
 
