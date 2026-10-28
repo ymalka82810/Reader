@@ -10,6 +10,7 @@ import { bookFromSections } from '../lib/pdfToBook'
 import { t } from '../i18n'
 import { applyLayout, bookCSS, type Settings } from '../lib/settings'
 import { useLatest } from './useLatest'
+import { shownName } from '../lib/bookName'
 
 export interface FoliateHandlers {
   /** runs once the book is found and before it is shown: await anything the first page needs */
@@ -88,7 +89,7 @@ export function useFoliateView(
 
         applySettings(view, settingsRef.current, faceRef.current)
 
-        setTitle(rec.title)
+        setTitle(shownName(rec.title))
         const lang = [view.book.metadata?.language].flat()[0]
         bookLang.current = typeof lang === 'string' ? (lang.split(/[-_]/)[0] ?? '').toLowerCase() : ''
         setLang(bookLang.current)

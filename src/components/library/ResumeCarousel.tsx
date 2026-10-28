@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { BookMeta } from '../../lib/db'
 import { t } from '../../i18n'
 import { Cover } from './Cover'
+import { shownName } from '../../lib/bookName'
 
 const AUTO_MS = 10_000
 
@@ -109,7 +110,7 @@ export function ResumeCarousel({ books, onOpen, onRemove }: { books: BookMeta[];
             <Cover book={b} />
             <span className="continue-info">
               <small>{t('lib.resume')}</small>
-              <strong>{b.title}</strong>
+              <strong>{shownName(b.title)}</strong>
               {b.author && <small>{b.author}</small>}
               <span className="continue-progress">
                 <progress value={b.fraction} max={1} aria-label={t('book.percentRead', { pct: Math.round((b.fraction ?? 0) * 100) })} />
@@ -118,7 +119,7 @@ export function ResumeCarousel({ books, onOpen, onRemove }: { books: BookMeta[];
             </span>
             <span className="continue-cta">{t('lib.continue')}</span>
           </button>
-          <button className="resume-remove" aria-label={t('lib.resumeRemove', { title: b.title })} title={t('lib.resumeRemove', { title: b.title })} onClick={() => onRemove(b.id)}>✕</button>
+          <button className="resume-remove" aria-label={t('lib.resumeRemove', { title: shownName(b.title) })} title={t('lib.resumeRemove', { title: shownName(b.title) })} onClick={() => onRemove(b.id)}>✕</button>
           </div>
         ))}
       </div>
@@ -128,7 +129,7 @@ export function ResumeCarousel({ books, onOpen, onRemove }: { books: BookMeta[];
             <button
               key={b.id}
               className={i === index ? 'on' : ''}
-              aria-label={b.title}
+              aria-label={shownName(b.title)}
               aria-current={i === index}
               onClick={() => goTo(i)}
             />

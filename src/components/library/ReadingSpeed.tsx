@@ -3,6 +3,7 @@ import { localeTag, t } from '../../i18n'
 import { listBooks } from '../../lib/db'
 import { bookSpeeds, loadPaceData, monthlyWpm, personalSecsPerWord, wpm, wpmByLanguage } from '../../lib/pace'
 import { formatMinutes, loadAllStats } from '../../lib/stats'
+import { shownName } from '../../lib/bookName'
 
 /** books shown on each side (faster / slower than usual), and how far from usual a book must be to count */
 const BOOKS_SHOWN = 3
@@ -55,7 +56,7 @@ export function ReadingSpeed() {
   const slower = (books ?? []).filter((b) => b.ratio <= 1 - NOTABLE).slice(0, BOOKS_SHOWN)
   const row = (b: BookSpeed) => (
     <li key={b.id}>
-      <span className="speed-name">{b.title}</span>
+      <span className="speed-name">{shownName(b.title)}</span>
       <span>
         {t('speed.wpm', { n: b.wpm })} <small>({percent(b.ratio)})</small>
       </span>

@@ -36,6 +36,10 @@ describe('bookFileName', () => {
     expect(bookFileName(book({ kind: 'other', fileName: 'x.MOBI' }))).toBe("פרסי ג'קסון 1 - גנב הברק.mobi")
   })
 
+  it('names the first book named after its series once', () => {
+    expect(bookFileName(book({ title: 'שומרת הערים האבודות 1 - שומרת הערים האבודות' }))).toBe('שומרת הערים האבודות.epub')
+  })
+
   it('names a converted PDF as the EPUB it now is, and a PDF kept as it is as a PDF', () => {
     expect(bookFileName(book({ fromPdf: true, fileName: 'a.epub' }))).toBe("פרסי ג'קסון 1 - גנב הברק.epub")
     expect(bookFileName(book({ fromPdf: true, fileName: 'a.pdf' }))).toBe("פרסי ג'קסון 1 - גנב הברק.pdf")

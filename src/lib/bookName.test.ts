@@ -8,6 +8,7 @@ import {
   isJunkTitle,
   nameFromOpening,
   seriesOf,
+  shownName,
   splitBookName,
   tidyBookName,
   withoutAuthor,
@@ -287,5 +288,19 @@ describe('authorFromCover', () => {
   })
   it('does not take a part of the title or a line with a number', () => {
     expect(authorFromCover(['גנב הברק', 'ספר 1'], 'גנב הברק')).toBeUndefined()
+  })
+})
+
+describe('shownName', () => {
+  const S = 'שומרת הערים האבודות'
+  it('shows the first book named after its series once', () => {
+    expect(shownName(`${S} 1 - ${S}`)).toBe(S)
+    expect(shownName(formatBookName({ series: S, number: '1', title: S }))).toBe(S)
+  })
+  it('shows a later book with only its series and number, and any other name as it is', () => {
+    expect(shownName(`${S} 3 - ${S}`)).toBe(`${S} 3`)
+    expect(shownName(`${S} 2 - גלות`)).toBe(`${S} 2 - גלות`)
+    expect(shownName("פרסי ג'קסון 1 - גנב הברק")).toBe("פרסי ג'קסון 1 - גנב הברק")
+    expect(shownName(S)).toBe(S)
   })
 })

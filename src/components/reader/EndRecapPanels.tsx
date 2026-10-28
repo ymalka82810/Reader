@@ -3,6 +3,7 @@ import type { SeriesPlace } from '../../lib/nextInSeries'
 import type { FolderLink } from '../../lib/coAuthors'
 import { Panel } from './shared'
 import { Stars } from '../Stars'
+import { shownName } from '../../lib/bookName'
 
 export interface Recap {
   /** days since the book was last opened */
@@ -88,7 +89,7 @@ export function EndPanel({
         <div className="end-next">
           <p>{place.nextNumber === place.number + 1 ? t('end.next') : t('end.nextGap', { missing: String(place.number + 1) })}</p>
           <button className="primary" onClick={() => onOpen(next.id)}>
-            {next.title}
+            {shownName(next.title)}
           </button>
         </div>
       )}

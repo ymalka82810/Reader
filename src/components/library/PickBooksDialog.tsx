@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Dialog } from '../Dialog'
 import type { BookMeta } from '../../lib/db'
 import { t } from '../../i18n'
+import { shownName } from '../../lib/bookName'
 
 /** choose individual books to show; nothing ticked means no pick */
 export function PickBooksDialog({
@@ -32,7 +33,7 @@ export function PickBooksDialog({
             <li key={b.id}>
               <label className="pick-row">
                 <input type="checkbox" checked={ids.has(b.id)} onChange={() => toggle(b.id)} />
-                <span>{b.title}</span>
+                <span>{shownName(b.title)}</span>
               </label>
             </li>
           ))}

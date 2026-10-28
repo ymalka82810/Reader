@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { BookMeta } from '../../lib/db'
+import { shownName } from '../../lib/bookName'
 
 export function Cover({ book }: { book: BookMeta }) {
   const [url, setUrl] = useState<string>()
@@ -31,7 +32,7 @@ export function Cover({ book }: { book: BookMeta }) {
   if (url) return <img className="cover" src={url} alt="" decoding="async" />
   return (
     <div className="cover placeholder" ref={holder}>
-      <span>{book.title}</span>
+      <span>{shownName(book.title)}</span>
     </div>
   )
 }
