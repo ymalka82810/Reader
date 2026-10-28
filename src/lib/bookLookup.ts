@@ -11,6 +11,7 @@ import type { EpubMeta } from './bookText'
 import type { Clue } from './clues'
 import { bookNumber, copyrightYear, seriesByWords, inLists, librarySeriesFor, numberByGaps, numberByRhythm, numberedByRhythm, rhythmVerdict, yearsVerdict, type KnownSeries, originalSeries, originalSeriesName, originalTitle, seriesByNames, soundOf, titleCase } from './bookInference'
 import { listsOf, rememberLists } from './bookKnowledge'
+import { authorByTimeline, timelineVerdict, type Dated } from './authorTimeline'
 import { debutVerdict, designVerdict, houseOf, houseVerdict, jointVerdict, placeSeries, type Placed } from './seriesLinks'
 import { bundledLists, bundledSeries, bundledTitle, loadSeriesDb } from './seriesDb'
 import { hasConsent } from './consent'
@@ -552,6 +553,8 @@ export interface LibraryNames {
   titles?: Map<string, string>
   /** longest first, so "ג'ורג' ר ר מרטין" is tried before "מרטין" */
   authors: string[]
+  /** each book with an id: its author and series ('' for none), for what the author's books say together (the timeline) */
+  books?: { id: string; author: string; series: string }[]
 }
 
 /** a series compared across spellings: "פרויקט איקס" is "פרויקט X" */
@@ -562,11 +565,13 @@ export function libraryNames(books: { title: string; author?: string; id?: strin
   const titles = new Map<string, string>()
   const spellings = new Map<string, Map<string, number>>()
   const authors = new Set<string>()
+  const all: NonNullable<LibraryNames['books']> = []
   for (const b of books) {
     const a = (b.author ?? '').trim()
     if (a && !/@/.test(a)) authors.add(a)
     // as the identification reads it, so "פרויקט X #01 - פרויקט X" counts before it is renamed
     const guess = unjoined(guessBookName(tidyBookName(b.title)))
+    if (b.id) all.push({ id: b.id, author: /@/.test(a) ? '' : a, series: guess.series })
     const name = guess.series
     const key = name && seriesKey(name)
     if (!key) continue
@@ -624,7 +629,7 @@ export function libraryNames(books: { title: string; author?: string; id?: strin
   for (const e of sides.values()) if (e.others.size >= 2 && personShaped(e.name)) authors.add(e.name)
   // the spelling most of the series' books have
   for (const [key, count] of spellings) series.get(key)!.name = [...count].sort((x, y) => y[1] - x[1])[0]![0]
-  return { series, titles, authors: [...authors].sort((x, y) => y.length - x.length) }
+  return { series, titles, authors: [...authors].sort((x, y) => y.length - x.length), books: all }
 }
 
 /** The series and number a file's name gives a book whose own title has neither (see findName). Words compared as norm
@@ -837,7 +842,31 @@ export async function identifyBook(
   const weighed = await weigh(r, b, opening, meta, library, signal)
   // a catalog's spelling of an author the library has under another ("Rick Riordan", "ריק ריירדן")
   const author = library && weighed.author ? libraryAuthor(weighed.author, library.authors) : undefined
-  return author ? { ...weighed, author } : weighed
+  if (author) return { ...weighed, author }
+  // no author still: the one author of the library whose years, publisher and translator the book shares (the author's
+  // timeline); it is only offered, never saved without asking
+  const fitting = !weighed.author && library ? byTimeline(opening, library, (b as { id?: string }).id) : undefined
+  if (!fitting) return weighed
+  const { sure: _sure, ...rest } = weighed
+  return { ...rest, author: fitting, evidence: [...new Set([...(weighed.evidence ?? []), 'timeline' as const])] }
+}
+
+/** the author the book's year and house fit among the library's authors (authorTimeline's authorByTimeline), by what is
+ *  kept of their books (never read for it) */
+function byTimeline(opening: string[], library: LibraryNames, self?: string): string | undefined {
+  const house = houseOf(opening)
+  if (!house.length) return undefined
+  const kept = facts()
+  const by = new Map<string, { author: string; works: { year?: number; house: string[] }[] }>()
+  for (const x of library.books ?? []) {
+    const f = x.id !== self && x.author ? kept[x.id] : undefined
+    if (!f?.house?.length) continue
+    const k = norm(x.author)
+    const e = by.get(k) ?? { author: x.author, works: [] }
+    e.works.push({ ...(f.year && { year: f.year }), house: f.house })
+    by.set(k, e)
+  }
+  return authorByTimeline(copyrightYear(opening), house, [...by.values()])
 }
 
 async function findName(
@@ -1377,6 +1406,29 @@ function knownSeries(series: string, author: string): KnownSeries {
   return { ...(numbers.length && { total: Math.max(...numbers) }), ...(years.size && { years }) }
 }
 
+/** the same author, across spellings and the forms a credit gives ("ריק ריירדן" in "ריק ריירדן ומרק אוסטר") */
+const sameWriter = (x: string, y: string) => {
+  const a = norm(x)
+  const b = norm(y)
+  return !!a && !!b && (a === b || a.includes(b) || b.includes(a))
+}
+
+/** The author's books with their years (the timeline's material): the library's (by the years kept of them, never read
+ *  for it), and the books of the author's series the catalogs date. Each in its series, named `series` when it is that
+ *  one. Never the book itself. */
+function authorWorks(author: string, series: string, self: string | undefined, library?: LibraryNames): Dated[] {
+  const kept = facts()
+  const of = (s: string) => (s && series && sameSeries(s, series) ? series : s ? seriesKey(s) : '')
+  const out: Dated[] = []
+  for (const x of library?.books ?? []) {
+    const year = x.id !== self && sameWriter(x.author, author) ? kept[x.id]?.year : undefined
+    if (year) out.push({ year, series: of(x.series) })
+  }
+  for (const l of [...bundledLists(author), ...listsOf(author, ['wikidata'])])
+    for (const w of l.books) if (w.year) out.push({ year: w.year, series: of(l.series ?? '') })
+  return out
+}
+
 /** The years of the series' books in the library, read once from their copyright pages and kept */
 async function datedMembers(series: string, library: LibraryNames, signal?: AbortSignal, self?: string) {
   const members = (library.series.get(seriesKey(series))?.members ?? []).filter((m) => !self || m.id !== self)
@@ -1671,6 +1723,11 @@ async function cluesOf(
       }
     }
   }
+  // the author's timeline: the book's year against the years the author wrote in, and wrote this series in (a weak clue
+  // against, see authorTimeline)
+  const year = copyrightYear(opening)
+  const author = r.author || b.author
+  if (year && author.trim()) count('timeline', timelineVerdict(authorWorks(author, r.series, (b as { id?: string }).id, library), year, r.series ? r.series : ''))
   // the title and the author, for every book: each source the book has, on its own (crossCheck). What they agree on is
   // shown with the name but makes nothing sure (two of them are often one source twice: a file named after its package);
   // what speaks against keeps the name from being saved without asking

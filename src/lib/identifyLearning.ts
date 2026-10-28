@@ -6,7 +6,7 @@
 // tunes itself to the library it actually meets instead of to fixed rules. Kept on the device.
 
 import { rememberName } from './bookKnowledge'
-import { CLUES, STRONG, type Clue } from './clues'
+import { CLUES, STRONG, WEAK_AGAINST, type Clue } from './clues'
 import { guessBookName, splitBookName, tidyBookName } from './bookName'
 import { learnAnswer } from './identifyModel'
 import { learnLinesOf } from './lineModel'
@@ -202,9 +202,9 @@ export function recordOutcome(evidence: Clue[] = [], conflicts: Clue[] = [], rig
 // ---- sources: clues that come from one place say one thing, however many of them say it
 
 /** the clues known to come from one source before anything is learnt: the file's name and its package are mostly named
- *  by the same hand; the story's names and its vocabulary are one reading of it; the years and the pace are one set of
- *  years */
-const SOURCE: Partial<Record<Clue, string>> = { name: 'file', meta: 'file', names: 'story', words: 'story', debut: 'story', years: 'years', rhythm: 'years' }
+ *  by the same hand; the story's names and its vocabulary are one reading of it; the years, the pace and the author's
+ *  timeline are one set of years */
+const SOURCE: Partial<Record<Clue, string>> = { name: 'file', meta: 'file', names: 'story', words: 'story', debut: 'story', years: 'years', rhythm: 'years', timeline: 'years' }
 
 /** how many wrong names two clues agreed with together, by "a|b" (sorted) */
 function pairStats(): Record<string, number> {
@@ -256,7 +256,7 @@ const PRIOR = 4
 /** how often a clue was right when it agreed (`for`) or spoke against (`against`), starting from what it is believed to
  *  be worth before anything is learned: a strong clue, and any clue against, are mostly right; a weak one less than half the time */
 function trust(c: Clue, side: 'for' | 'against', stats: ClueStats = clueStats()): number {
-  const believed = side === 'against' || STRONG.includes(c) ? 0.9 : 0.4
+  const believed = side === 'against' ? (WEAK_AGAINST.includes(c) ? 0.45 : 0.9) : STRONG.includes(c) ? 0.9 : 0.4
   const t = stats[c]?.[side] ?? { right: 0, wrong: 0 }
   return (t.right + PRIOR * believed) / (t.right + t.wrong + PRIOR)
 }

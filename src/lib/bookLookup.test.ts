@@ -699,6 +699,32 @@ describe('asLibrarySeries / withoutSeries', () => {
       expect(r.sure).toBe(true)
     })
 
+    it("speaks weakly against a book from before the author's years (the timeline), and stays sure", async () => {
+      const lib = libraryNames(['א', 'ב', 'ג'].map((t, i) => ({ id: `t${i}`, title: t, author: 'הולי בלק וקסנדרה קלייר', kind: 'epub' })))
+      localStorage.setItem('reader:book-facts', JSON.stringify({ t0: { year: 2030 }, t1: { year: 2032 }, t2: { year: 2035 } }))
+      const meta = { lists, title: '', authors: [], series: '', number: '', identifiers: [] }
+      const r = await identifyBook(book, false, undefined, opening, meta, lib)
+      expect(r.conflicts).toContain('timeline')
+      expect(r.sure).toBe(true)
+      localStorage.removeItem('reader:book-facts')
+    })
+
+    it('gives a book with no author the one author whose translator, publisher and years it shares', async () => {
+      const lib = libraryNames([
+        { id: 'd0', title: 'ספר ראשון', author: 'דנה כהן', kind: 'epub' },
+        { id: 'd1', title: 'ספר שני', author: 'דנה כהן', kind: 'epub' },
+        { id: 'e0', title: 'ספר אחר', author: 'אלי לוי', kind: 'epub' },
+      ])
+      const house = ['t:רון לוי', 'p:כנרת']
+      localStorage.setItem('reader:book-facts', JSON.stringify({ d0: { year: 2010, house }, d1: { year: 2014, house }, e0: { year: 2012, house: ['p:כנרת'] } }))
+      const pages = ['ספר שלישי', 'תרגום מאנגלית: רון לוי', 'הוצאת כנרת', 'Copyright © 2012']
+      const r = await identifyBook({ title: 'ספר שלישי', author: '', fileName: 'x.epub' }, false, undefined, pages, undefined, lib)
+      expect(r.author).toBe('דנה כהן')
+      expect(r.evidence).toContain('timeline')
+      expect(r.sure).toBeUndefined()
+      localStorage.removeItem('reader:book-facts')
+    })
+
     it('speaks against a number the library already has for another book', async () => {
       const lib = libraryNames([{ title: 'מגיסטריום 5 - ספר אחר', author: 'הולי בלק וקסנדרה קלייר' }])
       const r = await identifyBook(book, false, undefined, opening, undefined, lib)

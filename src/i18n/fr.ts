@@ -268,6 +268,7 @@ export const fr: Record<keyof typeof he, Message> = {
   'identify.clue.design': 'le design de la couverture',
   'identify.clue.debut': 'l’ordre d’apparition des personnages',
   'identify.clue.joint': 'toute la série placée ensemble',
+  'identify.clue.timeline': "chronologie de l’auteur",
   'identify.oneSource': 'Comptés comme une seule source : {list}',
   'identify.clue.cover': 'la couverture',
   'identify.clue.page': 'la page de titre',

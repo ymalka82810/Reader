@@ -267,6 +267,7 @@ export const he = {
   'identify.clue.design': 'עיצוב הכריכה',
   'identify.clue.debut': 'סדר הופעת הדמויות',
   'identify.clue.joint': 'שיבוץ הסדרה כולה',
+  'identify.clue.timeline': "ציר הזמן של המחבר",
   'identify.oneSource': 'נספרים כמקור אחד: {list}',
   'identify.clue.cover': 'הכריכה',
   'identify.clue.page': 'דף השער',

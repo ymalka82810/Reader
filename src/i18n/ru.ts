@@ -269,6 +269,7 @@ export const ru: Record<keyof typeof he, Message> = {
   'identify.clue.design': 'оформление обложки',
   'identify.clue.debut': 'порядок появления персонажей',
   'identify.clue.joint': 'вся серия, расставленная целиком',
+  'identify.clue.timeline': "хронология автора",
   'identify.oneSource': 'Считаются одним источником: {list}',
   'identify.clue.cover': 'обложка',
   'identify.clue.page': 'титульный лист',

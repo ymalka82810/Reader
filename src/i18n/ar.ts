@@ -271,6 +271,7 @@ export const ar: Record<keyof typeof he, Message> = {
   'identify.clue.design': 'تصميم الغلاف',
   'identify.clue.debut': 'ترتيب ظهور الشخصيات',
   'identify.clue.joint': 'ترتيب السلسلة كلها معًا',
+  'identify.clue.timeline': "خط زمن المؤلف",
   'identify.oneSource': 'تُحسب مصدرًا واحدًا: {list}',
   'identify.clue.cover': 'الغلاف',
   'identify.clue.page': 'صفحة العنوان',

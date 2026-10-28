@@ -5,7 +5,7 @@
 // it only decides once it has learnt from enough answers, including wrong names; until then it stays out of the way.
 // It can only make the identification more careful (a name is saved without asking only if the model also trusts it).
 
-import { CLUES, STRONG, type Clue } from './clues'
+import { CLUES, STRONG, WEAK_AGAINST, type Clue } from './clues'
 
 const KEY = 'reader:identify:model'
 
@@ -25,7 +25,7 @@ const SIZE = 1 + CLUES.length * 2
 
 /** the weights the fixed rules implied: strong clues count, weak ones less, any clue against counts heavily against */
 function start(): Model {
-  const w = [0.5, ...CLUES.map((c) => (STRONG.includes(c) ? 1 : 0.3)), ...CLUES.map(() => -1.5)]
+  const w = [0.5, ...CLUES.map((c) => (STRONG.includes(c) ? 1 : 0.3)), ...CLUES.map((c) => (WEAK_AGAINST.includes(c) ? -0.5 : -1.5))]
   return { w, n: 0, wrong: 0 }
 }
 
