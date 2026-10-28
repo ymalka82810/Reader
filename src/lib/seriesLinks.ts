@@ -178,7 +178,7 @@ function apart(a: string[], b: string[]): number {
  * series share the most words (a series' path through its words is shortest in its own order), so the cost is how much
  * longer the path gets with it there, plus a little for each word it makes skip a book (debutGaps).
  */
-export function debutCosts(seq: string[][], own: string[]): number[] {
+function debutCosts(seq: string[][], own: string[]): number[] {
   return Array.from({ length: seq.length + 1 }, (_, i) => {
     const before = seq[i - 1]
     const after = seq[i]
