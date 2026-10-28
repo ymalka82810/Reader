@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { blocks, confirmName, declineName, isConfirmed, learnFromEdit, needsMoreProof, recentPrecision, recordOutcome, rememberAuto, samePlace, trusted, wasDeclined } from './identifyLearning'
+import { blocks, confirmName, declineName, dependents, isConfirmed, learnFromEdit, learntSources, needsMoreProof, recentPrecision, recordOutcome, rememberAuto, samePlace, sources, trusted, wasDeclined } from './identifyLearning'
 
 beforeEach(() => localStorage.clear())
 
@@ -99,5 +99,32 @@ describe('the report', () => {
         { id: 'b', title: 'גנב הברק' },
       ]),
     ).toEqual({ total: 2, numbered: 1, seriesOnly: 0, none: 1, confirmed: 1 })
+  })
+})
+
+describe('independent sources', () => {
+  it('counts the clues of one source once: the file name and its package, the years and the pace', () => {
+    expect(sources(['name', 'meta'])).toBe(1)
+    expect(sources(['name', 'copyright'])).toBe(2)
+    expect(sources(['years', 'rhythm', 'list'])).toBe(2)
+  })
+  it('learns that two clues are one source when they are wrong together again and again', () => {
+    for (let i = 0; i < 3; i++) recordOutcome(['list', 'page'], [], false)
+    expect(learntSources()).toEqual([['list', 'page']])
+    expect(sources(['list', 'page'])).toBe(1)
+    // a clue that is wrong on its own as often is not one source with the other
+    for (let i = 0; i < 4; i++) recordOutcome(['list', 'catalog'], [], false)
+    for (let i = 0; i < 6; i++) recordOutcome(['list'], [], false)
+    expect(sources(['list', 'catalog'])).toBe(2)
+  })
+})
+
+describe('the books a name leaned on', () => {
+  it('finds the names saved by themselves that leaned on a corrected book', () => {
+    rememberAuto('b', "פרסי ג'קסון 2 - ים המפלצות", ['years'], [], ['a', 'c'])
+    rememberAuto('d', "פרסי ג'קסון 4 - הקרב על המבוך", ['years'], [], ['c'])
+    expect(dependents(['a'])).toEqual(['b'])
+    expect(dependents(['c']).sort()).toEqual(['b', 'd'])
+    expect(dependents(['b'])).toEqual([])
   })
 })

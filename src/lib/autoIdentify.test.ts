@@ -193,6 +193,6 @@ describe('identifyNew: the next book a book names', () => {
     details.set('a', { opening: [], meta: meta({ next: ['ים המפלצות'] }) })
     add('b', 'ים המפלצות', 'ריק ריירדן')
     expect(await identifyNew(['a', 'b'], new AbortController().signal)).toEqual({ saved: 0, pending: 1 })
-    expect(loadPending()[0]).toMatchObject({ id: 'b', title: "פרסי ג'קסון 2 - ים המפלצות", evidence: ['sequel', 'name'] })
+    expect(loadPending()[0]).toMatchObject({ id: 'b', title: "פרסי ג'קסון 2 - ים המפלצות", evidence: ['neighbour', 'name'] })
   })
 })

@@ -72,6 +72,8 @@ export interface EpubMeta {
   /** the cover's lines as OCR read them (its line in the largest letters, then the rest): a source of its own, compared with
    *  the others (bookLookup's crossCheck) */
   cover?: { largest?: string; lines: string[] }
+  /** the cover's print (its layout and colours; seriesLinks' coverPrint): what the series' covers share */
+  print?: string
   title: string
   authors: string[]
   series: string

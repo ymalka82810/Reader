@@ -5,7 +5,7 @@ import { fingerprintBooks } from '../../lib/bookLookup'
 import { listBooks } from '../../lib/db'
 import { deviceBooksSupported } from '../../lib/deviceBooks'
 import { download } from '../../lib/download'
-import { clueReport, coverage, isConfirmed, outcomes } from '../../lib/identifyLearning'
+import { clueReport, coverage, isConfirmed, learntSources, outcomes } from '../../lib/identifyLearning'
 import { modelReport } from '../../lib/identifyModel'
 import { linesReport } from '../../lib/lineModel'
 import { saveBlobToPhone } from '../../lib/phoneFiles'
@@ -94,6 +94,9 @@ export function IdentifyStats() {
           </tbody>
         </table>
       </div>
+      {learntSources().length > 0 && (
+        <p>{t('identify.oneSource', { list: learntSources().map(([a, b]) => `${t(`identify.clue.${a}`)} + ${t(`identify.clue.${b}`)}`).join(', ') })}</p>
+      )}
       <h4>{t('stats.model')}</h4>
       <p>{t(model.ready ? 'stats.modelReady' : 'stats.modelLearning', { n: model.answers, wrong: model.wrong })}</p>
       <p>{t('stats.lines', { n: linesReport() })}</p>

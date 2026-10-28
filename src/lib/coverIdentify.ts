@@ -4,7 +4,8 @@
 // largest letters as the book's title (bySize: the title is set larger than anything else on a cover), looked up like
 // any title (the library, the lists, the series that come with the app, the catalogs). OCR runs on the device (see
 // ocr.ts), only for these books, and once per book: what was read is kept (`reader:cover-lines`), even when nothing.
-import { identifyBook, tidyName, type Identified, type LibraryNames } from './bookLookup'
+import { identifyBook, keepPrint, keptPrint, tidyName, type Identified, type LibraryNames } from './bookLookup'
+import { coverPrint } from './seriesLinks'
 import { withoutCredits } from './nameCredits'
 import { authorFromCover, isJunkTitle, nameFromOpening, splitGlued } from './bookName'
 import { libraryAuthor } from './authorName'
@@ -110,9 +111,15 @@ async function identifyAll(
       console.warn('OCR of the cover failed', e)
     }
   }
-  const withCover: EpubMeta | undefined = read && (read.largest || read.lines.length)
-    ? { ...(meta ?? { title: '', authors: [], series: '', number: '', identifiers: [] }), cover: read }
-    : meta
+  // the cover's print (its layout and colours), once per book: what the covers of its series share
+  let print = keptPrint(b.id)
+  if (!print && b.cover) {
+    print = await coverPrint(b.cover)
+    if (print) keepPrint(b.id, print)
+  }
+  const empty: EpubMeta = { title: '', authors: [], series: '', number: '', identifiers: [] }
+  const withLines: EpubMeta | undefined = read && (read.largest || read.lines.length) ? { ...(meta ?? empty), cover: read } : meta
+  const withCover: EpubMeta | undefined = print ? { ...(withLines ?? empty), print } : withLines
   const r = await identifyBook(b, online, signal, opening, withCover, library)
   if (!read) return r
   // a name with no author: the author the cover prints, when it prints one (waits for the user like any name read from the book)
