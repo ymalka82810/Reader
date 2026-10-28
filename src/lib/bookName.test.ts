@@ -291,16 +291,19 @@ describe('authorFromCover', () => {
   })
 })
 
-describe('shownName', () => {
+describe('the book named after its series', () => {
   const S = 'שומרת הערים האבודות'
-  it('shows the first book named after its series once', () => {
-    expect(shownName(`${S} 1 - ${S}`)).toBe(S)
-    expect(shownName(formatBookName({ series: S, number: '1', title: S }))).toBe(S)
+  it('is saved once, as the series and its number, and read back as it', () => {
+    expect(formatBookName({ series: S, number: '1', title: S })).toBe(`${S} 1`)
+    expect(formatBookName({ series: S, number: '2', title: 'גלות' })).toBe(`${S} 2 - גלות`)
+    expect(splitBookName(`${S} 1`)).toEqual({ series: S, number: '1', title: S })
+    expect(splitBookName(`${S} 2 - גלות`)).toEqual({ series: S, number: '2', title: 'גלות' })
+    expect(splitBookName('1984')).toEqual({ series: '', number: '', title: '1984' })
   })
-  it('shows a later book with only its series and number, and any other name as it is', () => {
+  it('shows a name saved before as it is saved now, and any other name as it is', () => {
+    expect(shownName(`${S} 1 - ${S}`)).toBe(`${S} 1`)
     expect(shownName(`${S} 3 - ${S}`)).toBe(`${S} 3`)
     expect(shownName(`${S} 2 - גלות`)).toBe(`${S} 2 - גלות`)
-    expect(shownName("פרסי ג'קסון 1 - גנב הברק")).toBe("פרסי ג'קסון 1 - גנב הברק")
     expect(shownName(S)).toBe(S)
   })
 })

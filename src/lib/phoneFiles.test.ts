@@ -37,7 +37,7 @@ describe('bookFileName', () => {
   })
 
   it('names the first book named after its series once', () => {
-    expect(bookFileName(book({ title: 'שומרת הערים האבודות 1 - שומרת הערים האבודות' }))).toBe('שומרת הערים האבודות.epub')
+    expect(bookFileName(book({ title: 'שומרת הערים האבודות 1 - שומרת הערים האבודות' }))).toBe('שומרת הערים האבודות 1.epub')
   })
 
   it('names a converted PDF as the EPUB it now is, and a PDF kept as it is as a PDF', () => {
