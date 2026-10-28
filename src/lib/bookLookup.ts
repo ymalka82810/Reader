@@ -5,7 +5,7 @@
 // when the name still has no series. Only the ISBN, the title and the author are sent, and only after the user agreed
 // (consent 'books').
 
-import { authorByDash, authorFromOpening, formatBookName, authorInName, guessBookName, isJunkTitle, nameFromOpening, people, personShaped, seriesOf, tidyBookName, unglued, withoutAuthor, type BookName } from './bookName'
+import { authorByDash, authorFromOpening, formatBookName, authorInName, guessBookName, isJunkTitle, nameFromOpening, people, personShaped, seriesOf, splitBookName, tidyBookName, unglued, withoutAuthor, type BookName } from './bookName'
 import { libraryAuthor, realAuthor, tidyAuthor } from './authorName'
 import type { EpubMeta } from './bookText'
 import type { Clue } from './clues'
@@ -558,6 +558,14 @@ export interface LibraryNames {
   books?: { id: string; author: string; series: string }[]
 }
 
+/** a name with no series that is saved as the book named after its series ("שומרת הערים האבודות 1"; splitBookName):
+ *  that series, its first book */
+function savedFirst(n: BookName): BookName {
+  if (n.series) return n
+  const saved = splitBookName(n.title)
+  return saved.series ? saved : n
+}
+
 /** a series compared across spellings: "פרויקט איקס" is "פרויקט X" */
 const seriesKey = (s: string) => norm(s.replace(/איקס/gu, 'x'))
 
@@ -571,7 +579,7 @@ export function libraryNames(books: { title: string; author?: string; id?: strin
     const a = (b.author ?? '').trim()
     if (a && !/@/.test(a)) authors.add(a)
     // as the identification reads it, so "פרויקט X #01 - פרויקט X" counts before it is renamed
-    const guess = unjoined(guessBookName(tidyBookName(b.title)))
+    const guess = savedFirst(unjoined(guessBookName(tidyBookName(b.title))))
     if (b.id) all.push({ id: b.id, author: /@/.test(a) ? '' : a, series: guess.series })
     const name = guess.series
     const key = name && seriesKey(name)
@@ -744,7 +752,8 @@ function byLibrary(name: BookName, author: string, lib?: LibraryNames): { name: 
   const whole = bare ? lib.series.get(seriesKey(bare[1]!)) : undefined
   if (bare && whole && whole.members?.length && (!who || !whole.authors.size || whole.authors.has(norm(who)))) {
     const n = bare[2] ?? bare[3]
-    return { name: { series: whole.name, number: n ? String(Number(n)) : '', title: n ? '' : bare[1]! }, author: who, sure: false }
+    // the series and 1 alone is how the book named after the series is saved (formatBookName): its title is the series'
+    return { name: { series: whole.name, number: n ? String(Number(n)) : '', title: !n || Number(n) === 1 ? bare[1]! : '' }, author: who, sure: false }
   }
   const m = MIDDLE.exec(title)
   const known = m ? lib.series.get(seriesKey(m[1]!)) : undefined

@@ -268,8 +268,8 @@ describe('identifyBook: a name with its number in the middle', () => {
   it('splits it at a series the library has, and takes off an author it has; sure when the series is the same author\'s', async () => {
     const r = await id("שיר_של_אש_ושל_קרח_1_משחקי_הכס_ג'ורג'_ר_ר_מרטין")
     expect(r).toMatchObject({ series: 'שיר של אש ושל קרח', number: '1', title: 'משחקי הכס', author: "ג'ורג' ר ר מרטין", sure: true })
-    // the series the library has, said with a number alone: that book of it, its title still to be found
-    expect(await id('המועמדת 1 קיארה קאס')).toMatchObject({ series: 'המועמדת', number: '1', title: '', author: 'קיארה קאס' })
+    // the series the library has and the number 1 alone: the book named after the series
+    expect(await id('המועמדת 1 קיארה קאס')).toMatchObject({ series: 'המועמדת', number: '1', title: 'המועמדת', author: 'קיארה קאס' })
   })
 
   it('leaves it whole when the library knows neither the series nor the author', async () => {
@@ -1042,7 +1042,9 @@ describe('identifyBook: the first book named after its series', () => {
   it('places a book named only after a series the library has as its first, keeping the series as its title', async () => {
     expect(await id(S)).toMatchObject({ series: S, number: '1', title: S })
     expect(await id(`${S} - ${S}`)).toMatchObject({ series: S, number: '1', title: S })
-    expect(await id(`${S} 1`)).toMatchObject({ series: S, number: '1', title: '' })
+    expect(await id(`${S} 1`)).toMatchObject({ series: S, number: '1', title: S })
+    expect(formatBookName(await id(S))).toBe(`${S} 1`)
+    expect(await id(`${S} 2`)).toMatchObject({ series: S, number: '2', title: '' })
   })
 
   it('keeps the title of a first book that is the series again, but not of a later one', async () => {
@@ -1070,5 +1072,8 @@ describe('identifyBook: the first book named after its series', () => {
     ])
     expect(lib.series.get(S)?.members?.map((m) => m.id).sort()).toEqual(['b1', 'b2'])
     expect(lib.books?.find((b) => b.id === 'b1')?.series).toBe(S)
+    // and as it is saved, the series and 1
+    const saved = libraryNames([{ title: `${S} 1`, author: A, id: 'b1' }, { title: `${S} 2 - גלות`, author: A, id: 'b2' }])
+    expect(saved.series.get(S)?.members?.map((m) => [m.id, m.number])).toEqual([['b1', 1], ['b2', 2]])
   })
 })

@@ -25,33 +25,44 @@ const cap = (s: string) => (s.length > MAX_NAME ? s.slice(0, MAX_NAME) : s)
 export function formatBookName({ series, number, title }: BookName): string {
   const s = clean(series)
   const n = clean(number)
-  const name = clean(title)
-  if (!s) return name
+  // the book named after its series (״שומרת הערים האבודות״ 1 of that series) is not named twice: ״שומרת הערים האבודות 1״.
+  // A later book named only after its series has no title of its own either
+  const name = sameWords(title, s) ? '' : clean(title)
+  if (!s) return clean(title)
   const mark = /[A-Za-z]$/.test(s) && /[\u0590-\u05FF]/.test(s + name) ? RLM : ''
   const head = n ? `${s}${mark} ${n}` : s
   return name ? `${head} - ${name}` : head
 }
 
-/** The name as it is shown: the first book named after its series ("שומרת הערים האבודות 1 - שומרת הערים האבודות")
- *  shows its name once, "שומרת הערים האבודות", since the series' name is the book's; its number stays in the saved
- *  name, which keeps its place in the series. Any other name shows as it is saved. */
+/** The name as it is shown: a name saved before the book named after its series was saved once (״שומרת הערים האבודות 1
+ *  - שומרת הערים האבודות״) shows as it is saved now, ״שומרת הערים האבודות 1״. Any other name shows as it is saved. */
 export function shownName(name: string): string {
   const n = splitBookName(name)
-  const key = (x: string) => x.replace(/[^\p{L}\p{N}]/gu, '').toLowerCase()
-  if (!n.series || !key(n.title) || key(n.title) !== key(n.series)) return name
-  const first = !n.number.trim() || bookNumber(n.number.trim().split(/\s+/)[0]!) === 1
-  return first ? clean(n.title) : formatBookName({ ...n, title: '' })
+  return n.series && sameWords(n.title, n.series) ? formatBookName(n) : name
 }
 
 // a series number has up to three digits, so a year in a title ("1984", "מלחמת 1948") is not taken for one
 const TEMPLATE = /^(.+?)\s+(\d{1,3}(?:\s+[^\s\-–—][^\-–—]*?)?)\s+[-–—]\s+(.+)$/u
 
-/** A name already in the template, split into its parts; any other name is all title. formatBookName undoes it. */
+/** A name already in the template, split into its parts; any other name is all title. formatBookName undoes it. The
+ *  book named after its series is saved as the series and the number 1 (״שומרת הערים האבודות 1״): its title is the
+ *  series' name. */
 export function splitBookName(name: string): BookName {
   name = cap(name)
   const m = TEMPLATE.exec(clean(name))
   if (m) return { series: m[1]!, number: m[2]!, title: m[3]! }
+  const first = FIRST.exec(clean(name))
+  if (first) return { series: first[1]!, number: '1', title: first[1]! }
   return { series: '', number: '', title: clean(name) }
+}
+
+// the series' name, two letters at least, then the number 1 alone: the book named after its series
+const FIRST = /^(?=.*\p{L}.*\p{L})(.+?)\s+0?1$/u
+
+/** two names in the same words, whatever the marks between them */
+function sameWords(x: string, y: string): boolean {
+  const key = (v: string) => v.replace(/[^\p{L}\p{N}]/gu, '').toLowerCase()
+  return !!key(x) && key(x) === key(y)
 }
 
 const ORDINALS: [RegExp, string][] = [
