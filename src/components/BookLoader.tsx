@@ -18,6 +18,10 @@ const LINES_R = [
 const LINES_L = [
   [110, 166, 82], [106, 190, 86], [118, 214, 74], [106, 238, 86], [138, 262, 54],
 ] as const
+// the next left page, revealed under a lifted leaf (the two leaves alternate between LINES_L and this)
+const LINES_L2 = [
+  [106, 166, 86], [114, 190, 78], [106, 214, 86], [110, 238, 82], [150, 262, 42],
+] as const
 
 const PAGE_L = 'M216 142 C 186 118, 146 110, 104 114 C 96 115, 92 120, 92 128 L 92 290 C 92 298, 97 303, 105 302 C 146 298, 186 306, 216 328 Z'
 const PAGE_R = 'M216 142 C 246 118, 286 110, 328 114 C 336 115, 340 120, 340 128 L 340 290 C 340 298, 335 303, 327 302 C 286 298, 246 306, 216 328 Z'
@@ -37,19 +41,22 @@ function Lines({ rows, opacity }: { rows: readonly (readonly [number, number, nu
   )
 }
 
-function Leaf({ pageL, pageR }: { pageL: string; pageR: string }) {
+function Leaf({ pageL, pageR, lines }: { pageL: string; pageR: string; lines: typeof LINES_L | typeof LINES_L2 }) {
   return (
     <div className="bl-leaf">
+      <div className="bl-edge" />
       <div className="bl-face">
         <svg viewBox="92 110 124 220" preserveAspectRatio="none">
           <path d={PAGE_L} fill={pageL} />
-          <Lines rows={LINES_L} opacity={0.5} />
+          <Lines rows={lines} opacity={0.5} />
+          <path className="bl-shade" d={PAGE_L} fill="#0E1B33" />
         </svg>
       </div>
       <div className="bl-face bl-back">
         <svg viewBox="216 110 124 220" preserveAspectRatio="none">
           <path d={PAGE_R} fill={pageR} />
           <Lines rows={LINES_R} opacity={0.85} />
+          <path className="bl-shade" d={PAGE_R} fill="#0E1B33" />
         </svg>
       </div>
     </div>
@@ -96,13 +103,13 @@ export function BookLoader({ size, inline, label }: Props) {
             <path d="M216 142 L216 328" stroke="#C9BB9E" strokeWidth="5" strokeLinecap="round" opacity="0.75" />
           </g>
           <Lines rows={LINES_R} opacity={0.85} />
-          <Lines rows={LINES_L} opacity={0.5} />
+          <g className="bl-la"><Lines rows={LINES_L} opacity={0.5} /></g>
+          <g className="bl-lb"><Lines rows={LINES_L2} opacity={0.5} /></g>
           </g>
         </svg>
         <div className="bl-book">
-          <Leaf pageL={ref('PageL')} pageR={ref('PageR')} />
-          <Leaf pageL={ref('PageL')} pageR={ref('PageR')} />
-          <Leaf pageL={ref('PageL')} pageR={ref('PageR')} />
+          <Leaf pageL={ref('PageL')} pageR={ref('PageR')} lines={LINES_L} />
+          <Leaf pageL={ref('PageL')} pageR={ref('PageR')} lines={LINES_L2} />
         </div>
         <svg className="bl-ribbon" viewBox="0 0 432 432"><path d="M298 110 L334 110 L334 200 L316 181 L298 200 Z" transform={BOOK_SHIFT} fill={ref('Ribbon')} /></svg>
       </div>
