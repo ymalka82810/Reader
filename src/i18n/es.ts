@@ -270,6 +270,7 @@ export const es: Record<keyof typeof he, Message> = {
   'identify.clue.joint': 'toda la serie ordenada a la vez',
   'identify.clue.timeline': "cronología del autor",
   'identify.clue.make': "cómo se hizo el archivo",
+  'identify.clue.length': "extensión a lo largo de la serie",
   'identify.oneSource': 'Contadas como una sola fuente: {list}',
   'identify.clue.cover': 'la portada',
   'identify.clue.page': 'la portadilla',

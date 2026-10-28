@@ -269,6 +269,7 @@ export const he = {
   'identify.clue.joint': 'שיבוץ הסדרה כולה',
   'identify.clue.timeline': "ציר הזמן של המחבר",
   'identify.clue.make': "טביעת הייצור של הקובץ",
+  'identify.clue.length': "אורך הספרים בסדרה",
   'identify.oneSource': 'נספרים כמקור אחד: {list}',
   'identify.clue.cover': 'הכריכה',
   'identify.clue.page': 'דף השער',

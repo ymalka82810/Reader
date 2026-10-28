@@ -205,6 +205,54 @@ export function debutVerdict(members: { number: number; words: string[] }[], own
   return costs[mine] === best && costs.every((c, i) => i === mine || c >= best + 0.1) ? 'agree' : undefined
 }
 
+// ---- the length: the books next to each other in a series are often near in length, and some series grow longer
+
+/** a series' numbered books with their length in words, in their order */
+type Lengths = { number: number; words: number }[]
+
+const sorted = (xs: Lengths) => xs.filter((x) => x.number > 0 && x.words > 0).sort((a, b) => a.number - b.number)
+
+/** whether length follows the order in this series: four numbered books at least, whose neighbours are clearly nearer in
+ *  length (by the log of their ratio) than any two of them are on average (a steady growth of four books is at 0.6 of
+ *  it, books of any length near 1) */
+export function lengthWorks(books: Lengths): boolean {
+  const seq = sorted(books)
+  if (seq.length < 4) return false
+  const d = (a: number, b: number) => Math.abs(Math.log(a / b))
+  const near = seq.slice(1).reduce((s, x, i) => s + d(x.words, seq[i]!.words), 0) / (seq.length - 1)
+  let all = 0
+  let pairs = 0
+  for (let i = 0; i < seq.length; i++)
+    for (let j = i + 1; j < seq.length; j++) {
+      all += d(seq[i]!.words, seq[j]!.words)
+      pairs++
+    }
+  return near < 0.75 * (all / pairs)
+}
+
+/** how far a length is from what its place among the series' books (in their order) expects: the log of its ratio to the
+ *  length between its neighbours there (to the one neighbour at an end) */
+function lengthCost(seq: Lengths, before: number, words: number): number {
+  const a = seq[before - 1]
+  const b = seq[before]
+  const want = a && b ? Math.sqrt(a.words * b.words) : (a ?? b)!.words
+  return Math.abs(Math.log(words / want))
+}
+
+/**
+ * The length's say on a number: in a series where length follows the order (lengthWorks), the book's length fits its
+ * number's place among the numbered books best, and clearly better than any other place. A very weak clue that only
+ * agrees (a long finale, a short novella between books), and is learnt from the answers like any other.
+ */
+export function lengthVerdict(books: Lengths, number: number, words: number | undefined): 'agree' | undefined {
+  const seq = sorted(books).filter((b) => b.number !== number)
+  if (!words || !lengthWorks(seq)) return undefined
+  const costs = Array.from({ length: seq.length + 1 }, (_, i) => lengthCost(seq, i, words))
+  const mine = seq.filter((b) => b.number < number).length
+  const best = Math.min(...costs)
+  return costs[mine] === best && best < 0.15 && costs.every((c, i) => i === mine || c >= best + 0.03) ? 'agree' : undefined
+}
+
 // ---- the whole series at once
 
 /** what is known of one book of the series, for placing them all together */
@@ -222,6 +270,8 @@ export interface Placed {
   listed?: number
   /** its vocabulary */
   words?: string[]
+  /** its length in words */
+  length?: number
 }
 
 /** what a place is worth for a book, by the series' numbered books it is placed among (`fixed`, with their years), the
@@ -317,7 +367,16 @@ export function placeSeries(books: Placed[], id: string, { total, years }: { tot
     const i = rest.filter((f) => f.number! < slot).length
     return -5 * (costs[i]! - Math.min(...costs))
   }
-  const row = (b: Placed) => slots.map((s) => worth(b, s, fixed, years) + debut(b, s))
+  // the length, in a series where it follows the order: the place among the numbered books its length fits
+  const long = fixed.filter((f) => f.length).map((f) => ({ number: f.number!, words: f.length! }))
+  const byLength = lengthWorks(long)
+  const length = (b: Placed, slot: number) => {
+    if (!byLength || b.anchored || !b.length) return 0
+    const rest = sorted(long.filter((f) => !(b.number && f.number === b.number && f.words === b.length)))
+    if (rest.length < 3) return 0
+    return -2 * lengthCost(rest, rest.filter((f) => f.number < slot).length, b.length)
+  }
+  const row = (b: Placed) => slots.map((s) => worth(b, s, fixed, years) + debut(b, s) + length(b, s))
   const rows = books.map(row)
   // nothing tells this book's place: no assignment says anything of it
   const mine = rows[me]!.filter(Number.isFinite)

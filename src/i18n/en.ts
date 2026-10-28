@@ -270,6 +270,7 @@ export const en: Record<keyof typeof he, Message> = {
   'identify.clue.joint': 'the whole series placed together',
   'identify.clue.timeline': "author's timeline",
   'identify.clue.make': "how the file was made",
+  'identify.clue.length': "length along the series",
   'identify.oneSource': 'Counted as one source: {list}',
   'identify.clue.cover': 'the cover',
   'identify.clue.page': 'the title page',

@@ -13,7 +13,7 @@ import { bookNumber, copyrightYear, seriesByWords, inLists, librarySeriesFor, nu
 import { listsOf, rememberLists } from './bookKnowledge'
 import { makeVerdict } from './fileMake'
 import { authorByTimeline, timelineVerdict, type Dated } from './authorTimeline'
-import { debutVerdict, designVerdict, houseOf, houseVerdict, jointVerdict, placeSeries, type Placed } from './seriesLinks'
+import { debutVerdict, designVerdict, houseOf, houseVerdict, jointVerdict, lengthVerdict, placeSeries, type Placed } from './seriesLinks'
 import { bundledLists, bundledSeries, bundledTitle, loadSeriesDb } from './seriesDb'
 import { hasConsent } from './consent'
 import { blocks, clueStats, confirmedIds, needsMoreProof, sources, trusted } from './identifyLearning'
@@ -549,7 +549,7 @@ function withMeta(local: BookName, meta?: EpubMeta): BookName {
 /** What the library already knows: the series its books are named in (with who wrote them), and its authors. */
 export interface LibraryNames {
   /** each series with its authors and the books the library has in it, by number */
-  series: Map<string, { name: string; authors: Set<string>; members?: { number: number; id?: string; kind?: string; title?: string }[] }>
+  series: Map<string, { name: string; authors: Set<string>; members?: { number: number; id?: string; kind?: string; title?: string; words?: number }[] }>
   /** the series each titled book of a series is in, by its title */
   titles?: Map<string, string>
   /** longest first, so "ג'ורג' ר ר מרטין" is tried before "מרטין" */
@@ -561,7 +561,7 @@ export interface LibraryNames {
 /** a series compared across spellings: "פרויקט איקס" is "פרויקט X" */
 const seriesKey = (s: string) => norm(s.replace(/איקס/gu, 'x'))
 
-export function libraryNames(books: { title: string; author?: string; id?: string; kind?: string }[]): LibraryNames {
+export function libraryNames(books: { title: string; author?: string; id?: string; kind?: string; words?: number }[]): LibraryNames {
   const series: LibraryNames['series'] = new Map()
   const titles = new Map<string, string>()
   const spellings = new Map<string, Map<string, number>>()
@@ -581,7 +581,8 @@ export function libraryNames(books: { title: string; author?: string; id?: strin
     if (norm(guess.title)) titles.set(norm(guess.title), name)
     // a book of the series with no number counts too (as 0): the years may order it
     const n = Number(guess.number) || 0
-    if (Number.isInteger(n) && n >= 0) entry.members!.push({ number: n, title: guess.title, ...(b.id && { id: b.id }), ...(b.kind && { kind: b.kind }) })
+    if (Number.isInteger(n) && n >= 0)
+      entry.members!.push({ number: n, title: guess.title, ...(b.id && { id: b.id }), ...(b.kind && { kind: b.kind }), ...(b.words && { words: b.words }) })
     series.set(key, entry)
     const count = spellings.get(key) ?? new Map<string, number>()
     count.set(name, (count.get(name) ?? 0) + 1)
@@ -999,7 +1000,7 @@ async function findName(
       (entry.members ??= []).push({ number: 0, title: base.title, id: self.id, ...(self.kind && { kind: self.kind }) })
     const n =
       (await numberInLibrary(base.series, copyrightYear(opening), library, b.author, signal, self.id)) ??
-      numberByJoint(base.series, base.title, opening, meta, library, b.author, self.id)
+      numberByJoint(base.series, base.title, opening, meta, library, b.author, self.id, (b as { words?: number }).words)
     if (n) {
       // the number is given: the next book of this run is not offered it too
       const me = entry?.members?.find((m) => self.id && m.id === self.id)
@@ -1480,6 +1481,8 @@ function numberByJoint(
   library: LibraryNames,
   author: string,
   self?: string,
+  /** the book's length in words */
+  length?: number,
 ): number | undefined {
   const members = (library.series.get(seriesKey(series))?.members ?? []).filter((m) => m.id && m.id !== self && !(m.title && sameTitle(m.title, title)))
   if (members.length < 2) return undefined
@@ -1500,13 +1503,14 @@ function numberByJoint(
       ...(f?.n && { own: f.n }),
       ...(listedOf(m.title) && { listed: listedOf(m.title) }),
       ...(f?.words?.length && { words: f.words.map(([w]) => w) }),
+      ...(m.words && { length: m.words }),
     }
   })
   const me = '\u0000self'
   const year = copyrightYear(opening)
   const listed = listedOf(title)
   const words = (meta?.words ?? []).map(([w]) => w)
-  placed.push({ id: me, ...(year && { year }), ...(listed && { listed }), ...(words.length && { words }) })
+  placed.push({ id: me, ...(year && { year }), ...(listed && { listed }), ...(words.length && { words }), ...(length && { length }) })
   const known = knownSeries(series, author)
   const p = placeSeries(placed, me, known)
   if (!p?.number || p.margin < 2 || members.some((m) => m.number === p.number)) return undefined
@@ -1722,12 +1726,16 @@ async function cluesOf(
             ...(own(m.id)?.n && { own: own(m.id)!.n! }),
             ...(listedOf(m.title) && { listed: listedOf(m.title) }),
             ...(own(m.id)?.words?.length && { words: own(m.id)!.words!.map(([w]) => w) }),
+            ...(m.words && { length: m.words }),
           }))
         const me = '\u0000self'
         const year = copyrightYear(opening)
         const n = ownNumber(opening, meta)
         const listed = listedOf(r.title)
-        placed.push({ id: me, ...(year && { year }), ...(n && { own: n }), ...(listed && { listed }), ...(words.length && { words }) })
+        const length = (b as { words?: number }).words
+        placed.push({ id: me, ...(year && { year }), ...(n && { own: n }), ...(listed && { listed }), ...(words.length && { words }), ...(length && { length }) })
+        // the length along the series, where it follows the order here (it only agrees)
+        if (lengthVerdict(others.map((m) => ({ number: m.number || own(m.id)?.n || 0, words: m.words ?? 0 })), Number(r.number), length) === 'agree') evidence.push('length')
         if (placed.length >= 2) count('joint', jointVerdict(placed, me, Number(r.number), knownSeries(r.series, r.author || b.author)))
         for (const m of placed) if (m.id !== me) leaned.add(m.id)
       }

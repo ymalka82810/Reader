@@ -273,6 +273,7 @@ export const ar: Record<keyof typeof he, Message> = {
   'identify.clue.joint': 'ترتيب السلسلة كلها معًا',
   'identify.clue.timeline': "خط زمن المؤلف",
   'identify.clue.make': "بصمة إنتاج الملف",
+  'identify.clue.length': "طول الكتب في السلسلة",
   'identify.oneSource': 'تُحسب مصدرًا واحدًا: {list}',
   'identify.clue.cover': 'الغلاف',
   'identify.clue.page': 'صفحة العنوان',

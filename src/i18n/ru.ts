@@ -271,6 +271,7 @@ export const ru: Record<keyof typeof he, Message> = {
   'identify.clue.joint': 'вся серия, расставленная целиком',
   'identify.clue.timeline': "хронология автора",
   'identify.clue.make': "как сделан файл",
+  'identify.clue.length': "длина книг серии",
   'identify.oneSource': 'Считаются одним источником: {list}',
   'identify.clue.cover': 'обложка',
   'identify.clue.page': 'титульный лист',

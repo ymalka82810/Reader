@@ -56,9 +56,10 @@ export interface PendingName {
 // or the title ("ל א קוטון …", "… ק קלייר"), the publisher and the year ("2023 הוצאת טורקיז"), and the series said twice; "23"
 // numbers by years only between dated books or up to the series' known end, and by the catalog's years; "24" the series'
 // pace (a run of books a year apart) and the number each book gives itself, cross-checked with the years; "25" reads every
-// book's house (publisher, translator, ISBN block) and cover print, and weighs the new links of the series
+// book's house (publisher, translator, ISBN block) and cover print, and weighs the new links of the series; "26" reads
+// every file's make and weighs the second hypothesis, the author's timeline, the make and the length along the series
 const KEY = 'reader:identify:pending13'
-const OLD_KEYS = ['pending', 'backfill', 'pending2', 'backfill2', 'pending3', 'backfill3', 'pending4', 'backfill4', 'pending5', 'backfill5', 'pending6', 'backfill6', 'pending7', 'backfill7', 'pending8', 'backfill8', 'pending9', 'backfill9', 'pending10', 'backfill10', 'pending11', 'backfill11', 'pending12', 'backfill12', 'backfill13', 'backfill14', 'backfill15', 'backfill16', 'backfill17', 'backfill18', 'backfill19', 'backfill20', 'backfill21', 'backfill22', 'backfill23', 'backfill24'].map(
+const OLD_KEYS = ['pending', 'backfill', 'pending2', 'backfill2', 'pending3', 'backfill3', 'pending4', 'backfill4', 'pending5', 'backfill5', 'pending6', 'backfill6', 'pending7', 'backfill7', 'pending8', 'backfill8', 'pending9', 'backfill9', 'pending10', 'backfill10', 'pending11', 'backfill11', 'pending12', 'backfill12', 'backfill13', 'backfill14', 'backfill15', 'backfill16', 'backfill17', 'backfill18', 'backfill19', 'backfill20', 'backfill21', 'backfill22', 'backfill23', 'backfill24', 'backfill25'].map(
   (k) => `reader:identify:${k}`,
 )
 const listeners = new Set<() => void>()
@@ -106,7 +107,7 @@ function addPending(items: PendingName[]) {
   savePending([...loadPending().filter((p) => !ids.has(p.id)), ...items])
 }
 
-const BACKFILL = 'reader:identify:backfill25'
+const BACKFILL = 'reader:identify:backfill26'
 
 /** The books the one-time identification of the library still has to go through: all of `allIds` before it started,
  *  what is left after it was stopped, and undefined once it is done (or was cancelled). */
