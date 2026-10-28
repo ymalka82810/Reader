@@ -1,8 +1,8 @@
 // The splash screen (#splash in index.html) is plain HTML/CSS so it shows before any script loads.
-// Once the app has rendered it fades out, but only after the first page has turned all the way over.
+// Once the app has rendered it fades out, but only after two pages have turned all the way over.
 // The time is counted from when the splash itself started animating, not from the app's launch: on a
 // phone the WebView can take a while before it draws anything, and that time doesn't count as shown.
-const MIN_SHOWN_MS = 3200
+const MIN_SHOWN_MS = 3300
 // with reduced motion there is no flipping, just the icon
 const STILL_SHOWN_MS = 800
 const FADE_MS = 400

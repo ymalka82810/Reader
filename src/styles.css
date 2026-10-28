@@ -101,21 +101,27 @@ select { font: inherit; padding: .4rem .6rem; border-radius: var(--radius-lg); b
 .book-loader { --bl-size: 7rem; display: inline-flex; flex-direction: column; align-items: center; gap: .7rem; }
 .book-loader .bl-icon { position: relative; width: var(--bl-size); aspect-ratio: 1; border-radius: 22%; overflow: hidden; box-shadow: var(--shadow-md), 0 0 0 1px rgba(255,255,255,.06); }
 .book-loader .bl-icon > svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.book-loader .bl-book { position: absolute; inset: 0; perspective: 900px; }
-.book-loader .bl-leaf { position: absolute; left: 21.296%; top: 22.222%; width: 28.704%; height: 50.926%; transform-origin: 100% 50%; transform-style: preserve-3d; animation: bl-flip 4.5s cubic-bezier(.45,.05,.35,1) infinite; }
-.book-loader .bl-leaf:nth-child(2), .book-loader .bl-leaf:nth-child(2) .bl-face, .book-loader .bl-leaf:nth-child(2) .bl-face::after { animation-delay: 1.5s; }
-.book-loader .bl-leaf:nth-child(3), .book-loader .bl-leaf:nth-child(3) .bl-face, .book-loader .bl-leaf:nth-child(3) .bl-face::after { animation-delay: 3s; }
-.book-loader .bl-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; animation: bl-fade 4.5s linear infinite; }
+.book-loader .bl-book { position: absolute; inset: 0; perspective: 650px; }
+/* two leaves take turns, half a cycle apart, and never fade: a leaf shows up and goes away only lying exactly on an identical page */
+.book-loader .bl-leaf { position: absolute; left: 21.296%; top: 22.222%; width: 28.704%; height: 50.926%; transform-origin: 100% 50%; transform-style: preserve-3d; animation: bl-flip 3.6s linear infinite; }
+.book-loader .bl-leaf:nth-child(2), .book-loader .bl-leaf:nth-child(2) .bl-face, .book-loader .bl-leaf:nth-child(2) .bl-shade, .book-loader .bl-leaf:nth-child(2) .bl-edge { animation-delay: -1.8s; }
+.book-loader .bl-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; animation: bl-show 3.6s linear infinite; }
 .book-loader .bl-face svg { width: 100%; height: 100%; display: block; overflow: visible; }
 .book-loader .bl-back { transform: rotateY(180deg); }
-.book-loader .bl-face::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(14,27,51,.28), rgba(14,27,51,0) 70%); opacity: 0; animation: bl-shade 4.5s cubic-bezier(.45,.05,.35,1) infinite; clip-path: inset(2% 0 4% 0 round 6%); }
-.book-loader .bl-back::after { background: linear-gradient(270deg, rgba(14,27,51,.28), rgba(14,27,51,0) 70%); }
+/* the paper's thickness on the leaf's free edge, so the leaf doesn't vanish edge-on */
+.book-loader .bl-edge { position: absolute; left: 0; top: 3%; bottom: 5%; width: 2.2%; transform-origin: 0 50%; transform: rotateY(90deg); background: linear-gradient(#F6EFDF, #D9CBAE); border-radius: 2px; animation: bl-show 3.6s linear infinite; }
+.book-loader .bl-shade { opacity: 0; animation: bl-shade 3.6s linear infinite; }
+/* under the lifted leaf the left page shows the next page's lines; they swap while a leaf still covers them */
+.book-loader .bl-la { animation: bl-la 3.6s linear infinite; }
+.book-loader .bl-lb { opacity: 0; animation: bl-lb 3.6s linear infinite; }
 .book-loader .bl-ribbon { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .book-loader .bl-label { text-align: center; overflow-wrap: anywhere; }
-@keyframes bl-flip { 0%, 8% { transform: rotateY(0deg); } 52%, 100% { transform: rotateY(180deg); } }
-@keyframes bl-fade { 0%, 54% { opacity: 1; } 66%, 100% { opacity: 0; } }
-@keyframes bl-shade { 0%, 8% { opacity: 0; } 30% { opacity: 1; } 52%, 100% { opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .book-loader .bl-leaf { display: none; } }
+@keyframes bl-flip { 0%, 5% { transform: rotateY(0deg); animation-timing-function: cubic-bezier(.45,0,.55,1); } 40%, 100% { transform: rotateY(180deg); } }
+@keyframes bl-show { 0%, 55% { opacity: 1; } 55.1%, 100% { opacity: 0; } }
+@keyframes bl-shade { 0%, 5% { opacity: 0; animation-timing-function: ease-in; } 22.5% { opacity: .25; animation-timing-function: ease-out; } 40%, 100% { opacity: 0; } }
+@keyframes bl-la { 0%, 2.5% { opacity: 1; } 2.6%, 51.4% { opacity: 0; } 51.5%, 100% { opacity: 1; } }
+@keyframes bl-lb { 0%, 2.5% { opacity: 0; } 2.6%, 51.4% { opacity: 1; } 51.5%, 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .book-loader .bl-leaf, .book-loader .bl-lb { display: none; } .book-loader .bl-la { animation: none; } }
 .book-loader.compact { --bl-size: 2.6rem; flex-direction: row; gap: .6rem; }
 .loading .book-loader { padding: 1rem 0; }
 .overlay-msg .book-loader { justify-self: center; }

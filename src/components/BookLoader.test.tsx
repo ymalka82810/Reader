@@ -6,9 +6,9 @@ import { BookLoader } from './BookLoader'
 afterEach(cleanup)
 
 describe('BookLoader', () => {
-  it('shows the book with three turning leaves and the label', () => {
+  it('shows the book with two leaves taking turns and the label', () => {
     const { container } = render(<BookLoader label="טוען…" />)
-    expect(container.querySelectorAll('.bl-leaf')).toHaveLength(3)
+    expect(container.querySelectorAll('.bl-leaf')).toHaveLength(2)
     expect(screen.getByText('טוען…')).toBeTruthy()
   })
 
