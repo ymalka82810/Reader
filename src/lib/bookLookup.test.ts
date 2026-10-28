@@ -725,6 +725,20 @@ describe('asLibrarySeries / withoutSeries', () => {
       localStorage.removeItem('reader:book-facts')
     })
 
+    it("agrees when the book's file was made the way the series' files were, and that is rare in the library", async () => {
+      const ids = ['m0', 'm1', ...Array.from({ length: 20 }, (_, i) => `o${i}`)]
+      const lib = libraryNames([
+        { id: 'm0', title: 'מגיסטריום 1 - מבחן הברזל', author: 'הולי בלק וקסנדרה קלייר', kind: 'epub' },
+        { id: 'm1', title: 'מגיסטריום 2 - יד הנחושת', author: 'הולי בלק וקסנדרה קלייר', kind: 'epub' },
+      ])
+      const make = (id: string) => (id.startsWith('m') ? ['c:0badc0de', 'g:converter'] : ['g:converter'])
+      localStorage.setItem('reader:book-facts', JSON.stringify(Object.fromEntries(ids.map((id) => [id, { year: null, n: null, words: [], house: [], make: make(id) }]))))
+      const meta = { lists, title: '', authors: [], series: '', number: '', identifiers: [], make: ['c:0badc0de', 'g:converter'] }
+      const r = await identifyBook(book, false, undefined, opening, meta, lib)
+      expect(r.evidence).toContain('make')
+      localStorage.removeItem('reader:book-facts')
+    })
+
     it('speaks against a number the library already has for another book', async () => {
       const lib = libraryNames([{ title: 'מגיסטריום 5 - ספר אחר', author: 'הולי בלק וקסנדרה קלייר' }])
       const r = await identifyBook(book, false, undefined, opening, undefined, lib)

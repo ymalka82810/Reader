@@ -11,6 +11,7 @@ import type { EpubMeta } from './bookText'
 import type { Clue } from './clues'
 import { bookNumber, copyrightYear, seriesByWords, inLists, librarySeriesFor, numberByGaps, numberByRhythm, numberedByRhythm, rhythmVerdict, yearsVerdict, type KnownSeries, originalSeries, originalSeriesName, originalTitle, seriesByNames, soundOf, titleCase } from './bookInference'
 import { listsOf, rememberLists } from './bookKnowledge'
+import { makeVerdict } from './fileMake'
 import { authorByTimeline, timelineVerdict, type Dated } from './authorTimeline'
 import { debutVerdict, designVerdict, houseOf, houseVerdict, jointVerdict, placeSeries, type Placed } from './seriesLinks'
 import { bundledLists, bundledSeries, bundledTitle, loadSeriesDb } from './seriesDb'
@@ -1228,6 +1229,8 @@ type Facts = {
   house?: string[]
   /** its cover's print (seriesLinks' coverPrint) */
   print?: string
+  /** how its file was made (fileMake); a book kept before has none */
+  make?: string[]
 }
 // read many times for each book identified, so parsed once for as long as the stored text stays the same
 let factsRaw: string | null | undefined
@@ -1259,6 +1262,7 @@ function factsFrom(opening: string[], meta?: EpubMeta): Facts {
     n: ownNumber(opening, meta) ?? null,
     words: meta?.words ?? [],
     house: houseOf(opening),
+    make: meta?.make ?? [],
     ...(meta?.print && { print: meta.print }),
   }
 }
@@ -1285,9 +1289,9 @@ function keepFactsOf(id: string, f: Facts) {
 /** keeps what a book the identification just read says of it, for the books compared with it later */
 export function keepFacts(id: string, opening: string[], meta?: EpubMeta) {
   const known = facts()[id]
-  if (known?.words && known.house) return
-  // a book kept before its house was: only what is new is added
-  keepFactsOf(id, known?.words ? { ...known, house: houseOf(opening) } : factsFrom(opening, meta))
+  if (known?.words && known.house && known.make) return
+  // a book kept before its house or its make was: only what is new is added
+  keepFactsOf(id, known?.words ? { ...known, house: houseOf(opening), make: meta?.make ?? [] } : factsFrom(opening, meta))
 }
 
 /** keeps a book's cover print (read with its cover, see coverIdentify), for the books compared with it later */
@@ -1308,7 +1312,7 @@ async function factsOf(m: { id?: string; kind?: string }, signal?: AbortSignal, 
   if (!m.id || (m.kind !== 'epub' && m.kind !== 'pdf')) return undefined
   const known = facts()[m.id]
   // a book kept before its own number was: read again, once
-  if (known && (!vocabulary || known.words) && known.n !== undefined && known.house) return known
+  if (known && (!vocabulary || known.words) && known.n !== undefined && known.house && known.make) return known
   let d: Awaited<ReturnType<typeof import('./bookText').bookDetails>>
   try {
     const { bookDetails } = await import('./bookText')
@@ -1326,6 +1330,7 @@ async function factsOf(m: { id?: string; kind?: string }, signal?: AbortSignal, 
         year: fresh.year ?? known.year,
         n: fresh.n,
         house: fresh.house,
+        make: fresh.make,
         // a book kept with its names (and no vocabulary yet) keeps them: an empty vocabulary would hide them
         words: fresh.words?.length ? fresh.words : known.words !== undefined ? known.words : known.names ? undefined : fresh.words,
       }
@@ -1680,6 +1685,11 @@ async function cluesOf(
       if (house.length) {
         const all = Object.values(kept).map((f) => f.house ?? [])
         if (houseVerdict(house, others.map((m) => own(m.id)?.house ?? []), all) === 'agree') evidence.push('house')
+      }
+      // the file's make: what the series' files share that is rare in the library (it only agrees)
+      if (meta?.make?.length) {
+        const all = Object.entries(kept).filter(([id]) => id !== self).map(([, f]) => f.make ?? [])
+        if (makeVerdict(meta.make, others.map((m) => own(m.id)?.make ?? []), all) === 'agree') evidence.push('make')
       }
       // the cover's design, nearer the series' covers than nearly all the library's (it only agrees)
       if (meta?.print) {
