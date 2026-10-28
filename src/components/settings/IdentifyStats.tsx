@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { t } from '../../i18n'
+import { blindReport, runBlindTest } from '../../lib/blindTest'
 import { knowledgeReport } from '../../lib/bookKnowledge'
 import { fingerprintBooks } from '../../lib/bookLookup'
 import { listBooks } from '../../lib/db'
@@ -20,6 +21,9 @@ export function IdentifyStats() {
   const [open, setOpen] = useState(false)
   const [books, setBooks] = useState<Awaited<ReturnType<typeof listBooks>>>()
   const [exporting, setExporting] = useState<string>()
+  // the blind test run from here: its progress, then the report read again
+  const [blind, setBlind] = useState<string>()
+  const [blindTick, setBlindTick] = useState(0)
   useEffect(() => {
     if (!open) return
     let live = true
@@ -71,6 +75,7 @@ export function IdentifyStats() {
           : t('stats.noAnswers')}
         {o.autoSaved > 0 && <> {t('stats.auto', { n: o.autoSaved, right: pct(o.autoSaved - o.autoCorrected, o.autoSaved) })}</>}
       </p>
+      <BlindTest books={books} busy={blind} tick={blindTick} onRun={() => void runBlind(books, setBlind, () => setBlindTick((n) => n + 1))} />
       <h4>{t('stats.clues')}</h4>
       <div className="table-scroll">
         <table className="identify-stats-table">
@@ -131,5 +136,57 @@ async function exportCases(books: Awaited<ReturnType<typeof listBooks>>, busy: (
     console.warn(e)
   } finally {
     busy(undefined)
+  }
+}
+
+/** what the blind tests found (lib/blindTest): each part of the name, the names that would have been saved alone, and the
+ *  clues that spoke, measured on this library; and a button to test now */
+function BlindTest({ books, busy, tick, onRun }: { books: { id: string; title: string }[]; busy?: string; tick: number; onRun: () => void }) {
+  void tick // read again after a run
+  const r = blindReport(books)
+  const of = (x: { right: number; of: number }) => pct(x.right, x.of)
+  return (
+    <>
+      <h4>{t('stats.blind')}</h4>
+      <p>
+        {r.books
+          ? t('stats.blindResult', {
+              n: r.books,
+              whole: of(r.whole),
+              series: of(r.parts.series),
+              number: of(r.parts.number),
+              title: of(r.parts.title),
+              author: of(r.parts.author),
+              sure: r.sure.of,
+              sureRight: of(r.sure),
+            })
+          : t('stats.blindNone')}
+      </p>
+      {r.clues.length > 0 && (
+        <p>
+          {t('stats.blindClues', {
+            list: r.clues
+              .map((c) => `${t(`identify.clue.${c.clue}`)} ${[c.agreed.of ? of(c.agreed) : '', c.against.of ? `↯${of(c.against)}` : ''].filter(Boolean).join(' ')}`)
+              .join(', '),
+          })}
+        </p>
+      )}
+      <Row label={t('stats.blindRun')} hint={t('stats.blindHint')}>
+        <button disabled={!!busy} onClick={onRun}>
+          {busy ?? t('stats.blindStart')}
+        </button>
+      </Row>
+    </>
+  )
+}
+
+async function runBlind(books: Awaited<ReturnType<typeof listBooks>>, busy: (s: string | undefined) => void, done: () => void) {
+  try {
+    await runBlindTest(books, undefined, { max: 30, onProgress: (d, total) => busy(t('stats.blindProgress', { done: d, total })) })
+  } catch (e) {
+    console.warn(e)
+  } finally {
+    busy(undefined)
+    done()
   }
 }

@@ -24,6 +24,7 @@ import { hasConsent, setConsent, SERVICE_HOST } from '../lib/consent'
 import { IdentifyDialog, type NameChange } from './library/IdentifyDialog'
 import { copyGroups } from '../lib/bookCopies'
 import { CopiesDialog } from './library/CopiesDialog'
+import { blindDue, runBlindTest } from '../lib/blindTest'
 import { backfillLeft, dropPending, unnamedIds, loadPending, setBackfillLeft, subscribePending, type PendingName } from '../lib/autoIdentify'
 import { confirmName, countOutcome, declineName, learnFromEdit, recordOutcome, samePlace } from '../lib/identifyLearning'
 import { loadSettings } from '../lib/settings'
@@ -533,6 +534,22 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
     // it runs once, so Google Books is asked about first; on a no it goes by the books' own files only
     void askLookup.current().then(() => imp.identifyLibrary(left))
   }, [loaded, imp, busy, books, askLookup])
+
+  // The blind test (lib/blindTest): once a week, a minute after the library opens and when nothing else runs, a few books the
+  // user named are identified again as new, offline, to measure the identification on this very library
+  const blindStarted = useRef(false)
+  useEffect(() => {
+    if (!loaded || blindStarted.current || imp.running || busy || !loadSettings().autoIdentify || !blindDue()) return
+    blindStarted.current = true
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => void runBlindTest(books, ctrl.signal).catch(() => {}), 60_000)
+    return () => {
+      clearTimeout(timer)
+      ctrl.abort()
+      blindStarted.current = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- started once a session, with the library as it was then
+  }, [loaded, imp.running, busy])
 
   /** the settings' button: every book of the library is identified again now, with what the identification knows today */
   const identifyWholeLibrary = () => {

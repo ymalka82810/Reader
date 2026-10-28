@@ -34,7 +34,7 @@ interface BenchResult {
 }
 
 /** "5" and "05" are one number; names are compared without nikud, quotes and punctuation */
-function same(field: Field, want: string, got: string): boolean {
+export function same(field: Field, want: string, got: string): boolean {
   if (field === 'number') {
     const a = /^\d+/.exec(want.trim())?.[0]
     const b = /^\d+/.exec(got.trim())?.[0]
