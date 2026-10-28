@@ -1818,5 +1818,144 @@
     ]
    }
   ]
+ },
+ {
+  "id": "pace: the year after a run of three",
+  "input": {
+   "title": "כפפת הנחושת",
+   "author": "הולי בלק וקסנדרה קלייר",
+   "fileName": "כפפת הנחושת.epub",
+   "opening": [
+    "כפפת הנחושת",
+    "הולי בלק וקסנדרה קלייר",
+    "MAGISTERIUM",
+    "THE COPPER GAUNTLET",
+    "Copyright © 2017 by Holly Black and Cassandra Clare LLC"
+   ]
+  },
+  "expect": {
+   "series": "מגיסטריום",
+   "number": "4"
+  },
+  "library": [
+   {
+    "title": "מגיסטריום 1 - ניסוי הברזל",
+    "author": "הולי בלק וקסנדרה קלייר",
+    "year": 2014
+   },
+   {
+    "title": "מגיסטריום 2 - א",
+    "author": "הולי בלק וקסנדרה קלייר",
+    "year": 2015
+   },
+   {
+    "title": "מגיסטריום 3 - מפתח הברונזה",
+    "author": "הולי בלק וקסנדרה קלייר",
+    "year": 2016
+   }
+  ]
+ },
+ {
+  "id": "pace: the year before a run of three",
+  "input": {
+   "title": "כפפת הנחושת",
+   "author": "הולי בלק וקסנדרה קלייר",
+   "fileName": "כפפת הנחושת.epub",
+   "opening": [
+    "כפפת הנחושת",
+    "הולי בלק וקסנדרה קלייר",
+    "MAGISTERIUM",
+    "THE COPPER GAUNTLET",
+    "Copyright © 2014 by Holly Black and Cassandra Clare LLC"
+   ]
+  },
+  "expect": {
+   "series": "מגיסטריום",
+   "number": "1"
+  },
+  "library": [
+   {
+    "title": "מגיסטריום 2 - א",
+    "author": "הולי בלק וקסנדרה קלייר",
+    "year": 2015
+   },
+   {
+    "title": "מגיסטריום 3 - מפתח הברונזה",
+    "author": "הולי בלק וקסנדרה קלייר",
+    "year": 2016
+   },
+   {
+    "title": "מגיסטריום 4 - ב",
+    "author": "הולי בלק וקסנדרה קלייר",
+    "year": 2017
+   }
+  ]
+ },
+ {
+  "id": "pace: a run of two is no pace",
+  "input": {
+   "title": "כפפת הנחושת",
+   "author": "הולי בלק וקסנדרה קלייר",
+   "fileName": "כפפת הנחושת.epub",
+   "opening": [
+    "כפפת הנחושת",
+    "הולי בלק וקסנדרה קלייר",
+    "MAGISTERIUM",
+    "THE COPPER GAUNTLET",
+    "Copyright © 2016 by Holly Black and Cassandra Clare LLC"
+   ]
+  },
+  "expect": {
+   "series": "מגיסטריום",
+   "number": ""
+  },
+  "library": [
+   {
+    "title": "מגיסטריום 1 - ניסוי הברזל",
+    "author": "הולי בלק וקסנדרה קלייר",
+    "year": 2014
+   },
+   {
+    "title": "מגיסטריום 2 - א",
+    "author": "הולי בלק וקסנדרה קלייר",
+    "year": 2015
+   }
+  ]
+ },
+ {
+  "id": "pace: a year skipped breaks the run",
+  "input": {
+   "title": "כפפת הנחושת",
+   "author": "הולי בלק וקסנדרה קלייר",
+   "fileName": "כפפת הנחושת.epub",
+   "opening": [
+    "כפפת הנחושת",
+    "הולי בלק וקסנדרה קלייר",
+    "MAGISTERIUM",
+    "THE COPPER GAUNTLET",
+    "Copyright © 2018 by Holly Black and Cassandra Clare LLC"
+   ]
+  },
+  "expect": {
+   "series": "מגיסטריום",
+   "number": ""
+  },
+  "library": [
+   {
+    "title": "מגיסטריום 1 - ניסוי הברזל",
+    "author": "הולי בלק וקסנדרה קלייר",
+    "year": 2014
+   },
+   {
+    "title": "מגיסטריום 2 - א",
+    "author": "הולי בלק וקסנדרה קלייר",
+    "year": 2015
+   },
+   {
+    "title": "מגיסטריום 3 - מפתח הברונזה",
+    "author": "הולי בלק וקסנדרה קלייר",
+    "year": 2017
+   }
+  ]
  }
 ]

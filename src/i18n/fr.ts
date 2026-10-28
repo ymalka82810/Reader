@@ -261,6 +261,7 @@ export const fr: Record<keyof typeof he, Message> = {
   'identify.clue.order': 'la numérotation de la série dans la bibliothèque',
   'identify.clue.running': 'le titre courant',
   'identify.clue.years': 'les années de la série',
+  'identify.clue.rhythm': 'le rythme de la série',
   'identify.clue.cover': 'la couverture',
   'identify.clue.page': 'la page de titre',
   'identify.fromText': 'Depuis le livre',

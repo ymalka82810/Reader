@@ -8,7 +8,7 @@
 import { authorByDash, authorFromOpening, authorInName, guessBookName, isJunkTitle, nameFromOpening, people, personShaped, seriesOf, tidyBookName, unglued, withoutAuthor, type BookName } from './bookName'
 import { libraryAuthor, realAuthor, tidyAuthor } from './authorName'
 import type { EpubMeta } from './bookText'
-import { bookNumber, copyrightYear, seriesByWords, inLists, librarySeriesFor, numberByGaps, yearsVerdict, type KnownSeries, originalSeries, originalSeriesName, originalTitle, seriesByNames, soundOf, titleCase } from './bookInference'
+import { bookNumber, copyrightYear, seriesByWords, inLists, librarySeriesFor, numberByGaps, numberByRhythm, numberedByRhythm, rhythmVerdict, yearsVerdict, type KnownSeries, originalSeries, originalSeriesName, originalTitle, seriesByNames, soundOf, titleCase } from './bookInference'
 import { listsOf, rememberLists } from './bookKnowledge'
 import { bundledLists, bundledSeries, bundledTitle, loadSeriesDb } from './seriesDb'
 import { hasConsent } from './consent'
@@ -1180,7 +1180,9 @@ async function translatedTitle(title: string, signal?: AbortSignal): Promise<str
 // copyright page), the names its story repeats, and its vocabulary (the series' fingerprint); read once and kept on the
 // device, and kept for every book the identification reads, so the fingerprints grow with the library
 const FACTS_KEY = 'reader:book-facts'
-type Facts = { year: number | null; names?: [string, number][]; words?: [string, number][] }
+/** `n`: the number the book itself gives (its package, its copyright page, its title page), null when none; a book
+ *  read before it was kept has none, and is read again for it */
+type Facts = { year: number | null; n?: number | null; names?: [string, number][]; words?: [string, number][] }
 // read many times for each book identified, so parsed once for as long as the stored text stays the same
 let factsRaw: string | null | undefined
 let factsParsed: Record<string, Facts> = {}
@@ -1206,7 +1208,18 @@ const namesOf = (f: Facts | undefined) => (f?.words ? f.words.slice(0, 20) : (f?
 
 function factsFrom(opening: string[], meta?: EpubMeta): Facts {
   // `words` is kept even when empty (a scan, a book with no text of its own), so the book is not read again for it
-  return { year: copyrightYear(opening) ?? null, words: meta?.words ?? [] }
+  return { year: copyrightYear(opening) ?? null, n: ownNumber(opening, meta) ?? null, words: meta?.words ?? [] }
+}
+
+/** The number a book gives itself, whatever its name says: its package's (calibre's series index), its copyright
+ *  page's original series ("MAGISTERIUM V"), or its title page ("ספר שלישי", "הספר השלישי בסדרה") */
+function ownNumber(opening: string[], meta?: EpubMeta): number | undefined {
+  const read = (x?: string) => (x ? bookNumber(/^\d+/.exec(x.trim())?.[0] ?? x.trim()) : undefined)
+  try {
+    return read(meta?.number) ?? read(originalSeries(opening)?.number) ?? (opening.length ? read(nameFromOpening(opening, '').name?.number) : undefined)
+  } catch {
+    return undefined
+  }
 }
 
 function keepFactsOf(id: string, f: Facts) {
@@ -1228,10 +1241,28 @@ export function keepFacts(id: string, opening: string[], meta?: EpubMeta) {
 async function factsOf(m: { id?: string; kind?: string }, signal?: AbortSignal, vocabulary = false): Promise<Facts | undefined> {
   if (!m.id || (m.kind !== 'epub' && m.kind !== 'pdf')) return undefined
   const known = facts()[m.id]
-  if (known && (!vocabulary || known.words)) return known
-  const { bookDetails } = await import('./bookText')
-  const d = await bookDetails({ id: m.id, kind: m.kind }, signal)
-  const f = factsFrom(d.opening, d.meta)
+  // a book kept before its own number was: read again, once
+  if (known && (!vocabulary || known.words) && known.n !== undefined) return known
+  let d: Awaited<ReturnType<typeof import('./bookText').bookDetails>>
+  try {
+    const { bookDetails } = await import('./bookText')
+    d = await bookDetails({ id: m.id, kind: m.kind }, signal)
+  } catch (e) {
+    // a book that cannot be read again keeps what was kept of it
+    if (signal?.aborted || !known) throw e
+    return known
+  }
+  const fresh = factsFrom(d.opening, d.meta)
+  // what was kept before stays where the new reading has nothing (a book read again only for its own number)
+  const f: Facts = known
+    ? {
+        ...known,
+        year: fresh.year ?? known.year,
+        n: fresh.n,
+        // a book kept with its names (and no vocabulary yet) keeps them: an empty vocabulary would hide them
+        words: fresh.words?.length ? fresh.words : known.words !== undefined ? known.words : known.names ? undefined : fresh.words,
+      }
+    : fresh
   if (d.meta?.lists?.length) rememberLists(d.meta.lists)
   keepFactsOf(m.id, f)
   return f
@@ -1311,7 +1342,13 @@ function knownSeries(series: string, author: string): KnownSeries {
 /** The years of the series' books in the library, read once from their copyright pages and kept */
 async function datedMembers(series: string, library: LibraryNames, signal?: AbortSignal, self?: string) {
   const members = (library.series.get(seriesKey(series))?.members ?? []).filter((m) => !self || m.id !== self)
-  return Promise.all(members.map(async (m) => ({ number: m.number, title: m.title, year: (await factsOf(m, signal))?.year ?? undefined })))
+  // a book of the series the library has with no number in its name, whose own pages give one, counts with that one
+  return Promise.all(
+    members.map(async (m) => {
+      const f = await factsOf(m, signal)
+      return { number: m.number || f?.n || 0, title: m.title, year: f?.year ?? undefined }
+    }),
+  )
 }
 
 /** The number a book of this series has, from the years: the catalog's for the series' books, and the library's books
@@ -1328,7 +1365,10 @@ async function numberInLibrary(
   const known = knownSeries(series, author)
   const members = await datedMembers(series, library, signal, self)
   if (!members.length && !known.years) return undefined
-  return numberByGaps(members, year, known)
+  // the books whose number a run of years gives (numberedByRhythm) count as numbered; and when the years leave it open,
+  // the series' pace (numberByRhythm)
+  const paced = numberedByRhythm(members)
+  return numberByGaps(paced, year, known) ?? numberByRhythm(paced, year)
 }
 
 /** where a title stands in its series, by what the library has under that title or the lists kept (bookKnowledge) */
@@ -1360,7 +1400,7 @@ function bySequels(meta: EpubMeta | undefined, author: string, library?: Library
 
 /** where a clue comes from: the file's or library's name, the file's package, the copyright page, a list of the series'
  *  books, the names its story shares with the series, a catalog, the numbers the library leaves free, a running head */
-export type Clue = 'name' | 'meta' | 'copyright' | 'list' | 'names' | 'words' | 'sequel' | 'catalog' | 'order' | 'running' | 'cover' | 'page' | 'years'
+export type Clue = 'name' | 'meta' | 'copyright' | 'list' | 'names' | 'words' | 'sequel' | 'catalog' | 'order' | 'running' | 'cover' | 'page' | 'years' | 'rhythm'
 
 /** two titles that are one: the same words, or one the other's start ("דם האולימפוס" and "דם האולימפוס V") */
 function sameTitle(x: string, y: string): boolean {
@@ -1471,9 +1511,12 @@ async function weigh(
       const kept = facts()
       const dated = members
         .filter((m) => m.number && !(self && m.id === self) && !(m.title && sameTitle(m.title, r.title)))
-        .map((m) => ({ number: m.number, year: (m.id && kept[m.id]?.year) || undefined }))
-      for (const [n, y] of knownSeries(r.series, r.author || b.author).years ?? []) if (n !== Number(r.number)) dated.push({ number: n, year: y })
-      count('years', yearsVerdict(dated, Number(r.number), year))
+        .map((m) => ({ number: m.number || (m.id && kept[m.id]?.n) || 0, year: (m.id && kept[m.id]?.year) || undefined }))
+      const paced = numberedByRhythm(dated)
+      const catalog = [...(knownSeries(r.series, r.author || b.author).years ?? [])].filter(([n]) => n !== Number(r.number)).map(([n, y]) => ({ number: n, year: y }))
+      count('years', yearsVerdict([...paced, ...catalog], Number(r.number), year))
+      // the series' pace, against the number found (read in the book, or by any other way): the two cross-checked
+      count('rhythm', rhythmVerdict(paced, Number(r.number), year))
     }
   }
   // the title and the author, for every book: each source the book has, on its own (crossCheck). What they agree on is

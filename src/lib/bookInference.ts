@@ -188,6 +188,78 @@ export function numberByGaps(members: { number: number; year?: number }[], year?
   return fits.length === 1 && bound(fits[0]!) ? fits[0] : undefined
 }
 
+/** how many books in a row (by number) a run must have, each first published the year after the one before, for the
+ *  series' pace to count: two books a year apart happen in any series */
+const RHYTHM = 3
+
+/**
+ * The series' books with the numbers their place in a run of years gives them: a book with no number whose year is
+ * one before or after a numbered book's, in a run of RHYTHM books or more first published a year apart (one book a
+ * year, so none is missing between them), gets the number its place in the run gives it. A year two books share breaks
+ * the run.
+ */
+export function numberedByRhythm<T extends { number: number; year?: number }>(members: T[]): T[] {
+  const dated = members.filter((m) => m.year !== undefined)
+  const years = dated.map((m) => m.year!)
+  if (new Set(years).size !== years.length) return members
+  const byYear = [...dated].sort((a, b) => a.year! - b.year!)
+  const out = new Map<T, number>()
+  // runs of consecutive years
+  let start = 0
+  for (let i = 1; i <= byYear.length; i++) {
+    if (i < byYear.length && byYear[i]!.year! === byYear[i - 1]!.year! + 1) continue
+    const run = byYear.slice(start, i)
+    start = i
+    if (run.length < RHYTHM) continue
+    // the run's numbered books must agree with one another: each a step after the one before
+    const anchors = run.map((m, k) => (m.number ? m.number - k : undefined)).filter((x): x is number => x !== undefined)
+    if (!anchors.length || new Set(anchors).size !== 1 || anchors[0]! < 1) continue
+    run.forEach((m, k) => {
+      if (!m.number) out.set(m, anchors[0]! + k)
+    })
+  }
+  if (!out.size) return members
+  return members.map((m) => (out.has(m) ? { ...m, number: out.get(m)! } : m))
+}
+
+/**
+ * The number the series' pace gives a book: a run of RHYTHM books or more, numbered one after another and first
+ * published a year apart, and this book first published the year after the run's last (the next number) or the year
+ * before its first (the one before). Undefined when no run reaches its year, the number is another book's, or another
+ * book shares its year.
+ */
+export function numberByRhythm(members: { number: number; year?: number }[], year?: number): number | undefined {
+  if (!year) return undefined
+  const all = numberedByRhythm(members)
+  if (all.some((m) => m.year === year)) return undefined
+  const taken = new Set(all.filter((m) => m.number).map((m) => m.number))
+  const dated = all.filter((m) => m.number && m.year !== undefined).sort((a, b) => a.number - b.number)
+  const runEnding = (i: number, step: 1 | -1) => {
+    let n = 1
+    for (let j = i + step; j >= 0 && j < dated.length; j += step) {
+      const a = dated[j - step]!
+      const b = dated[j]!
+      if (Math.abs(b.number - a.number) !== 1 || Math.abs(b.year! - a.year!) !== 1 || Math.sign(b.year! - a.year!) !== Math.sign(b.number - a.number)) break
+      n++
+    }
+    return n
+  }
+  for (let i = 0; i < dated.length; i++) {
+    const m = dated[i]!
+    if (m.year === year - 1 && !taken.has(m.number + 1) && runEnding(i, -1) >= RHYTHM) return m.number + 1
+    if (m.year === year + 1 && m.number > 1 && !taken.has(m.number - 1) && runEnding(i, 1) >= RHYTHM) return m.number - 1
+  }
+  return undefined
+}
+
+/** whether the series' pace agrees with the number a book has (read in it, or found otherwise): nothing when the pace
+ *  gives none */
+export function rhythmVerdict(members: { number: number; year?: number }[], number: number, year?: number): 'agree' | 'against' | undefined {
+  const n = numberByRhythm(members, year)
+  if (!n || !number) return undefined
+  return n === number ? 'agree' : 'against'
+}
+
 /** Whether the book's year agrees with its number among the series' books the library has: 'against' when a book
  *  before it was first published after it, or one after it before it; 'agree' when dated books on both sides (or the
  *  next one, for the first) are in order; nothing when the years cannot tell. */

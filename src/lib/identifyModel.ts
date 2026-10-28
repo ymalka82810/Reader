@@ -8,7 +8,7 @@
 import type { Clue } from './bookLookup'
 
 const KEY = 'reader:identify:model'
-const CLUES: Clue[] = ['name', 'meta', 'copyright', 'list', 'names', 'words', 'sequel', 'catalog', 'order', 'running', 'cover', 'page', 'years']
+const CLUES: Clue[] = ['name', 'meta', 'copyright', 'list', 'names', 'words', 'sequel', 'catalog', 'order', 'running', 'cover', 'page', 'years', 'rhythm']
 const STRONG: Clue[] = ['name', 'meta', 'copyright', 'list', 'names', 'sequel', 'catalog', 'page']
 
 /** answers needed before the model decides, and how many of them were wrong names */

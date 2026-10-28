@@ -262,6 +262,7 @@ export const ru: Record<keyof typeof he, Message> = {
   'identify.clue.order': 'нумерация серии в библиотеке',
   'identify.clue.running': 'колонтитул',
   'identify.clue.years': 'годы выхода серии',
+  'identify.clue.rhythm': 'ритм выхода серии',
   'identify.clue.cover': 'обложка',
   'identify.clue.page': 'титульный лист',
   'identify.fromText': 'Из книги',
