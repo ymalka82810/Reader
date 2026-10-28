@@ -71,16 +71,17 @@ export function predict(evidence: readonly Clue[] = [], conflicts: readonly Clue
   return sigmoid(dot(load().w, features(evidence, conflicts)))
 }
 
-/** one answer of the user: `right` when the name was kept (as offered, or in the same place) */
-export function learnAnswer(evidence: readonly Clue[] = [], conflicts: readonly Clue[] = [], right: boolean) {
+/** one answer of the user: `right` when the name was kept (as offered, or in the same place). `weight`: how much of an
+ *  answer it is worth (a blind test's finding is half of one, see identifyLearning's learnFromBlind) */
+export function learnAnswer(evidence: readonly Clue[] = [], conflicts: readonly Clue[] = [], right: boolean, weight = 1) {
   if (!evidence.length && !conflicts.length) return
   const m = load()
   const x = features(evidence, conflicts)
   const err = (right ? 1 : 0) - sigmoid(dot(m.w, x))
-  const rate = RATE / (1 + m.n / DECAY)
+  const rate = (weight * RATE) / (1 + m.n / DECAY)
   m.w = m.w.map((wi, i) => wi + rate * (err * x[i]! - (i === 0 ? 0 : L2 * wi)))
-  m.n++
-  if (!right) m.wrong++
+  m.n += weight
+  if (!right) m.wrong += weight
   try {
     localStorage.setItem(KEY, JSON.stringify(m))
   } catch {
@@ -103,5 +104,5 @@ export function modelAllows(evidence: readonly Clue[] = [], conflicts: readonly 
 /** how much the model has learnt, for the stats */
 export function modelReport() {
   const m = load()
-  return { answers: m.n, wrong: m.wrong, ready: modelReady(m) }
+  return { answers: Math.round(m.n), wrong: Math.round(m.wrong), ready: modelReady(m) }
 }

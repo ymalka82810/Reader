@@ -361,6 +361,7 @@ export const ar: Record<keyof typeof he, Message> = {
   'stats.blindHint': "يعيد التعرّف على ما يصل إلى 30 كتابًا اعتمدتها، دون اتصال، ويقارن بالاسم الذي أعطيته",
   'stats.blindStart': "تشغيل",
   'stats.blindProgress': "يفحص {done}/{total}",
+  'stats.blindLearns': "ما يجده الاختبار في كل كتاب يعلّم الأدلة والنموذج أيضًا، بقيمة نصف إجابة منك، فتتعلم الأدلة الجديدة من الكتب التي اعتمدتها.",
   'stats.known': '{books} كتاب معروف في قوائم السلاسل: {printed} قائمة مطبوعة، {wikidata} من Wikidata، {library} من أسماء محفوظة، {sequel} من الكتب السابقة/اللاحقة. مفردات (بصمة) {fingerprints} كتاب.',
   'identify.libraryDone': 'اكتمل التعرّف على المكتبة: تم تحديث {saved} كتاب، وبانتظار الموافقة {pending}.',
   'identify.libraryCancelled': 'أُلغي التعرّف على المكتبة. يبقى ما تم التعرّف عليه.',

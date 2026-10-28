@@ -358,6 +358,7 @@ export const es: Record<keyof typeof he, Message> = {
   'stats.blindHint': "Identifica de nuevo hasta 30 libros aprobados, sin red, y compara con el nombre que diste",
   'stats.blindStart': "Ejecutar",
   'stats.blindProgress': "Probando {done}/{total}",
+  'stats.blindLearns': "Lo que la prueba encuentra en cada libro también enseña a las pistas y al modelo, como media respuesta tuya, así las pistas nuevas aprenden de los libros ya aprobados.",
   'stats.known': '{books} libros conocidos en listas de series: {printed} listas impresas, {wikidata} de Wikidata, {library} de nombres guardados, {sequel} de libros anteriores/posteriores. Vocabulario (huella) de {fingerprints} libros.',
   'identify.libraryDone': 'Terminó la identificación de la biblioteca: {saved} libros actualizados, {pending} a la espera de aprobación.',
   'identify.libraryCancelled': 'Se canceló la identificación de la biblioteca. Lo que ya se identificó se conserva.',

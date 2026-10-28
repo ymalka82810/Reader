@@ -3,7 +3,8 @@
 // what they came with (their file's name, their package's title and author, their pages), with their own name hidden from
 // the library (the book is not among its books, and its title not among the names it saved). What comes out is compared
 // with the user's name, part by part, and so is every clue that spoke: the real precision of this library's
-// identification, of the names that would have been saved without asking, and of each clue here. Kept on the device.
+// identification, of the names that would have been saved without asking, and of each clue here. What each test found
+// also teaches the clues' records and the model, as half an answer (identifyLearning's learnFromBlind). Kept on the device.
 
 import { hideTitle } from './bookKnowledge'
 import { identifyBook, keptPrint, libraryNames } from './bookLookup'
@@ -12,7 +13,7 @@ import type { EpubMeta } from './bookText'
 import { CLUES, type Clue } from './clues'
 import type { BookMeta } from './db'
 import { caseFromBook, FIELDS, same } from './identifyBench'
-import { isConfirmed } from './identifyLearning'
+import { isConfirmed, learnFromBlind } from './identifyLearning'
 
 const KEY = 'reader:identify:blind'
 const AT_KEY = 'reader:identify:blind-at'
@@ -111,6 +112,8 @@ export async function runBlindTest(
       const r = await identifyBook({ ...input, id: b.id, kind: b.kind } as typeof input, false, signal, d.opening, meta, library)
       const c = compare({ title: b.title, author: b.author ?? '' }, r)
       keep(b.id, { at: Date.now(), ...c, sure: !!r.sure, evidence: r.evidence ?? [], conflicts: r.conflicts ?? [] })
+      // and the clues learn from it, half an answer's worth
+      learnFromBlind(b.id, r.evidence ?? [], r.conflicts ?? [], c.whole)
     } catch (e) {
       if (signal?.aborted) throw e
       console.warn(e) // this book is tried again in a later run

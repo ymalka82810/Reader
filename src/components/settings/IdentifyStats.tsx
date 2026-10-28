@@ -14,6 +14,8 @@ import { loadSeriesDb, seriesDbSize } from '../../lib/seriesDb'
 import { Row } from './parts'
 
 const pct = (n: number, of: number) => (of ? `${Math.round((n / of) * 100)}%` : '—')
+/** a clue's record, which the blind tests add halves to */
+const tallied = (n: number) => Math.round(n * 10) / 10
 
 /** How well the identification does: the library's books by where they stand, the user's answers about the names it
  *  found, what each clue taught, and what is known on the device. Read when opened. */
@@ -91,8 +93,8 @@ export function IdentifyStats() {
             {clueReport().map((r) => (
               <tr key={r.clue}>
                 <td>{t(`identify.clue.${r.clue}`)}</td>
-                <td>{t('stats.rightWrong', { right: r.agreed.right, wrong: r.agreed.wrong })}</td>
-                <td>{t('stats.rightWrong', { right: r.against.right, wrong: r.against.wrong })}</td>
+                <td>{t('stats.rightWrong', { right: tallied(r.agreed.right), wrong: tallied(r.agreed.wrong) })}</td>
+                <td>{t('stats.rightWrong', { right: tallied(r.against.right), wrong: tallied(r.against.wrong) })}</td>
                 <td>{[r.counts ? t('stats.counts') : t('stats.weak'), r.blocks ? '' : t('stats.noBlock')].filter(Boolean).join(', ')}</td>
               </tr>
             ))}
@@ -171,6 +173,7 @@ function BlindTest({ books, busy, tick, onRun }: { books: { id: string; title: s
           })}
         </p>
       )}
+      {r.books > 0 && <p className="muted">{t('stats.blindLearns')}</p>}
       <Row label={t('stats.blindRun')} hint={t('stats.blindHint')}>
         <button disabled={!!busy} onClick={onRun}>
           {busy ?? t('stats.blindStart')}
