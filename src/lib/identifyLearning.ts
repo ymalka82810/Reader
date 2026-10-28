@@ -173,18 +173,23 @@ export function clueStats(): ClueStats {
   return read<ClueStats>(CLUES_KEY, {})
 }
 
+/** adds one answer about a name to the clues' records, `weight` answers' worth (taken back with a weight below 0) */
+function tally(stats: ClueStats, evidence: readonly Clue[], conflicts: readonly Clue[], right: boolean, weight = 1) {
+  const bump = (c: Clue, side: 'for' | 'against', ok: boolean) => {
+    const s = (stats[c] ??= {})
+    const t = (s[side] ??= { right: 0, wrong: 0 })
+    if (ok) t.right = Math.max(0, t.right + weight)
+    else t.wrong = Math.max(0, t.wrong + weight)
+  }
+  for (const c of new Set(evidence)) bump(c, 'for', right)
+  for (const c of new Set(conflicts)) bump(c, 'against', !right)
+}
+
 /** the user's answer about a name: `right` when the name was approved (as offered, or in the same place) */
 export function recordOutcome(evidence: Clue[] = [], conflicts: Clue[] = [], right: boolean) {
   if (!evidence.length && !conflicts.length) return
   const stats = clueStats()
-  const bump = (c: Clue, side: 'for' | 'against', ok: boolean) => {
-    const s = (stats[c] ??= {})
-    const t = (s[side] ??= { right: 0, wrong: 0 })
-    if (ok) t.right++
-    else t.wrong++
-  }
-  for (const c of new Set(evidence)) bump(c, 'for', right)
-  for (const c of new Set(conflicts)) bump(c, 'against', !right)
+  tally(stats, evidence, conflicts, right)
   write(CLUES_KEY, stats)
   // the clues that agreed with a wrong name together: two that are wrong together again and again are one source
   if (!right) {
@@ -197,6 +202,43 @@ export function recordOutcome(evidence: Clue[] = [], conflicts: Clue[] = [], rig
   }
   // the same answer trains the model that weighs all the clues together
   learnAnswer(evidence, conflicts, right)
+}
+
+// ---- the blind test's findings (blindTest): a book the user named, identified again as new, tells which clues were
+// right about it without asking the user anything. Each finding counts as half an answer, for the clues' records and the
+// model alike, so a new clue learns from the books already named instead of waiting for new names to be offered. One
+// finding per book: a book tested again takes its earlier finding back from the records first (the model, which learns
+// step by step, learns again only when the finding changed).
+
+const BLIND_KEY = 'reader:identify:blind-learnt'
+/** how many answers a blind test's finding is worth */
+const BLIND_WEIGHT = 0.5
+
+type Finding = { e: Clue[]; c: Clue[]; r: boolean }
+
+const sameSet = (a: readonly Clue[], b: readonly Clue[]) => {
+  const x = new Set(a)
+  const y = new Set(b)
+  return x.size === y.size && [...x].every((v) => y.has(v))
+}
+
+/** what a blind test found of a named book: the clues that agreed and spoke against, and whether the name came out right */
+export function learnFromBlind(id: string, evidence: Clue[], conflicts: Clue[], right: boolean) {
+  const was = read<Record<string, Finding>>(BLIND_KEY, {})[id]
+  const silent = !evidence.length && !conflicts.length
+  if (silent && !was) return
+  if (was && was.r === right && sameSet(was.e, evidence) && sameSet(was.c, conflicts)) return
+  const stats = clueStats()
+  if (was) tally(stats, was.e, was.c, was.r, -BLIND_WEIGHT)
+  // a book no clue spoke of this time keeps no finding: the earlier one is only taken back
+  if (!silent) tally(stats, evidence, conflicts, right, BLIND_WEIGHT)
+  write(CLUES_KEY, stats)
+  if (silent) {
+    drop(BLIND_KEY, id)
+    return
+  }
+  learnAnswer(evidence, conflicts, right, BLIND_WEIGHT)
+  put(BLIND_KEY, id, { e: [...new Set(evidence)], c: [...new Set(conflicts)], r: right } satisfies Finding)
 }
 
 // ---- sources: clues that come from one place say one thing, however many of them say it

@@ -358,6 +358,7 @@ export const en: Record<keyof typeof he, Message> = {
   'stats.blindHint': "Identifies up to 30 books you approved again, offline, and compares with the name you gave",
   'stats.blindStart': "Run",
   'stats.blindProgress': "Testing {done}/{total}",
+  'stats.blindLearns': "What the test finds in each book also teaches the clues and the model, worth half of one of your answers, so new clues learn from the books you already approved.",
   'stats.known': "{books} books known in series lists: {printed} printed lists, {wikidata} from Wikidata, {library} from saved names, {sequel} from previous/next books. Vocabulary (fingerprint) of {fingerprints} books.",
   'identify.libraryDone': 'Identifying the library finished: {saved} books updated, {pending} waiting for approval.',
   'identify.libraryCancelled': 'Identifying the library was cancelled. What was already identified is kept.',

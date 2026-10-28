@@ -356,6 +356,7 @@ export const he = {
   'stats.blindHint': "מזהה מחדש עד 30 ספרים שאישרת, בלי רשת, ומשווה לשם שנתת",
   'stats.blindStart': "הרצה",
   'stats.blindProgress': "בודק {done}/{total}",
+  'stats.blindLearns': "מה שהמבחן מצא בכל ספר מלמד גם את הרמזים ואת המודל, במשקל של חצי תשובה שלך, כך שרמזים חדשים לומדים מהספרים שכבר אישרת.",
   'stats.known': "{books} ספרים ידועים ברשימות סדרה: {printed} רשימות מודפסות, {wikidata} מ-Wikidata, {library} משמות שנשמרו, {sequel} מספרים קודמים ובאים. אוצר המילים (טביעת אצבע) של {fingerprints} ספרים.",
   'identify.libraryDone': 'זיהוי הספרייה הסתיים: {saved} ספרים עודכנו, {pending} ממתינים לאישור.',
   'identify.libraryCancelled': 'זיהוי הספרייה בוטל. מה שכבר זוהה נשמר.',

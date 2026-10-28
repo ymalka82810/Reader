@@ -42,6 +42,8 @@ it('identifies a named book again as new, with its own name hidden from the libr
   expect(r.parts.series.of).toBe(3)
   expect(r.parts.series.right).toBeGreaterThanOrEqual(2)
   expect(blindDue()).toBe(false)
+  // and what it found teaches the clues, once per book
+  expect(Object.keys(JSON.parse(localStorage.getItem('reader:identify:blind-learnt') ?? '{}')).length).toBeGreaterThan(0)
   expect(listsOf('דנה כהן').flatMap((l) => l.books.map((x) => x.title))).toContain('גל ראשון')
   expect(seen.a).not.toContain('גל ראשון')
   expect(seen.a).toContain('גל שני')

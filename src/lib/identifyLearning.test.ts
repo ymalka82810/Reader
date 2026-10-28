@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { blocks, confirmName, declineName, dependents, isConfirmed, learnFromEdit, learntSources, needsMoreProof, recentPrecision, recordOutcome, rememberAuto, samePlace, sources, trusted, wasDeclined } from './identifyLearning'
+import { blocks, confirmName, declineName, dependents, isConfirmed, learnFromEdit, learntSources, needsMoreProof, recentPrecision, recordOutcome, rememberAuto, samePlace, sources, trusted, wasDeclined, learnFromBlind, clueStats } from './identifyLearning'
 
 beforeEach(() => localStorage.clear())
 
@@ -126,5 +126,27 @@ describe('the books a name leaned on', () => {
     expect(dependents(['a'])).toEqual(['b'])
     expect(dependents(['c']).sort()).toEqual(['b', 'd'])
     expect(dependents(['b'])).toEqual([])
+  })
+})
+
+describe('the blind test teaches', () => {
+  it('counts a finding as half an answer, once per book, taking back its earlier one when it changes', () => {
+    localStorage.clear()
+    learnFromBlind('a', ['name', 'make'], ['timeline'], true)
+    expect(clueStats().make?.for).toEqual({ right: 0.5, wrong: 0 })
+    expect(clueStats().timeline?.against).toEqual({ right: 0, wrong: 0.5 })
+    // the same finding again teaches nothing more
+    learnFromBlind('a', ['make', 'name'], ['timeline'], true)
+    expect(clueStats().make?.for).toEqual({ right: 0.5, wrong: 0 })
+    // the book tested again, now wrong: the earlier finding is taken back
+    learnFromBlind('a', ['make'], [], false)
+    expect(clueStats().make?.for).toEqual({ right: 0, wrong: 0.5 })
+    expect(clueStats().name?.for).toEqual({ right: 0, wrong: 0 })
+    expect(clueStats().timeline?.against).toEqual({ right: 0, wrong: 0 })
+    expect(JSON.parse(localStorage.getItem('reader:identify:model') ?? '{}').n).toBe(1)
+    // tested again with no clue speaking: the finding is taken back, and none is kept
+    learnFromBlind('a', [], [], true)
+    expect(clueStats().make?.for).toEqual({ right: 0, wrong: 0 })
+    expect(JSON.parse(localStorage.getItem('reader:identify:blind-learnt') ?? '{}').a).toBeUndefined()
   })
 })

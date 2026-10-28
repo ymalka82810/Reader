@@ -358,6 +358,7 @@ export const de: Record<keyof typeof he, Message> = {
   'stats.blindHint': "Erkennt bis zu 30 bestätigte Bücher offline neu und vergleicht mit deinem Namen",
   'stats.blindStart': "Starten",
   'stats.blindProgress': "Prüfe {done}/{total}",
+  'stats.blindLearns': "Was der Test in jedem Buch findet, lehrt auch die Hinweise und das Modell, so viel wie eine halbe Antwort von dir – neue Hinweise lernen so von bereits bestätigten Büchern.",
   'stats.known': '{books} Bücher in Reihenlisten bekannt: {printed} gedruckte Listen, {wikidata} aus Wikidata, {library} aus gespeicherten Namen, {sequel} aus vorherigen/folgenden Büchern. Wortschatz (Fingerabdruck) von {fingerprints} Büchern.',
   'identify.libraryDone': 'Erkennung der Bibliothek abgeschlossen: {saved} Bücher aktualisiert, {pending} warten auf Bestätigung.',
   'identify.libraryCancelled': 'Die Erkennung der Bibliothek wurde abgebrochen. Bereits Erkanntes bleibt erhalten.',

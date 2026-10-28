@@ -358,6 +358,7 @@ export const fr: Record<keyof typeof he, Message> = {
   'stats.blindHint': "Identifie à nouveau jusqu’à 30 livres approuvés, hors ligne, et compare avec le nom donné",
   'stats.blindStart': "Lancer",
   'stats.blindProgress': "Test {done}/{total}",
+  'stats.blindLearns': "Ce que le test trouve dans chaque livre instruit aussi les indices et le modèle, comme une demi-réponse de votre part : les nouveaux indices apprennent des livres déjà approuvés.",
   'stats.known': '{books} livres connus dans les listes de séries : {printed} listes imprimées, {wikidata} issus de Wikidata, {library} issus de noms enregistrés, {sequel} issus des livres précédents/suivants. Vocabulaire (empreinte) de {fingerprints} livres.',
   'identify.libraryDone': 'Identification de la bibliothèque terminée : {saved} livres mis à jour, {pending} en attente d’approbation.',
   'identify.libraryCancelled': 'L’identification de la bibliothèque a été annulée. Ce qui était déjà identifié est conservé.',
