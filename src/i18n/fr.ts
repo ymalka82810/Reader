@@ -1064,6 +1064,7 @@ export const fr: Record<keyof typeof he, Message> = {
   'dupes.byContent': 'Reconnu par le titre et l\'auteur à l\'intérieur des fichiers',
   'device.scanning': 'Analyse du téléphone…',
   'device.noneNew': 'Aucun nouveau livre trouvé sur ce téléphone.',
+  'crash.setAside': "L’app s’est fermée la dernière fois pendant le traitement de : {names}. Désormais, l’analyse et l’identification automatiques l’ignorent, pour que cela ne se reproduise pas. Vous pouvez toujours l’ajouter à la main.",
   'device.linked': { one: 'Aucun nouveau livre. Un livre a été relié à son fichier sur le téléphone.', other: 'Aucun nouveau livre. {n} livres ont été reliés à leurs fichiers sur le téléphone.' },
   'device.foundTitle': 'Nouveaux livres trouvés',
   'device.foundText': { one: 'Un nouveau livre a été trouvé sur ce téléphone. L’ajouter à la bibliothèque ?', other: '{n} nouveaux livres ont été trouvés sur ce téléphone. Les ajouter à la bibliothèque ? La conversion des PDF prend un moment.' },

@@ -1064,6 +1064,7 @@ export const es: Record<keyof typeof he, Message> = {
   'dupes.byContent': 'Reconocido por el título y el autor dentro de los archivos',
   'device.scanning': 'Buscando en el teléfono…',
   'device.noneNew': 'No se encontraron libros nuevos en este teléfono.',
+  'crash.setAside': "La app se cerró la última vez mientras procesaba: {names}. A partir de ahora el escaneo y la identificación automáticos lo omiten, para que no vuelva a pasar. Aún puedes añadirlo a mano.",
   'device.linked': { one: 'No hay libros nuevos. Un libro se vinculó con su archivo en el teléfono.', other: 'No hay libros nuevos. {n} libros se vincularon con sus archivos en el teléfono.' },
   'device.foundTitle': 'Libros nuevos encontrados',
   'device.foundText': { one: 'Se encontró un libro nuevo en este teléfono. ¿Añadirlo a la biblioteca?', other: 'Se encontraron {n} libros nuevos en este teléfono. ¿Añadirlos a la biblioteca? Convertir PDF lleva un rato.' },

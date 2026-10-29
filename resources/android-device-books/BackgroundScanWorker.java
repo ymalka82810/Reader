@@ -79,8 +79,8 @@ public class BackgroundScanWorker extends Worker {
 
             notify(ctx, prefs, fresh);
             writeJson(ctx, "bg_notified.json", notified);
-        } catch (Exception e) {
-            // a failed round is simply tried again at the next one
+        } catch (Throwable e) {
+            // a failed round (even out of memory) is simply tried again at the next one
         }
         return Result.success();
     }
