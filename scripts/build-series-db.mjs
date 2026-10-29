@@ -44,6 +44,8 @@ async function ask(query, tries = 4) {
 }
 
 const hebrew = (s) => /[\u05D0-\u05EA]/u.test(s)
+// a label without the note Wikipedia adds at its end to tell two items of one name apart ("מרטאג (ספר)"), as seriesDb's wikidataLabel
+const label = (s) => s.replace(/\s+\([^()]*\)\s*$/u, '').trim() || s.trim()
 const id = (uri) => uri.slice(uri.lastIndexOf('/') + 1)
 const series = new Map() // series id -> { name, authors: Map<name, count>, books: Map<number, Set<title>>, years: Map<number, year> }
 
@@ -59,11 +61,11 @@ for (const type of TYPES)
     }
     rows += found.length
     for (const r of found) {
-      const title = r.title?.value?.trim()
+      const title = label(r.title?.value ?? '')
       const num = r.num?.value?.trim()
       // only a whole number: "1", not "1.5" or "A"
       if (!title || !hebrew(title) || !num || !/^\d{1,3}$/.test(num)) continue
-      const s = series.get(id(r.series.value)) ?? { name: r.seriesLabel.value.trim(), authors: new Map(), books: new Map(), years: new Map() }
+      const s = series.get(id(r.series.value)) ?? { name: label(r.seriesLabel.value), authors: new Map(), books: new Map(), years: new Map() }
       const n = Number(num)
       if (!s.books.has(n)) s.books.set(n, new Set())
       s.books.get(n).add(title)

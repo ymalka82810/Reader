@@ -2,6 +2,7 @@
 // often the original series with the book's number in it ("THE GOLDEN TOWER" / "MAGISTERIUM V"). The original series is
 // matched to a series the library already has in Hebrew by how the names sound ("MAGISTERIUM" is "מגיסטריום"), so the
 // book is "מגיסטריום 5" even when its file name and its cover say nothing readable.
+import { taggedYear } from './wordModel'
 
 /** the consonants of a name as they sound, the same for Latin and Hebrew letters: "magisterium" and "מגיסטריום" are
  *  both "mgstrm", "Percy Jackson" and "פרסי ג'קסון" both "prsgksn". Vowels and the letters that stand for them are
@@ -107,7 +108,8 @@ export function copyrightYear(opening: string[]): number | undefined {
     const y = /\b(1[89]\d\d|20\d\d)\b/.exec(l)
     if (y) return Number(y[1])
   }
-  return undefined
+  // no copyright line with a year: the year the word tagger reads on the page (\"הוצאת כתר 2005\")
+  return taggedYear(opening)
 }
 
 /** A line that is a series of the library's with no number: the original's on the copyright page ("MAGISTERIUM", by how

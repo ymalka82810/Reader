@@ -1,7 +1,7 @@
 import { beforeEach, expect, it } from 'vitest'
 import { people } from './bookName'
 import { norm } from './sameBook'
-import { gazetteerOf, learnWords, splitLine, tagByName, tagWords, tokenize, wordsReport } from './wordModel'
+import { gazetteerOf, learnWords, splitLine, taggedYear, tagByName, tagWords, tokenize, wordsReport } from './wordModel'
 
 beforeEach(() => localStorage.clear())
 
@@ -57,4 +57,24 @@ it('learns from the name the user gave, on the device', () => {
   // a line none of the name is on teaches nothing
   learnWords(['משהו אחר לגמרי'], { title: 'נסיכת הקרח' }, 'אסנת לב')
   expect(wordsReport()).toBe(before)
+})
+
+it('reads the year a copyright page prints without a copyright line', () => {
+  expect(taggedYear(['גנב הברק', 'ריק ריירדן', 'תרגום: דני כהן', 'הוצאת כתר 2005'])).toBe(2005)
+  // the earliest of the editions
+  expect(taggedYear(['עריכה: רונית לוי', 'מהדורה ראשונה 2008', 'מהדורה שנייה 2012'])).toBe(2008)
+  // a year in the story, or on no copyright page, is not the book's
+  expect(taggedYear(['פרק 1', 'הוצאת כתר 2005'])).toBeUndefined()
+  expect(taggedYear(['גנב הברק', 'קיץ 1999'])).toBeUndefined()
+})
+
+it('splits a line both likeliest readings cut at the same place, even when they differ in what a piece is', () => {
+  // the first piece may be the title or the series; the line classifier tells which afterwards
+  expect(splitLine('גנב הברק / ריק ריירדן')).toEqual(['גנב הברק', 'ריק ריירדן'])
+})
+
+it('keeps a series cue with the piece after it, and drops no word that is not a cue', () => {
+  expect(splitLine('ספר שלישי בסדרת הבחירה')).toEqual(['ספר שלישי', 'בסדרת הבחירה'])
+  const kept = splitLine('נואי הילדה מתאילנד מאת אסטריד לינדגרן')
+  expect(kept.join(' ')).toContain('נואי')
 })
