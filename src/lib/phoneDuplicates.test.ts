@@ -87,3 +87,34 @@ describe('findDuplicateGroups by what is inside the files', () => {
     expect(g!.author).toBe('')
   })
 })
+
+describe('findDuplicateGroups in Hebrew', () => {
+  it('matches the same book whose author is spelt another way or turned around', () => {
+    const a = f('/s/Documents/קורא ספרים/ג\'יי קיי רולינג/הארי פוטר ואבן החכמים.epub')
+    const b = f('/s/Download/hp1.epub')
+    const ids = new Map([
+      [a.path, { title: 'הארי פוטר ואבן החכמים', author: "ג'יי קיי רולינג" }],
+      [b.path, { title: 'הארי פוטר ואבן החכמים', author: "רולינג, ג'יי קיי" }],
+    ])
+    const [g] = findDuplicateGroups([a, b], new Set(), ids)
+    expect(g?.by).toBe('content')
+    expect(g?.author).toBe("ג'יי קיי רולינג")
+  })
+
+  it('reads a file with nothing inside by its name, its author told apart, and ignores invisible marks', () => {
+    const a = f('/s/Download/ריק ריירדן - גנב הברק.pdf')
+    const b = f('/s/Documents/גנב הברק.epub')
+    const ids = new Map([
+      [a.path, { title: '', author: '' }],
+      [b.path, { title: 'גנב\u200f הברק', author: 'ריק ריירדן' }],
+    ])
+    const [g] = findDuplicateGroups([a, b], new Set(), ids, ['ריק ריירדן'])
+    expect(g?.keep).toBe(b)
+    expect(g?.versions).toEqual([a])
+  })
+
+  it('sees a download site\'s tag on a name as the same name', () => {
+    const groups = findDuplicateGroups([f('/s/Download/גנב הברק (Z-Library).epub'), f('/s/Download/גנב הברק.epub')])
+    expect(groups).toHaveLength(1)
+  })
+})

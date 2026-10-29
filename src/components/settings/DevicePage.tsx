@@ -12,11 +12,11 @@ import {
 } from '../../lib/deviceBooks'
 import { t } from '../../i18n'
 import { listBooks } from '../../lib/db'
-import { pendingVersionCount, phoneFileLinks, placeBooksOnPhone, placeVersions } from '../../lib/phoneFiles'
+import { mergePhoneAuthorFolders, pendingVersionCount, phoneFileLinks, placeBooksOnPhone, placeVersions } from '../../lib/phoneFiles'
 import { identifyFiles } from '../../lib/fileIdentity'
 import { summarizePhone, type PhoneOverview } from '../../lib/phoneOverview'
 import { PhoneOverviewDialog } from './PhoneOverviewDialog'
-import { findDuplicateGroups, type DuplicateGroup } from '../../lib/phoneDuplicates'
+import { LIBRARY_DIR_NAME, findDuplicateGroups, type DuplicateGroup } from '../../lib/phoneDuplicates'
 import { PhoneDuplicatesDialog } from './PhoneDuplicatesDialog'
 import { mergeAllAuthorSpellings } from '../../lib/authorMerge'
 import { useConfirm } from '../../hooks/useConfirm'
@@ -70,7 +70,10 @@ export function DevicePage({ settings, set, busy, onScan }: { settings: Settings
     setPlacing(t('device.libraryFolderBusy', { done: 0, n: ids.length }))
     // one author spelt several ways would get a folder for each spelling: put right first
     await mergeAllAuthorSpellings().catch(() => 0)
-    const { placed, failed } = await placeBooksOnPhone(ids, (done, n) => setPlacing(t('device.libraryFolderBusy', { done, n }))).finally(() => setPlacingBusy(false))
+    const { placed, failed } = await placeBooksOnPhone(ids, (done, n) => setPlacing(t('device.libraryFolderBusy', { done, n })))
+      // the same author's folder twice on the phone (a spelling from before, an invisible mark): its files join the one folder
+      .then(async (r) => (await mergePhoneAuthorFolders(await scanDevice([`Documents/${LIBRARY_DIR_NAME}`]).catch(() => [])).catch(() => undefined), r))
+      .finally(() => setPlacingBusy(false))
     setPlacing(failed ? t('device.libraryFolderDoneFailed', { placed, failed }) : t('device.libraryFolderDone', { placed }))
   }
 
@@ -81,12 +84,14 @@ export function DevicePage({ settings, set, busy, onScan }: { settings: Settings
     const ctl = new AbortController()
     stopLooking.current = ctl
     const [files, links] = await Promise.all([scanDevice(folders), phoneFileLinks()])
-    const identities = await identifyFiles(files, await listBooks(), links, {
+    const library = await listBooks()
+    const identities = await identifyFiles(files, library, links, {
       signal: ctl.signal,
       onProgress: (done, n) => setPlacing(t('device.identifying', { done, n })),
     })
     setPlacing(undefined)
-    return { files, linked: new Set(links.keys()), groups: findDuplicateGroups(files, new Set(links.keys()), identities) }
+    const authors = [...new Set(library.map((b) => b.author).filter(Boolean))]
+    return { files, linked: new Set(links.keys()), groups: findDuplicateGroups(files, new Set(links.keys()), identities, authors) }
   }
   /** what the scanned folders hold: counted, shown, and from there the converted copies are filed or the duplicates cleaned */
   const showOverview = async () => {

@@ -21,7 +21,12 @@ const where = (n: ExportNote) => [n.chapter, `${n.percent}%`].filter(Boolean).jo
 const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10)
 
 /** file-name safe version of the title */
-export const safeFileName = (title: string, fallback: string) => title.replace(/[\\/:*?"<>|]/g, '_').trim() || fallback
+export const safeFileName = (title: string, fallback: string) =>
+  title
+    .replace(/\p{Cf}/gu, '')
+    .normalize('NFC')
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .trim() || fallback
 
 /** plain Markdown: a blockquote per highlight, then its location and colour, then the reader's own note */
 export function buildMarkdown(title: string, notes: ExportNote[], labels: ExportLabels): string {
