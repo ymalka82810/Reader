@@ -15,7 +15,7 @@ import { useDeviceScan } from '../hooks/useDeviceScan'
 import { deviceBooksSupported } from '../lib/deviceBooks'
 import type { PdfOptions } from '../lib/pdfOptions'
 import { ExportError, exportFormats, isOwnFormat, type BookFormat } from '../lib/bookExport'
-import { autoSyncPhoneNames, openDownloadsFolder, openPhoneFile, phoneFileOf, saveBookToPhone, syncPhoneNames } from '../lib/phoneFiles'
+import { autoSyncPhoneNames, openDownloadsFolder, phoneFileOf, saveBookToPhone, syncPhoneNames } from '../lib/phoneFiles'
 import { formatBookName, splitBookName, type BookName } from '../lib/bookName'
 import { libraryNames, type LibraryNames } from '../lib/bookLookup'
 import { identifyWithCover } from '../lib/coverIdentify'
@@ -425,14 +425,12 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
       setBusy(t('book.converting', { format: t(`format.${format as Exclude<BookFormat, 'original'>}`) }))
     } else setBusy(t(deviceBooksSupported() ? 'book.saving' : 'book.preparing'))
     try {
-      let savedPath: string | undefined
       const name = await saveBookToPhone(
         b.id,
         format,
         (stage, done, total) => setBusy(t(stage === 'pages' ? 'book.convertingPages' : 'book.buildingPdf', { done, total })),
         ctl.signal,
         pdf,
-        (path) => (savedPath = path),
       )
       if (ctl.signal.aborted) return
       if (name && deviceBooksSupported()) {
@@ -441,17 +439,10 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
         const open = await confirm({
           title: t('book.savedTitle'),
           text: t('book.savedText', { name }),
-          ok: t('book.openFile'),
+          ok: t('book.openLocation'),
           cancel: t('common.close'),
         })
-        // the file itself opens; when no app takes it, the Downloads folder opens instead, and only if that fails too does the user hear of it
-        if (open) {
-          const opened = await (savedPath ? openPhoneFile(savedPath) : Promise.reject(new Error('open'))).then(
-            () => true,
-            () => false,
-          )
-          if (!opened && !(await openDownloadsFolder().then(() => true, () => false))) setError(t('book.openFailed'))
-        }
+        if (open) await openDownloadsFolder().catch(() => {})
       } else if (name) showToast(t('book.downloaded', { name }), undefined, 5000)
     } catch (e) {
       if (ctl.signal.aborted) return

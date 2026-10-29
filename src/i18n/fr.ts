@@ -142,8 +142,6 @@ export const fr: Record<keyof typeof he, Message> = {
   'book.savedTitle': 'Téléchargement terminé',
   'book.savedText': 'Le livre a été enregistré dans le dossier Téléchargements sous le nom : {name}',
   'book.openLocation': 'Ouvrir l’emplacement',
-  'book.openFile': 'Ouvrir le fichier',
-  'book.openFailed': 'Impossible d’ouvrir le fichier. Il est enregistré dans le dossier Téléchargements.',
   'book.saveFailed': 'Impossible d’enregistrer le livre : {msg}',
   'book.saving': 'Enregistrement du livre sur le téléphone…',
   'book.preparing': 'Préparation du livre pour le téléchargement…',
