@@ -3,7 +3,8 @@
 // published. It is read only by the tagger's training (src/lib/wordModel.train.test.ts) and is not shipped with the app.
 // Run by the word-train workflow; needs network.
 //   node scripts/build-word-train.mjs [out-file]
-import { writeFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { dirname } from 'node:path'
 
 const OUT = process.argv[2] ?? 'scripts/data/word-train.json'
 const ENDPOINT = 'https://query.wikidata.org/sparql'
@@ -71,6 +72,7 @@ for (const [name, query] of Object.entries(QUERIES)) {
 
 const out = [...books.values()].sort((x, y) => x[0].localeCompare(y[0], 'he'))
 report.books = out.length
+mkdirSync(dirname(OUT), { recursive: true })
 // what each query found, kept beside the data so a run that found little can be told apart from one that failed
 writeFileSync(OUT.replace(/\.json$/, '.report.json'), `${JSON.stringify(report, null, 1)}\n`)
 if (out.length >= 100) writeFileSync(OUT, `${JSON.stringify(out)}\n`)
