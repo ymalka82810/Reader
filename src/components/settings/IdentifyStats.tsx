@@ -9,6 +9,7 @@ import { download } from '../../lib/download'
 import { clueReport, coverage, isConfirmed, learntSources, outcomes } from '../../lib/identifyLearning'
 import { modelReport } from '../../lib/identifyModel'
 import { linesReport } from '../../lib/lineModel'
+import { wordsReport } from '../../lib/wordModel'
 import { saveBlobToPhone } from '../../lib/phoneFiles'
 import { loadSeriesDb, seriesDbSize } from '../../lib/seriesDb'
 import { Row } from './parts'
@@ -107,6 +108,7 @@ export function IdentifyStats() {
       <h4>{t('stats.model')}</h4>
       <p>{t(model.ready ? 'stats.modelReady' : 'stats.modelLearning', { n: model.answers, wrong: model.wrong })}</p>
       <p>{t('stats.lines', { n: linesReport() })}</p>
+      <p>{t('stats.words', { n: wordsReport() })}</p>
       <h4>{t('stats.knowledge')}</h4>
       <p>{t('stats.known', { books: k.books, printed: k.lists.book, wikidata: k.lists.wikidata, library: k.lists.library, sequel: k.lists.sequel, fingerprints: fingerprintBooks() })}</p>
       {bundled.series > 0 && <p>{t('stats.bundled', { series: bundled.series, books: bundled.books })}</p>}
