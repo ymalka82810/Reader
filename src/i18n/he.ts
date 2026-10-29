@@ -37,6 +37,8 @@ export const he = {
   'lib.resumeRemoveOk': 'הסר',
   'lib.empty': 'אין עדיין ספרים.',
   'lib.emptyHint': 'לחץ על ״הוסף ספר״ ובחר קובץ EPUB, PDF, MOBI, AZW3, FB2, CBZ, CBR, DOCX, TXT או ספר קולי (M4B, MP3) מהטלפון או מגוגל דרייב.',
+  'lib.emptyScan': 'מצא ספרים בטלפון',
+  'lib.emptySample': 'קרא ספר לדוגמה',
   'lib.noMatch': 'לא נמצאו ספרים עבור ״{query}״.',
   'lib.noMatchFilter': 'אין ספרים בסינון הזה.',
   'lib.folderEmpty': 'התיקייה ריקה. העבירו אליה ספרים עם 📁.',

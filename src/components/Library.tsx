@@ -150,6 +150,18 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   const imp = useImport({ refresh, setError, showToast })
   const backup = useBackup({ refresh, setBusy, setError, showToast, onBackedUp: () => setDismissed(true), confirm })
   const checkUpdate = useUpdateCheck({ setBusy, setError, showToast, confirm })
+  // a public-domain book shipped with the app, so a first-time reader can try the reader before owning any file
+  const addSampleBook = () =>
+    void imp.addFiles([
+      {
+        name: 'shakespeare-sonnets.epub',
+        load: async () => {
+          const res = await fetch(new URL('sample/shakespeare-sonnets.epub', document.baseURI))
+          if (!res.ok) throw new Error(String(res.status))
+          return new File([await res.blob()], 'shakespeare-sonnets.epub', { type: 'application/epub+zip' })
+        },
+      },
+    ])
   const scanDevice = useDeviceScan({ addFiles: imp.addFiles, setBusy, setError, showToast, confirm })
   const auto = useAutoBackup({ setError, showToast })
 
@@ -899,6 +911,15 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
         <div className="empty">
           <p>{t('lib.empty')}</p>
           <p>{t('lib.emptyHint')}</p>
+          <div className="empty-actions">
+            {deviceBooksSupported() && (
+              <button className="primary" onClick={() => scanDevice()}>{t('lib.emptyScan')}</button>
+            )}
+            <button className={deviceBooksSupported() ? undefined : 'primary'} onClick={() => input.current?.click()}>
+              {t('lib.addBook')}
+            </button>
+            <button onClick={addSampleBook}>{t('lib.emptySample')}</button>
+          </div>
         </div>
       ) : shown.length === 0 ? (
         noteHits.length === 0 && (

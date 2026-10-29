@@ -636,7 +636,34 @@ public class DeviceBooksPlugin extends Plugin {
             getContext().startActivity(i);
             call.resolve();
         } catch (Exception e) {
-            call.reject("open", e);
+            // no Downloads app: the system file picker, opened on the Download folder, does as well
+            try {
+                Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+                i.setType("*/*");
+                i.addCategory(Intent.CATEGORY_OPENABLE);
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(Intent.createChooser(i, null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                call.resolve();
+            } catch (Exception e2) {
+                call.reject("open", e2);
+            }
+        }
+    }
+
+    /** Tells the system a file was added, so the Downloads app and the file managers list it at once (a file written
+     *  straight into the Download folder is otherwise unknown to them until something rescans). scanFile({path}) -> {}. */
+    @PluginMethod
+    public void scanFile(PluginCall call) {
+        try {
+            File f = new File(call.getString("path", ""));
+            if (!f.isFile() || !insideStorage(f)) {
+                call.reject("scan");
+                return;
+            }
+            android.media.MediaScannerConnection.scanFile(getContext(), new String[] {f.getAbsolutePath()}, null, null);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("scan", e);
         }
     }
 
@@ -744,7 +771,13 @@ public class DeviceBooksPlugin extends Plugin {
             }
             String authority = getContext().getPackageName() + ".fileprovider";
             java.util.ArrayList<Uri> uris = new java.util.ArrayList<>();
-            for (File f : files) uris.add(androidx.core.content.FileProvider.getUriForFile(getContext(), authority, f));
+            try {
+                for (File f : files) uris.add(androidx.core.content.FileProvider.getUriForFile(getContext(), authority, f));
+            } catch (IllegalArgumentException e) {
+                // a file outside every FileProvider root (an SD card, say): the caller copies it into the cache and shares that
+                call.reject("missing");
+                return;
+            }
             Intent send;
             if (uris.size() == 1) {
                 send = new Intent(Intent.ACTION_SEND);

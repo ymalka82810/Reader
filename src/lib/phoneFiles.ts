@@ -89,6 +89,7 @@ export async function saveBlobToPhone(blob: Blob, name: string): Promise<string>
     for (let at = CHUNK; at < blob.size; at += CHUNK) {
       saved = await call<Saved>('save', { path: saved.path, data: await toBase64(blob.slice(at, at + CHUNK)) })
     }
+    await call('scanFile', { path: saved.path }).catch(() => {})
     return saved.name
   } catch (e) {
     throw new Error(e instanceof Error && e.message === 'permission' ? 'permission' : 'save')
@@ -141,6 +142,8 @@ export async function saveBookToPhone(
   }
   const link = own && !libraryFolderOn() && !(await phoneFileOf(id))
   const saved = await writeToPhone(id, file, name, undefined, link)
+  // the system's Downloads list only knows a file once it is indexed; without this it shows up only after that app is opened
+  await call('scanFile', { path: saved.path }).catch(() => {})
   // a converted copy is marked, so that the next scan files it under the author's versions folder
   if (!own) await set(saved.path, id, versionStore).catch(() => {})
   // a copy in the book's own format that is not tied as its file is still followed, so a later rename of the book renames it too

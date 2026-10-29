@@ -40,6 +40,11 @@ describe('Library', () => {
     render(<Library onOpen={() => {}} />)
     expect(await screen.findByText('אין עדיין ספרים.')).toBeTruthy()
     expect(screen.queryByLabelText('חיפוש בספרייה')).toBeNull()
+    // the empty screen has its own add button, so the first step doesn't depend on finding the header's
+    expect(screen.getAllByRole('button', { name: '+ הוסף ספר' }).length).toBe(2)
+    expect(screen.getByRole('button', { name: 'קרא ספר לדוגמה' })).toBeTruthy()
+    // outside the Android app there is no phone scan to offer
+    expect(screen.queryByRole('button', { name: 'מצא ספרים בטלפון' })).toBeNull()
   })
 
   it('lists the books and opens one on tap', async () => {

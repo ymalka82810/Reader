@@ -115,7 +115,7 @@ export default defineConfig({
       includeAssets: ['icon.svg', 'icon-192.png', 'icon-512.png', 'maskable-512.png'],
       workbox: {
         // the WOFF fonts are the ones a PDF made from a book is written in (src/lib/pdfFonts.ts), so that works offline
-        globPatterns: ['**/*.{js,css,html,svg,png,mjs,woff2}', '**/assets/heebo-{hebrew,latin,latin-ext}-{400,700}-normal-*.woff'],
+        globPatterns: ['**/*.{js,css,html,svg,png,mjs,woff2,epub}', '**/assets/heebo-{hebrew,latin,latin-ext}-{400,700}-normal-*.woff'],
         // pdf.js (~2 MB with its worker) is only needed when importing a PDF, so keep it out of the
         // install-time precache and cache it on first use instead.
         globIgnores: ['**/assets/pdf-*', '**/assets/pdf.worker*', '**/assets/face_mesh*', '**/assets/tesseract*', '**/tesseract/**'],
