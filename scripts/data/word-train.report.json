@@ -1,7 +1,7 @@
 {
- "hewiki": "Bad control character in string literal in JSON at position 2496084 (line 100200 column 37)",
+ "hewiki": "Expected double-quoted property name in JSON at position 2810723 (line 112781 column 1)",
  "Q8261": 0,
- "Q7725634": "Unexpected token 'S', ...\"  \"type\" :SPARQL-QUE\"... is not valid JSON",
+ "Q7725634": "Bad control character in string literal in JSON at position 2599161 (line 103853 column 37)",
  "Q131276": 0,
  "books": 0
 }
