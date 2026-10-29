@@ -99,6 +99,15 @@ public class DeviceBooksPluginTest {
     }
 
     @Test
+    public void sharedMediaFoldersCanBeTidiedButOtherAppsPrivateOnesCannot() throws Exception {
+        assertTrue(DeviceBooksPlugin.insideStorage(new File(root, "Android/media/org.telegram.messenger/Telegram/Telegram Documents/a.epub"), root));
+        assertTrue(DeviceBooksPlugin.insideStorage(new File(root, "Download/a.epub"), root));
+        assertFalse(DeviceBooksPlugin.insideStorage(new File(root, "Android/data/com.other/files/x.epub"), root));
+        assertFalse(DeviceBooksPlugin.insideStorage(new File(root, "Android/obb/com.other/x.epub"), root));
+        assertFalse(DeviceBooksPlugin.insideStorage(new File(root.getParentFile(), "elsewhere/x.epub"), root));
+    }
+
+    @Test
     public void aFolderOutsideTheStorageIsIgnored() throws Exception {
         File outside = new File(root.getParentFile(), "outside-" + System.nanoTime());
         outside.mkdirs();

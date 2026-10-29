@@ -1040,6 +1040,7 @@ export const ar: Record<keyof typeof he, Message> = {
   'dupes.why': 'السبب: {list}',
   'dupes.why.permission': 'لا يوجد إذن الوصول إلى كل الملفات',
   'dupes.why.outside': 'الملف خارج تخزين الهاتف',
+  'dupes.why.notbook': 'ليس ملف كتاب',
   'dupes.why.remove': 'رفض الهاتف الحذف',
   'dupes.why.place': 'رفض الهاتف النقل',
   'dupes.why.other': 'خطأ آخر',

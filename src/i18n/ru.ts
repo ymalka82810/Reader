@@ -1038,6 +1038,7 @@ export const ru: Record<keyof typeof he, Message> = {
   'dupes.why': 'Причина: {list}',
   'dupes.why.permission': 'нет доступа ко всем файлам',
   'dupes.why.outside': 'файл вне памяти телефона',
+  'dupes.why.notbook': 'не файл книги',
   'dupes.why.remove': 'телефон отказался удалить',
   'dupes.why.place': 'телефон отказался переместить',
   'dupes.why.other': 'другая ошибка',

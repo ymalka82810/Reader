@@ -1037,6 +1037,7 @@ export const fr: Record<keyof typeof he, Message> = {
   'dupes.why': 'Raison : {list}',
   'dupes.why.permission': 'pas d\'accès à tous les fichiers',
   'dupes.why.outside': 'le fichier est hors du stockage du téléphone',
+  'dupes.why.notbook': 'pas un fichier de livre',
   'dupes.why.remove': 'le téléphone a refusé de supprimer',
   'dupes.why.place': 'le téléphone a refusé de déplacer',
   'dupes.why.other': 'autre erreur',
