@@ -141,6 +141,8 @@ export const he = {
   'book.savedTitle': 'ההורדה הסתיימה',
   'book.savedText': 'הספר נשמר בתיקיית ההורדות בשם: {name}',
   'book.openLocation': 'פתח מיקום',
+  'book.openFile': 'פתח קובץ',
+  'book.openFailed': 'לא הצלחתי לפתוח את הקובץ. הוא שמור בתיקיית ההורדות.',
   'book.saveFailed': 'לא הצלחתי לשמור את הספר: {msg}',
   'book.saving': 'שומר את הספר בטלפון…',
   'book.preparing': 'מכין את הספר להורדה…',

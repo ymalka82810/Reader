@@ -126,6 +126,7 @@ export async function saveBookToPhone(
   onProgress?: (stage: ExportStage, done: number, total: number) => void,
   signal?: AbortSignal,
   pdf?: PdfOptions,
+  onSaved?: (path: string) => void,
 ): Promise<string | undefined> {
   const rec = await getBook(id)
   if (!rec) return undefined
@@ -141,6 +142,7 @@ export async function saveBookToPhone(
   }
   const link = own && !libraryFolderOn() && !(await phoneFileOf(id))
   const saved = await writeToPhone(id, file, name, undefined, link)
+  onSaved?.(saved.path)
   // a converted copy is marked, so that the next scan files it under the author's versions folder
   if (!own) await set(saved.path, id, versionStore).catch(() => {})
   // a copy in the book's own format that is not tied as its file is still followed, so a later rename of the book renames it too
@@ -150,6 +152,9 @@ export async function saveBookToPhone(
 
 /** Opens the phone's Downloads folder (where saved books land) in the system's Downloads app. */
 export const openDownloadsFolder = () => call('openDownloads').then(() => undefined)
+
+/** Opens a saved file in the app the phone picks for its type (the "open file" of the download dialog). */
+export const openPhoneFile = (path: string) => call('openFile', { path }).then(() => undefined)
 
 /** The sub-folder of the books folder a book belongs in: its library folder (the author, unless the user picked another). */
 export const bookPhoneDir = (b: Pick<BookMeta, 'author' | 'folder'>, names?: Map<string, string>): string =>

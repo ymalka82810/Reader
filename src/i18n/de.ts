@@ -142,6 +142,8 @@ export const de: Record<keyof typeof he, Message> = {
   'book.savedTitle': 'Download abgeschlossen',
   'book.savedText': 'Das Buch wurde im Ordner „Downloads“ gespeichert als: {name}',
   'book.openLocation': 'Speicherort öffnen',
+  'book.openFile': 'Datei öffnen',
+  'book.openFailed': 'Die Datei konnte nicht geöffnet werden. Sie liegt im Ordner „Downloads“.',
   'book.saveFailed': 'Das Buch konnte nicht gespeichert werden: {msg}',
   'book.saving': 'Das Buch wird auf dem Telefon gespeichert…',
   'book.preparing': 'Das Buch wird für den Download vorbereitet…',
