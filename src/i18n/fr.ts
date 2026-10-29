@@ -38,6 +38,7 @@ export const fr: Record<keyof typeof he, Message> = {
   'lib.empty': 'Aucun livre pour l’instant.',
   'lib.emptyHint': 'Touchez « Ajouter un livre » et choisissez un fichier EPUB, PDF, MOBI, AZW3, FB2, CBZ, CBR, DOCX ou TXT, ou un livre audio (M4B, MP3), depuis votre téléphone ou Google Drive.',
   'lib.emptyScan': 'Trouver les livres du téléphone',
+  'lib.emptySample': 'Lire un livre d’exemple',
   'lib.noMatch': 'Aucun livre trouvé pour « {query} ».',
   'lib.noMatchFilter': 'Aucun livre ne correspond à ce filtre.',
   'lib.folderEmpty': 'Ce dossier est vide. Déplacez-y des livres avec 📁.',
