@@ -311,6 +311,7 @@ export const en: Record<keyof typeof he, Message> = {
   'stats.modelReady': 'The model learnt from {n} answers ({wrong} of them wrong names) and weighs all the clues together: a name is saved without asking only if it trusts it too.',
   'stats.modelLearning': 'The model is learning from your answers and does not decide yet: it learnt from {n} answers ({wrong} of them wrong names). It starts deciding after 30 answers, at least three of them wrong names.',
   'stats.lines': 'The line classifier tags each line of the title page and cover as title, author, series, number or noise, and reads what the rules left unread. It started from what it learnt from the benchmark, and has learnt from {n} lines of books you approved on this device.',
+  'stats.words': 'The word tagger tags each word of a line that prints several parts together (title, author, series, number, year) and splits the line at them, so the line classifier reads one part at a time. It started from what it learnt from lines generated from the bundled series list, and has learnt from {n} words of books you approved on this device.',
   'stats.clue': "Clue",
   'stats.agreed': "When agreeing",
   'stats.against': "When against",

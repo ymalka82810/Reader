@@ -14,7 +14,8 @@
     "typecheck": "tsc -b",
     "e2e": "playwright test",
     "bench": "BENCH_REPORT=1 vitest run src/lib/identifyBench.test.ts",
-    "train:lines": "LINES_TRAIN=1 vitest run src/lib/lineModel.train.test.ts"
+    "train:lines": "LINES_TRAIN=1 vitest run src/lib/lineModel.train.test.ts",
+    "train:words": "WORDS_TRAIN=1 vitest run src/lib/wordModel.train.test.ts"
   },
   "dependencies": {
     "@fontsource/assistant": "^5.3.0",

@@ -13,6 +13,7 @@
 import { BESTSELLER, bookLine, CREDIT, IN_SERIES, isJunkTitle, NOT_A_NAME, people, personShaped, pieces, seriesOf, type BookName } from './bookName'
 import LINE_WEIGHTS from './lineModel/weights.json'
 import { norm } from './sameBook'
+import { gazetteerOf, learnWords, splitLine } from './wordModel'
 
 export const TAGS = ['title', 'author', 'series', 'number', 'noise'] as const
 export type Tag = (typeof TAGS)[number]
@@ -86,11 +87,17 @@ export interface LineContext {
   cover?: { largest?: string; lines: readonly string[] }
 }
 
-/** the lines the classifier reads: the first ones, cleaned, a title page the PDF joined into one line split back */
-function lineUnits(lines: readonly string[], author = ''): string[] {
+/** the lines the classifier reads: the first ones, cleaned, a title page the PDF joined into one line split back, and a
+ *  line that prints several parts (title, author, series, number) split into them by the word tagger (wordModel) */
+function lineUnits(lines: readonly string[], ctx: LineContext = {}): string[] {
+  const g = gazetteerOf({ authors: ctx.authors, series: ctx.series })
   return lines
     .slice(0, 15)
-    .flatMap((l) => pieces(l.replace(/_+/g, ' ').replace(/[\u200E\u200F]/g, '').replace(/\s+/g, ' ').trim(), author))
+    .flatMap((l, i) =>
+      pieces(l.replace(/_+/g, ' ').replace(/[\u200E\u200F]/g, '').replace(/\s+/g, ' ').trim(), ctx.author ?? '').flatMap((p) =>
+        splitLine(p, { authors: ctx.authors, series: ctx.series }, i, g),
+      ),
+    )
     .filter((l) => /\p{L}{2}/u.test(l))
     .slice(0, 20)
 }
@@ -216,7 +223,7 @@ function knownOf(ctx: LineContext) {
 
 /** each line with the chance of each tag */
 export function classifyLines(lines: readonly string[], ctx: LineContext = {}, w: Weights = load().w): { line: string; p: Record<Tag, number> }[] {
-  const units = lineUnits(lines, ctx.author)
+  const units = lineUnits(lines, ctx)
   const known = knownOf(ctx)
   return units.map((line, i) => {
     const p = softmax(w, featuresOf(units, i, ctx, known))
@@ -230,7 +237,7 @@ export function tagLines(lines: readonly string[], name: Partial<BookName>, auth
   const title = norm(name.title ?? '')
   const series = norm(name.series ?? '')
   const a = people(author)
-  return lineUnits(lines, ctx.author).map((l) => {
+  return lineUnits(lines, ctx).map((l) => {
     const n = norm(l.replace(/\s*[|•·]+\s*$/u, ''))
     if (title && n === title) return 'title'
     if (a && people(l.replace(BY, '')) === a) return 'author'
@@ -251,7 +258,7 @@ export function trainStep(w: Weights, x: number[], tag: Tag, rate: number, start
 
 /** the features of every line, for training (the benchmark's script, and learnLines) */
 export function lineFeatures(lines: readonly string[], ctx: LineContext = {}): number[][] {
-  const units = lineUnits(lines, ctx.author)
+  const units = lineUnits(lines, ctx)
   const known = knownOf(ctx)
   return units.map((_, i) => featuresOf(units, i, ctx, known))
 }
@@ -399,6 +406,7 @@ export function learnLinesOf(id: string, name: BookName, author: string) {
   const o = all[id]
   if (!o) return
   learnLines(o.lines, name, author, { author: o.author, title: o.title })
+  learnWords(o.lines, name, author)
   delete all[id]
   try {
     localStorage.setItem(OPENINGS_KEY, JSON.stringify(all))
