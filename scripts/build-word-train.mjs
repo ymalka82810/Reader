@@ -29,7 +29,7 @@ SELECT ?title ?authorLabel ?date WHERE {
   ?work rdfs:label ?title . FILTER(LANG(?title) = "he")
   ?author rdfs:label ?authorLabel . FILTER(LANG(?authorLabel) = "he")
   OPTIONAL { ?work wdt:P577 ?date }
-} LIMIT 20000`,
+} LIMIT 8000`,
     ]),
   ),
 }
@@ -37,7 +37,8 @@ SELECT ?title ?authorLabel ?date WHERE {
 async function ask(query, tries = 4) {
   for (let i = 1; ; i++) {
     const r = await fetch(`${ENDPOINT}?${new URLSearchParams({ format: 'json', query })}`, { headers: { 'User-Agent': UA, Accept: 'application/sparql-results+json' } })
-    if (r.ok) return (await r.json()).results.bindings
+    // the service sometimes lets a raw control character into a string, which JSON does not allow
+    if (r.ok) return JSON.parse((await r.text()).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, ' ')).results.bindings
     if (i >= tries) throw new Error(`HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`)
     await new Promise((res) => setTimeout(res, 15_000 * i))
   }
