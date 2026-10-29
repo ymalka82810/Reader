@@ -115,10 +115,11 @@ export async function shareBooks(
     try {
       await call('share', { paths: items.map((it) => it.path ?? ''), title })
       return { how: 'shared', sent: items.length, kept }
-    } catch (e) {
-      if (!(e instanceof Error && e.message === 'missing')) throw new Error('share')
+    } catch {
+      signal?.throwIfAborted()
     }
-    // a file on the phone was moved or deleted since: everything goes through the app's cache instead
+    // a file on the phone was moved, deleted or sits where the share can't reach it (or the direct share failed for any
+    // other reason): everything goes through the app's cache instead, which always works
     try {
       const paths = await stage(items, signal)
       signal?.throwIfAborted()
