@@ -126,8 +126,8 @@ export function known(tokens: readonly Token[], g: Gazetteer): { author: boolean
   return out
 }
 
-/** the hashed facts about word `i`, given the tags the words before it are taken to have */
-export function wordFacts(tokens: readonly Token[], i: number, before: readonly number[], k: ReturnType<typeof known>, lineIndex = 0): number[] {
+/** the hashed facts about word `i` that do not depend on the tags before it */
+function baseFacts(tokens: readonly Token[], i: number, k: ReturnType<typeof known>, lineIndex: number): number[] {
   const f: string[] = ['bias']
   const at = (j: number) => tokens[j]
   const t = tokens[i]!
@@ -169,11 +169,20 @@ export function wordFacts(tokens: readonly Token[], i: number, before: readonly 
   f.push(`pos=${Math.min(wordIndex, 7)}`, `rpos=${Math.min(words - 1 - wordIndex, 7)}`, `len=${Math.min(words, 12)}`, `line=${Math.min(lineIndex, 5)}`)
   if (i === 0) f.push('first')
   if (i === tokens.length - 1) f.push('last')
-  const p1 = before[i - 1]
-  const p2 = before[i - 2]
-  f.push(`t1=${p1 === undefined ? 'start' : WORD_TAGS[p1]}`, `t2=${p2 === undefined ? 'start' : WORD_TAGS[p2]}|${p1 === undefined ? 'start' : WORD_TAGS[p1]}`)
-  if (p1 !== undefined) f.push(`t1w=${WORD_TAGS[p1]}|${s}`)
   return f.map(hash)
+}
+
+/** the hashed facts about word `i` that depend on the tags of the two words before it (undefined or -1: the line's start) */
+function tagFacts(token: Token, p2: number | undefined, p1: number | undefined): number[] {
+  const name = (t: number | undefined) => (t === undefined || t < 0 ? 'start' : WORD_TAGS[t])
+  const f = [`t1=${name(p1)}`, `t2=${name(p2)}|${name(p1)}`]
+  if (p1 !== undefined && p1 >= 0) f.push(`t1w=${WORD_TAGS[p1]}|${stem(norm(token.text))}`)
+  return f.map(hash)
+}
+
+/** the hashed facts about word `i`, given the tags the words before it are taken to have */
+export function wordFacts(tokens: readonly Token[], i: number, before: readonly number[], k: ReturnType<typeof known>, lineIndex = 0): number[] {
+  return [...baseFacts(tokens, i, k, lineIndex), ...tagFacts(tokens[i]!, before[i - 2], before[i - 1])]
 }
 
 function hash(s: string): number {
@@ -265,7 +274,63 @@ interface Tagged {
   p: number
 }
 
-/** the tag of each token of a line, left to right, each taking the tags before it as given */
+/** a reading of a whole line: the tag of each token, the chance the model gives each of them, and the chance of all of
+ *  them together (its log) */
+export interface Path {
+  tags: number[]
+  p: number[]
+  logp: number
+}
+
+/**
+ * The best readings of a line as a whole (Viterbi, over the tags of the two words before each word): rather than taking
+ * each word's best tag in turn and then living with it, every sequence of tags is weighed by the chance of the whole, so
+ * a word the model was unsure of is decided by the words after it too. `best` readings, the likeliest first.
+ */
+export function decode(tokens: readonly Token[], k: ReturnType<typeof known>, lineIndex: number, delta: Record<number, number[]> | undefined, w: Table, best = 2): Path[] {
+  type Entry = { logp: number; back?: { state: number; rank: number }; tag: number; p: number }
+  const S = T + 1
+  const stateOf = (a: number, b: number) => (a + 1) * S + (b + 1)
+  let layer = new Map<number, Entry[]>([[stateOf(-1, -1), [{ logp: 0, tag: -1, p: 1 }]]])
+  const layers: Map<number, Entry[]>[] = []
+  tokens.forEach((token, i) => {
+    const base = scores(w, delta, baseFacts(tokens, i, k, lineIndex))
+    const next = new Map<number, Entry[]>()
+    for (const [state, entries] of layer) {
+      const a = Math.floor(state / S) - 1
+      const b = (state % S) - 1
+      const extra = scores(w, delta, tagFacts(token, a, b))
+      const p = softmax(base.map((z, t) => z + extra[t]!))
+      entries.forEach((e, rank) => {
+        for (let c = 0; c < T; c++) {
+          const to = stateOf(b, c)
+          const list = next.get(to) ?? []
+          list.push({ logp: e.logp + Math.log(p[c]!), back: { state, rank }, tag: c, p: p[c]! })
+          next.set(to, list)
+        }
+      })
+    }
+    for (const [state, list] of next) next.set(state, list.sort((x, y) => y.logp - x.logp).slice(0, best))
+    layers.push(next)
+    layer = next
+  })
+  if (!layers.length) return []
+  const ends = [...layer].flatMap(([state, list]) => list.map((e, rank) => ({ state, rank, e }))).sort((x, y) => y.e.logp - x.e.logp).slice(0, best)
+  return ends.map(({ state, rank, e }) => {
+    const tags: number[] = []
+    const p: number[] = []
+    let at: { state: number; rank: number } | undefined = { state, rank }
+    for (let i = layers.length - 1; i >= 0 && at; i--) {
+      const x: Entry = layers[i]!.get(at.state)![at.rank]!
+      tags.unshift(x.tag)
+      p.unshift(x.p)
+      at = x.back
+    }
+    return { tags, p, logp: e.logp }
+  })
+}
+
+/** the tag of each token of a line, by the likeliest reading of the whole line */
 export function tagWords(
   line: string,
   ctx: WordContext = {},
@@ -274,15 +339,25 @@ export function tagWords(
   delta: Record<number, number[]> = load().d,
   w: Table = baseTable(),
 ): Tagged[] {
+  return readings(line, ctx, lineIndex, g, delta, w)[0] ?? []
+}
+
+/** the two likeliest readings of a line, each as its tagged tokens */
+export function readings(
+  line: string,
+  ctx: WordContext = {},
+  lineIndex = 0,
+  g: Gazetteer = gazetteerOf(ctx),
+  delta: Record<number, number[]> = load().d,
+  w: Table = baseTable(),
+): (Tagged[] & { logp?: number })[] {
   const tokens = tokenize(line)
-  const k = known(tokens, g)
-  const before: number[] = []
-  return tokens.map((token, i) => {
-    const p = softmax(scores(w, delta, wordFacts(tokens, i, before, k, lineIndex)))
-    const best = p.indexOf(Math.max(...p))
-    before.push(best)
-    return { token, tag: WORD_TAGS[best]!, p: p[best]! }
-  })
+  return decode(tokens, known(tokens, g), lineIndex, delta, w).map((path) =>
+    Object.assign(
+      tokens.map((token, i) => ({ token, tag: WORD_TAGS[path.tags[i]!]!, p: path.p[i]! })),
+      { logp: path.logp },
+    ),
+  )
 }
 
 // ---- the parts of a line
@@ -295,7 +370,7 @@ export interface Part {
 }
 
 /** the runs of one tag in a tagged line: noise between two words of one part (a comma, a dash) stays in it, the marks at
- *  its ends do not; the cue before an author or a series ("מאת", "בסדרת") is kept with it, as the line classifier reads it */
+ *  its ends do not; the cue before an author or a series ("מאת", "בסדרת") is kept with the part after it, as the line classifier reads it */
 export function partsOf(line: string, tagged: readonly Tagged[]): Part[] {
   const parts: { tag: WordTag; from: number; to: number; p: number }[] = []
   for (const x of tagged) {
@@ -310,41 +385,91 @@ export function partsOf(line: string, tagged: readonly Tagged[]): Part[] {
   const out = parts.map((q) => ({ tag: q.tag, text: line.slice(q.from, q.to).replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}.'׳"״]+$/gu, '').trim(), p: q.p }))
   for (let i = 1; i < out.length; i++) {
     const cue = out[i - 1]!
-    if (cue.tag !== 'noise' || (out[i]!.tag !== 'author' && out[i]!.tag !== 'series')) continue
+    // the cue says what the part after it is, whatever the tagger took it for: \"בסדרת\" before a name it read as a title
+    if (cue.tag !== 'noise' || out[i]!.tag === 'noise' || out[i]!.tag === 'year') continue
     const last = cue.text.split(' ').pop()!
     if (AUTHOR_CUE.test(last) || SERIES_CUE.test(last)) out[i]!.text = `${last} ${out[i]!.text}`
   }
   return out.filter((q) => q.text)
 }
 
-/** a line is split only when the tagger is sure of it: no word under this chance, and the words on average above the next */
-const SPLIT_FLOOR = 0.6
-const SPLIT_MEAN = 0.88
-
-export const confident = (tagged: readonly Tagged[]) =>
-  tagged.length > 0 && tagged.every((x) => x.p >= SPLIT_FLOOR) && tagged.reduce((s, x) => s + x.p, 0) / tagged.length >= SPLIT_MEAN
-
-/**
- * A line that prints several parts, split into them: "הארי פוטר 3 והאסיר מאזקבאן מאת ג'יי קיי רולינג" is the series, the
- * book's number ("ספר 3"), the title, and the author with his cue. A line is split only when the tagger is sure of its
- * words (`confident`), finds at least two different parts of a name, and the line is not a credit, an address or a sentence: anything
- * less leaves the line as it was, as the line classifier read it before.
- */
-export function splitLine(line: string, ctx: WordContext = {}, lineIndex = 0, g?: Gazetteer): string[] {
-  const tokens = tokenize(line)
-  if (tokens.filter((t) => t.word).length < 3 || CREDIT.test(line) || NOT_A_NAME.test(line)) return [line]
-  const tagged = tagWords(line, ctx, lineIndex, g)
-  if (!confident(tagged)) return [line]
-  const parts = partsOf(line, tagged)
-  const content = parts.filter((q) => q.tag === 'title' || q.tag === 'author' || q.tag === 'series' || q.tag === 'number')
-  if (new Set(content.map((q) => q.tag)).size < 2) return [line]
+/** the pieces a reading cuts a line into, the way the line classifier reads them; undefined when the reading does not
+ *  split it (fewer than two different parts of a name, or one of title, author and series twice) */
+export function piecesOf(line: string, tagged: readonly Tagged[]): string[] | undefined {
+  // a word the cut would drop has to be a cue (\"מאת\", \"בסדרת\", \"by\") or a year: any other word of the line is part of a
+  // name the tagger was not sure of, and the line is left whole
+  if (tagged.some((x) => x.token.word && x.tag === 'noise' && !AUTHOR_CUE.test(x.token.text) && !SERIES_CUE.test(x.token.text))) return undefined
+  const content = partsOf(line, tagged).filter((q) => q.tag === 'title' || q.tag === 'author' || q.tag === 'series' || q.tag === 'number')
+  if (new Set(content.map((q) => q.tag)).size < 2) return undefined
   // each tag once: a name with two titles in one line is not told apart by this
-  if (['title', 'author', 'series'].some((tag) => content.filter((q) => q.tag === tag).length > 1)) return [line]
+  if (['title', 'author', 'series'].some((tag) => content.filter((q) => q.tag === tag).length > 1)) return undefined
+  // a number is a book line (\"ספר שלישי\", \"כרך 2\"), a number or an ordinal, and nothing more: a word beside it that it
+  // took in (\"ספר 3 בסדרת\") is a cut in the wrong place
+  // a piece of a name that still holds a book's number between its words (\"עולם הדיסק 9 אריק\") or half of a parenthesis
+  // (\"ראי-נוע ( עולם הדיסק\") was not cut where it should be: the line is left whole
+  const unbalanced = (t: string) => (t.match(/\(/g)?.length ?? 0) !== (t.match(/\)/g)?.length ?? 0)
+  if (content.some((q) => q.tag !== 'number' && (/\s#?\d{1,3}\s/.test(` ${q.text.replace(/^\d+\s/, '')} `.slice(1)) || unbalanced(q.text)))) return undefined
+  if (content.some((q) => q.tag === 'number' && !bookLine(q.text) && !/^#?\d{1,3}$/.test(q.text) && !ORDINAL.test(norm(q.text)))) return undefined
   return content.map((q) => {
     if (q.tag !== 'number') return q.text
     const read = bookLine(q.text)?.number ?? /\d{1,3}/.exec(q.text)?.[0]
     return read && !bookLine(q.text) ? `ספר ${read}` : q.text
   })
+}
+
+/** no word of the reading a line is split by may be under this chance */
+const SPLIT_FLOOR = 0.5
+/** when the second reading cuts the line elsewhere, the first has to be this many times likelier */
+const SPLIT_RATIO = 3
+
+/**
+ * A line that prints several parts, split into them: "הארי פוטר 3 והאסיר מאזקבאן מאת ג'יי קיי רולינג" is the series, the
+ * book's number ("ספר 3"), the title, and the author with his cue. The line is read whole (decode), and its two likeliest
+ * readings are both kept: when they cut the line at the same places it is split even if they differ in what a piece is
+ * (the series or the title, "גנב הברק / ריק ריירדן"), for the line classifier tells that afterwards; when they cut it at
+ * different places, only a first reading far likelier than the second splits it. A credit, an address or a sentence is
+ * never split, and anything less than sure leaves the line as it was, as the line classifier read it before.
+ */
+export function splitLine(line: string, ctx: WordContext = {}, lineIndex = 0, g?: Gazetteer, delta?: Record<number, number[]>, w?: Table): string[] {
+  const tokens = tokenize(line)
+  if (tokens.filter((t) => t.word).length < 3 || CREDIT.test(line) || NOT_A_NAME.test(line)) return [line]
+  const [first, second] = readings(line, ctx, lineIndex, g, delta, w)
+  const cut = first && piecesOf(line, first)
+  if (!cut) return [line]
+  const other = second && piecesOf(line, second)
+  // both readings cut the line at the same places: it is cut there, whatever each piece is
+  if (other && other.join('\u0001') === cut.join('\u0001')) return cut
+  if (first.some((x) => x.p < SPLIT_FLOOR)) return [line]
+  if (second && first.logp! - second.logp! < Math.log(SPLIT_RATIO)) return [line]
+  return cut
+}
+
+/**
+ * The year a book's opening prints apart from a copyright line (\"הוצאת כתר 2005\", \"מהדורה ראשונה, 2010\"), as the tagger
+ * reads it: a word it tags as a year and is sure of, on a short line of the copyright page (a credit, or beside one), before
+ * the text's first chapter, that is not a sentence. When several
+ * are printed (the editions after the first), the earliest. Undefined when none.
+ */
+export function taggedYear(opening: readonly string[], ctx: WordContext = {}): number | undefined {
+  const g = gazetteerOf(ctx)
+  let year: number | undefined
+  // the text begins at its first chapter: a year after it is the story's, not the book's
+  const lines = opening.slice(0, 40)
+  const text = lines.findIndex((l) => /^\s*(?:פרק|פרולוג|הקדמה|תוכן|chapter|prologue|contents)(?![\p{L}])/iu.test(l))
+  const page = text < 0 ? lines : lines.slice(0, text)
+  page.forEach((raw, li) => {
+    // only on the copyright page: a line that is a credit, or beside one (the publisher, the edition, the translator)
+    if (!page.slice(Math.max(0, li - 2), li + 3).some((l) => CREDIT.test(l))) return
+    const line = raw.replace(/[.\s]+$/u, '').trim()
+    const words = tokenize(line).filter((t) => t.word).length
+    if (words < 2 || words > 10 || NOT_A_NAME.test(line) || !/\b1[5-9]\d\d\b|\b20\d\d\b/.test(line)) return
+    for (const x of tagWords(line, ctx, Math.min(li, 5), g)) {
+      if (x.tag !== 'year' || x.p < 0.9) continue
+      const y = Number(x.token.text)
+      if (y >= 1500 && y <= new Date().getFullYear() + 1 && !(year! <= y)) year = y
+    }
+  })
+  return year
 }
 
 // ---- what the user taught it

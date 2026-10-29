@@ -5,13 +5,14 @@
 // are tagged by a model trained on the rest, with a gazetteer that holds only the names of the trained ones, so that it
 // is a book the library and the bundled list do not know. The starting weights the app ships (wordModel/weights.json) are
 // trained on all the series: `npm run train:words`.
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { expect, it } from 'vitest'
 import { people } from './bookName'
 import { norm } from './sameBook'
+import { wikidataLabel } from './seriesDb'
 import type { BenchCase } from './identifyBench'
-import { confident, DIM, known, partsOf, step, tagByName, tagWords, tokenize, WORD_TAGS, wordFacts, type Gazetteer, type Table, type WordTag } from './wordModel'
+import { DIM, known, partsOf, piecesOf, splitLine, step, tagByName, tagWords, tokenize, WORD_TAGS, wordFacts, type Gazetteer, type Table, type WordTag } from './wordModel'
 
 const dir = fileURLToPath(new URL('./', import.meta.url))
 const series = JSON.parse(readFileSync(fileURLToPath(new URL('../../public/series-he.json', import.meta.url)), 'utf8')) as {
@@ -59,9 +60,14 @@ const CITIES = ['קרית גת', 'מודיעין', 'תל אביב', 'פתח תק
 
 // a book whose title holds its series' name (\"אווטאר: כשף האוויר האחרון – ההבטחה\") cannot be told apart by the words alone
 const books: Book[] = series
-  .flatMap((e) => e.b.map(([number, title, year]) => ({ series: e.s, author: e.a ?? '', number, title, ...(year && { year }) })))
+  .flatMap((e) => e.b.map(([number, title, year]) => ({ series: wikidataLabel(e.s), author: e.a ?? '', number, title: wikidataLabel(title), ...(year && { year }) })))
   .filter((b) => !` ${norm(b.title)} `.includes(` ${norm(b.series)} `))
-const authors = [...new Set(series.flatMap((e) => (e.a ? [e.a] : [])))]
+// books in no series, from Wikidata (scripts/build-word-train.mjs), when the file is there
+const extraFile = fileURLToPath(new URL('../../scripts/data/word-train.json', import.meta.url))
+const extra: Book[] = existsSync(extraFile)
+  ? (JSON.parse(readFileSync(extraFile, 'utf8')) as [string, string, number?][]).map(([title, author, year]) => ({ series: '', number: '', title: wikidataLabel(title), author, ...(year && { year }) }))
+  : []
+const authors = [...new Set([...series.flatMap((e) => (e.a ? [e.a] : [])), ...extra.map((b) => b.author)])]
 
 /** a line of a title page: the parts with their tags, in one of the ways a title page prints a book */
 function lineOf(b: Book, rand: () => number, all: Book[]): Part[] {
@@ -76,44 +82,45 @@ function lineOf(b: Book, rand: () => number, all: Book[]): Part[] {
   const A_: Part = [b.author || other.author || pick(authors), 'author']
   const sep = (): Part[] => (rand() < 0.5 ? [[dash, 'noise']] : [])
   const year = b.year ?? 1990 + Math.floor(rand() * 33)
-  const templates: (() => Part[])[] = [
-    () => [T_],
-    () => [T_],
-    () => [S_, ...bookWord, ...sep(), T_],
-    () => [S_, [String(n), 'number'], ...sep(), T_],
-    () => [S_, [String(n), 'number'], T_, ['מאת', 'noise'], A_],
-    () => [T_, ['מאת', 'noise'], A_],
-    () => [T_, ['by', 'noise'], A_],
-    () => [A_, [dash, 'noise'], T_],
-    () => [T_, [dash, 'noise'], A_],
-    () => [T_, [pick(['/', '|', '•']), 'noise'], A_],
-    () => [T_, ['(', 'noise'], S_, ['#', 'noise'], [String(n), 'number'], [')', 'noise']],
-    () => [T_, ['(', 'noise'], S_, [',', 'noise'], ...bookWord, [')', 'noise']],
-    () => [...bookWord, ['בסדרת', 'noise'], S_],
-    () => [...bookWord, ['בסדרה', 'noise'], S_],
-    () => [S_, ...bookWord],
-    () => [S_],
-    () => [A_],
-    () => [['מאת', 'noise'], A_],
-    () => [T_, [String(year), 'year']],
-    () => [['©', 'noise'], [String(year), 'year'], A_],
-    () => [A_, [String(year), 'year']],
-    () => [['הוצאת', 'noise'], [pick(PUBLISHERS), 'noise'], [String(year), 'year']],
-    () => [['תרגום', 'noise'], [':', 'noise'], [other.author || pick(authors), 'noise']],
-    () => [['עריכה', 'noise'], [':', 'noise'], [pick(authors), 'noise']],
-    () => [['מאנגלית', 'noise'], [pick(authors), 'noise']],
-    () => [[pick(PRAISE), 'noise']],
-    () => [[pick(GENRES), 'noise']],
-    () => [['"', 'noise'], T_, ['"', 'noise']],
-    () => [['כל הזכויות שמורות', 'noise'], ['©', 'noise'], [String(year), 'noise']],
-    () => [[`רח' ${pick(STREETS)} ${1 + Math.floor(rand() * 90)}, ${pick(CITIES)} ${7000000 + Math.floor(rand() * 999999)}`, 'noise']],
-    () => [[`ת.ד. ${1 + Math.floor(rand() * 900)}, ${pick(CITIES)}`, 'noise']],
-    () => [[`טל' 0${3 + Math.floor(rand() * 5)}-${1000000 + Math.floor(rand() * 8999999)}`, 'noise']],
-    () => [[`"${pick(PRAISE)}!"`, 'noise'], ['-', 'noise'], [pick(['עכשיו', 'הארץ', 'ידיעות אחרונות', 'ניו יורק טיימס']), 'noise']],
-    () => [[`${pick(all).title.split(' ').slice(0, 3).join(' ')} ${pick(all).title.split(' ').slice(-2).join(' ')} ${pick(all).title.split(' ')[0]!}.`, 'noise']],
-    () => [['www.', 'noise'], ['example', 'noise'], ['.co.il', 'noise']],
+  // each with whether it prints the series (a book in none is printed only the others' ways)
+  const templates: [boolean, () => Part[]][] = [
+    [false, () => [T_]],
+    [false, () => [T_]],
+    [true, () => [S_, ...bookWord, ...sep(), T_]],
+    [true, () => [S_, [String(n), 'number'], ...sep(), T_]],
+    [true, () => [S_, [String(n), 'number'], T_, ['מאת', 'noise'], A_]],
+    [false, () => [T_, ['מאת', 'noise'], A_]],
+    [false, () => [T_, ['by', 'noise'], A_]],
+    [false, () => [A_, [dash, 'noise'], T_]],
+    [false, () => [T_, [dash, 'noise'], A_]],
+    [false, () => [T_, [pick(['/', '|', '•']), 'noise'], A_]],
+    [true, () => [T_, ['(', 'noise'], S_, ['#', 'noise'], [String(n), 'number'], [')', 'noise']]],
+    [true, () => [T_, ['(', 'noise'], S_, [',', 'noise'], ...bookWord, [')', 'noise']]],
+    [true, () => [...bookWord, ['בסדרת', 'noise'], S_]],
+    [true, () => [...bookWord, ['בסדרה', 'noise'], S_]],
+    [true, () => [S_, ...bookWord]],
+    [true, () => [S_]],
+    [false, () => [A_]],
+    [false, () => [['מאת', 'noise'], A_]],
+    [false, () => [T_, [String(year), 'year']]],
+    [false, () => [['©', 'noise'], [String(year), 'year'], A_]],
+    [false, () => [A_, [String(year), 'year']]],
+    [false, () => [['הוצאת', 'noise'], [pick(PUBLISHERS), 'noise'], [String(year), 'year']]],
+    [false, () => [['תרגום', 'noise'], [':', 'noise'], [other.author || pick(authors), 'noise']]],
+    [false, () => [['עריכה', 'noise'], [':', 'noise'], [pick(authors), 'noise']]],
+    [false, () => [['מאנגלית', 'noise'], [pick(authors), 'noise']]],
+    [false, () => [[pick(PRAISE), 'noise']]],
+    [false, () => [[pick(GENRES), 'noise']]],
+    [false, () => [['"', 'noise'], T_, ['"', 'noise']]],
+    [false, () => [['כל הזכויות שמורות', 'noise'], ['©', 'noise'], [String(year), 'noise']]],
+    [false, () => [[`רח' ${pick(STREETS)} ${1 + Math.floor(rand() * 90)}, ${pick(CITIES)} ${7000000 + Math.floor(rand() * 999999)}`, 'noise']]],
+    [false, () => [[`ת.ד. ${1 + Math.floor(rand() * 900)}, ${pick(CITIES)}`, 'noise']]],
+    [false, () => [[`טל' 0${3 + Math.floor(rand() * 5)}-${1000000 + Math.floor(rand() * 8999999)}`, 'noise']]],
+    [false, () => [[`"${pick(PRAISE)}!"`, 'noise'], ['-', 'noise'], [pick(['עכשיו', 'הארץ', 'ידיעות אחרונות', 'ניו יורק טיימס']), 'noise']]],
+    [false, () => [[`${pick(all).title.split(' ').slice(0, 3).join(' ')} ${pick(all).title.split(' ').slice(-2).join(' ')} ${pick(all).title.split(' ')[0]!}.`, 'noise']]],
+    [false, () => [['www.', 'noise'], ['example', 'noise'], ['.co.il', 'noise']]],
   ]
-  return pick(templates)()
+  return pick(templates.filter(([series]) => !series || !!b.series))[1]()
 }
 
 interface Example {
@@ -148,8 +155,12 @@ const nothing = (): Gazetteer => ({ authors: new Set(), series: new Set(), title
 function train(bs: Book[], seed: number): Table {
   const rand = rng(seed)
   const w = new Float32Array(DIM * T)
-  const order = bs.map((_, i) => i)
+  // the books of a series are few beside the books in none: each epoch takes all of them and a fresh share of the others,
+  // twice as many, so that the ways a series is printed are not drowned
+  const inSeries = bs.flatMap((b, i) => (b.series ? [i] : []))
+  const alone = bs.flatMap((b, i) => (b.series ? [] : [i]))
   for (let e = 0; e < EPOCHS; e++) {
+    const order = [...inSeries, ...Array.from({ length: Math.min(alone.length, inSeries.length * 2) }, () => alone[Math.floor(rand() * alone.length)]!)]
     // a fresh shuffle, and a fresh line for each book, each epoch
     for (let i = order.length - 1; i > 0; i--) {
       const j = Math.floor(rand() * (i + 1))
@@ -157,10 +168,10 @@ function train(bs: Book[], seed: number): Table {
     }
     for (const bi of order) {
       const b = bs[bi]!
-      for (let r = 0; r < LINES; r++) {
+      for (let r = 0; r < (b.series ? LINES : 1); r++) {
         const ex = example(lineOf(b, rand, bs))
         // half the lines are met with the book's names known (a book of the library), half without (a new one)
-        const g = rand() < 0.5 ? names([b, ...bs.filter(() => rand() < 0.1)]) : nothing()
+        const g = rand() < 0.5 ? names([b, ...Array.from({ length: 20 }, () => bs[Math.floor(rand() * bs.length)]!)]) : nothing()
         const tokens = tokenize(ex.line)
         const k = known(tokens, g)
         const gold = ex.tags.map((t) => WORD_TAGS.indexOf(t))
@@ -177,15 +188,19 @@ function train(bs: Book[], seed: number): Table {
 const rand = rng(7)
 let held: Table | undefined
 const heldOut = () => (held ??= train(trainBooks, 1))
-const heldSeries = new Set(series.filter((_, i) => i % 5 === 2).map((e) => e.s))
-const trainBooks = books.filter((b) => !heldSeries.has(b.series))
-const heldBooks = books.filter((b) => heldSeries.has(b.series))
+const heldSeries = new Set(series.filter((_, i) => i % 5 === 2).map((e) => wikidataLabel(e.s)))
+const trainBooks = [...books.filter((b) => !heldSeries.has(b.series)), ...extra.filter((_, i) => i % 5 !== 2)]
+const heldBooks = [...books.filter((b) => heldSeries.has(b.series)), ...extra.filter((_, i) => i % 5 === 2)]
 
 function wordsRight(w: Table, bs: Book[], g: Gazetteer, per = 6) {
   let right = 0
   let all = 0
   let linesRight = 0
   let lines = 0
+  let splittable = 0
+  let made = 0
+  let madeRight = 0
+  const badSplits: string[] = []
   const wrong: string[] = []
   for (const b of bs) {
     for (let r = 0; r < per; r++) {
@@ -198,11 +213,19 @@ function wordsRight(w: Table, bs: Book[], g: Gazetteer, per = 6) {
         else ok = false
       })
       lines++
+      const gold = piecesOf(ex.line, tokenize(ex.line).map((token, i) => ({ token, tag: ex.tags[i]!, p: 1 })))
+      const cut = splitLine(ex.line, {}, 0, g, {}, w)
+      if (gold) splittable++
+      if (cut.length > 1) {
+        made++
+        if (gold && gold.join('|') === cut.join('|')) madeRight++
+        else if (badSplits.length < 8) badSplits.push(`${ex.line}  →  ${cut.join(' ‖ ')}`)
+      }
       if (ok) linesRight++
       else if (wrong.length < 12) wrong.push(`${ex.line}  →  ${got.map((x) => `${x.token.text}/${x.tag}`).join(' ')}`)
     }
   }
-  return { words: right / all, lines: linesRight / lines, wrong }
+  return { words: right / all, lines: linesRight / lines, wrong, split: { precision: madeRight / (made || 1), recall: madeRight / (splittable || 1), badSplits } }
 }
 
 it(`tags the words of books it did not learn from (${heldBooks.length} held-out books, ${trainBooks.length} trained)`, () => {
@@ -210,11 +233,19 @@ it(`tags the words of books it did not learn from (${heldBooks.length} held-out 
   const gaz = names(trainBooks)
   const unknown = wordsRight(w, heldBooks, gaz)
   const knownBooks = wordsRight(w, heldBooks, names([...trainBooks, ...heldBooks]))
+  const inSeries = wordsRight(w, heldBooks.filter((b) => b.series), gaz)
   if (process.env.WORDS_TRAIN === '1' || process.env.BENCH_REPORT === '1') {
     console.log(`words right on new books: ${Math.round(unknown.words * 1000) / 10}% (whole lines ${Math.round(unknown.lines * 1000) / 10}%)`)
+    console.log(`words right on new books of a series: ${Math.round(inSeries.words * 1000) / 10}%, splits ${Math.round(inSeries.split.precision * 1000) / 10}% right, ${Math.round(inSeries.split.recall * 1000) / 10}% split`)
     console.log(`words right on books the list knows: ${Math.round(knownBooks.words * 1000) / 10}% (whole lines ${Math.round(knownBooks.lines * 1000) / 10}%)`)
     for (const x of unknown.wrong) console.log(`✗ ${x}`)
+    const pc = (x: number) => Math.round(x * 1000) / 10
+    console.log(`splits on new books: ${pc(unknown.split.precision)}% right, ${pc(unknown.split.recall)}% of the lines with several parts split`)
+    console.log(`splits on known books: ${pc(knownBooks.split.precision)}% right, ${pc(knownBooks.split.recall)}% split`)
+    for (const x of unknown.split.badSplits) console.log(`✂ ${x}`)
   }
+  // a split is a cut the line classifier then lives with: it has to be right almost always
+  expect(unknown.split.precision).toBeGreaterThanOrEqual(0.9)
   expect(unknown.words).toBeGreaterThanOrEqual(FLOOR)
   // knowing the book's names helps, never hurts
   expect(knownBooks.words).toBeGreaterThanOrEqual(unknown.words - 0.01)
@@ -232,18 +263,17 @@ it('splits no real title-page line that holds one part, and splits the lines tha
       const gold = c.expect.title && c.expect.author !== undefined ? tagByName(line, c.expect, c.expect.author || c.input.author) : undefined
       if (!gold) continue
       const kinds = new Set(gold.filter((t) => t === 'title' || t === 'author' || t === 'series' || t === 'number'))
-      const got = partsOf(line, tagWords(line, {}, li, nothing(), {}, w))
-      const sure = confident(tagWords(line, {}, li, nothing(), {}, w))
-      const gotKinds = new Set(got.map((p) => p.tag).filter((t) => t === 'title' || t === 'author' || t === 'series' || t === 'number'))
+      const cut = splitLine(line, {}, li, nothing(), {}, w).length > 1
       if (kinds.size <= 1) {
         single++
-        if (sure && gotKinds.size >= 2) {
+        if (cut) {
           falseSplits++
           wrong.push(`${c.id}: ${line}`)
         }
       } else {
         several++
-        if (sure && gotKinds.size >= 2) split++
+        if (cut) split++
+        else wrong.push(`unsplit ${c.id}: ${line}`)
       }
     }
   }
@@ -265,7 +295,7 @@ it('keeps the parts of a line together, and drops the cue of a credit', () => {
 }, 120_000)
 
 it.runIf(process.env.WORDS_TRAIN === '1')('writes the starting weights, trained on every series', () => {
-  const w = train(books, 3)
+  const w = train([...books, ...extra], 3)
   const table: Record<string, number[]> = {}
   for (let b = 0; b < DIM; b++) {
     const row = Array.from({ length: T }, (_, t) => Math.round(w[b * T + t]! * 100) / 100)

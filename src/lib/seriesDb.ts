@@ -33,12 +33,16 @@ export function loadSeriesDb(): Promise<void> {
   return loading
 }
 
+/** a Wikidata label as a book prints it: without the note Wikipedia adds to tell two items of one name apart, at its end
+ *  in parentheses (\"רוברט לנגדון (סדרת ספרים)\", \"מרטאג (ספר)\", \"נעול (טום קלנסי)\") */
+export const wikidataLabel = (s: string) => s.replace(/\s+\([^()]*\)\s*$/u, '').trim() || s.trim()
+
 export function setSeriesDb(data: SeriesEntry[]) {
   lists = data
     .filter((e) => e && typeof e.s === 'string' && Array.isArray(e.b) && e.b.length)
     .map((e) => ({
-      series: e.s,
-      books: e.b.map(([number, title, year]) => ({ number: String(number), title, ...(typeof year === 'number' && year > 0 && { year }) })),
+      series: wikidataLabel(e.s),
+      books: e.b.map(([number, title, year]) => ({ number: String(number), title: wikidataLabel(title), ...(typeof year === 'number' && year > 0 && { year }) })),
       ...(e.a && { author: e.a }),
       from: 'wikidata' as const,
       key: e.a ? authorKey(e.a) : '',
