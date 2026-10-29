@@ -1,0 +1,24 @@
+name: Word tagger training data
+# Rebuilds scripts/data/word-train.json from Wikidata (scripts/build-word-train.mjs): books with Hebrew names, for the
+# word tagger's training only (not shipped). Pushes the file to the branch it ran on.
+on:
+  workflow_dispatch:
+  push:
+    paths: ['scripts/build-word-train.mjs']
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: 24 }
+      - run: node scripts/build-word-train.mjs scripts/data/word-train.json
+      - run: |
+          if git diff --quiet -- scripts/data/word-train.json && git ls-files --error-unmatch scripts/data/word-train.json >/dev/null 2>&1; then echo "no change"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/data/word-train.json
+          git commit -m "נתוני אימון למסמן המילים: עדכון מ-Wikidata"
+          git push origin HEAD:${{ github.ref_name }}
