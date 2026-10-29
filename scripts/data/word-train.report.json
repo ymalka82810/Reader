@@ -1,7 +1,7 @@
 {
- "hewiki": "Expected double-quoted property name in JSON at position 2810723 (line 112781 column 1)",
+ "hewiki": 4366,
  "Q8261": 0,
- "Q7725634": "Bad control character in string literal in JSON at position 2599161 (line 103853 column 37)",
+ "Q7725634": 7159,
  "Q131276": 0,
- "books": 0
+ "books": 7847
 }
