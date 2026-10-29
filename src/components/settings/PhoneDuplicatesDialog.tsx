@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { Dialog } from '../Dialog'
 import { t } from '../../i18n'
 import type { DuplicateGroup } from '../../lib/phoneDuplicates'
-import { tidyPhoneDuplicates } from '../../lib/phoneFiles'
+import { tidyMessage, tidyPhoneDuplicates } from '../../lib/phoneFiles'
+
 
 /** the file's folder, as a short hint next to its name */
 const where = (path: string) => path.split('/').slice(-2, -1)[0] ?? ''
@@ -26,7 +27,7 @@ export function PhoneDuplicatesDialog({ groups, onDone, onClose }: { groups: Dup
     setBusy(true)
     try {
       const r = await tidyPhoneDuplicates(groups, approved)
-      onDone(t('dupes.done', r))
+      onDone(tidyMessage(r))
     } finally {
       setBusy(false)
     }

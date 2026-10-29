@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { bookFileName, bookPhoneDir, forgetPhoneFile, placeBooksOnPhone, placeNewBook, matchPhoneFiles, phoneFileOf, phoneFilePathsInLibrary, placeVersions, tidyPhoneDuplicates, refreshPhoneFiles, rememberPhoneFile, saveBookToPhone, syncPhoneNames } from './phoneFiles'
+import { bookFileName, bookPhoneDir, forgetPhoneFile, placeBooksOnPhone, placeNewBook, matchPhoneFiles, phoneFileOf, phoneFilePathsInLibrary, placeVersions, tidyPhoneDuplicates, mergePhoneAuthorFolders, refreshPhoneFiles, rememberPhoneFile, saveBookToPhone, syncPhoneNames } from './phoneFiles'
 import type { BookRecord } from './db'
 
 // the test books, served in place of IndexedDB (whose fake loses a Blob's methods under jsdom)
@@ -175,6 +175,11 @@ function fakePhone(files: Map<string, number>) {
         if (!files.delete(options.path as string)) throw new Error('remove')
         return undefined
       }
+      if (method === 'scan') {
+        const roots = (options.folders as string[]).map((f) => `/s/${f}/`)
+        const found = [...files.keys()].filter((p) => roots.some((r) => p.startsWith(r)))
+        return { files: found.map((path) => ({ path, name: path.split('/').pop(), size: 1, modified: 1 })) }
+      }
       return undefined
     },
   }
@@ -273,7 +278,7 @@ describe('tidyPhoneDuplicates', () => {
     const files = new Map([keep, pdf, a, b].map((f) => [f.path, 1]))
     fakePhone(files)
     const r = await tidyPhoneDuplicates([{ title: 'גנב הברק', author: '', by: 'name', keep, versions: [pdf], surplus: [a, b] }], new Set([a.path]))
-    expect(r).toEqual({ deleted: 1, moved: 1, failed: 0 })
+    expect(r).toMatchObject({ deleted: 1, moved: 1, failed: 0, gone: 0 })
     expect([...files.keys()].sort()).toEqual(
       [keep.path, b.path, '/s/Documents/קורא ספרים/ריק ריירדן/גרסאות/PDF/גנב הברק.pdf'].sort(),
     )
@@ -286,9 +291,63 @@ describe('tidyPhoneDuplicates', () => {
     const files = new Map([keep, pdf, a].map((f) => [f.path, 1]))
     const calls = fakePhone(files)
     const r = await tidyPhoneDuplicates([{ title: 'ספר בלי מחבר', author: '', by: 'name', keep, versions: [pdf], surplus: [a] }], new Set())
-    expect(r).toEqual({ deleted: 0, moved: 0, failed: 0 })
+    expect(r).toMatchObject({ deleted: 0, moved: 0, failed: 0, unfiled: 1 })
     expect(calls.some((c) => c.method === 'remove' || c.method === 'place')).toBe(false)
     expect(files.size).toBe(3)
+  })
+
+  it('counts a file that is no longer there as gone, not as failed', async () => {
+    const keep = df('/s/Documents/קורא ספרים/ריק ריירדן/גנב הברק.epub')
+    const a = df('/s/Download/גנב הברק (1).epub')
+    const files = new Map([[keep.path, 1]])
+    fakePhone(files)
+    const r = await tidyPhoneDuplicates([{ title: 'גנב הברק', author: '', by: 'name', keep, versions: [], surplus: [a] }], new Set([a.path]))
+    expect(r).toMatchObject({ deleted: 0, failed: 0, gone: 1 })
+  })
+
+  it('says why a file failed', async () => {
+    const keep = df('/s/Documents/קורא ספרים/ריק ריירדן/גנב הברק.epub')
+    const a = df('/s/Download/גנב הברק (1).epub')
+    const files = new Map([[keep.path, 1], [a.path, 1]])
+    const calls = fakePhone(files)
+    const native = (globalThis as unknown as { Capacitor: { nativePromise: (p: string, m: string, o?: object) => Promise<unknown> } }).Capacitor
+    const real = native.nativePromise
+    native.nativePromise = async (p, m, o) => (m === 'remove' ? Promise.reject(new Error('remove')) : real(p, m, o))
+    const r = await tidyPhoneDuplicates([{ title: 'גנב הברק', author: '', by: 'name', keep, versions: [], surplus: [a] }], new Set([a.path]))
+    expect(r).toMatchObject({ deleted: 0, failed: 1, reasons: { remove: 1 } })
+    expect(calls.length).toBeGreaterThan(0)
+  })
+
+  it('files the versions under the author the files name when the main file is outside the books folder', async () => {
+    books.clear()
+    const keep = df('/s/Download/גנב הברק.epub')
+    const pdf = df('/s/Download/גנב הברק.pdf')
+    const files = new Map([keep, pdf].map((f) => [f.path, 1]))
+    fakePhone(files)
+    const r = await tidyPhoneDuplicates([{ title: 'גנב הברק', author: 'ריק ריירדן', by: 'name', keep, versions: [pdf], surplus: [] }], new Set())
+    expect(r).toMatchObject({ moved: 1, unfiled: 0 })
+    expect(files.has('/s/Documents/קורא ספרים/ריק ריירדן/גרסאות/PDF/גנב הברק.pdf')).toBe(true)
+  })
+})
+
+describe('mergePhoneAuthorFolders', () => {
+  it('merges the folders of one author that differ only by an invisible mark or a geresh, versions included', async () => {
+    books.clear()
+    saveBook(record({ id: 'm1', author: "ג'יי קיי רולינג" }))
+    const root = '/s/Documents/קורא ספרים'
+    const files = new Map<string, number>([
+      [`${root}/ג'יי קיי רולינג/א.epub`, 1],
+      [`${root}/ג'יי קיי רולינג\u200f/ב.epub`, 1],
+      [`${root}/ג׳יי קיי רולינג/גרסאות/PDF/א.pdf`, 1],
+      [`${root}/ריק ריירדן/ג.epub`, 1],
+    ])
+    fakePhone(files)
+    const list = [...files.keys()].map((path) => ({ path, name: path.split('/').pop()!, size: 1, modified: 1 }))
+    const r = await mergePhoneAuthorFolders(list)
+    expect(r.merged).toBe(1)
+    expect([...files.keys()].sort()).toEqual(
+      [`${root}/ג'יי קיי רולינג/א.epub`, `${root}/ג'יי קיי רולינג/ב.epub`, `${root}/ג'יי קיי רולינג/גרסאות/PDF/א.pdf`, `${root}/ריק ריירדן/ג.epub`].sort(),
+    )
   })
 })
 

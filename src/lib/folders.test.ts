@@ -64,3 +64,14 @@ describe('folders', () => {
     })
   })
 })
+
+describe('one author, written with invisible marks or other punctuation', () => {
+  it('is one folder', async () => {
+    const { folderKeyOfName } = await import('./folders')
+    expect(folderKeyOfName('יוחאי מלכה\u200f')).toBe(folderKeyOfName('יוחאי מלכה'))
+    expect(folderKeyOfName("ג׳יי קיי רולינג")).toBe(folderKeyOfName("ג'יי קיי רולינג"))
+    expect(folderKeyOfName('ג׳.ק. רולינג')).toBe(folderKeyOfName("ג'. ק. רולינג"))
+    expect(folderKeyOfName('בן־גוריון')).toBe(folderKeyOfName('בן-גוריון'))
+    expect(folderKeyOfName('יוחאי מלכה')).not.toBe(folderKeyOfName('יוחאי מלכא'))
+  })
+})

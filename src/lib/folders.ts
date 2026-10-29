@@ -11,11 +11,28 @@ export interface Folder {
   books: BookMeta[]
 }
 
-const clean = (s: string | undefined) => decodeEntities(s ?? '').replace(/\s+/g, ' ').trim()
-/** nikud and accents are dropped so "משה" and "מֹשֶׁה" land in the same folder, and the authors of a shared book are put
- *  in order so "א, ב" and "ב, א" are one folder */
+/** the name as it is shown: invisible direction and joining marks (RLM, LRM, ZWJ, a BOM), which Hebrew metadata often
+ *  carries, are dropped, and the letters are in one Unicode form, so two names that look the same are the same */
+const clean = (s: string | undefined) =>
+  decodeEntities(s ?? '')
+    .replace(/\p{Cf}/gu, '')
+    .normalize('NFC')
+    .replace(/\s+/g, ' ')
+    .trim()
+/** nikud and accents are dropped so "משה" and "מֹשֶׁה" land in the same folder, the geresh and the apostrophe, the
+ *  gershayim and the quote, the maqaf and the hyphen are one, a dot is followed by one space ("ג'.ק." is "ג'. ק."), and
+ *  the authors of a shared book are put in order so "א, ב" and "ב, א" are one folder */
 const keyOf = (name: string) => {
-  const k = name.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('he')
+  const k = clean(name)
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/[׳’‘`´]/gu, "'")
+    .replace(/[״“”„]/gu, '"')
+    .replace(/[־‐‑–—]/gu, '-')
+    .replace(/\.\s*(?=\S)/gu, '. ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLocaleLowerCase('he')
   const authors = authorsIn(k)
   return authors.length > 1 ? authors.sort().join(', ') : k
 }
@@ -24,6 +41,9 @@ const keyOf = (name: string) => {
 export const folderName = (b: Pick<BookMeta, 'author' | 'folder'>) => clean(b.folder ?? b.author)
 
 export const folderKey = (b: Pick<BookMeta, 'author' | 'folder'>) => keyOf(folderName(b))
+
+/** the folder key of a name as it stands (a folder's name on the phone): two names with one key are one folder */
+export const folderKeyOfName = (name: string) => keyOf(name)
 
 /** Groups books into folders: named folders alphabetically, the "no author" folder last. Book order inside is kept. */
 export function groupFolders(books: BookMeta[]): Folder[] {

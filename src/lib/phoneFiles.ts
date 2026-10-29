@@ -4,14 +4,13 @@
 import { createStore, del, entries, get, keys, set } from 'idb-keyval'
 import type { PdfOptions } from './pdfOptions'
 import { getBook, getBookMeta, getFile, listBooks, type BookMeta } from './db'
-import { deviceBooksSupported, hasDeviceAccess, markSeen, requestDeviceAccess, type DeviceFile } from './deviceBooks'
+import { deviceBooksSupported, hasDeviceAccess, markSeen, requestDeviceAccess, scanDevice, type DeviceFile } from './deviceBooks'
 import { download } from './download'
 import { exportBook, formatExtension, isOwnFormat, type BookFormat, type ExportStage } from './bookExport'
 import { loadSettings } from './settings'
 import { safeFileName } from './notesExport'
-import { folderKey, folderName, groupFolders } from './folders'
-import { VERSIONS_DIR_NAME, authorDirOf, type DuplicateGroup } from './phoneDuplicates'
-import { sameBook } from './sameBook'
+import { folderKey, folderKeyOfName, folderName, groupFolders } from './folders'
+import { LIBRARY_DIR_NAME, VERSIONS_DIR_NAME, authorDirOf, sameBookOnPhone, type DuplicateGroup } from './phoneDuplicates'
 import { t } from '../i18n'
 import { shownName } from './bookName'
 
@@ -382,39 +381,173 @@ async function repointPhoneFile(from: string, to?: string): Promise<void> {
   }
 }
 
+/** why a file on the phone could not be moved or deleted, as the native side says it (anything else is "other") */
+export type PhoneFailure = 'permission' | 'outside' | 'remove' | 'place' | 'other'
+const failureOf = (e: unknown): PhoneFailure => {
+  const m = e instanceof Error ? e.message : ''
+  return m === 'permission' || m === 'outside' || m === 'remove' || m === 'place' ? m : 'other'
+}
+
+export type TidyResult = {
+  deleted: number
+  moved: number
+  failed: number
+  /** files that were no longer where the check found them (moved or deleted meanwhile): nothing to do, not a failure */
+  gone: number
+  /** versions left where they are: the book's author, and so its folder, is not known */
+  unfiled: number
+  /** author folders in the books folder that were the same author under another spelling, merged into one */
+  merged: number
+  /** the failures, by what the phone said */
+  reasons: Partial<Record<PhoneFailure, number>>
+}
+
+/**
+ * Author folders in the books folder that are one folder in the library (the same key: they differ only by invisible
+ * marks, nikud, a geresh for an apostrophe, a maqaf for a hyphen…) are merged into the folder of the library's name for
+ * that author (or the plainest of them): every file in the others, versions included, moves there under the same
+ * sub-path. `files` are what a scan of the books folder found. Resolves with how many folders were merged and, per path
+ * that moved, where it is now, so a list made before (the duplicates) can follow it.
+ */
+export async function mergePhoneAuthorFolders(files: DeviceFile[]): Promise<{ merged: number; moved: Map<string, string>; failed: number; reasons: Partial<Record<PhoneFailure, number>> }> {
+  const out = { merged: 0, moved: new Map<string, string>(), failed: 0, reasons: {} as Partial<Record<PhoneFailure, number>> }
+  if (!deviceBooksSupported()) return out
+  const names = await phoneDirNames()
+  const byKey = new Map<string, Set<string>>()
+  for (const f of files) {
+    const dir = authorDirOf(f.path)
+    if (!dir) continue
+    const key = folderKeyOfName(dir)
+    byKey.set(key, (byKey.get(key) ?? new Set()).add(dir))
+  }
+  const marker = `/${LIBRARY_DIR_NAME}/`
+  for (const [key, dirs] of byKey) {
+    const wanted = safeFileName(names.get(key) ?? '', '')
+    const target = wanted && (dirs.size > 1 || !dirs.has(wanted)) ? wanted : [...dirs].sort((a, b) => a.normalize('NFD').length - b.normalize('NFD').length || a.localeCompare(b))[0]!
+    if (dirs.size === 1 && dirs.has(target)) continue
+    let any = false
+    for (const f of files) {
+      const dir = authorDirOf(f.path)
+      if (!dir || dir === target || folderKeyOfName(dir) !== key) continue
+      const inner = f.path.slice(f.path.indexOf(marker) + marker.length).split('/').slice(1)
+      const sub = inner.slice(0, -1).join('/')
+      try {
+        const res = await call<DeviceFile>('place', { path: f.path, name: f.name, dir: sub ? `${target}/${sub}` : target })
+        await markSeen([res]).catch(() => {})
+        await repointPhoneFile(f.path, res.path)
+        const owner = await get<string>(f.path, versionFilesStore).catch(() => undefined)
+        if (owner) {
+          await del(f.path, versionFilesStore).catch(() => {})
+          await set(res.path, owner, versionFilesStore).catch(() => {})
+        }
+        out.moved.set(f.path, res.path)
+        any = true
+      } catch (e) {
+        if (e instanceof Error && e.message === 'missing') continue
+        out.failed++
+        const r = failureOf(e)
+        out.reasons[r] = (out.reasons[r] ?? 0) + 1
+      }
+    }
+    if (any) out.merged++
+  }
+  return out
+}
+
+/** the books folder as a folder to scan (relative to the storage root, as the scan takes it) */
+const BOOKS_FOLDER = `Documents/${LIBRARY_DIR_NAME}`
+
+const WHY: Record<PhoneFailure, Parameters<typeof t>[0]> = {
+  permission: 'dupes.why.permission',
+  outside: 'dupes.why.outside',
+  remove: 'dupes.why.remove',
+  place: 'dupes.why.place',
+  other: 'dupes.why.other',
+}
+
+/** what was done, and for what failed why, in one line */
+export function tidyMessage(r: TidyResult): string {
+  const parts = [t('dupes.done', { deleted: r.deleted, moved: r.moved, failed: r.failed })]
+  if (r.merged) parts.push(t('dupes.doneMerged', { n: r.merged }))
+  if (r.gone) parts.push(t('dupes.doneGone', { n: r.gone }))
+  if (r.unfiled) parts.push(t('dupes.doneUnfiled', { n: r.unfiled }))
+  const why = (Object.entries(r.reasons) as [PhoneFailure, number][]).filter(([, n]) => n > 0)
+  if (why.length) parts.push(t('dupes.why', { list: why.map(([k, n]) => `${t(WHY[k])} (${n})`).join(', ') }))
+  return parts.join(' · ')
+}
+
 /** Tidies the books found on the phone more than once (lib/phoneDuplicates): each book's other formats are filed under the
- *  author's versions folder, and the surplus copies the user approved (`approved`, by path) are deleted. A book whose author
- *  folder is not known (its main file is outside the books folder and the library does not have it) keeps its versions
- *  where they are. Resolves with what was done; a file that cannot be moved or deleted is counted as failed and stays. */
-export async function tidyPhoneDuplicates(groups: DuplicateGroup[], approved: Set<string>): Promise<{ deleted: number; moved: number; failed: number }> {
-  const out = { deleted: 0, moved: 0, failed: 0 }
-  if (!deviceBooksSupported() || !groups.length) return out
-  if (!(await hasDeviceAccess()) && !(await requestDeviceAccess().catch(() => false))) return { ...out, failed: groups.length }
+ *  author's versions folder, and the surplus copies the user approved (`approved`, by path) are deleted. First the author
+ *  folders that are one author spelt another way are merged into one. The author folder of a book is the one its main file
+ *  is in, else the library's folder for the book, else the author the files say; with none of these its versions stay
+ *  where they are (counted as unfiled). A file already gone is not a failure; every failure is counted by its reason. */
+export async function tidyPhoneDuplicates(groups: DuplicateGroup[], approved: Set<string>): Promise<TidyResult> {
+  const out: TidyResult = { deleted: 0, moved: 0, failed: 0, gone: 0, unfiled: 0, merged: 0, reasons: {} }
+  const fail = (e: unknown) => {
+    out.failed++
+    const r = failureOf(e)
+    out.reasons[r] = (out.reasons[r] ?? 0) + 1
+  }
+  if (!deviceBooksSupported()) return out
+  if (!(await hasDeviceAccess()) && !(await requestDeviceAccess().catch(() => false))) {
+    out.failed = groups.reduce((n, g) => n + g.versions.length + g.surplus.filter((f) => approved.has(f.path)).length, 0)
+    out.reasons.permission = out.failed
+    return out
+  }
+  // the same author under two spellings is two folders on the phone: one first, so the versions land in the one that stays
+  const shelf = await scanDevice([BOOKS_FOLDER]).catch(() => [] as DeviceFile[])
+  const merge = await mergePhoneAuthorFolders(shelf)
+  // what is on the phone now: a file the check found that was moved or deleted since is gone, not a failure
+  const present = await scanDevice([...new Set([...loadSettings().deviceFolders, BOOKS_FOLDER])])
+    .then((fs) => new Set(fs.map((f) => f.path)))
+    .catch(() => undefined)
+  const there = (f: DeviceFile) => !present || present.has(f.path)
+  out.merged = merge.merged
+  out.failed += merge.failed
+  for (const [r, n] of Object.entries(merge.reasons)) out.reasons[r as PhoneFailure] = (out.reasons[r as PhoneFailure] ?? 0) + n
+  const now = (f: DeviceFile): DeviceFile => {
+    const to = merge.moved.get(f.path)
+    return to ? { ...f, path: to, name: baseName(to) } : f
+  }
   const names = await phoneDirNames()
   const library = await listBooks()
-  for (const g of groups) {
-    for (const f of g.surplus.filter((x) => approved.has(x.path))) {
+  for (const g0 of groups) {
+    const g = { ...g0, keep: now(g0.keep), versions: g0.versions.map(now), surplus: g0.surplus.map(now) }
+    for (const f of g0.surplus.filter((x) => approved.has(x.path)).map(now)) {
+      if (!there(f)) {
+        out.gone++
+        continue
+      }
       try {
         await call('remove', { path: f.path })
         await repointPhoneFile(f.path)
         out.deleted++
-      } catch {
-        out.failed++
+      } catch (e) {
+        fail(e)
       }
     }
-    const known = library.find((b) => sameBook({ title: g.title, author: g.author }, b))
-    const author = authorDirOf(g.keep.path) ?? (known ? bookPhoneDir(known, names) : undefined)
-    if (!author) continue
+    const known = library.find((b) => sameBookOnPhone({ title: g.title, author: g.author }, b))
+    const author = authorDirOf(g.keep.path) ?? (known ? bookPhoneDir(known, names) : g.author ? bookPhoneDir({ author: g.author }, names) : undefined)
+    if (!author) {
+      out.unfiled += g.versions.length
+      continue
+    }
     for (const v of g.versions) {
+      if (!there(v)) {
+        out.gone++
+        continue
+      }
       const ext = v.name.slice(v.name.lastIndexOf('.') + 1).toLowerCase()
+      const title = known ? bookFileName(known, ext) : `${safeFileName(g.title, 'book')}.${ext}`
       try {
-        const res = await call<DeviceFile>('place', { path: v.path, name: `${safeFileName(g.title, 'book')}.${ext}`, dir: `${author}/${VERSIONS_DIR}/${ext.toUpperCase()}` })
+        const res = await call<DeviceFile>('place', { path: v.path, name: title, dir: `${author}/${VERSIONS_DIR}/${ext.toUpperCase()}` })
         await markSeen([res]).catch(() => {})
         await repointPhoneFile(v.path, res.path)
         if (known) await set(res.path, known.id, versionFilesStore).catch(() => {})
         out.moved++
-      } catch {
-        out.failed++
+      } catch (e) {
+        if (e instanceof Error && e.message === 'missing') out.gone++
+        else fail(e)
       }
     }
   }

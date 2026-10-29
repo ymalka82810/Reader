@@ -1,10 +1,11 @@
 import { splitBookName } from './bookName'
 
-/** Compare ignoring case, nikud/accents, punctuation and quote styles, so "ספר: הכותרת" matches "ספר - הכותרת". */
+/** Compare ignoring case, nikud/accents, punctuation and quote styles, so "ספר: הכותרת" matches "ספר - הכותרת". Invisible
+ *  direction and joining marks (RLM, LRM, ZWJ, a BOM, a soft hyphen), which Hebrew metadata often carries, count for nothing. */
 export const norm = (s: string) =>
   s
     .normalize('NFD')
-    .replace(/\p{M}/gu, '')
+    .replace(/[\p{M}\p{Cf}]/gu, '')
     .replace(/[^\p{L}\p{N}]+/gu, ' ')
     .trim()
     .toLowerCase()
