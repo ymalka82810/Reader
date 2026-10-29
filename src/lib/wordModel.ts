@@ -276,7 +276,7 @@ interface Tagged {
 
 /** a reading of a whole line: the tag of each token, the chance the model gives each of them, and the chance of all of
  *  them together (its log) */
-export interface Path {
+interface Path {
   tags: number[]
   p: number[]
   logp: number
@@ -287,7 +287,7 @@ export interface Path {
  * each word's best tag in turn and then living with it, every sequence of tags is weighed by the chance of the whole, so
  * a word the model was unsure of is decided by the words after it too. `best` readings, the likeliest first.
  */
-export function decode(tokens: readonly Token[], k: ReturnType<typeof known>, lineIndex: number, delta: Record<number, number[]> | undefined, w: Table, best = 2): Path[] {
+function decode(tokens: readonly Token[], k: ReturnType<typeof known>, lineIndex: number, delta: Record<number, number[]> | undefined, w: Table, best = 2): Path[] {
   type Entry = { logp: number; back?: { state: number; rank: number }; tag: number; p: number }
   const S = T + 1
   const stateOf = (a: number, b: number) => (a + 1) * S + (b + 1)
@@ -343,7 +343,7 @@ export function tagWords(
 }
 
 /** the two likeliest readings of a line, each as its tagged tokens */
-export function readings(
+function readings(
   line: string,
   ctx: WordContext = {},
   lineIndex = 0,
