@@ -382,10 +382,10 @@ async function repointPhoneFile(from: string, to?: string): Promise<void> {
 }
 
 /** why a file on the phone could not be moved or deleted, as the native side says it (anything else is "other") */
-export type PhoneFailure = 'permission' | 'outside' | 'remove' | 'place' | 'other'
+export type PhoneFailure = 'permission' | 'outside' | 'notbook' | 'remove' | 'place' | 'other'
 const failureOf = (e: unknown): PhoneFailure => {
   const m = e instanceof Error ? e.message : ''
-  return m === 'permission' || m === 'outside' || m === 'remove' || m === 'place' ? m : 'other'
+  return m === 'permission' || m === 'outside' || m === 'notbook' || m === 'remove' || m === 'place' ? m : 'other'
 }
 
 export type TidyResult = {
@@ -460,6 +460,7 @@ const BOOKS_FOLDER = `Documents/${LIBRARY_DIR_NAME}`
 const WHY: Record<PhoneFailure, Parameters<typeof t>[0]> = {
   permission: 'dupes.why.permission',
   outside: 'dupes.why.outside',
+  notbook: 'dupes.why.notbook',
   remove: 'dupes.why.remove',
   place: 'dupes.why.place',
   other: 'dupes.why.other',
@@ -523,7 +524,8 @@ export async function tidyPhoneDuplicates(groups: DuplicateGroup[], approved: Se
         await repointPhoneFile(f.path)
         out.deleted++
       } catch (e) {
-        fail(e)
+        if (e instanceof Error && e.message === 'missing') out.gone++
+        else fail(e)
       }
     }
     const known = library.find((b) => sameBookOnPhone({ title: g.title, author: g.author }, b))
@@ -563,7 +565,7 @@ let canRemove: Promise<boolean> | undefined
 const removeSupported = () =>
   (canRemove ??= call('remove', { path: '' }).then(
     () => true,
-    (e: unknown) => e instanceof Error && e.message === 'remove',
+    (e: unknown) => e instanceof Error && ['remove', 'outside', 'missing', 'notbook'].includes(e.message),
   ))
 
 /** A book converted from a PDF is read as its EPUB, so in the books folder the EPUB is the book's file: it is written next

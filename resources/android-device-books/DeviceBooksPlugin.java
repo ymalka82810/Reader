@@ -358,10 +358,19 @@ public class DeviceBooksPlugin extends Plugin {
         }
     }
 
+    /** inside the phone's shared storage, and not in another app's private folders (Android/data, Android/obb). Android/media
+     *  is shared media that apps such as Telegram and WhatsApp keep their downloaded documents in, so a folder there that the
+     *  user added to the scan can be tidied like any other. */
     private boolean insideStorage(File f) throws Exception {
-        String rootPath = Environment.getExternalStorageDirectory().getCanonicalPath();
+        return insideStorage(f, Environment.getExternalStorageDirectory());
+    }
+
+    static boolean insideStorage(File f, File storage) throws Exception {
+        String rootPath = storage.getCanonicalPath();
         String p = f.getCanonicalPath();
-        return p.startsWith(rootPath + "/") && !p.startsWith(rootPath + "/Android/");
+        if (!p.startsWith(rootPath + "/")) return false;
+        String rest = p.substring(rootPath.length() + 1);
+        return !(rest.equals("Android") || rest.startsWith("Android/data/") || rest.startsWith("Android/obb/") || rest.equals("Android/data") || rest.equals("Android/obb"));
     }
 
     /** After a file was renamed or moved: the media index (what Drive, the share sheet and file pickers read the name from)
@@ -616,7 +625,20 @@ public class DeviceBooksPlugin extends Plugin {
         }
         try {
             File f = new File(call.getString("path", ""));
-            if (!insideStorage(f) || !isBookFile(f) || !f.isFile() || !f.delete()) {
+            // each refusal says why, so the app can tell the user (and a file already gone is no failure)
+            if (!insideStorage(f)) {
+                call.reject("outside");
+                return;
+            }
+            if (!isBookFile(f)) {
+                call.reject("notbook");
+                return;
+            }
+            if (!f.isFile()) {
+                call.reject("missing");
+                return;
+            }
+            if (!f.delete()) {
                 call.reject("remove");
                 return;
             }
