@@ -899,6 +899,14 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
         <div className="empty">
           <p>{t('lib.empty')}</p>
           <p>{t('lib.emptyHint')}</p>
+          <div className="empty-actions">
+            {deviceBooksSupported() && (
+              <button className="primary" onClick={() => scanDevice()}>{t('lib.emptyScan')}</button>
+            )}
+            <button className={deviceBooksSupported() ? undefined : 'primary'} onClick={() => input.current?.click()}>
+              {t('lib.addBook')}
+            </button>
+          </div>
         </div>
       ) : shown.length === 0 ? (
         noteHits.length === 0 && (

@@ -37,6 +37,7 @@ export const es: Record<keyof typeof he, Message> = {
   'lib.resumeRemoveOk': 'Quitar',
   'lib.empty': 'Aún no hay libros.',
   'lib.emptyHint': 'Toca «Añadir libro» y elige un archivo EPUB, PDF, MOBI, AZW3, FB2, CBZ, CBR, DOCX o TXT, o un audiolibro (M4B, MP3), desde tu teléfono o Google Drive.',
+  'lib.emptyScan': 'Buscar libros en este teléfono',
   'lib.noMatch': 'No se encontraron libros para «{query}».',
   'lib.noMatchFilter': 'Ningún libro coincide con este filtro.',
   'lib.folderEmpty': 'Esta carpeta está vacía. Mueve libros a ella con 📁.',

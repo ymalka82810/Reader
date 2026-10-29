@@ -37,6 +37,7 @@ export const ru: Record<keyof typeof he, Message> = {
   'lib.resumeRemoveOk': 'Убрать',
   'lib.empty': 'Книг пока нет.',
   'lib.emptyHint': 'Нажмите «Добавить книгу» и выберите файл EPUB, PDF, MOBI, AZW3, FB2, CBZ, CBR, DOCX или TXT либо аудиокнигу (M4B, MP3) на телефоне или в Google Диске.',
+  'lib.emptyScan': 'Найти книги на телефоне',
   'lib.noMatch': 'Книги по запросу «{query}» не найдены.',
   'lib.noMatchFilter': 'Нет книг, подходящих под этот фильтр.',
   'lib.folderEmpty': 'Эта папка пуста. Переместите в неё книги с помощью 📁.',
