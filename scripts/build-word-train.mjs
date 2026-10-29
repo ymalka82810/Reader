@@ -34,14 +34,31 @@ SELECT ?title ?authorLabel ?date WHERE {
   ),
 }
 
-async function ask(query, tries = 4) {
+/** the rows of a query, as tab-separated values: a reply the service cut off at its time limit still gives every row it
+ *  finished, and a value with a raw tab or line break in it only loses its own row */
+async function ask(query, tries = 3) {
   for (let i = 1; ; i++) {
-    const r = await fetch(`${ENDPOINT}?${new URLSearchParams({ format: 'json', query })}`, { headers: { 'User-Agent': UA, Accept: 'application/sparql-results+json' } })
-    // the service sometimes lets a raw control character into a string, which JSON does not allow
-    if (r.ok) return JSON.parse((await r.text()).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, ' ')).results.bindings
+    const r = await fetch(`${ENDPOINT}?${new URLSearchParams({ query })}`, { headers: { 'User-Agent': UA, Accept: 'text/tab-separated-values' } })
+    if (r.ok) {
+      const [head, ...lines] = (await r.text()).split('\n')
+      const names = head.split('\t').map((h) => h.replace(/^\?/, ''))
+      // the last line may have been cut in the middle
+      return lines.slice(0, -1).flatMap((line) => {
+        const cells = line.split('\t')
+        if (cells.length !== names.length) return []
+        return [Object.fromEntries(names.map((n, k) => [n, { value: cell(cells[k]) }]))]
+      })
+    }
     if (i >= tries) throw new Error(`HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`)
     await new Promise((res) => setTimeout(res, 15_000 * i))
   }
+}
+
+/** a value as the service writes it in TSV: "גנב הברק"@he, "1999-01-01T00:00:00Z"^^<…>, <http://…> */
+function cell(c = '') {
+  const m = /^"((?:[^"\\]|\\.)*)"/.exec(c)
+  if (m) return m[1].replace(/\\(.)/g, (_, x) => (x === 'n' || x === 't' ? ' ' : x))
+  return c.replace(/^<|>$/g, '')
 }
 
 const hebrew = (s) => /[\u05D0-\u05EA]/u.test(s)
