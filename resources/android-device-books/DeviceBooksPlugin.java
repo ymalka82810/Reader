@@ -13,6 +13,8 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
+import android.webkit.RenderProcessGoneDetail;
+import android.webkit.WebView;
 import android.provider.DocumentsContract;
 import android.provider.Settings;
 
@@ -29,6 +31,7 @@ import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
+import com.getcapacitor.WebViewListener;
 import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
@@ -121,6 +124,43 @@ public class DeviceBooksPlugin extends Plugin {
     @Override
     public void load() {
         noteTap(getActivity() == null ? null : getActivity().getIntent());
+        getBridge().addWebViewListener(new WebViewListener() {
+            @Override
+            public boolean onRenderProcessGone(WebView webView, RenderProcessGoneDetail detail) {
+                return restartAfterRendererGone();
+            }
+        });
+    }
+
+    /** when the WebView's page last died and the app was opened again in its place */
+    private static volatile long lastRestart = 0;
+
+    /**
+     * The page ran out of memory on a heavy file (a huge comic, a broken PDF…) and its process is gone. Left to Android,
+     * the whole app simply closes. Instead the app is opened again straight away: the web side finds the file it was in
+     * the middle of (lib/crashGuard) and sets it aside, so the scan and the import queue go on without it. Only once in
+     * a while: a page that dies again at once is left to close as before, so it can never go round in circles.
+     */
+    private boolean restartAfterRendererGone() {
+        Activity activity = getActivity();
+        long now = System.currentTimeMillis();
+        if (activity == null || now - lastRestart < 30_000) return false;
+        lastRestart = now;
+        // the queue that held the app alive died with the page; the new page starts its own if it needs one
+        importing = false;
+        ImportKeepAliveService.stop(activity.getApplicationContext());
+        new Handler(Looper.getMainLooper()).post(() -> {
+            try {
+                Intent launch = activity.getPackageManager().getLaunchIntentForPackage(activity.getPackageName());
+                if (launch != null) {
+                    launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                    activity.startActivity(launch);
+                }
+            } catch (Throwable ignored) {
+            }
+            activity.finish();
+        });
+        return true;
     }
 
     @Override
@@ -226,8 +266,9 @@ public class DeviceBooksPlugin extends Plugin {
                 JSObject ret = new JSObject();
                 ret.put("files", collect(folders, extensions));
                 call.resolve(ret);
-            } catch (Exception e) {
-                call.reject("scan", e);
+            } catch (Throwable e) {
+                // also an Error (out of memory): on a thread of its own it would close the whole app
+                call.reject("scan", e instanceof Exception ? (Exception) e : new Exception(e));
             }
         }).start();
     }

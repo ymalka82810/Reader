@@ -15,6 +15,10 @@ import { watchNightAppTheme } from './lib/nightMode'
 import { applyA11yClasses, loadSettings } from './lib/settings'
 import { isNativeApp } from './lib/updater'
 import { hideSplash } from './lib/splash'
+import { recoverCrash } from './lib/crashGuard'
+
+// before any work starts again: a file that closed the app last time is set aside, so it cannot close it again
+recoverCrash()
 
 document.documentElement.classList.toggle('native-app', isNativeApp)
 // iOS Safari only applies :active (the pressed look of buttons) when some touch listener exists

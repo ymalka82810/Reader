@@ -1064,6 +1064,7 @@ export const de: Record<keyof typeof he, Message> = {
   'dupes.byContent': 'Erkannt an Titel und Autor in den Dateien',
   'device.scanning': 'Telefon wird durchsucht…',
   'device.noneNew': 'Auf diesem Telefon wurden keine neuen Bücher gefunden.',
+  'crash.setAside': "Die App wurde beim letzten Mal während der Verarbeitung geschlossen: {names}. Ab jetzt überspringen der automatische Scan und die Erkennung diese Datei, damit das nicht wieder passiert. Du kannst sie weiterhin von Hand hinzufügen.",
   'device.linked': { one: 'Keine neuen Bücher. Ein Buch wurde mit seiner Datei auf dem Telefon verknüpft.', other: 'Keine neuen Bücher. {n} Bücher wurden mit ihren Dateien auf dem Telefon verknüpft.' },
   'device.foundTitle': 'Neue Bücher gefunden',
   'device.foundText': { one: 'Auf diesem Telefon wurde ein neues Buch gefunden. Zur Bibliothek hinzufügen?', other: 'Auf diesem Telefon wurden {n} neue Bücher gefunden. Zur Bibliothek hinzufügen? Das Umwandeln von PDFs dauert eine Weile.' },

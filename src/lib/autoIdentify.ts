@@ -12,6 +12,7 @@ import { identifyWithCover } from './coverIdentify'
 import { formatBookName, guessBookName, isJunkTitle, tidyBookName } from './bookName'
 import { bookDetails } from './bookText'
 import { hasConsent } from './consent'
+import { begin, bookKey, crashedBefore, end } from './crashGuard'
 import { getBookMeta, listBooks, updateMeta } from './db'
 import { dependents, isConfirmed, rememberAuto, wasDeclined } from './identifyLearning'
 import { keepOpening } from './lineModel'
@@ -295,9 +296,15 @@ export async function identifyNew(
       onProgress?.(done, total)
       done++
       visits.set(id, (visits.get(id) ?? 0) + 1)
+      // a book that closed the app while it was read for its name is left as it is (see lib/crashGuard)
+      if (crashedBefore(bookKey(id))) {
+        if (!signal.aborted) onLeft?.(round.slice(i + 1))
+        continue
+      }
       try {
         const b = await getBookMeta(id)
         if (!b) continue
+        begin(bookKey(id), b.title, 'identify')
         if (standing(b).junk) markTried([id])
         const { opening, meta } = await bookDetails(b, signal)
         // what the book says of itself is kept for the books compared with it later (its series' fingerprint), and what
@@ -356,6 +363,7 @@ export async function identifyNew(
         if (signal.aborted) throw e
         console.warn(e) // this book stays as it was; the rest go on
       } finally {
+        end(bookKey(id))
         // also for a book skipped or unchanged; one stopped half-way is still to do
         if (!signal.aborted) onLeft?.(round.slice(i + 1))
       }

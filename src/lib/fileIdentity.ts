@@ -9,6 +9,7 @@ import type { Identity } from './phoneDuplicates'
 import { realAuthor } from './authorName'
 import { contributor, langMap } from './importBook'
 import { repairEpub } from './epubRepair'
+import { crashedBefore, guarded, pathKey } from './crashGuard'
 
 const store = createStore('reader-file-identity-db', 'ids')
 const keyOf = (f: DeviceFile) => `${f.path}|${f.size}|${f.modified}`
@@ -79,9 +80,12 @@ export async function identifyFiles(
       out.set(f.path, kept)
       continue
     }
-    if (f.size > MAX_BYTES) continue
-    const file = await readDeviceFile(f).catch(() => undefined)
-    const read = file && (await readIdentity(file))
+    // too big, or it closed the app the last time it was opened: compared by its name alone
+    if (f.size > MAX_BYTES || crashedBefore(pathKey(f.path))) continue
+    const read = await guarded(pathKey(f.path), f.name, 'fileIdentity', async () => {
+      const file = await readDeviceFile(f).catch(() => undefined)
+      return file && (await readIdentity(file))
+    })
     if (!read) continue
     out.set(f.path, read)
     await set(keyOf(f), read, store).catch(() => {})

@@ -14,6 +14,7 @@ import {
 } from '../lib/deviceBooks'
 import { linkKnownBooks, phoneFilePathsInLibrary, placeVersions, refreshPhoneFiles, refreshPhoneFilesOnce } from '../lib/phoneFiles'
 import { loadSettings } from '../lib/settings'
+import { crashedBefore, pathKey, takeCrashNotice } from '../lib/crashGuard'
 import type { AddOptions, LazyFile } from './useImport'
 import type { Confirm } from './useConfirm'
 import { t } from '../i18n'
@@ -83,7 +84,8 @@ export function useDeviceScan({ addFiles, setBusy, setError, showToast, confirm 
       // a retry also offers the files whose adding was cancelled or failed before, and those of books deleted since
       const all = await newDeviceFiles(scanned, retry ? await phoneFilePathsInLibrary() : undefined)
       setBusy(undefined)
-      const found = manual ? all : all.filter((f) => !declined.has(f.path))
+      // a file that closed the app while it was being added is never offered by itself again (lib/crashGuard)
+      const found = (manual ? all : all.filter((f) => !declined.has(f.path))).filter((f) => !crashedBefore(pathKey(f.path)))
       if (!found.length) {
         if (manual) showToast(linked ? t('device.linked', { n: linked }) : t('device.noneNew'), undefined, 4000)
         return
@@ -103,6 +105,12 @@ export function useDeviceScan({ addFiles, setBusy, setError, showToast, confirm 
       running.current = false
     }
   }
+
+  // the app closed in the middle of a file last time: say which one, and that it is set aside
+  useEffect(() => {
+    const names = takeCrashNotice()
+    if (names) setError(t('crash.setAside', { names: names.join(', ') }))
+  }, [setError])
 
   const scanRef = useRef(scan)
   useEffect(() => {

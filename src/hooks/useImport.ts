@@ -6,6 +6,7 @@ import { onLaunchFiles, takeSharedFiles } from '../lib/inbox'
 import { startImportService, stopImportService, updateImportService } from '../lib/deviceBooks'
 import { identifyAround as aroundOf, identifyNew, setBackfillLeft } from '../lib/autoIdentify'
 import { loadSettings } from '../lib/settings'
+import { begin, end, fileKey, forgetCrashed, pathKey } from '../lib/crashGuard'
 import { t } from '../i18n'
 
 export type DupBatch = {
@@ -68,6 +69,10 @@ const subscribe = (l: () => void) => {
   listeners.add(l)
   return () => void listeners.delete(l)
 }
+
+/** the crash guard's key of a file in the queue: its place on the phone, or its name and size */
+const guardKey = (item: File | LazyFile) =>
+  'devicePath' in item && item.devicePath ? pathKey(item.devicePath) : item instanceof File ? fileKey(item.name, item.size) : `file:${item.name}`
 
 /** the library on screen: where books are refreshed and errors shown (none while a book is being read) */
 let handlers: Deps | undefined
@@ -298,6 +303,9 @@ async function work(run: Run) {
     const stopWithQueue = () => own.abort()
     signal.addEventListener('abort', stopWithQueue, { once: true })
     run.activeId = entry.id
+    // written down while it is worked on: if it closes the app, the next start sets it aside (lib/crashGuard)
+    const guard = guardKey(item)
+    begin(guard, item.name, 'import')
     try {
       setState({ message: t('import.adding', { name: item.name }), queue: queueOf(run) })
       const f = 'load' in item ? await item.load() : item
@@ -317,6 +325,7 @@ async function work(run: Run) {
       if ('devicePath' in item && item.devicePath) await rememberPhoneFile(rec.id, item.devicePath).catch(() => {})
       await placeNewBook(rec.id) // into the phone's books folder, in the sub-folder of its library folder
       added.push(rec.id)
+      forgetCrashed(guard) // added by hand after it once closed the app: it went through this time
       await handlers?.refresh() // show each book as soon as it's done
     } catch (e) {
       if (signal.aborted) break // the whole queue was cancelled: not a failure, and not worth reporting per file
@@ -326,6 +335,7 @@ async function work(run: Run) {
         else if (!(skipDuplicates && isAlreadyInLibrary(e))) errors.push(`${item.name}: ${e instanceof Error ? e.message : String(e)}`)
       }
     } finally {
+      end(guard)
       signal.removeEventListener('abort', stopWithQueue)
       run.activeId = undefined
       entry.ctrl = undefined
@@ -357,6 +367,8 @@ async function work(run: Run) {
       if (signal.aborted) break
       const choice = choices[i] ?? 'skip'
       if (choice !== 'skip') setState({ message: t('import.adding', { name: d.name }) })
+      const guard = `file:${d.name}`
+      if (choice !== 'skip') begin(guard, d.name, 'import')
       try {
         // a converted book is converted again here (it isn't kept while waiting), so it reports progress and can be cancelled
         const rec = await d.err.commit(choice, (message) => setState({ message }), signal)
@@ -364,6 +376,8 @@ async function work(run: Run) {
       } catch (e) {
         if (signal.aborted) break
         errors.push(`${d.name}: ${e instanceof Error ? e.message : String(e)}`)
+      } finally {
+        end(guard)
       }
     }
   }

@@ -1065,6 +1065,7 @@ export const en: Record<keyof typeof he, Message> = {
   'dupes.byContent': 'Matched by the title and author inside the files',
   'device.scanning': 'Scanning the phone…',
   'device.noneNew': 'No new books found on this phone.',
+  'crash.setAside': "The app closed last time while working on: {names}. From now on the automatic scan and identification skip it, so it can't happen again. You can still add it by hand.",
   'device.linked': { one: 'No new books. One book was tied to its file on the phone.', other: 'No new books. {n} books were tied to their files on the phone.' },
   'device.foundTitle': 'New books found',
   'device.foundText': { one: 'Found one new book on this phone. Add it to the library?', other: 'Found {n} new books on this phone. Add them to the library? Converting PDFs takes a while.' },
