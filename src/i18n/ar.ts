@@ -142,8 +142,6 @@ export const ar: Record<keyof typeof he, Message> = {
   'book.savedTitle': 'اكتمل التنزيل',
   'book.savedText': 'تم حفظ الكتاب في مجلد التنزيلات باسم: {name}',
   'book.openLocation': 'فتح الموقع',
-  'book.openFile': 'فتح الملف',
-  'book.openFailed': 'تعذّر فتح الملف. وهو محفوظ في مجلد التنزيلات.',
   'book.saveFailed': 'تعذّر حفظ الكتاب: {msg}',
   'book.saving': 'جارٍ حفظ الكتاب على الهاتف…',
   'book.preparing': 'جارٍ تجهيز الكتاب للتنزيل…',

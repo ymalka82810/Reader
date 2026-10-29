@@ -650,24 +650,20 @@ public class DeviceBooksPlugin extends Plugin {
         }
     }
 
-    /** Opens a book file of the phone's own storage in the app the phone picks for its type. openFile({path}) -> {};
-     *  rejects with "open" (no app takes it, or the file is gone). */
+    /** Tells the system a file was added, so the Downloads app and the file managers list it at once (a file written
+     *  straight into the Download folder is otherwise unknown to them until something rescans). scanFile({path}) -> {}. */
     @PluginMethod
-    public void openFile(PluginCall call) {
+    public void scanFile(PluginCall call) {
         try {
             File f = new File(call.getString("path", ""));
-            if (!f.isFile() || !(inside(f, shareDir()) || insideStorage(f))) {
-                call.reject("open");
+            if (!f.isFile() || !insideStorage(f)) {
+                call.reject("scan");
                 return;
             }
-            Uri uri = androidx.core.content.FileProvider.getUriForFile(getContext(), getContext().getPackageName() + ".fileprovider", f);
-            Intent view = new Intent(Intent.ACTION_VIEW);
-            view.setDataAndType(uri, shareType(java.util.Collections.singletonList(f)));
-            view.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
-            getContext().startActivity(view);
+            android.media.MediaScannerConnection.scanFile(getContext(), new String[] {f.getAbsolutePath()}, null, null);
             call.resolve();
         } catch (Exception e) {
-            call.reject("open", e);
+            call.reject("scan", e);
         }
     }
 

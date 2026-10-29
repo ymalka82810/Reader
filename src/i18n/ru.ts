@@ -142,8 +142,6 @@ export const ru: Record<keyof typeof he, Message> = {
   'book.savedTitle': 'Загрузка завершена',
   'book.savedText': 'Книга сохранена в папке «Загрузки» под именем: {name}',
   'book.openLocation': 'Открыть расположение',
-  'book.openFile': 'Открыть файл',
-  'book.openFailed': 'Не удалось открыть файл. Он сохранён в папке «Загрузки».',
   'book.saveFailed': 'Не удалось сохранить книгу: {msg}',
   'book.saving': 'Сохранение книги на телефон…',
   'book.preparing': 'Подготовка книги к загрузке…',

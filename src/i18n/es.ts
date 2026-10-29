@@ -142,8 +142,6 @@ export const es: Record<keyof typeof he, Message> = {
   'book.savedTitle': 'Descarga terminada',
   'book.savedText': 'El libro se guardó en la carpeta Descargas como: {name}',
   'book.openLocation': 'Abrir ubicación',
-  'book.openFile': 'Abrir archivo',
-  'book.openFailed': 'No se pudo abrir el archivo. Está guardado en la carpeta de Descargas.',
   'book.saveFailed': 'No se pudo guardar el libro: {msg}',
   'book.saving': 'Guardando el libro en el teléfono…',
   'book.preparing': 'Preparando el libro para la descarga…',
