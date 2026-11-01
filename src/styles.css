@@ -60,6 +60,8 @@ select { font: inherit; padding: .4rem .6rem; border-radius: var(--radius-lg); b
 .lib-header h1 { margin: 0; font-size: 1.5rem; }
 /* the search strip (which gives the content its gap under the pinned header) is hidden with 0-1 books, so the gap is kept here: folder bar and notices must not touch the header */
 .library.no-search .lib-header { margin-bottom: 1rem; }
+/* with the search strip present the header has no bottom margin, so a notice shown first would touch it */
+.library:not(.no-search) #lib-content > .notice:first-child { margin-top: 1rem; }
 .lib-title { display: flex; flex-direction: column; min-width: 0; margin-inline-end: auto; }
 .lib-count { color: var(--fg-muted); }
 .modal input.readonly-field { background: var(--fill); color: var(--fg-muted); cursor: default; }
