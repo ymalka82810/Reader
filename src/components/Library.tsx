@@ -75,6 +75,18 @@ type Props = {
   onSettingsClosed?: () => void
 }
 
+/** splits "+ Add book" into the plus sign and the words, so a narrow phone can show only the plus (the words stay in the accessible name) */
+function addLabel(text: string) {
+  const m = /^(\+\s*)(.*)$/.exec(text)
+  if (!m) return text
+  return (
+    <>
+      <span className="add-plus">{m[1]?.trim()}</span>{' '}
+      <span className="add-words">{m[2]}</span>
+    </>
+  )
+}
+
 export default function Library({ onOpen, startSettings, onSettingsClosed }: Props) {
   const [busy, setBusy] = useState<string>()
   /** set while a long job can be cancelled from the wait dialog */
@@ -701,8 +713,8 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
             </small>
           )}
         </div>
-        <button className="primary" onClick={() => input.current?.click()} disabled={!!busy}>
-          {t('lib.addBook')}
+        <button className="primary add-book" onClick={() => input.current?.click()} disabled={!!busy}>
+          {addLabel(t('lib.addBook'))}
         </button>
         <input
           ref={input}
