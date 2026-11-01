@@ -74,7 +74,7 @@ export function SettingsPanel({
         <button onClick={revert} disabled={!changed}>{t('settings.revert')}</button>
       </div>
       <div className="row">
-        <button onClick={() => bump(-2)} aria-label={t('settings.smaller')}>{t('settings.smallerGlyph')}</button>
+        <button onClick={() => bump(-2)} aria-label={`${t('settings.smallerGlyph')} ${t('settings.smaller')}`}>{t('settings.smallerGlyph')}</button>
         <input
           type="range"
           min={MIN_FONT}
@@ -83,7 +83,7 @@ export function SettingsPanel({
           aria-label={t('settings.fontSize')}
           onChange={(e) => set('fontSize', parseInt(e.target.value))}
         />
-        <button onClick={() => bump(2)} aria-label={t('settings.larger')}>{t('settings.largerGlyph')}</button>
+        <button onClick={() => bump(2)} aria-label={`${t('settings.largerGlyph')} ${t('settings.larger')}`}>{t('settings.largerGlyph')}</button>
       </div>
       <div className="row">
         <label htmlFor="lh">{t('settings.lineHeight')}</label>

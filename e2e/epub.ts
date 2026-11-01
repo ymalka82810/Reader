@@ -1,7 +1,7 @@
 import JSZip from 'jszip'
 
 /** a small multi-page EPUB, built on the fly */
-export async function makeEpub(): Promise<Buffer> {
+export async function makeEpub(title = 'ספר לשחזור', author = 'מחברת שחזור'): Promise<Buffer> {
   const zip = new JSZip()
   zip.file('mimetype', 'application/epub+zip', { compression: 'STORE' })
   zip.file(
@@ -12,7 +12,7 @@ export async function makeEpub(): Promise<Buffer> {
   zip.file(
     'OEBPS/content.opf',
     `<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id">
-<metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="id">e2e-restore</dc:identifier><dc:title>ספר לשחזור</dc:title><dc:creator>מחברת שחזור</dc:creator><dc:language>he</dc:language></metadata>
+<metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="id">e2e-${title}</dc:identifier><dc:title>${title}</dc:title><dc:creator>${author}</dc:creator><dc:language>he</dc:language></metadata>
 <manifest>${chapters.map((n) => `<item id="c${n}" href="c${n}.xhtml" media-type="application/xhtml+xml"/>`).join('')}</manifest>
 <spine>${chapters.map((n) => `<itemref idref="c${n}"/>`).join('')}</spine></package>`,
   )

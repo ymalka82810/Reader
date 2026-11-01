@@ -58,6 +58,7 @@ select { font: inherit; padding: .4rem .6rem; border-radius: var(--radius-lg); b
 /* stays pinned while the books scroll beneath it; its top padding keeps it clear of the status bar / camera cutout */
 .lib-header { position: sticky; top: 0; z-index: 6; display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 0 -1rem 0; padding: calc(1rem + var(--safe-top)) 1rem .8rem; background: var(--bg); border-bottom: 1px solid var(--border-subtle); }
 .lib-header h1 { margin: 0; font-size: 1.5rem; }
+.lib-header h1, .lib-header .add-book { white-space: nowrap; }
 /* the search strip (which gives the content its gap under the pinned header) is hidden with 0-1 books, so the gap is kept here: folder bar and notices must not touch the header */
 .library.no-search .lib-header { margin-bottom: 1rem; }
 /* with the search strip present the header has no bottom margin, so a notice shown first would touch it */
@@ -347,7 +348,8 @@ kbd { font: inherit; padding: 0 .35rem; border-radius: var(--radius-sm); border:
 .folders { grid-auto-rows: 1fr; }
 .folders li { display: flex; content-visibility: visible; }
 .folders .folder { flex: 1; justify-content: center; }
-.folder .kind { color: var(--accent); font-weight: 600; }
+/* the plain accent on the folder's blue tint is just under 4.5:1 (WCAG AA), so it is darkened toward the text colour */
+.folder .kind { color: color-mix(in srgb, var(--accent) 60%, var(--fg)); font-weight: 600; }
 .folder-bar { display: flex; flex-direction: column; gap: .6rem; margin-bottom: 1rem; padding: .5rem .8rem; background: rgba(49,130,206,.12); border-inline-start: 6px solid rgba(49,130,206,.6); border-radius: var(--radius-md); }
 .folder-icon { font-size: 3rem; line-height: 1; color: var(--accent); }
 .folder-svg { vertical-align: -.125em; }
@@ -655,3 +657,22 @@ i.lv4 { background: var(--accent) !important; }
 .copies .row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .pdf-options { display: flex; flex-direction: column; gap: .7rem; }
 .pdf-options label { display: flex; flex-direction: column; gap: .25rem; }
+
+/* phones: nothing in the header or the reader's bars may wrap or fall off the screen (checked at 320 and 390px by e2e/mobileLayout.spec.ts) */
+@media (max-width: 480px) {
+  .lib-header { gap: .5rem; }
+  .lib-header h1 { font-size: 1.25rem; }
+  .topbar { gap: .25rem; padding-inline: .4rem; }
+  .topbar .title { min-width: 0; font-size: .95rem; }
+  .bottombar { gap: .3rem; padding-inline: .4rem; }
+}
+/* the words of "+ Add book" go away on a narrow phone; only the plus stays, the name stays for screen readers */
+@media (max-width: 420px) {
+  .lib-header .add-words { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .lib-header .add-book { min-width: 44px; padding-inline: .8rem; font-size: 1.2rem; line-height: 1; }
+}
+/* a title squeezed to a few letters and an ellipsis says nothing, so on the narrowest screens the bar keeps only the buttons */
+@media (max-width: 360px) { .topbar .title { display: none; } }
+/* finger-sized targets: at least 44x44 (the slider's box is enlarged with a negative margin so the bar does not grow) */
+.topbar button, .bottombar button, .prefs-open, .prefs-close, .lib-header button, .lib-tools .select-btn, .menu button { min-width: 44px; min-height: 44px; }
+.progress input[type=range] { height: 44px; margin-block: -14px; }
