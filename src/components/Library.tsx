@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'reac
 import { getAllNotes, getFile, hideFromResume, isFinished, setRating, setWords, updateMeta, type Annotation, type BookMeta } from '../lib/db'
 import { searchNotes } from '../lib/noteSearch'
 import { backupDue } from '../lib/backupReminder'
+import { isNativeApp } from '../lib/updater'
 import { getStorageStatus, requestPersistence, type StorageStatus } from '../lib/storage'
 import { useToast } from '../hooks/useToast'
 import { useSelection } from '../hooks/useSelection'
@@ -168,7 +169,8 @@ export default function Library({ onOpen, startSettings, onSettingsClosed }: Pro
   // without persistent storage the browser may evict the library, so remind sooner
   const unprotected = storage ? !storage.persisted : false
   // read on every render: it is two localStorage reads, and the interval can change in the settings
-  const remind = !dismissed && backupDue(unprotected)
+  // the browser may evict the library; the Android app keeps it in its own storage, so the reminder is for the website only
+  const remind = !isNativeApp && !dismissed && backupDue(unprotected)
 
   const tags = useMemo(() => listTags(books), [books])
 
