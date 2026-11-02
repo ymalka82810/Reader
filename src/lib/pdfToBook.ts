@@ -2,6 +2,7 @@ import { t } from '../i18n'
 import type { PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import { buildLines, looksTabular, normalizeStreamOrder, rawItems, readingGroups, type Line } from './pdfLayout'
 import { laidLines, looksLaidLtr, mergeWrappedRows } from './pdfLaid'
+import { isPictorialPage, looksLikeComic, pageImageCoverage } from './pdfImages'
 import { detectHeadings, fixLine, isBlankPixels, isPoorPage, joinPages, stripRunningLines, toParagraphs, visualOrder } from './pdfText'
 
 const PAGES_PER_SECTION = 8
@@ -167,6 +168,8 @@ export async function extractPdf(
   let bookmarks: Map<number, string>
   let cover: Blob | null = null
   let hasTables = false
+  // per page: mostly a picture with little lettering (a comic page)
+  const pictorial: boolean[] = []
   const pageImages = new Map<number, Blob>()
   try {
     for (let i = 1; i <= total; i++) {
@@ -174,7 +177,9 @@ export async function extractPdf(
       const p = await pdf.getPage(i)
       const items = normalizeStreamOrder(await rawItems(p))
       if (looksTabular(items)) hasTables = true
-      pages.push(readingGroups(items).flatMap(buildLines))
+      const lines = readingGroups(items).flatMap(buildLines)
+      pages.push(lines)
+      pictorial.push(isPictorialPage(await pageImageCoverage(p, pdfjs.OPS).catch(() => 0), lines.map((l) => l.text).join('').replace(/\s/g, '').length))
       laid.push(laidLines(items))
       p.cleanup()
       onProgress?.(i, total)
@@ -186,8 +191,10 @@ export async function extractPdf(
     const charCount = (lines: Line[]) => lines.map((l) => l.text).join('').replace(/\s/g, '').length
     // a scan has no text layer (at least half the pages are images)
     const isScan = pages.filter((lines) => charCount(lines) < MIN_PAGE_CHARS).length >= total / 2
-    // tables and scans are shown from the original PDF: no text to convert or render page images for
-    if (hasTables || isScan) {
+    // a comic has pictures on every page and a few words in balloons: turned into text, only the balloons would remain
+    const isComic = looksLikeComic(pictorial)
+    // tables, scans and comics are shown from the original PDF: no text to convert or render page images for
+    if (hasTables || isScan || isComic) {
       return {
         title: info.Title || fileName.replace(/\.pdf$/i, ''),
         author: info.Author || '',

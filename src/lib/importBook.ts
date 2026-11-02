@@ -51,9 +51,10 @@ export const LARGE_PDF_BYTES = 20 * 1024 * 1024
 /**
  * Version of the PDF→EPUB conversion (lib/pdfToBook), stored on each converted book. Raise it whenever the conversion's text
  * gets better (2: words no longer glued together; 3: each table-of-contents entry on its own line; 4: Hebrew set left to right,
- * see lib/pdfLaid): adding the same PDF again then converts it afresh instead of refusing it.
+ * see lib/pdfLaid; 5: a comic is no longer turned into text, see lib/pdfImages): adding the same PDF again then converts it afresh
+ * instead of refusing it, and a comic that an older version wrecked becomes the PDF itself again.
  */
-export const PDF_CONVERSION = 4
+export const PDF_CONVERSION = 5
 /** a text file this big is a whole collection, not a book; converting it would freeze a phone and take hundreds of MB of memory */
 export const MAX_TXT_BYTES = 15 * 1024 * 1024
 
@@ -275,9 +276,21 @@ async function readIntoLibrary(
   if (reconvert && existing) {
     // the same book with a better text: everything the user set on it (name, folder, tags, cover…) stays
     book.destroy?.()
-    if (epub === file) throw new ImportError(ALREADY_EXISTS) // kept as the PDF itself (tables, a scan): nothing better to give
-    const { pdf: _legacy, cfi: _cfi, fraction: _fraction, lastOpened: _opened, ...meta } = existing
-    const rec: BookRecord = { ...meta, kind: 'epub', file: epub, fileName: epub.name, fromPdf: true, conv: PDF_CONVERSION, words, cover: existing.cover ?? cover }
+    // kept as the PDF itself (tables, a scan, a comic) and already stored that way: nothing better to give.
+    // Stored as a text conversion, though, it was wrecked by an older version (a comic reduced to its balloons): the PDF replaces it
+    const keptAsPdf = epub === file
+    if (keptAsPdf && /\.pdf$/i.test(existing.fileName)) throw new ImportError(ALREADY_EXISTS)
+    const { pdf: _legacy, cfi: _cfi, fraction: _fraction, lastOpened: _opened, conv: _conv, ...meta } = existing
+    const rec: BookRecord = {
+      ...meta,
+      kind: 'epub',
+      file: epub,
+      fileName: epub.name,
+      fromPdf: true,
+      ...(!keptAsPdf && { conv: PDF_CONVERSION }),
+      words,
+      cover: existing.cover ?? cover,
+    }
     await saveReconverted(rec)
     return rec
   }
