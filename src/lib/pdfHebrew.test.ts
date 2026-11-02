@@ -63,4 +63,10 @@ describe('converting real Hebrew PDFs', () => {
     const x = await convert('scan-only')
     expect(x.keepOriginal).toBe(true)
   })
+
+  it('keeps a comic (a picture on every page, a few words in it) as the original file', async () => {
+    const x = await convert('comic-pages')
+    expect(x.keepOriginal).toBe(true)
+    expect(x.chapters).toHaveLength(0)
+  })
 })
