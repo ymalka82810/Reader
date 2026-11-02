@@ -3,7 +3,7 @@ import type { PDFPageProxy } from 'pdfjs-dist/legacy/build/pdf.mjs'
 type Matrix = [number, number, number, number, number, number]
 
 /** a × b: `b` applied first, then `a` (the order PDF's `cm` operator uses) */
-export function multiply(m: Matrix, n: Matrix): Matrix {
+function multiply(m: Matrix, n: Matrix): Matrix {
   return [
     m[0] * n[0] + m[2] * n[1],
     m[1] * n[0] + m[3] * n[1],
